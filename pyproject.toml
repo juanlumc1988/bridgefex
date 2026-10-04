@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bridgefex"
+version = "0.1.0"
+description = "Generate a pure C API from C++ headers, plus ready-to-use bindings for other languages."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Juan Luis Montes Calvo" }]
+requires-python = ">=3.12"
+dependencies = [
+    # Python bindings for libclang. Their major version must match the
+    # libclang shared library that is loaded at runtime (see README).
+    "clang>=20.1,<20.2",
+    "Jinja2>=3.1,<4",
+]
+keywords = ["bindings", "ffi", "c", "cpp", "libclang", "code-generator"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: C",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Code Generators",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[project.scripts]
+bridgefex = "bridgefex.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/juanlumc1988/bridgefex"
+Issues = "https://github.com/juanlumc1988/bridgefex/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+bridgefex = ["templates/*.j2", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Golden files are generator output and are checked byte by byte.
+extend-exclude = ["tests/golden/*/expected"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PL", "PT"]
+ignore = [
+    "PLR0911",  # too many return statements
+    "PLR0912",  # too many branches
+    "PLR0913",  # too many arguments
+    "PLR2004",  # magic value comparison
+    "SIM905",   # word lists written as str.split() are easier to read
+]
+
+[tool.ruff.lint.per-file-ignores]
+# pytest fixtures are positional arguments.
+"tests/**" = ["PLR0917"]
+# Round-trip programs run without pytest.
+"tests/golden/**" = ["PT"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src/bridgefex"]
+
+[[tool.mypy.overrides]]
+# The libclang Python bindings ship without type information.
+module = ["clang", "clang.*"]
+ignore_missing_imports = true

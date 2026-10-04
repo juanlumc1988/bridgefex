@@ -1,0 +1,4 @@
+# Options passed to bridgefex for this case.
+module = "scalars"
+headers = ["numbers.h"]
+std = "c++17"
