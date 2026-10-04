@@ -11,14 +11,14 @@
 #endif
 
 /*
- * {{ P }}_API marks the exported functions. Define {{ P }}_STATIC when the C API
+ * {{ P }}_API marks the exported functions. Define {{ P }}_C_API_STATIC when the C API
  * is built or used as a static library. The generated sources define
- * {{ P }}_BUILD themselves.
+ * {{ P }}_C_API_BUILD themselves.
  */
-#if defined({{ P }}_STATIC)
+#if defined({{ P }}_C_API_STATIC)
 #  define {{ P }}_API
 #elif defined(_WIN32) || defined(__CYGWIN__)
-#  if defined({{ P }}_BUILD)
+#  if defined({{ P }}_C_API_BUILD)
 #    define {{ P }}_API __declspec(dllexport)
 #  else
 #    define {{ P }}_API __declspec(dllimport)

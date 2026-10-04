@@ -49,7 +49,7 @@ def describe_differences(expected: dict[str, bytes], actual: dict[str, bytes]) -
 
 
 def test_cases_exist() -> None:
-    assert {case.name for case in CASES} >= {"demo", "scalars"}
+    assert {case.name for case in CASES} >= {"demo", "edge", "scalars"}
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)

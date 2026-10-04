@@ -4,17 +4,8 @@
 
 #include "demo_runtime.h"
 
-/* Opaque handles. In C++ they are the wrapped classes themselves. */
-#ifdef __cplusplus
-namespace demo {
-namespace geometry {
-class Circle;
-}  /* namespace geometry */
-}  /* namespace demo */
-typedef ::demo::geometry::Circle demo_geometry_Circle;
-#else
+/* Opaque handles. */
 typedef struct demo_geometry_Circle demo_geometry_Circle;
-#endif
 
 #ifdef __cplusplus
 extern "C" {

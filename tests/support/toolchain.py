@@ -137,6 +137,88 @@ class Toolchain:
             ]
         return run(command, cwd=source.parent)
 
+    def compile_object(
+        self,
+        source: Path,
+        language: str,
+        standard: str,
+        include_dirs: Sequence[Path],
+        output: Path,
+    ) -> CommandResult:
+        """Compile ``source`` to an object file, with warnings as errors.
+
+        Unlike :meth:`syntax_check`, this runs the whole compiler, which is
+        needed for warnings that GCC only reports late (such as -Wunused-result).
+        """
+        includes = [f"-I{directory}" for directory in include_dirs]
+        if self.kind == "msvc":
+            mode = "/TC" if language == "c" else "/TP"
+            extra = [] if language == "c" else ["/EHsc", "/permissive-"]
+            command = [
+                self.cc,
+                "/nologo",
+                "/c",
+                mode,
+                self._std_flag(standard),
+                *_MSVC_WARNINGS,
+                *extra,
+                *includes,
+                str(source),
+                f"/Fo:{output}",
+            ]
+        else:
+            compiler = self.cc if language == "c" else self.cxx
+            command = [
+                compiler,
+                "-c",
+                "-x",
+                "c" if language == "c" else "c++",
+                self._std_flag(standard),
+                *_GNU_WARNINGS,
+                *includes,
+                str(source),
+                "-o",
+                str(output),
+            ]
+        return run(command, cwd=output.parent)
+
+    def build_cxx_executable(
+        self,
+        sources: Sequence[Path],
+        include_dirs: Sequence[Path],
+        output: Path,
+        cxx_standard: str,
+    ) -> CommandResult:
+        """Build a C++ program (with thread support) from ``sources``."""
+        includes = [f"-I{directory}" for directory in include_dirs]
+        if self.kind == "msvc":
+            command = [
+                self.cxx,
+                "/nologo",
+                "/EHsc",
+                "/permissive-",
+                self._std_flag(cxx_standard),
+                *_MSVC_WARNINGS,
+                *includes,
+                *(str(source) for source in sources),
+                f"/Fe:{output}",
+                f"/Fo:{output.parent}{os.sep}",
+                "/link",
+                "/NOLOGO",
+            ]
+        else:
+            command = [
+                self.cxx,
+                self._std_flag(cxx_standard),
+                *_GNU_WARNINGS,
+                "-pthread",
+                *includes,
+                *(str(source) for source in sources),
+                "-o",
+                str(output),
+            ]
+        return run(command, cwd=output.parent)
+
     def build_shared_library(
         self,
         sources: Sequence[Path],
@@ -214,6 +296,7 @@ class Toolchain:
                 self._std_flag(c_standard),
                 *_GNU_WARNINGS,
                 *includes,
+                "-pthread",
                 str(source),
                 "-o",
                 str(output),
@@ -236,12 +319,8 @@ class Toolchain:
             return None
         result = run(["nm", "-D", "--defined-only", str(library)])
         result.check()
-        symbols = set()
-        for line in result.output.splitlines():
-            parts = line.split()
-            if len(parts) == 3 and parts[1] in ("T", "t"):
-                symbols.add(parts[2])
-        return symbols
+        # Every defined dynamic symbol, whatever its kind (functions, data, weak...).
+        return {parts[2] for parts in map(str.split, result.output.splitlines()) if len(parts) == 3}
 
 
 def _parse_dumpbin_exports(text: str) -> set[str]:
@@ -269,7 +348,9 @@ def _resolve_standard(
     directory = Path(scratch)
     directory.mkdir(parents=True, exist_ok=True)
     probe = directory / ("probe.c" if language == "c" else "probe.cpp")
-    probe.write_text("int bridgefex_probe(void);\nint bridgefex_probe(void) { return 0; }\n")
+    probe.write_text(
+        "int bridgefex_probe(void);\nint bridgefex_probe(void) { return 0; }\n", encoding="utf-8"
+    )
     for candidate in (standard, _ALIASES.get(standard)):
         if candidate is None:
             continue

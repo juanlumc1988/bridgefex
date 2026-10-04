@@ -4,13 +4,8 @@
 
 #include "scalars_runtime.h"
 
-/* Opaque handles. In C++ they are the wrapped classes themselves. */
-#ifdef __cplusplus
-struct Accumulator;
-typedef ::Accumulator scalars_Accumulator;
-#else
+/* Opaque handles. */
 typedef struct scalars_Accumulator scalars_Accumulator;
-#endif
 
 #ifdef __cplusplus
 extern "C" {

@@ -142,3 +142,31 @@ def test_volatile_is_rejected() -> None:
 )
 def test_typedef_name(spelling: str, expected: str | None) -> None:
     assert typedef_name(spelling) == expected
+
+
+def test_user_alias_with_a_standard_name_is_rejected() -> None:
+    """A typedef named size_t that the user declared is not the standard size_t."""
+    with pytest.raises(UnsupportedTypeError, match="does not name the standard 'size_t'"):
+        resolve("TYPEDEF", "size_t", "ULONG", 8, user_alias=True)
+
+
+@pytest.mark.parametrize(
+    ("canonical", "accepted"),
+    [("LONG", True), ("LONGLONG", False)],
+)
+def test_standard_typedef_must_have_the_canonical_type_of_the_real_one(
+    canonical: str, accepted: bool
+) -> None:
+    # On Linux x86_64, int64_t is 'long'; an int64_t that is 'long long' is another type.
+    standard_kinds = {"int64_t": "LONG"}
+    if accepted:
+        scalar = resolve("TYPEDEF", "int64_t", canonical, 8, standard_kinds=standard_kinds)
+        assert scalar.c_name == "int64_t"
+    else:
+        with pytest.raises(UnsupportedTypeError, match="does not name the standard"):
+            resolve("TYPEDEF", "int64_t", canonical, 8, standard_kinds=standard_kinds)
+
+
+def test_standard_typedef_missing_from_the_translation_unit_is_rejected() -> None:
+    with pytest.raises(UnsupportedTypeError, match="does not name the standard"):
+        resolve("TYPEDEF", "int64_t", "LONG", 8, standard_kinds={})

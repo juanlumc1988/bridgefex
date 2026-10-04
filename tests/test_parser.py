@@ -18,7 +18,7 @@ PRELUDE = "#pragma once\n#include <cstddef>\n#include <cstdint>\n"
 
 def parse(tmp_path: Path, code: str, std: str = "c++17") -> Header:
     path = tmp_path / "input.h"
-    path.write_text(PRELUDE + code)
+    path.write_text(PRELUDE + code, encoding="utf-8")
     return parse_header(path, "input.h", ParseOptions(std=std)).header
 
 
@@ -128,7 +128,9 @@ def test_unnamed_parameters(tmp_path: Path) -> None:
 
 
 def test_includes_and_forward_declarations_are_ignored(tmp_path: Path) -> None:
-    (tmp_path / "other.h").write_text("#pragma once\nclass Other { public: int f(); };\n")
+    (tmp_path / "other.h").write_text(
+        "#pragma once\nclass Other { public: int f(); };\n", encoding="utf-8"
+    )
     header = parse(
         tmp_path,
         """

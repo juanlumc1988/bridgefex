@@ -54,6 +54,7 @@ bridgefex = ["templates/*.j2", "py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers"]
+empty_parameter_set_mark = "fail_at_collect"
 
 [tool.ruff]
 line-length = 100

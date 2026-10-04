@@ -3,29 +3,50 @@
 
 from __future__ import annotations
 
+import copy
 import ctypes
 import importlib.util
 import math
+import os
+import pickle
+import re
 import sys
+from collections.abc import Iterator
 from fractions import Fraction
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
-from tests.support.cases import GOLDEN_DIR
+from tests.support.cases import GOLDEN_DIR, all_cases
 
 RUNTIME = GOLDEN_DIR / "scalars" / "expected" / "python" / "scalars" / "_runtime.py"
 
 
 @pytest.fixture(scope="module")
-def runtime() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("bridgefex_test_runtime", RUNTIME)
+def runtime() -> Iterator[ModuleType]:
+    name = "bridgefex_test_runtime"
+    spec = importlib.util.spec_from_file_location(name, RUNTIME)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    # Registered so that pickle can find the Error class.
+    sys.modules[name] = module
     spec.loader.exec_module(module)
-    return module
+    yield module
+    del sys.modules[name]
+
+
+class FakeFunction:
+    """Stands for a ctypes function of the native library."""
+
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.argtypes: object = None
+        self.restype: object = None
+
+    def __call__(self) -> object:
+        return self.result
 
 
 @pytest.mark.parametrize(
@@ -109,3 +130,87 @@ def test_load_reports_a_missing_library(runtime: ModuleType, tmp_path: Path) -> 
     with pytest.raises(OSError, match="cannot load the scalars library"):
         runtime.load(missing)
     assert runtime._library is None
+
+
+def test_error_can_be_copied_and_pickled(runtime: ModuleType) -> None:
+    error = runtime.Error(runtime.ERROR_EXCEPTION, "boom")
+    for clone in (copy.copy(error), pickle.loads(pickle.dumps(error))):
+        assert type(clone) is runtime.Error
+        assert (clone.status, clone.message, str(clone)) == (1, "boom", "boom")
+
+
+def test_check_decodes_utf8_messages(runtime: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    class Library:
+        scalars_last_error = FakeFunction("caf\u00e9 \udcff".encode("utf-8", "surrogateescape"))
+
+    monkeypatch.setattr(runtime, "_library", Library())
+    with pytest.raises(runtime.Error) as raised:
+        runtime.check(runtime.ERROR_EXCEPTION)
+    # Valid UTF-8 is decoded; invalid bytes are replaced instead of failing.
+    assert raised.value.message == "caf\u00e9 \ufffd"
+
+
+def test_library_without_fingerprint_is_refused(runtime: ModuleType) -> None:
+    with pytest.raises(RuntimeError, match="does not match these bindings"):
+        runtime._check_fingerprint(object(), "libscalars.so")
+
+
+def test_library_with_another_fingerprint_is_refused(runtime: ModuleType) -> None:
+    class Library:
+        scalars_api_fingerprint = FakeFunction(b"0" * 32)
+
+    with pytest.raises(RuntimeError, match="does not match these bindings"):
+        runtime._check_fingerprint(Library(), "libscalars.so")
+
+
+def test_load_after_loading(
+    runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    loaded = object()
+    first = tmp_path / "a" / "libscalars.so"
+    monkeypatch.setattr(runtime, "_library", loaded)
+    monkeypatch.setattr(runtime, "_library_path", str(first))
+    assert runtime.load() is loaded
+    assert runtime.load(first) is loaded
+    assert runtime.load(tmp_path / "a" / ".." / "a" / "libscalars.so") is loaded
+    with pytest.raises(RuntimeError, match="already loaded"):
+        runtime.load(tmp_path / "b" / "libscalars.so")
+    # Found through the system search path: only the same bare name matches.
+    monkeypatch.setattr(runtime, "_library_path", "libscalars.so")
+    assert runtime.load("libscalars.so") is loaded
+    with pytest.raises(RuntimeError, match="already loaded"):
+        runtime.load(os.path.abspath("libscalars.so"))
+
+
+def test_empty_environment_variable_is_ignored(
+    runtime: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(runtime.LIBRARY_ENV_VAR, "")
+    monkeypatch.setattr(runtime, "_default_library_name", lambda: "libscalars-missing.so")
+    with pytest.raises(OSError, match=r"libscalars-missing\.so"):
+        runtime.load()
+    assert runtime._library is None
+
+
+@pytest.mark.parametrize("case", all_cases(), ids=lambda case: case.name)
+def test_status_codes_match_the_c_header(case: object) -> None:
+    """The C header and the Python runtime define the same status codes."""
+    module = case.module  # type: ignore[attr-defined]
+    expected = case.expected_dir  # type: ignore[attr-defined]
+    header = (expected / "c" / f"{module}_runtime.h").read_text(encoding="utf-8")
+    prefix = module.upper()
+    c_codes = {
+        name: int(value)
+        for name, value in re.findall(rf"#define {prefix}_(OK|ERROR_\w+) (\d+)", header)
+    }
+    spec = importlib.util.spec_from_file_location(
+        f"bridgefex_status_{module}", expected / "python" / module / "_runtime.py"
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    python_runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(python_runtime)
+    python_codes = {name: getattr(python_runtime, name) for name in c_codes}
+    assert c_codes == python_codes
+    assert len(c_codes) == 5
+    assert {value: name for name, value in c_codes.items()} == python_runtime._STATUS_NAMES

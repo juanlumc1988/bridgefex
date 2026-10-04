@@ -10,14 +10,14 @@
 #endif
 
 /*
- * DEMO_API marks the exported functions. Define DEMO_STATIC when the C API
+ * DEMO_API marks the exported functions. Define DEMO_C_API_STATIC when the C API
  * is built or used as a static library. The generated sources define
- * DEMO_BUILD themselves.
+ * DEMO_C_API_BUILD themselves.
  */
-#if defined(DEMO_STATIC)
+#if defined(DEMO_C_API_STATIC)
 #  define DEMO_API
 #elif defined(_WIN32) || defined(__CYGWIN__)
-#  if defined(DEMO_BUILD)
+#  if defined(DEMO_C_API_BUILD)
 #    define DEMO_API __declspec(dllexport)
 #  else
 #    define DEMO_API __declspec(dllimport)

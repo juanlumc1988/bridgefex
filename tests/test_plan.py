@@ -68,10 +68,10 @@ def test_class_functions_and_signatures() -> None:
     ]
     statements = [f.statement for f in item.c_functions]
     assert statements == [
-        "*out_self = new ::ns::Counter(start);",
-        "delete self;",
-        "*out_result = self->value();",
-        "*out_result = self->add(delta);",
+        "*out_self = reinterpret_cast<ns_Counter*>(new ::ns::Counter(start));",
+        "delete reinterpret_cast<::ns::Counter*>(self);",
+        "*out_result = reinterpret_cast<const ::ns::Counter*>(self)->value();",
+        "*out_result = reinterpret_cast<::ns::Counter*>(self)->add(delta);",
         "*out_result = ::ns::Counter::count();",
     ]
     create, destroy, value, _, count = item.c_functions
@@ -171,9 +171,21 @@ def test_python_member_name_clash_after_renaming() -> None:
         plan_for(header(model))
 
 
-def test_module_level_python_names_are_checked() -> None:
-    with pytest.raises(GenerationError, match="'ctypes' cannot be used"):
-        plan_for(header(function("ctypes")))
+def test_module_level_python_names_avoid_generated_globals() -> None:
+    plan = plan_for(
+        header(function("ctypes"), function("threading"), function("weakref"), klass("Box"))
+    )
+    assert plan.headers[0].py_exports == ("ctypes_", "threading_", "weakref_", "Box")
+
+
+def test_names_starting_with_underscore_give_reserved_c_names() -> None:
+    with pytest.raises(GenerationError, match=r"'a__bind'.*reserved identifier"):
+        plan_for(header(function("_bind", namespace=("a",))))
+
+
+def test_python_name_clash_after_renaming_is_reported() -> None:
+    with pytest.raises(GenerationError, match="Python name 'ctypes_'"):
+        plan_for(header(function("ctypes"), function("ctypes_")))
 
 
 def test_duplicate_header_names() -> None:

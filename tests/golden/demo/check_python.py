@@ -9,6 +9,7 @@ import copy
 import gc
 import math
 import pickle
+import threading
 
 import demo
 from demo import counter, geometry
@@ -59,8 +60,10 @@ def check_counter():
     expect(TypeError, second.add_int32, 1.5)
     expect(TypeError, second.add_int32, True)
     expect(TypeError, second.add_double, "1")
-    second.add_int32(2**31 - 1)
+    # Both limits pass; the order keeps the C++ value in range (no overflow).
     second.add_int32(-(2**31) + 1)
+    second.add_int32(2**31 - 1)
+    assert second.value() == 41
 
     # Lifetime: close() is idempotent, use after close is an error, and the
     # garbage collector destroys forgotten objects.
@@ -85,6 +88,48 @@ def check_counter():
     assert counter.multiply_int32_int32(-3, 2**30) == -3 * 2**30
 
 
+def check_errors_are_values():
+    try:
+        counter.Counter.create_void().setLimit(-1)
+    except demo.Error as error:
+        original = error
+    for clone in (copy.copy(original), pickle.loads(pickle.dumps(original))):
+        assert type(clone) is demo.Error
+        assert (clone.status, clone.message, str(clone)) == (
+            original.status,
+            original.message,
+            str(original),
+        )
+
+
+def check_threads():
+    """Each thread reads the message of its own last failure."""
+    failures = []
+
+    def worker(number):
+        circle = geometry.Circle(1.0)
+        for _ in range(200):
+            try:
+                if number % 2:
+                    circle.scale(-1.0)
+                else:
+                    counter.Counter.create_void().setLimit(-1)
+            except demo.Error as error:
+                expected = "positive" if number % 2 else "negative"
+                if expected not in str(error):
+                    failures.append(str(error))
+            else:
+                failures.append("no error raised")
+        circle.close()
+
+    threads = [threading.Thread(target=worker, args=(number,)) for number in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert not failures, failures[:3]
+
+
 def check_geometry():
     circle = geometry.Circle(2.0)
     assert circle.radius() == 2.0
@@ -107,6 +152,8 @@ def check_geometry():
 def main():
     assert demo.load() is demo.load()
     check_counter()
+    check_errors_are_values()
+    check_threads()
     check_geometry()
     print("demo: Python round trip OK")
 

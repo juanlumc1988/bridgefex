@@ -10,14 +10,14 @@
 #endif
 
 /*
- * SCALARS_API marks the exported functions. Define SCALARS_STATIC when the C API
+ * SCALARS_API marks the exported functions. Define SCALARS_C_API_STATIC when the C API
  * is built or used as a static library. The generated sources define
- * SCALARS_BUILD themselves.
+ * SCALARS_C_API_BUILD themselves.
  */
-#if defined(SCALARS_STATIC)
+#if defined(SCALARS_C_API_STATIC)
 #  define SCALARS_API
 #elif defined(_WIN32) || defined(__CYGWIN__)
-#  if defined(SCALARS_BUILD)
+#  if defined(SCALARS_C_API_BUILD)
 #    define SCALARS_API __declspec(dllexport)
 #  else
 #    define SCALARS_API __declspec(dllimport)

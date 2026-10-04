@@ -17,7 +17,7 @@ PRELUDE = "#pragma once\n#include <cstddef>\n#include <cstdint>\n#include <strin
 
 def errors_for(tmp_path: Path, code: str) -> list[str]:
     path = tmp_path / "input.h"
-    path.write_text(PRELUDE + code)
+    path.write_text(PRELUDE + code, encoding="utf-8")
     with pytest.raises(GenerationError) as raised:
         parse_header(path, "input.h", ParseOptions())
     return [str(diagnostic) for diagnostic in raised.value.diagnostics]
@@ -94,7 +94,8 @@ def test_all_problems_are_reported_at_once(tmp_path: Path) -> None:
         enum E { x };
         """,
     )
-    assert len(errors) == 4, errors
+    # char, the data member, the virtual method, the missing virtual destructor, the enum.
+    assert len(errors) == 5, errors
 
 
 def test_libclang_errors_abort_before_the_ast_is_used(tmp_path: Path) -> None:

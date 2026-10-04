@@ -80,11 +80,26 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"libclang shared library (default: ${libclang.ENV_VAR}, then the usual "
         "install locations)",
     )
+    parser.add_argument(
+        "--no-verify",
+        dest="verify",
+        action="store_false",
+        help="do not compile the generated C layer with libclang before writing it",
+    )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
 
+def _tolerant_output() -> None:
+    """Never fail on a message that the console encoding cannot represent."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="backslashreplace")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    _tolerant_output()
     args = build_parser().parse_args(argv)
     languages = () if args.lang == "none" else (args.lang,)
     options = api.Options(
@@ -95,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         clang_args=tuple(args.clang_args),
         include_root=args.include_root,
         languages=languages,
+        verify=args.verify,
     )
     try:
         libclang.load(args.libclang)

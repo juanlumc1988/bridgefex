@@ -116,6 +116,13 @@ class Header:
     declarations: tuple[Declaration, ...]
     """Classes and free functions, in source order."""
 
+    global_names: frozenset[str] = frozenset()
+    """Names declared at global scope in the translation unit, includes too.
+    Generated C names must not clash with them."""
+
+    macro_names: frozenset[str] = frozenset()
+    """Macros defined in the translation unit, includes and builtins too."""
+
     @property
     def stem(self) -> str:
         return self.path.stem

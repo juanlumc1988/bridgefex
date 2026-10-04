@@ -14,6 +14,7 @@ from .generator import LANGUAGES, render
 from .model import Header, Module
 from .parser import ParseOptions, parse_header
 from .plan import build_plan
+from .verify import verify
 
 _STANDARD = re.compile(r"(c|gnu)\+\+[0-9a-z]+")
 
@@ -36,6 +37,10 @@ class Options:
 
     languages: tuple[str, ...] = LANGUAGES
 
+    verify: bool = True
+    """Compile the generated C layer with libclang before returning it (see
+    :mod:`bridgefex.verify`)."""
+
 
 @dataclass(frozen=True, slots=True)
 class Result:
@@ -43,7 +48,8 @@ class Result:
     """Generated files: relative POSIX path -> content."""
 
     warnings: tuple[Diagnostic, ...]
-    """Warnings reported by libclang while parsing."""
+    """Warnings reported by libclang while parsing, and warnings that the
+    generated code triggers."""
 
 
 def include_spelling(header: Path, include_root: Path | None) -> str:
@@ -57,7 +63,12 @@ def include_spelling(header: Path, include_root: Path | None) -> str:
             raise ConfigurationError(
                 f"header {header} is not inside the include root {include_root}"
             ) from None
-    if any(character in spelling for character in '"\\\n'):
+    # The spelling goes into an #include line and into a /* */ comment.
+    unsafe = any(
+        character in '"\\' or ord(character) < 0x20 or ord(character) == 0x7F
+        for character in spelling
+    )
+    if unsafe or "*/" in spelling:
         raise ConfigurationError(f"cannot write an #include for {header}")
     return spelling
 
@@ -91,7 +102,11 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
     parsed: list[Header] = []
     warnings: list[Diagnostic] = []
     problems: list[Diagnostic] = []
+    include_dirs: dict[str, Path] = {}
     for header in headers:
+        include_dirs[header.stem] = (
+            options.include_root if options.include_root is not None else header.parent
+        ).resolve()
         try:
             result = parse_header(
                 header, include_spelling(header, options.include_root), parse_options
@@ -105,4 +120,7 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
         raise GenerationError(problems)
 
     plan = build_plan(Module(name=options.module, headers=tuple(parsed)))
-    return Result(files=render(plan, options.languages), warnings=tuple(warnings))
+    files = render(plan, options.languages)
+    if options.verify:
+        warnings.extend(verify(plan, files, include_dirs, parse_options))
+    return Result(files=files, warnings=tuple(warnings))

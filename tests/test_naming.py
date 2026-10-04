@@ -91,3 +91,60 @@ def test_is_identifier() -> None:
     assert naming.is_identifier("abc_1")
     assert not naming.is_identifier("1abc")
     assert not naming.is_identifier("café")
+
+
+@pytest.mark.parametrize("name", ["car_", "a__b", "x_"])
+def test_module_names_that_would_make_reserved_identifiers(name: str) -> None:
+    with pytest.raises(ConfigurationError, match="single '_'"):
+        naming.check_module_name(name)
+
+
+@pytest.mark.parametrize("stem", sorted(naming.PACKAGE_NAMES))
+def test_header_stems_that_replace_package_names(stem: str) -> None:
+    with pytest.raises(ConfigurationError, match="would replace"):
+        naming.check_header_stem(stem)
+
+
+def test_generated_macros() -> None:
+    macros = naming.generated_macros("demo")
+    assert {"DEMO_API", "DEMO_C_API_BUILD", "DEMO_C_API_STATIC", "DEMO_OK"} <= macros
+    assert "DEMO_RUNTIME_H" in macros
+    assert naming.header_guard("demo", "counter") == "DEMO_COUNTER_C_H"
+
+
+@pytest.mark.parametrize(
+    ("name", "problem"),
+    [
+        ("co_yield", "keyword"),
+        ("thread_local", "keyword"),
+        ("impl__Engine", "reserved"),
+        ("_Upper", "reserved"),
+        ("demo_Counter", None),
+        ("_lower", None),
+    ],
+)
+def test_c_identifier_problem(name: str, problem: str | None) -> None:
+    result = naming.c_identifier_problem(name)
+    if problem is None:
+        assert result is None
+    else:
+        assert result is not None
+        assert problem in result
+
+
+def test_reserved_parameter_names_include_types_and_platform_macros() -> None:
+    assert naming.parameter_names(["int32_t", "size_t", "unix", "linux", "pascal"]) == (
+        "int32_t_",
+        "size_t_",
+        "unix_",
+        "linux_",
+        "pascal_",
+    )
+
+
+def test_module_level_names() -> None:
+    assert naming.module_level_name("ctypes") == "ctypes_"
+    assert naming.module_level_name("threading") == "threading_"
+    assert naming.module_level_name("lambda") == "lambda_"
+    assert naming.module_level_name("Box", reserved={"Box"}) == "Box_"
+    assert naming.module_level_name("getattr") == "getattr"

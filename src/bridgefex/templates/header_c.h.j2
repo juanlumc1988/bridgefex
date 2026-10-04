@@ -6,23 +6,10 @@
 #include "{{ m.runtime_header }}"
 {% if h.classes %}
 
-/* Opaque handles. In C++ they are the wrapped classes themselves. */
-#ifdef __cplusplus
-{% for c in h.classes %}
-{% for ns in c.model.namespace %}
-namespace {{ ns }} {
-{% endfor %}
-{{ c.model.class_key }} {{ c.model.name }};
-{% for ns in c.model.namespace | reverse %}
-}  /* namespace {{ ns }} */
-{% endfor %}
-typedef {{ c.cpp_name }} {{ c.c_type }};
-{% endfor %}
-#else
+/* Opaque handles. */
 {% for c in h.classes %}
 typedef struct {{ c.c_type }} {{ c.c_type }};
 {% endfor %}
-#endif
 {% endif %}
 
 #ifdef __cplusplus

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -18,7 +20,11 @@ COUNTER = GOLDEN_DIR / "demo" / "input" / "counter.h"
 GEOMETRY = GOLDEN_DIR / "demo" / "input" / "geometry.h"
 
 
-def test_generates_the_golden_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_generates_the_golden_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], update_goldens: bool
+) -> None:
+    if update_goldens:
+        pytest.skip("the golden files are being rewritten by test_golden.py")
     assert main(["-m", "demo", "-o", str(tmp_path), str(COUNTER), str(GEOMETRY)]) == 0
     assert read_tree(tmp_path) == read_tree(GOLDEN_DIR / "demo" / "expected")
     assert "wrote 11 files" in capsys.readouterr().out
@@ -39,16 +45,16 @@ def test_include_root(tmp_path: Path) -> None:
     root = tmp_path / "include"
     (root / "lib").mkdir(parents=True)
     header = root / "lib" / "api.h"
-    header.write_text("#pragma once\nnamespace lib { int answer(); }\n")
+    header.write_text("#pragma once\nnamespace lib { int answer(); }\n", encoding="utf-8")
     output = tmp_path / "out"
     assert main(["-m", "mylib", "-o", str(output), "--include-root", str(root), str(header)]) == 0
-    source = (output / "c" / "api_c.cpp").read_text()
+    source = (output / "c" / "api_c.cpp").read_text(encoding="utf-8")
     assert '#include "lib/api.h"' in source
 
 
 def test_unsupported_input_is_an_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     header = tmp_path / "bad.h"
-    header.write_text("#pragma once\nvoid f(char c);\nvoid g(int* p);\n")
+    header.write_text("#pragma once\nvoid f(char c);\nvoid g(int* p);\n", encoding="utf-8")
     output = tmp_path / "out"
     assert main(["-m", "bad", "-o", str(output), str(header)]) == 1
     errors = capsys.readouterr().err.splitlines()
@@ -66,8 +72,8 @@ def test_errors_of_several_headers_are_all_reported(
 ) -> None:
     first = tmp_path / "first.h"
     second = tmp_path / "second.h"
-    first.write_text("void f(char c);\n")
-    second.write_text("void g(wchar_t c);\n")
+    first.write_text("void f(char c);\n", encoding="utf-8")
+    second.write_text("void g(wchar_t c);\n", encoding="utf-8")
     assert main(["-m", "bad", "-o", str(tmp_path / "out"), str(first), str(second)]) == 1
     errors = capsys.readouterr().err
     assert "first.h" in errors
@@ -76,12 +82,13 @@ def test_errors_of_several_headers_are_all_reported(
 
 def test_parse_options_are_passed_to_libclang(tmp_path: Path) -> None:
     (tmp_path / "dep").mkdir()
-    (tmp_path / "dep" / "dep.h").write_text("#pragma once\n#define DEP_OK 1\n")
+    (tmp_path / "dep" / "dep.h").write_text("#pragma once\n#define DEP_OK 1\n", encoding="utf-8")
     header = tmp_path / "api.h"
     header.write_text(
         '#include "dep.h"\n'
         "#if !DEP_OK || !defined(EXTRA) || EXTRA != 3\n#error options missing\n#endif\n"
-        "int answer();\n"
+        "int answer();\n",
+        encoding="utf-8",
     )
     output = tmp_path / "out"
     arguments = ["-m", "api", "-o", str(output), "-I", str(tmp_path / "dep"), "-D", "EXTRA=3"]
@@ -95,7 +102,6 @@ def test_parse_options_are_passed_to_libclang(tmp_path: Path) -> None:
         (["-m", "json"], "standard library"),
         (["-m", "ok", "--std", "c17"], "invalid C++ standard"),
         (["-m", "ok", "--include-root", "/nonexistent/root"], "not inside the include root"),
-        (["-m", "ok", "--libclang", "/nonexistent/libclang.so"], "libclang"),
     ],
 )
 def test_invalid_options(
@@ -112,7 +118,7 @@ def test_missing_header(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> N
 
 def test_warnings_are_reported(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     header = tmp_path / "api.h"
-    header.write_text("#warning careful\nint answer();\n")
+    header.write_text("#warning careful\nint answer();\n", encoding="utf-8")
     assert main(["-m", "api", "-o", str(tmp_path / "out"), str(header)]) == 0
     assert "bridgefex: warning:" in capsys.readouterr().err
 
@@ -128,3 +134,22 @@ def test_version_matches_pyproject() -> None:
     pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
     with pyproject.open("rb") as file:
         assert tomllib.load(file)["project"]["version"] == bridgefex.__version__
+
+
+def test_missing_libclang_in_a_fresh_process(tmp_path: Path) -> None:
+    """In this process libclang is already loaded, so the check runs in a new one."""
+    command = [
+        sys.executable,
+        "-m",
+        "bridgefex",
+        "-m",
+        "ok",
+        "-o",
+        str(tmp_path),
+        "--libclang",
+        str(tmp_path / "nonexistent" / "libclang.so"),
+        str(COUNTER),
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode == 1
+    assert "bridgefex: error: libclang not found at" in completed.stderr

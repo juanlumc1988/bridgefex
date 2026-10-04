@@ -55,6 +55,10 @@ def expected_exports(case: Case) -> set[str]:
     return names
 
 
+def test_round_trip_cases_exist() -> None:
+    assert {case.name for case in CASES} >= {"demo", "edge", "scalars"}
+
+
 @pytest.fixture(scope="module", params=CASES, ids=lambda case: case.name)
 def built(
     request: pytest.FixtureRequest,
@@ -128,10 +132,10 @@ def test_stale_library_is_refused(built: tuple[Case, Path, Path], tmp_path: Path
     stale = tmp_path / "python" / case.module
     stale.mkdir(parents=True)
     for source in runtime.parent.glob("*.py"):
-        text = source.read_text()
+        text = source.read_text(encoding="utf-8")
         if source.name == "_runtime.py":
             text = text.replace('API_FINGERPRINT = "', 'API_FINGERPRINT = "0')
-        (stale / source.name).write_text(text)
+        (stale / source.name).write_text(text, encoding="utf-8")
     environment = {
         **os.environ,
         "PYTHONPATH": str(tmp_path / "python"),
@@ -162,9 +166,52 @@ def test_c_round_trip(
     assert "round trip OK" in completed.stdout
 
 
+# Symbols that the linker defines in every shared library.
+_LINKER_SYMBOLS = frozenset({"_init", "_fini", "_edata", "_end", "__bss_start"})
+
+
 def test_only_the_c_api_is_exported(built: tuple[Case, Path, Path], toolchain: Toolchain) -> None:
     case, library, _ = built
     exported = toolchain.exported_symbols(library)
     if exported is None:
         pytest.skip("no tool to list exported symbols on this platform")
-    assert exported == expected_exports(case)
+    # C++ symbols (mangled, '_Z...') can come from the test's own C++ code,
+    # for example inline functions of the standard library.
+    c_symbols = {name for name in exported if not name.startswith("_Z")} - _LINKER_SYMBOLS
+    assert c_symbols == expected_exports(case)
+    detail = f"{case.module}_detail"
+    assert not [name for name in exported if f"{len(detail)}{detail}" in name]
+
+
+def test_close_works_during_interpreter_shutdown(toolchain: Toolchain, tmp_path: Path) -> None:
+    """An object closed by an atexit handler is really destroyed."""
+    case = next(case for case in CASES if case.name == "demo")
+    library, output = build(case, toolchain, tmp_path)
+    code = """
+import atexit
+from demo import counter
+
+def at_exit():
+    late = counter.Counter.create_int32(1)
+    late.close()
+    print("live at exit:", counter.Counter.liveInstances())
+
+atexit.register(at_exit)
+# Created after the handler: its exit hooks run before at_exit.
+early = counter.Counter.create_void()
+early.close()
+"""
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DEMO_LIBRARY": str(library),
+    }
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "live at exit: 0"

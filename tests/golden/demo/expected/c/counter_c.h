@@ -4,15 +4,8 @@
 
 #include "demo_runtime.h"
 
-/* Opaque handles. In C++ they are the wrapped classes themselves. */
-#ifdef __cplusplus
-namespace demo {
-class Counter;
-}  /* namespace demo */
-typedef ::demo::Counter demo_Counter;
-#else
+/* Opaque handles. */
 typedef struct demo_Counter demo_Counter;
-#endif
 
 #ifdef __cplusplus
 extern "C" {

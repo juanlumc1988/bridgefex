@@ -49,10 +49,26 @@ class Error(Exception):
     def status_name(self):
         return _STATUS_NAMES.get(self.status, f"UNKNOWN_STATUS_{self.status}")
 
+    def __reduce__(self):
+        # Errors can then be pickled, e.g. to come back from a worker process.
+        return (type(self), (self.status, self.message))
+
 
 _lock = threading.Lock()
 _library = None
 _library_path = None
+"""Absolute path of the loaded library, or its bare file name when the system
+search path was used."""
+
+
+def _has_directory(path):
+    return os.sep in path or (os.altsep is not None and os.altsep in path)
+
+
+def _is_loaded_from(path):
+    if _has_directory(path) and _has_directory(_library_path):
+        return os.path.realpath(path) == os.path.realpath(_library_path)
+    return path == _library_path
 
 
 def _default_library_name():
@@ -75,19 +91,19 @@ def load(path=None):
     """
     global _library, _library_path
     with _lock:
+        path = os.fspath(path) if path is not None else None
         if _library is not None:
-            if path is not None and os.path.realpath(path) != os.path.realpath(_library_path):
+            if path and not _is_loaded_from(path):
                 raise RuntimeError(
                     f"the scalars library is already loaded from {_library_path!r}"
                 )
             return _library
-        if path is None:
-            path = os.environ.get(LIBRARY_ENV_VAR)
+        if not path:
+            path = os.environ.get(LIBRARY_ENV_VAR) or None
         if path is None:
             name = _default_library_name()
             bundled = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
             path = bundled if os.path.isfile(bundled) else name
-        path = os.fspath(path)
         try:
             library = ctypes.CDLL(path)
         except OSError as error:
@@ -99,7 +115,7 @@ def load(path=None):
         library.scalars_last_error.argtypes = []
         library.scalars_last_error.restype = ctypes.c_char_p
         _library = library
-        _library_path = path
+        _library_path = os.path.abspath(path) if _has_directory(path) else path
         return library
 
 

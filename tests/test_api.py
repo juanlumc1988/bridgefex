@@ -102,3 +102,33 @@ def test_default_candidates_are_absolute() -> None:
     candidates = libclang.default_candidates()
     assert candidates
     assert all(path.is_absolute() for path in candidates)
+
+
+@pytest.fixture
+def fresh_libclang_state(libclang_loaded: str, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A libclang module that has loaded nothing yet; the real state comes back afterwards."""
+    loaded = libclang._state.path
+    assert loaded is not None
+    monkeypatch.setattr(libclang, "_state", libclang._State())
+    return loaded
+
+
+def test_unsupported_libclang_version_is_refused(
+    fresh_libclang_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(libclang, "_query_version", lambda library: "clang version 19.1.7")
+    with pytest.raises(LibclangError, match="needs libclang 20"):
+        libclang.load(fresh_libclang_state)
+
+
+def test_bindings_of_another_version_are_refused(
+    fresh_libclang_state: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(libclang, "_bindings_major_version", lambda: 19)
+    with pytest.raises(LibclangError, match="bindings are version 19"):
+        libclang.load(fresh_libclang_state)
+
+
+def test_missing_library_is_reported(fresh_libclang_state: Path, tmp_path: Path) -> None:
+    with pytest.raises(LibclangError, match="libclang not found at"):
+        libclang.load(tmp_path / "libclang.so")

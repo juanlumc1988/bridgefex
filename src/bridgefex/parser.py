@@ -117,6 +117,64 @@ def _location(source_location: cindex.SourceLocation) -> Location | None:
     return Location(str(file.name), int(source_location.line), int(source_location.column))
 
 
+@dataclass(frozen=True, slots=True)
+class _Context:
+    global_names: frozenset[str]
+    macro_names: frozenset[str]
+    standard_kinds: dict[str, str]
+    """Canonical type kind of each standard typedef (int32_t...) declared at global
+    scope by a system header, e.g. {"int64_t": "LONG"} on Linux x86_64."""
+
+
+_GLOBAL_NAME_KINDS = frozenset(
+    {
+        CursorKind.FUNCTION_DECL,
+        CursorKind.VAR_DECL,
+        CursorKind.CLASS_DECL,
+        CursorKind.STRUCT_DECL,
+        CursorKind.UNION_DECL,
+        CursorKind.ENUM_DECL,
+        CursorKind.TYPEDEF_DECL,
+        CursorKind.TYPE_ALIAS_DECL,
+        CursorKind.NAMESPACE,
+        CursorKind.NAMESPACE_ALIAS,
+        CursorKind.CLASS_TEMPLATE,
+        CursorKind.FUNCTION_TEMPLATE,
+    }
+)
+
+
+def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
+    """Names visible at global scope, macros and the standard typedefs of a translation unit."""
+    global_names: set[str] = set()
+    macro_names: set[str] = set()
+    standard_kinds: dict[str, str] = {}
+    pending = list(unit_cursor.get_children())
+    while pending:
+        cursor = pending.pop()
+        try:
+            kind = cursor.kind
+        except ValueError:
+            continue  # unknown to the bindings; cannot be one of the kinds below
+        name = str(cursor.spelling)
+        if kind == CursorKind.MACRO_DEFINITION:
+            macro_names.add(name)
+        elif kind == CursorKind.LINKAGE_SPEC:
+            pending.extend(cursor.get_children())
+        elif kind in _GLOBAL_NAME_KINDS and name:
+            global_names.add(name)
+            if kind == CursorKind.ENUM_DECL and not cursor.is_scoped_enum():
+                global_names.update(str(child.spelling) for child in cursor.get_children())
+            if (
+                kind == CursorKind.TYPEDEF_DECL
+                and name in typemap.STANDARD_TYPEDEFS
+                and cursor.location.is_in_system_header
+            ):
+                canonical = cursor.underlying_typedef_type.get_canonical()
+                standard_kinds.setdefault(name, canonical.kind.name)
+    return _Context(frozenset(global_names), frozenset(macro_names), standard_kinds)
+
+
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:
     location = diagnostic.location
     if location is None:
@@ -141,7 +199,11 @@ def parse_header(path: Path, include: str, options: ParseOptions) -> ParseResult
         unit = index.parse(
             str(path),
             args=options.clang_args(),
-            options=cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES,
+            options=(
+                cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+                # Macro definitions are needed to check generated names against them.
+                | cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+            ),
         )
     except cindex.TranslationUnitLoadError as error:
         arguments = " ".join(options.clang_args())
@@ -167,16 +229,24 @@ def parse_header(path: Path, include: str, options: ParseOptions) -> ParseResult
     if errors:
         raise GenerationError(sorted(errors, key=_diagnostic_order))
 
-    visitor = _Visitor(path)
+    context = _collect_context(unit.cursor)
+    visitor = _Visitor(path, context.standard_kinds)
     visitor.visit_scope(unit.cursor)
     if visitor.errors:
         raise GenerationError(visitor.errors)
-    header = Header(path=path, include=include, declarations=tuple(visitor.declarations))
+    header = Header(
+        path=path,
+        include=include,
+        declarations=tuple(visitor.declarations),
+        global_names=context.global_names,
+        macro_names=context.macro_names,
+    )
     return ParseResult(header=header, warnings=tuple(sorted(warnings, key=_diagnostic_order)))
 
 
 class _Visitor:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, standard_kinds: dict[str, str]) -> None:
+        self._standard_kinds = standard_kinds
         self._target = _path_key(str(path))
         self._in_target_cache: dict[str, bool] = {}
         self._seen: set[str] = set()
@@ -254,6 +324,16 @@ class _Visitor:
                 clang_type = pointee
                 spelling = str(clang_type.spelling)
                 allow_void = False
+            user_alias = False
+            if clang_type.kind == TypeKind.ELABORATED:
+                # The named type is spelled with its real qualification
+                # ('emb::size_t'), whatever the source wrote ('size_t').
+                named = str(clang_type.get_named_type().spelling)
+                const = "const " if clang_type.is_const_qualified() else ""
+                spelling = named if named.startswith("const ") else const + named
+            declaration = clang_type.get_declaration()
+            if declaration.kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
+                user_alias = not declaration.location.is_in_system_header
             return typemap.resolve(
                 kind=clang_type.kind.name,
                 spelling=spelling,
@@ -261,6 +341,8 @@ class _Visitor:
                 size=int(clang_type.get_size()),
                 is_volatile=bool(clang_type.is_volatile_qualified()),
                 allow_void=allow_void,
+                user_alias=user_alias,
+                standard_kinds=self._standard_kinds,
             )
         except typemap.UnsupportedTypeError as error:
             self._error(cursor, f"{context}: {error}")
@@ -269,7 +351,8 @@ class _Visitor:
         return None
 
     def _parameters(self, cursor: cindex.Cursor, where: str) -> tuple[Parameter, ...] | None:
-        if cursor.type.is_function_variadic():
+        function_type = cursor.type.get_canonical()
+        if function_type.kind == TypeKind.FUNCTIONPROTO and function_type.is_function_variadic():
             self._error(cursor, f"{where}: variadic functions are not supported")
             return None
         parameters: list[Parameter] = []
@@ -298,7 +381,18 @@ class _Visitor:
             except ValueError:
                 self._error(cursor, "declaration of a kind unknown to the libclang bindings")
                 continue
-            self._visit(cursor, kind)
+            if kind.is_preprocessing():
+                continue  # macro definitions, expansions and #include directives
+            try:
+                self._visit(cursor, kind)
+            except (AssertionError, ValueError) as error:
+                # A construct the libclang bindings cannot describe: report it
+                # instead of guessing.
+                self._error(
+                    cursor,
+                    f"cannot read the declaration of '{cursor.spelling}' "
+                    f"({type(error).__name__}: {error}); it is not supported",
+                )
 
     def _visit(self, cursor: cindex.Cursor, kind: CursorKind) -> None:
         if kind == CursorKind.NAMESPACE:
@@ -405,14 +499,24 @@ class _Visitor:
         constructors: list[Constructor] = []
         methods: list[Method] = []
         declares_constructor = False
+        has_virtual_method = False
+        virtual_destructor = False
+        is_final = False
         for member in cursor.get_children():
             try:
                 member_kind = member.kind
             except ValueError:
                 self._error(member, f"member of '{qualified}' of a kind unknown to the bindings")
                 continue
+            if member_kind == CursorKind.CXX_FINAL_ATTR:
+                is_final = True
+                continue
             if member_kind.is_attribute() or member_kind in _IGNORED_MEMBER_KINDS:
                 continue
+            if member_kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
+                # A constructor template, whatever its access, suppresses the
+                # implicit default constructor.
+                declares_constructor = True
             access = member.access_specifier
             public = access == AccessSpecifier.PUBLIC
             if member_kind == CursorKind.CXX_BASE_SPECIFIER:
@@ -433,6 +537,7 @@ class _Visitor:
                     if constructor is not None:
                         constructors.append(constructor)
             elif member_kind == CursorKind.DESTRUCTOR:
+                virtual_destructor = bool(member.is_virtual_method())
                 if not public or self._unavailable(member):
                     self._error(
                         member,
@@ -440,12 +545,21 @@ class _Visitor:
                         "bridgefex needs one to destroy objects",
                     )
             elif member_kind == CursorKind.CXX_METHOD:
+                has_virtual_method = has_virtual_method or bool(member.is_virtual_method())
                 if public and not self._unavailable(member):
                     method = self._parse_method(member, qualified)
                     if method is not None:
                         methods.append(method)
             elif access not in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
                 self._reject_member(member, member_kind, qualified)
+        if has_virtual_method and not virtual_destructor and not is_final:
+            # 'delete' through the C API would then be flagged by
+            # -Wdelete-non-virtual-dtor.
+            self._error(
+                cursor,
+                f"class '{qualified}' has virtual methods but no virtual destructor and is "
+                "not final; this is not supported",
+            )
         return constructors, methods, declares_constructor
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
@@ -485,7 +599,7 @@ class _Visitor:
         if cursor.is_virtual_method():
             self._error(cursor, f"virtual method {where} is not supported yet")
             return None
-        if cursor.type.get_ref_qualifier() != RefQualifierKind.NONE:
+        if cursor.type.get_canonical().get_ref_qualifier() != RefQualifierKind.NONE:
             self._error(cursor, f"ref-qualified method {where} is not supported")
             return None
         parameters = self._parameters(cursor, where)

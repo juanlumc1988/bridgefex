@@ -60,7 +60,7 @@ def consumer_source(case: Case, directory: Path, extension: str) -> Path:
     source = directory / f"consumer_{case.name}.{extension}"
     lines = [f'#include "{header}"' for header in headers]
     lines += ["int bridgefex_consumer(void);", "int bridgefex_consumer(void) { return 0; }"]
-    source.write_text("\n".join(lines) + "\n")
+    source.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return source
 
 

@@ -8,6 +8,9 @@
 
 #include <exception>
 #include <new>
+#if defined(__GLIBCXX__)
+#include <cxxabi.h>
+#endif
 
 namespace scalars_detail {
 
@@ -21,13 +24,19 @@ inline scalars_status null_argument(const char* message) noexcept
 }
 
 // Runs function and turns any exception into a status code, so that no
-// exception crosses the C boundary.
+// exception crosses the C boundary. The only exception let through is glibc's
+// thread cancellation (pthread_cancel, pthread_exit), which must unwind its
+// thread; swallowing it would abort the process.
 template <typename Function>
-scalars_status guard(const Function& function) noexcept
+scalars_status guard(const Function& function)
 {
     try {
         function();
         return SCALARS_OK;
+#if defined(__GLIBCXX__)
+    } catch (abi::__forced_unwind&) {
+        throw;
+#endif
     } catch (const std::bad_alloc& error) {
         set_last_error(error.what());
         return SCALARS_ERROR_OUT_OF_MEMORY;
@@ -37,6 +46,21 @@ scalars_status guard(const Function& function) noexcept
     } catch (...) {
         set_last_error("unknown C++ exception");
         return SCALARS_ERROR_UNKNOWN_EXCEPTION;
+    }
+}
+
+// Runs function and ignores any exception (except a thread cancellation), for
+// functions that cannot report errors.
+template <typename Function>
+void guard_silently(const Function& function)
+{
+    try {
+        function();
+#if defined(__GLIBCXX__)
+    } catch (abi::__forced_unwind&) {
+        throw;
+#endif
+    } catch (...) {
     }
 }
 

@@ -8,6 +8,7 @@ instead of libclang objects so that they can be tested without libclang.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from .model import ScalarType, TypeCategory
@@ -134,10 +135,17 @@ def resolve(
     *,
     is_volatile: bool = False,
     allow_void: bool = False,
+    user_alias: bool = False,
+    standard_kinds: Mapping[str, str] | None = None,
 ) -> ScalarType:
     """Map a C++ type, described by libclang properties, to a scalar type.
 
     Top-level ``const`` is ignored: the value is copied across the boundary.
+
+    A type spelled like a standard typedef (``int64_t``, ``size_t``...) is only
+    accepted if it is not a ``user_alias`` (a typedef declared outside the
+    system headers) and, when ``standard_kinds`` is given, if its canonical
+    kind is the one of the real typedef in the same translation unit.
 
     Raises:
         UnsupportedTypeError: with a message that explains why.
@@ -158,7 +166,8 @@ def resolve(
         name = typedef_name(spelling)
         if name is not None and name in STANDARD_TYPEDEFS:
             standard = STANDARD_TYPEDEFS[name]
-            if standard.matches(canonical_kind, size):
+            same_as_standard = standard_kinds is None or standard_kinds.get(name) == canonical_kind
+            if not user_alias and same_as_standard and standard.matches(canonical_kind, size):
                 return standard.type
             raise UnsupportedTypeError(
                 f"'{spelling}' does not name the standard '{name}' type of <cstdint>/<cstddef>"
