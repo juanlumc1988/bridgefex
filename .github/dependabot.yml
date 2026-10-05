@@ -8,3 +8,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # The Python bindings must match the libclang that is installed (20): a
+      # new version is a deliberate change of the CI, the session hook and the
+      # README, not a requirement bump.
+      - dependency-name: clang
