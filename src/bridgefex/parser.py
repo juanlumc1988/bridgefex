@@ -411,12 +411,20 @@ class _Visitor:
                 named = str(clang_type.get_named_type().spelling)
                 const = "const " if clang_type.is_const_qualified() else ""
                 spelling = named if named.startswith("const ") else const + named
+            standard_kinds = self._standard_kinds
             declaration = clang_type.get_declaration()
             if declaration.kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
                 # The first declaration decides: redeclaring a standard typedef
                 # with the same type ('typedef int int32_t;' after <cstdint>) is
                 # valid and still names the standard type.
-                user_alias = not declaration.canonical.location.is_in_system_header
+                first = declaration.canonical
+                if first.location.file is None:
+                    # Declared by the compiler itself, as size_t is for the
+                    # MSVC target: it is the standard type.
+                    canonical = first.underlying_typedef_type.get_canonical()
+                    standard_kinds = {**standard_kinds, str(first.spelling): canonical.kind.name}
+                else:
+                    user_alias = not first.location.is_in_system_header
             return typemap.resolve(
                 kind=clang_type.kind.name,
                 spelling=spelling,
@@ -425,7 +433,7 @@ class _Visitor:
                 is_volatile=bool(clang_type.is_volatile_qualified()),
                 allow_void=allow_void,
                 user_alias=user_alias,
-                standard_kinds=self._standard_kinds,
+                standard_kinds=standard_kinds,
             )
         except typemap.UnsupportedTypeError as error:
             self._error(cursor, f"{context}: {error}")

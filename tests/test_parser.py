@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bridgefex.errors import ConfigurationError
+from bridgefex.errors import ConfigurationError, GenerationError
 from bridgefex.model import Class, Function, Header
 from bridgefex.parser import ParseOptions, parse_header
 
@@ -204,3 +204,42 @@ def test_cxx23_header(tmp_path: Path) -> None:
 def test_missing_header(tmp_path: Path) -> None:
     with pytest.raises(ConfigurationError, match="not found"):
         parse_header(tmp_path / "nope.h", "nope.h", ParseOptions())
+
+
+# The MSVC target, whatever the host: there the compiler itself declares size_t.
+_MSVC_TARGET = ("--target=x86_64-pc-windows-msvc", "-fms-compatibility", "-fms-extensions")
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        # No include at all: size_t is predeclared.
+        "namespace n { size_t f(size_t a); }",
+        # Redeclared by a system header (as vcruntime.h does) and by the user.
+        "#include <vcruntime_like.h>\ntypedef decltype(sizeof 0) size_t;\n"
+        "namespace n { size_t f(size_t a); }",
+    ],
+)
+def test_size_t_predeclared_by_the_compiler(tmp_path: Path, code: str) -> None:
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "vcruntime_like.h").write_text(
+        "#pragma once\ntypedef unsigned long long size_t;\n", encoding="utf-8"
+    )
+    path = tmp_path / "input.h"
+    path.write_text("#pragma once\n" + code + "\n", encoding="utf-8")
+    options = ParseOptions(extra_args=(*_MSVC_TARGET, "-isystem", str(system)))
+    (function,) = parse_header(path, "input.h", options).header.declarations
+    assert isinstance(function, Function)
+    assert function.result.c_name == "size_t"
+    assert [parameter.type.c_name for parameter in function.parameters] == ["size_t"]
+
+
+def test_alias_named_size_t_is_still_rejected_on_msvc(tmp_path: Path) -> None:
+    path = tmp_path / "input.h"
+    path.write_text(
+        "#pragma once\nnamespace my { typedef unsigned long long size_t; size_t g(); }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(GenerationError, match="type alias 'my::size_t' is not supported"):
+        parse_header(path, "input.h", ParseOptions(extra_args=_MSVC_TARGET))

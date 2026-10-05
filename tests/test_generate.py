@@ -228,7 +228,22 @@ def test_module_names_that_make_reserved_identifiers(name: str) -> None:
         bridgefex.generate([Path("x.h")], bridgefex.Options(name))
 
 
-@pytest.mark.parametrize("include", ["cstdint", "array", "utility", "type_traits", "new"])
+@pytest.mark.parametrize(
+    "include",
+    [
+        pytest.param(
+            "cstdint",
+            marks=pytest.mark.skipif(
+                sys.platform == "win32",
+                reason="MSVC's <cstdint> does not declare std::size_t (nor must it)",
+            ),
+        ),
+        "array",
+        "utility",
+        "type_traits",
+        "new",
+    ],
+)
 def test_std_size_t_without_the_global_one(tmp_path: Path, include: str) -> None:
     """libstdc++ declares std::size_t in namespace std; ::size_t needs <stddef.h>."""
     header = tmp_path / "sz.h"
