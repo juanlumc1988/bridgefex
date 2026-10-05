@@ -4,7 +4,8 @@
 - the thread-local, truncated, UTF-8-safe last error of the generated runtime;
 - glibc thread cancellation through a generated wrapper;
 - the compile-time check for over-aligned classes before C++17;
-- a unity build of the generated sources of a module;
+- unity builds of the generated sources of one or more modules, and the
+  check that refuses them when glibc would give a class another layout;
 - <MODULE>_NODISCARD really warns when a status is ignored;
 - the test toolchain really turns warnings into errors (otherwise every
   "compiles without warnings" test would pass vacuously).
@@ -262,14 +263,57 @@ def test_objects_alive_at_exit_are_not_destroyed(
     assert completed.stdout.split() == ["destroyed", "exiting"]
 
 
-def test_unity_build(toolchain: Toolchain, tmp_path: Path, probe_dir: Path) -> None:
-    """The generated sources of a module can be compiled as one translation unit."""
-    unity = tmp_path / "unity.cpp"
-    unity.write_text(
-        "".join(f'#include "{source.name}"\n' for source in sorted(DEMO_C.glob("*.cpp"))),
-        encoding="utf-8",
+@pytest.mark.parametrize(
+    ("modules", "reverse"),
+    [
+        (("demo",), False),
+        (("demo",), True),
+        (("demo", "edge", "scalars"), False),
+        # Not edge in this order: edge.h names a parameter EDGE_OK, a macro of
+        # edge_runtime.h, which would come first (a limitation in the README).
+        (("demo", "scalars"), True),
+    ],
+)
+def test_unity_build(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path, modules: tuple[str, ...], reverse: bool
+) -> None:
+    """The generated sources of one or more modules can be compiled as one
+    translation unit, in any order."""
+    directories = [GOLDEN_DIR / module / "expected" / "c" for module in modules]
+    sources = sorted(
+        (source for directory in directories for source in directory.glob("*.cpp")),
+        key=lambda source: source.name,
+        reverse=reverse,
     )
-    include_dirs = [DEMO_C, GOLDEN_DIR / "demo" / "input"]
+    unity = tmp_path / "unity.cpp"
+    unity.write_text("".join(f'#include "{source.name}"\n' for source in sources), encoding="utf-8")
+    include_dirs = [*directories, *(GOLDEN_DIR / module / "input" for module in modules)]
     for wanted in ("c++14", "c++17"):
         flag = standard(toolchain, "c++", wanted, probe_dir)
         toolchain.syntax_check(unity, "c++", flag, include_dirs).check()
+
+
+@pytest.mark.skipif(platform.libc_ver()[0] != "glibc", reason="the check is for glibc")
+def test_unity_build_refuses_a_header_that_sets_file_offset_bits_too_late(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """glibc reads _FILE_OFFSET_BITS in its first header only: after another
+    system header, off_t would not be the library's (on 32-bit targets)."""
+    header = tmp_path / "lf.h"
+    header.write_text(
+        "#pragma once\n#define _FILE_OFFSET_BITS 64\n#include <sys/types.h>\n"
+        "namespace lf { class Journal { public: Journal(); int entries() const; "
+        "private: off_t offset_; int entries_; }; }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("app", languages=()))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    include_dirs = [output / "c", tmp_path]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.syntax_check(output / "c" / "lf_c.cpp", "c++", flag, include_dirs).check()
+    unity = tmp_path / "unity.cpp"
+    unity.write_text('#include "app_runtime.cpp"\n#include "lf_c.cpp"\n', encoding="utf-8")
+    late = toolchain.syntax_check(unity, "c++", flag, include_dirs)
+    assert late.returncode != 0
+    assert "lf.h sets _FILE_OFFSET_BITS or _TIME_BITS, but a system header" in late.output

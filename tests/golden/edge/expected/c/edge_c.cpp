@@ -9,7 +9,20 @@
 // layout here as in the library. And a global C++ declaration that clashed
 // with a generated C function would be a compile error, not a silent
 // redirection.
+#if defined(__GLIBC__)
+// Something came first (a unity build, a precompiled header): see below.
+#define EDGE_C_API_AFTER_GLIBC
+#endif
 #include "edge.h"
+#if defined(EDGE_C_API_AFTER_GLIBC)
+// glibc reads these macros in its first header only, so they would not apply.
+#if (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS == 64 && !defined(__USE_FILE_OFFSET64)) || \
+    (defined(_TIME_BITS) && _TIME_BITS == 64 && defined(__TIMESIZE) && __TIMESIZE == 32 && \
+     !defined(__USE_TIME_BITS64))
+#error "edge.h sets _FILE_OFFSET_BITS or _TIME_BITS, but a system header was included before it: its classes would not have the library's layout. Compile this file as its own translation unit, without a precompiled header."
+#endif
+#undef EDGE_C_API_AFTER_GLIBC
+#endif
 
 #include "edge_c.h"
 #include "edge_runtime_internal.hpp"

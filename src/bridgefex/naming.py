@@ -84,8 +84,8 @@ RESERVED_MEMBER_NAMES = frozenset(
 # close() names directly (it cannot use _builtins at interpreter exit).
 MODULE_GLOBALS = frozenset(
     """
-    ctypes weakref threading _builtins _runtime _lib _bind _bind_lock _release __all__
-    AttributeError IndexError
+    ctypes weakref threading _builtins _sys _runtime _lib _bind _bind_lock _watch _watchers
+    __all__ AttributeError IndexError
     """.split()
 )
 
@@ -123,8 +123,9 @@ def generated_macros(module: str) -> frozenset[str]:
     """Macros defined by the generated runtime headers and sources of ``module``."""
     prefix = module.upper()
     suffixes = """
-        API C_API_BUILD C_API_STATIC NODISCARD OK ERROR_EXCEPTION ERROR_UNKNOWN_EXCEPTION
-        ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY RUNTIME_H RUNTIME_INTERNAL_HPP
+        API C_API_BUILD C_API_STATIC C_API_AFTER_GLIBC NODISCARD OK ERROR_EXCEPTION
+        ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY RUNTIME_H
+        RUNTIME_INTERNAL_HPP
     """.split()
     return frozenset(f"{prefix}_{suffix}" for suffix in suffixes)
 

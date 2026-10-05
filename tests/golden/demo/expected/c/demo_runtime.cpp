@@ -9,6 +9,10 @@
 #include <cstddef>
 #include <cstring>
 
+namespace demo_detail {
+
+// Not at global scope, where they could clash with the names of the wrapped
+// headers or of another module in a unity build.
 namespace {
 
 // Longer messages are truncated.
@@ -17,8 +21,6 @@ const std::size_t kMaxMessageSize = 1024;
 thread_local char last_error_message[kMaxMessageSize];
 
 }  // namespace
-
-namespace demo_detail {
 
 void set_last_error(const char* message) noexcept
 {
@@ -41,7 +43,7 @@ void set_last_error(const char* message) noexcept
 
 extern "C" const char* demo_last_error(void)
 {
-    return last_error_message;
+    return demo_detail::last_error_message;
 }
 
 extern "C" const char* demo_api_fingerprint(void)

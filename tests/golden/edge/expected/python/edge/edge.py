@@ -2,6 +2,7 @@
 
 import builtins as _builtins
 import ctypes
+import sys as _sys
 import threading
 import weakref
 
@@ -63,52 +64,65 @@ def _bind():
     return _lib
 
 
-def _release(owned):
-    """Destroy an object unless close() did it already: whoever pops wins."""
-    try:
-        handle, destroy = owned.pop()
-    except IndexError:
-        return
-    destroy(handle)
+# Weak references to the objects not collected yet: they must outlive the
+# objects for their callbacks to run.
+_watchers = set()
+
+
+def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
+    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
+
+    Unless close() did it already (whoever pops ``owned`` destroys it), or the
+    interpreter is exiting: objects still alive after the exit handlers are
+    left alone, because other threads may still be using them.
+    """
+
+    def collected(ref):
+        watchers.discard(ref)
+        if is_finalizing():
+            return
+        try:
+            handle, destroy = owned.pop()
+        except IndexError:
+            return
+        destroy(handle)
+
+    ref = weakref.ref(obj, collected)
+    watchers.add(ref)
+    return ref
 
 
 def add(arg1, arg2):
     """Wraps ``int edge::add(int, int)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().edge_add(
-        _runtime.to_int(arg1, ctypes.c_int, "arg1"),
-        _runtime.to_int(arg2, ctypes.c_int, "arg2"),
-        ctypes.byref(_out),
-    ))
+    arg1 = _runtime.to_int(arg1, ctypes.c_int, "arg1")
+    arg2 = _runtime.to_int(arg2, ctypes.c_int, "arg2")
+    _runtime.check(_bind().edge_add(arg1, arg2, _out))
     return _out.value
 
 
 def combine(int32_t_, size_t_, EDGE_OK_):
     """Wraps ``int64_t edge::combine(int32_t int32_t, size_t size_t, int EDGE_OK)``."""
     _out = ctypes.c_int64()
-    _runtime.check(_bind().edge_combine(
-        _runtime.to_int(int32_t_, ctypes.c_int32, "int32_t_"),
-        _runtime.to_int(size_t_, ctypes.c_size_t, "size_t_"),
-        _runtime.to_int(EDGE_OK_, ctypes.c_int, "EDGE_OK_"),
-        ctypes.byref(_out),
-    ))
+    int32_t_ = _runtime.to_int(int32_t_, ctypes.c_int32, "int32_t_")
+    size_t_ = _runtime.to_int(size_t_, ctypes.c_size_t, "size_t_")
+    EDGE_OK_ = _runtime.to_int(EDGE_OK_, ctypes.c_int, "EDGE_OK_")
+    _runtime.check(_bind().edge_combine(int32_t_, size_t_, EDGE_OK_, _out))
     return _out.value
 
 
 def getattr(value):
     """Wraps ``int edge::getattr(int value)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().edge_getattr(
-        _runtime.to_int(value, ctypes.c_int, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int, "value")
+    _runtime.check(_bind().edge_getattr(value, _out))
     return _out.value
 
 
 def threading_():
     """Wraps ``int edge::threading()``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().edge_threading(ctypes.byref(_out)))
+    _runtime.check(_bind().edge_threading(_out))
     return _out.value
 
 
@@ -127,7 +141,7 @@ class Registry:
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Registry object is already initialized")
         _handle = _edge_Registry_p()
-        _runtime.check(_bind().edge_Registry_create(ctypes.byref(_handle)))
+        _runtime.check(_bind().edge_Registry_create(_handle))
         self._adopt(_handle)
 
     def _adopt(self, handle):
@@ -136,11 +150,9 @@ class Registry:
                 "edge::Registry: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the finalizer, so the object is destroyed once.
+        # Shared by close() and the collection callback: the object is destroyed once.
         self._owned = owned = [(handle, _bind().edge_Registry_destroy)]
-        self._finalizer = weakref.finalize(self, _release, owned)
-        # At interpreter exit, other threads may still be using the object.
-        self._finalizer.atexit = False
+        self._finalizer = _watch(self, owned)
 
     def _ptr(self):
         if not self._owned:
@@ -150,14 +162,12 @@ class Registry:
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already, and the finalizer may have been
-        # dropped without running.
+        # of this module may be gone already.
         try:
             handle, destroy = self._owned.pop()
         except (AttributeError, IndexError):
             return
         self._handle = None
-        self._finalizer.detach()
         destroy(handle)
 
     def __enter__(self):
@@ -178,21 +188,19 @@ class Registry:
     def classmethod(self):
         """Wraps ``int edge::Registry::classmethod() const``."""
         _out = ctypes.c_int()
-        _runtime.check(_bind().edge_Registry_classmethod(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().edge_Registry_classmethod(self._ptr(), _out))
         return _out.value
 
     def staticmethod(self):
         """Wraps ``int edge::Registry::staticmethod() const``."""
         _out = ctypes.c_int()
-        _runtime.check(_bind().edge_Registry_staticmethod(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().edge_Registry_staticmethod(self._ptr(), _out))
         return _out.value
 
     def throwOnDestroy(self, enabled):
         """Wraps ``void edge::Registry::throwOnDestroy(bool enabled)``."""
-        _runtime.check(_bind().edge_Registry_throwOnDestroy(
-            self._ptr(),
-            _runtime.to_bool(enabled, "enabled"),
-        ))
+        enabled = _runtime.to_bool(enabled, "enabled")
+        _runtime.check(_bind().edge_Registry_throwOnDestroy(self._ptr(), enabled))
 
     def fail(self):
         """Wraps ``void edge::Registry::fail() const``."""
@@ -202,5 +210,5 @@ class Registry:
     def liveCount():
         """Wraps ``static int edge::Registry::liveCount()``."""
         _out = ctypes.c_int()
-        _runtime.check(_bind().edge_Registry_liveCount(ctypes.byref(_out)))
+        _runtime.check(_bind().edge_Registry_liveCount(_out))
         return _out.value

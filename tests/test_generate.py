@@ -16,6 +16,7 @@ from clang import cindex
 
 import bridgefex
 from bridgefex.errors import BridgefexError, ConfigurationError, GenerationError
+from bridgefex.parser import system_names
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
@@ -302,6 +303,9 @@ def test_the_generated_code_does_not_declare_std_byte(tmp_path: Path, code: str)
     )
     result = bridgefex.generate([header], bridgefex.Options("mod", std="c++17"))
     assert "mod_Buf_size(" in result.files["c/bt_c.h"]
+    # libc++ and MSVC declare it anyway.
+    macro = [str(w) for w in result.warnings if "defines a macro 'byte'" in str(w)]
+    assert len(macro) == (1 if code.startswith("#define") else 0), macro
 
 
 def test_library_headers_named_like_standard_headers(tmp_path: Path) -> None:
@@ -321,11 +325,37 @@ def test_library_headers_named_like_standard_headers(tmp_path: Path) -> None:
     result = bridgefex.generate([header], bridgefex.Options("mod"))
     assert "lib_Clock_now(" in result.files["c/clock_c.h"]
     # -I, the only option of MSVC, would let it replace <time.h>.
-    (warning,) = (str(w) for w in result.warnings if "standard header" in str(w))
-    assert "time.h has the name of a standard header" in warning
+    (warning,) = (str(w) for w in result.warnings if "system header" in str(w))
+    assert f"{directory / 'time.h'} would replace the system header <time.h>" in warning
     assert "-iquote" in warning
     rooted = bridgefex.Options("mod", include_root=tmp_path / "include")
-    assert not [w for w in bridgefex.generate([header], rooted).warnings if "standard" in str(w)]
+    assert not [w for w in bridgefex.generate([header], rooted).warnings if "system" in str(w)]
+    # The warning comes from the verification.
+    unverified = bridgefex.Options("mod", verify=False)
+    assert not bridgefex.generate([header], unverified).warnings
+
+
+def test_files_that_replace_the_headers_of_standard_headers(tmp_path: Path) -> None:
+    """Not only standard names: also the headers that the standard ones include."""
+    for name in ("endian.h", "features.h", "bits/wordsize.h", "notes.h"):
+        (tmp_path / name).parent.mkdir(exist_ok=True)
+        (tmp_path / name).write_text("#error replaced\n", encoding="utf-8")
+    header = write_header(tmp_path, "#include <cstdint>\nnamespace s { std::int32_t g(); }")
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    replaced = {
+        str(w).split("<", 1)[1].split(">", 1)[0]
+        for w in result.warnings
+        if "system header" in str(w)
+    }
+    # By name, and on glibc by the #include <...> of the translation unit.
+    included = {"bits/wordsize.h"} if sys.platform == "linux" else set()
+    assert replaced == {"endian.h", "features.h"} | included
+
+
+@pytest.mark.skipif(not Path("/usr/include/features.h").is_file(), reason="needs glibc")
+def test_headers_of_system_directories_get_no_replacement_warnings() -> None:
+    result = bridgefex.generate([Path("/usr/include/features.h")], bridgefex.Options("mod"))
+    assert not result.warnings, [str(warning) for warning in result.warnings]
 
 
 @pytest.mark.parametrize("werror", ["-Werror", "-Werror=unused-variable"])
@@ -369,7 +399,16 @@ def test_standards_before_cxx11_are_rejected(tmp_path: Path, std: str) -> None:
 
 @pytest.mark.parametrize(
     "clang_args",
-    [("-std=c++03",), ("--std=gnu++98",), ("--std", "c++98"), ("-std=c++20", "-std=c++03")],
+    [
+        ("-std=c++03",),
+        ("--std=gnu++98",),
+        ("--std", "c++98"),
+        ("-std=c++20", "-std=c++03"),
+        # Found by asking libclang, not by reading the options.
+        ("-ansi",),
+        ("-Xclang=-std=c++03",),
+        ("-Xclang", "-std=c++03", "-std=c++17"),
+    ],
 )
 def test_standards_before_cxx11_are_rejected_in_clang_args(
     tmp_path: Path, clang_args: tuple[str, ...]
@@ -404,6 +443,24 @@ def test_posix_names_are_reserved(tmp_path: Path, code: str, name: str) -> None:
     header = tmp_path / "tasks.h"
     header.write_text(f"#pragma once\n{code}\n", encoding="utf-8")
     with pytest.raises(GenerationError, match=rf"'{name}' .* of the system headers"):
+        bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="tags of glibc's headers")
+def test_c_tags_of_the_system_headers_only_clash_with_handle_types(tmp_path: Path) -> None:
+    """glibc has 'struct tcp_info' and 'struct link_map', but no such functions."""
+    tags = system_names().tag_names
+    assert {"tcp_info", "link_map"} <= tags
+    header = write_header(tmp_path, "namespace tcp { int info(int fd); }", name="net.h")
+    assert (
+        "tcp_info(int fd"
+        in bridgefex.generate([header], bridgefex.Options("mod")).files["c/net_c.h"]
+    )
+    header.write_text(
+        PRELUDE + "namespace link { class map { public: map(); int size() const; }; }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(GenerationError, match=r"'link_map' .* tag of the system headers"):
         bridgefex.generate([header], bridgefex.Options("mod"))
 
 
@@ -456,3 +513,17 @@ def test_include_root_does_not_drop_dot_dot_after_a_symbolic_link(tmp_path: Path
     header = tmp_path / "inc" / "detail" / ".." / "api.h"
     with pytest.raises(ConfigurationError, match="not inside the include root"):
         bridgefex.generate([header], bridgefex.Options("mod", include_root=tmp_path / "inc"))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symbolic links need privileges on Windows")
+def test_include_root_does_not_drop_dot_dot_after_a_symbolic_link_in_the_root(
+    tmp_path: Path,
+) -> None:
+    """inc/lnk/.. is vendor/, not inc/, when inc/lnk links to vendor/sub."""
+    header = write_header(tmp_path / "inc", "namespace five { int f(int x); }")
+    write_header(tmp_path / "vendor", "namespace five { int f(long long x); }")
+    (tmp_path / "vendor" / "sub").mkdir()
+    (tmp_path / "inc" / "lnk").symlink_to(tmp_path / "vendor" / "sub")
+    root = tmp_path / "inc" / "lnk" / ".."
+    with pytest.raises(ConfigurationError, match="not inside the include root"):
+        bridgefex.generate([header], bridgefex.Options("mod", include_root=root))

@@ -200,9 +200,17 @@ def _defines_function_like_macro(cursor: cindex.Cursor) -> bool:
     )
 
 
-def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
-    """Names visible at global scope, macros and the standard typedefs of a translation unit."""
+_C_TAG_KINDS = frozenset({CursorKind.STRUCT_DECL, CursorKind.UNION_DECL, CursorKind.ENUM_DECL})
+
+
+def _collect_context(unit_cursor: cindex.Cursor, *, c_tags: bool = False) -> _Context:
+    """Names visible at global scope, macros and the standard typedefs of a translation unit.
+
+    With ``c_tags`` (a C translation unit), struct, union and enum names go to
+    ``tag_names``: in C they do not clash with a function of the same name.
+    """
     global_names: set[str] = set()
+    tag_names: set[str] = set()
     macro_names: set[str] = set()
     object_macro_names: set[str] = set()
     standard_kinds: dict[str, str] = {}
@@ -221,7 +229,9 @@ def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
         elif kind == CursorKind.LINKAGE_SPEC:
             pending.extend(cursor.get_children())
         elif kind in _GLOBAL_NAME_KINDS and name:
-            global_names.add(name)
+            # Not the spelling of an anonymous one, 'enum (unnamed at f.h:1:1)'.
+            if naming.is_identifier(name):
+                (tag_names if c_tags and kind in _C_TAG_KINDS else global_names).add(name)
             if kind == CursorKind.ENUM_DECL and not cursor.is_scoped_enum():
                 global_names.update(str(child.spelling) for child in cursor.get_children())
             if kind == CursorKind.TYPEDEF_DECL:
@@ -229,7 +239,10 @@ def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
             elif kind == CursorKind.NAMESPACE and name == "std":
                 _record_std_typedefs(cursor, standard_kinds)
     names = VisibleNames(
-        frozenset(global_names), frozenset(macro_names), frozenset(object_macro_names)
+        frozenset(global_names),
+        frozenset(macro_names),
+        frozenset(object_macro_names),
+        frozenset(tag_names),
     )
     return _Context(names, standard_kinds)
 
@@ -295,7 +308,28 @@ def system_names() -> VisibleNames:
         ) from error
     # Errors (a header that needs another one first, for example) only make
     # the list shorter; the names that were declared are still valid.
-    return _collect_context(unit.cursor).names
+    return _collect_context(unit.cursor, c_tags=True).names
+
+
+_CXX11_MARKER = "bridgefex_needs_cxx11"
+
+
+def selects_cxx11(options: ParseOptions) -> bool:
+    """True if the headers would be parsed as C++11 or later.
+
+    libclang decides, with the real arguments: besides -std, options such as
+    -ansi or '-Xclang -std=c++03' select the standard too. Requires
+    :func:`bridgefex.libclang.load`.
+    """
+    probe = "bridgefex_standard_probe.hpp"
+    text = f"#if !defined(__cplusplus) || __cplusplus < 201103L\n#error {_CXX11_MARKER}\n#endif\n"
+    try:
+        unit = cindex.Index.create().parse(
+            probe, args=options.clang_args(), unsaved_files=[(probe, text)]
+        )
+    except cindex.TranslationUnitLoadError:
+        return True  # parsing the headers reports the problem
+    return not any(_CXX11_MARKER in str(diagnostic.spelling) for diagnostic in unit.diagnostics)
 
 
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:

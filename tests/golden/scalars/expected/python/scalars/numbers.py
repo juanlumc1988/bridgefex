@@ -2,6 +2,7 @@
 
 import builtins as _builtins
 import ctypes
+import sys as _sys
 import threading
 import weakref
 
@@ -138,13 +139,32 @@ def _bind():
     return _lib
 
 
-def _release(owned):
-    """Destroy an object unless close() did it already: whoever pops wins."""
-    try:
-        handle, destroy = owned.pop()
-    except IndexError:
-        return
-    destroy(handle)
+# Weak references to the objects not collected yet: they must outlive the
+# objects for their callbacks to run.
+_watchers = set()
+
+
+def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
+    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
+
+    Unless close() did it already (whoever pops ``owned`` destroys it), or the
+    interpreter is exiting: objects still alive after the exit handlers are
+    left alone, because other threads may still be using them.
+    """
+
+    def collected(ref):
+        watchers.discard(ref)
+        if is_finalizing():
+            return
+        try:
+            handle, destroy = owned.pop()
+        except IndexError:
+            return
+        destroy(handle)
+
+    ref = weakref.ref(obj, collected)
+    watchers.add(ref)
+    return ref
 
 
 class Accumulator:
@@ -162,7 +182,7 @@ class Accumulator:
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Accumulator object is already initialized")
         _handle = _scalars_Accumulator_p()
-        _runtime.check(_bind().scalars_Accumulator_create(ctypes.byref(_handle)))
+        _runtime.check(_bind().scalars_Accumulator_create(_handle))
         self._adopt(_handle)
 
     def _adopt(self, handle):
@@ -171,11 +191,9 @@ class Accumulator:
                 "Accumulator: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the finalizer, so the object is destroyed once.
+        # Shared by close() and the collection callback: the object is destroyed once.
         self._owned = owned = [(handle, _bind().scalars_Accumulator_destroy)]
-        self._finalizer = weakref.finalize(self, _release, owned)
-        # At interpreter exit, other threads may still be using the object.
-        self._finalizer.atexit = False
+        self._finalizer = _watch(self, owned)
 
     def _ptr(self):
         if not self._owned:
@@ -185,14 +203,12 @@ class Accumulator:
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already, and the finalizer may have been
-        # dropped without running.
+        # of this module may be gone already.
         try:
             handle, destroy = self._owned.pop()
         except (AttributeError, IndexError):
             return
         self._handle = None
-        self._finalizer.detach()
         destroy(handle)
 
     def __enter__(self):
@@ -212,21 +228,19 @@ class Accumulator:
 
     def push(self, value):
         """Wraps ``void Accumulator::push(double value)``."""
-        _runtime.check(_bind().scalars_Accumulator_push(
-            self._ptr(),
-            _runtime.to_float(value, ctypes.c_double, "value"),
-        ))
+        value = _runtime.to_float(value, ctypes.c_double, "value")
+        _runtime.check(_bind().scalars_Accumulator_push(self._ptr(), value))
 
     def total(self):
         """Wraps ``double Accumulator::total() const``."""
         _out = ctypes.c_double()
-        _runtime.check(_bind().scalars_Accumulator_total(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().scalars_Accumulator_total(self._ptr(), _out))
         return _out.value
 
     def count(self):
         """Wraps ``size_t Accumulator::count() const``."""
         _out = ctypes.c_size_t()
-        _runtime.check(_bind().scalars_Accumulator_count(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().scalars_Accumulator_count(self._ptr(), _out))
         return _out.value
 
     def reset(self):
@@ -237,289 +251,236 @@ class Accumulator:
     def version():
         """Wraps ``static int Accumulator::version()``."""
         _out = ctypes.c_int()
-        _runtime.check(_bind().scalars_Accumulator_version(ctypes.byref(_out)))
+        _runtime.check(_bind().scalars_Accumulator_version(_out))
         return _out.value
 
 
 def echo_bool(value):
     """Wraps ``bool echo_bool(bool value)``."""
     _out = ctypes.c_bool()
-    _runtime.check(_bind().scalars_echo_bool(_runtime.to_bool(value, "value"), ctypes.byref(_out)))
+    value = _runtime.to_bool(value, "value")
+    _runtime.check(_bind().scalars_echo_bool(value, _out))
     return _out.value
 
 
 def echo_schar(value):
     """Wraps ``signed char echo_schar(signed char value)``."""
     _out = ctypes.c_byte()
-    _runtime.check(_bind().scalars_echo_schar(
-        _runtime.to_int(value, ctypes.c_byte, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_byte, "value")
+    _runtime.check(_bind().scalars_echo_schar(value, _out))
     return _out.value
 
 
 def echo_uchar(value):
     """Wraps ``unsigned char echo_uchar(unsigned char value)``."""
     _out = ctypes.c_ubyte()
-    _runtime.check(_bind().scalars_echo_uchar(
-        _runtime.to_int(value, ctypes.c_ubyte, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_ubyte, "value")
+    _runtime.check(_bind().scalars_echo_uchar(value, _out))
     return _out.value
 
 
 def echo_short(value):
     """Wraps ``short echo_short(short value)``."""
     _out = ctypes.c_short()
-    _runtime.check(_bind().scalars_echo_short(
-        _runtime.to_int(value, ctypes.c_short, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_short, "value")
+    _runtime.check(_bind().scalars_echo_short(value, _out))
     return _out.value
 
 
 def echo_ushort(value):
     """Wraps ``unsigned short echo_ushort(unsigned short value)``."""
     _out = ctypes.c_ushort()
-    _runtime.check(_bind().scalars_echo_ushort(
-        _runtime.to_int(value, ctypes.c_ushort, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_ushort, "value")
+    _runtime.check(_bind().scalars_echo_ushort(value, _out))
     return _out.value
 
 
 def echo_int(value):
     """Wraps ``int echo_int(int value)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().scalars_echo_int(
-        _runtime.to_int(value, ctypes.c_int, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int, "value")
+    _runtime.check(_bind().scalars_echo_int(value, _out))
     return _out.value
 
 
 def echo_uint(value):
     """Wraps ``unsigned int echo_uint(unsigned int value)``."""
     _out = ctypes.c_uint()
-    _runtime.check(_bind().scalars_echo_uint(
-        _runtime.to_int(value, ctypes.c_uint, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_uint, "value")
+    _runtime.check(_bind().scalars_echo_uint(value, _out))
     return _out.value
 
 
 def echo_long(value):
     """Wraps ``long echo_long(long value)``."""
     _out = ctypes.c_long()
-    _runtime.check(_bind().scalars_echo_long(
-        _runtime.to_int(value, ctypes.c_long, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_long, "value")
+    _runtime.check(_bind().scalars_echo_long(value, _out))
     return _out.value
 
 
 def echo_ulong(value):
     """Wraps ``unsigned long echo_ulong(unsigned long value)``."""
     _out = ctypes.c_ulong()
-    _runtime.check(_bind().scalars_echo_ulong(
-        _runtime.to_int(value, ctypes.c_ulong, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_ulong, "value")
+    _runtime.check(_bind().scalars_echo_ulong(value, _out))
     return _out.value
 
 
 def echo_llong(value):
     """Wraps ``long long echo_llong(long long value)``."""
     _out = ctypes.c_longlong()
-    _runtime.check(_bind().scalars_echo_llong(
-        _runtime.to_int(value, ctypes.c_longlong, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_longlong, "value")
+    _runtime.check(_bind().scalars_echo_llong(value, _out))
     return _out.value
 
 
 def echo_ullong(value):
     """Wraps ``unsigned long long echo_ullong(unsigned long long value)``."""
     _out = ctypes.c_ulonglong()
-    _runtime.check(_bind().scalars_echo_ullong(
-        _runtime.to_int(value, ctypes.c_ulonglong, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_ulonglong, "value")
+    _runtime.check(_bind().scalars_echo_ullong(value, _out))
     return _out.value
 
 
 def echo_float(value):
     """Wraps ``float echo_float(float value)``."""
     _out = ctypes.c_float()
-    _runtime.check(_bind().scalars_echo_float(
-        _runtime.to_float(value, ctypes.c_float, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_float(value, ctypes.c_float, "value")
+    _runtime.check(_bind().scalars_echo_float(value, _out))
     return _out.value
 
 
 def echo_double(value):
     """Wraps ``double echo_double(double value)``."""
     _out = ctypes.c_double()
-    _runtime.check(_bind().scalars_echo_double(
-        _runtime.to_float(value, ctypes.c_double, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_float(value, ctypes.c_double, "value")
+    _runtime.check(_bind().scalars_echo_double(value, _out))
     return _out.value
 
 
 def echo_int8(value):
     """Wraps ``int8_t echo_int8(int8_t value)``."""
     _out = ctypes.c_int8()
-    _runtime.check(_bind().scalars_echo_int8(
-        _runtime.to_int(value, ctypes.c_int8, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int8, "value")
+    _runtime.check(_bind().scalars_echo_int8(value, _out))
     return _out.value
 
 
 def echo_int16(value):
     """Wraps ``int16_t echo_int16(int16_t value)``."""
     _out = ctypes.c_int16()
-    _runtime.check(_bind().scalars_echo_int16(
-        _runtime.to_int(value, ctypes.c_int16, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int16, "value")
+    _runtime.check(_bind().scalars_echo_int16(value, _out))
     return _out.value
 
 
 def echo_int32(value):
     """Wraps ``int32_t echo_int32(int32_t value)``."""
     _out = ctypes.c_int32()
-    _runtime.check(_bind().scalars_echo_int32(
-        _runtime.to_int(value, ctypes.c_int32, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int32, "value")
+    _runtime.check(_bind().scalars_echo_int32(value, _out))
     return _out.value
 
 
 def echo_int64(value):
     """Wraps ``int64_t echo_int64(int64_t value)``."""
     _out = ctypes.c_int64()
-    _runtime.check(_bind().scalars_echo_int64(
-        _runtime.to_int(value, ctypes.c_int64, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int64, "value")
+    _runtime.check(_bind().scalars_echo_int64(value, _out))
     return _out.value
 
 
 def echo_uint8(value):
     """Wraps ``uint8_t echo_uint8(uint8_t value)``."""
     _out = ctypes.c_uint8()
-    _runtime.check(_bind().scalars_echo_uint8(
-        _runtime.to_int(value, ctypes.c_uint8, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_uint8, "value")
+    _runtime.check(_bind().scalars_echo_uint8(value, _out))
     return _out.value
 
 
 def echo_uint16(value):
     """Wraps ``uint16_t echo_uint16(uint16_t value)``."""
     _out = ctypes.c_uint16()
-    _runtime.check(_bind().scalars_echo_uint16(
-        _runtime.to_int(value, ctypes.c_uint16, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_uint16, "value")
+    _runtime.check(_bind().scalars_echo_uint16(value, _out))
     return _out.value
 
 
 def echo_uint32(value):
     """Wraps ``uint32_t echo_uint32(uint32_t value)``."""
     _out = ctypes.c_uint32()
-    _runtime.check(_bind().scalars_echo_uint32(
-        _runtime.to_int(value, ctypes.c_uint32, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_uint32, "value")
+    _runtime.check(_bind().scalars_echo_uint32(value, _out))
     return _out.value
 
 
 def echo_uint64(value):
     """Wraps ``uint64_t echo_uint64(uint64_t value)``."""
     _out = ctypes.c_uint64()
-    _runtime.check(_bind().scalars_echo_uint64(
-        _runtime.to_int(value, ctypes.c_uint64, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_uint64, "value")
+    _runtime.check(_bind().scalars_echo_uint64(value, _out))
     return _out.value
 
 
 def echo_size(value):
     """Wraps ``size_t echo_size(size_t value)``."""
     _out = ctypes.c_size_t()
-    _runtime.check(_bind().scalars_echo_size(
-        _runtime.to_int(value, ctypes.c_size_t, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_size_t, "value")
+    _runtime.check(_bind().scalars_echo_size(value, _out))
     return _out.value
 
 
 def echo_const(value):
     """Wraps ``int32_t echo_const(int32_t value)``."""
     _out = ctypes.c_int32()
-    _runtime.check(_bind().scalars_echo_const(
-        _runtime.to_int(value, ctypes.c_int32, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_int(value, ctypes.c_int32, "value")
+    _runtime.check(_bind().scalars_echo_const(value, _out))
     return _out.value
 
 
 def sum_renamed(lambda_, self_, restrict_, out_result_):
     """Wraps ``int sum_renamed(int lambda, int self, int restrict, int out_result)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().scalars_sum_renamed(
-        _runtime.to_int(lambda_, ctypes.c_int, "lambda_"),
-        _runtime.to_int(self_, ctypes.c_int, "self_"),
-        _runtime.to_int(restrict_, ctypes.c_int, "restrict_"),
-        _runtime.to_int(out_result_, ctypes.c_int, "out_result_"),
-        ctypes.byref(_out),
-    ))
+    lambda_ = _runtime.to_int(lambda_, ctypes.c_int, "lambda_")
+    self_ = _runtime.to_int(self_, ctypes.c_int, "self_")
+    restrict_ = _runtime.to_int(restrict_, ctypes.c_int, "restrict_")
+    out_result_ = _runtime.to_int(out_result_, ctypes.c_int, "out_result_")
+    _runtime.check(_bind().scalars_sum_renamed(lambda_, self_, restrict_, out_result_, _out))
     return _out.value
 
 
 def twice(arg1):
     """Wraps ``int twice(int)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().scalars_twice(
-        _runtime.to_int(arg1, ctypes.c_int, "arg1"),
-        ctypes.byref(_out),
-    ))
+    arg1 = _runtime.to_int(arg1, ctypes.c_int, "arg1")
+    _runtime.check(_bind().scalars_twice(arg1, _out))
     return _out.value
 
 
 def scale_double(value):
     """Wraps ``double scale(double value)``."""
     _out = ctypes.c_double()
-    _runtime.check(_bind().scalars_scale_double(
-        _runtime.to_float(value, ctypes.c_double, "value"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_float(value, ctypes.c_double, "value")
+    _runtime.check(_bind().scalars_scale_double(value, _out))
     return _out.value
 
 
 def scale_double_double(value, factor):
     """Wraps ``double scale(double value, double factor)``."""
     _out = ctypes.c_double()
-    _runtime.check(_bind().scalars_scale_double_double(
-        _runtime.to_float(value, ctypes.c_double, "value"),
-        _runtime.to_float(factor, ctypes.c_double, "factor"),
-        ctypes.byref(_out),
-    ))
+    value = _runtime.to_float(value, ctypes.c_double, "value")
+    factor = _runtime.to_float(factor, ctypes.c_double, "factor")
+    _runtime.check(_bind().scalars_scale_double_double(value, factor, _out))
     return _out.value
 
 
 def divide(dividend, divisor):
     """Wraps ``int divide(int dividend, int divisor)``."""
     _out = ctypes.c_int()
-    _runtime.check(_bind().scalars_divide(
-        _runtime.to_int(dividend, ctypes.c_int, "dividend"),
-        _runtime.to_int(divisor, ctypes.c_int, "divisor"),
-        ctypes.byref(_out),
-    ))
+    dividend = _runtime.to_int(dividend, ctypes.c_int, "dividend")
+    divisor = _runtime.to_int(divisor, ctypes.c_int, "divisor")
+    _runtime.check(_bind().scalars_divide(dividend, divisor, _out))
     return _out.value
 
 

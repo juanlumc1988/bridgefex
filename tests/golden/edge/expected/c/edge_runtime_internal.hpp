@@ -17,8 +17,9 @@ namespace edge_detail {
 
 #if !defined(__cpp_aligned_new)
 // Alignment of the memory that operator new returns before C++17, which
-// ignores larger alignments. <stddef.h> only: <cstddef> would declare
-// std::byte.
+// ignores larger alignments. From <stddef.h>, not <cstddef>, which would
+// declare std::byte after the wrapped header (with libstdc++; <exception>
+// declares it anyway with libc++ and MSVC in C++17).
 #if defined(__STDCPP_DEFAULT_NEW_ALIGNMENT__)
 constexpr decltype(sizeof 0) new_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 #elif defined(_MSC_VER) && defined(_WIN64)
@@ -42,7 +43,9 @@ inline edge_status null_argument(const char* message) noexcept
 // Runs function and turns any exception into a status code, so that no
 // exception crosses the C boundary. The only exception let through is glibc's
 // thread cancellation (pthread_cancel, pthread_exit), which must unwind its
-// thread; swallowing it would abort the process.
+// thread; swallowing it would abort the process. With libstdc++ only:
+// libc++abi gives it to catch (...) and cannot rethrow it, so there a
+// cancellation inside a wrapped call aborts the process.
 template <typename Function>
 edge_status guard(const Function& function)
 {

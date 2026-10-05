@@ -2,6 +2,7 @@
 
 import builtins as _builtins
 import ctypes
+import sys as _sys
 import threading
 import weakref
 
@@ -66,13 +67,32 @@ def _bind():
     return _lib
 
 
-def _release(owned):
-    """Destroy an object unless close() did it already: whoever pops wins."""
-    try:
-        handle, destroy = owned.pop()
-    except IndexError:
-        return
-    destroy(handle)
+# Weak references to the objects not collected yet: they must outlive the
+# objects for their callbacks to run.
+_watchers = set()
+
+
+def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
+    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
+
+    Unless close() did it already (whoever pops ``owned`` destroys it), or the
+    interpreter is exiting: objects still alive after the exit handlers are
+    left alone, because other threads may still be using them.
+    """
+
+    def collected(ref):
+        watchers.discard(ref)
+        if is_finalizing():
+            return
+        try:
+            handle, destroy = owned.pop()
+        except IndexError:
+            return
+        destroy(handle)
+
+    ref = weakref.ref(obj, collected)
+    watchers.add(ref)
+    return ref
 
 
 class Counter:
@@ -95,7 +115,7 @@ class Counter:
     def create_void(cls):
         """Wraps ``demo::Counter::Counter()``."""
         _handle = _demo_Counter_p()
-        _runtime.check(_bind().demo_Counter_create_void(ctypes.byref(_handle)))
+        _runtime.check(_bind().demo_Counter_create_void(_handle))
         _self = cls.__new__(cls)
         _self._adopt(_handle)
         return _self
@@ -104,10 +124,8 @@ class Counter:
     def create_int32(cls, start):
         """Wraps ``demo::Counter::Counter(int32_t start)``."""
         _handle = _demo_Counter_p()
-        _runtime.check(_bind().demo_Counter_create_int32(
-            ctypes.byref(_handle),
-            _runtime.to_int(start, ctypes.c_int32, "start"),
-        ))
+        start = _runtime.to_int(start, ctypes.c_int32, "start")
+        _runtime.check(_bind().demo_Counter_create_int32(_handle, start))
         _self = cls.__new__(cls)
         _self._adopt(_handle)
         return _self
@@ -118,11 +136,9 @@ class Counter:
                 "demo::Counter: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the finalizer, so the object is destroyed once.
+        # Shared by close() and the collection callback: the object is destroyed once.
         self._owned = owned = [(handle, _bind().demo_Counter_destroy)]
-        self._finalizer = weakref.finalize(self, _release, owned)
-        # At interpreter exit, other threads may still be using the object.
-        self._finalizer.atexit = False
+        self._finalizer = _watch(self, owned)
 
     def _ptr(self):
         if not self._owned:
@@ -132,14 +148,12 @@ class Counter:
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already, and the finalizer may have been
-        # dropped without running.
+        # of this module may be gone already.
         try:
             handle, destroy = self._owned.pop()
         except (AttributeError, IndexError):
             return
         self._handle = None
-        self._finalizer.detach()
         destroy(handle)
 
     def __enter__(self):
@@ -163,49 +177,41 @@ class Counter:
 
     def add_int32(self, delta):
         """Wraps ``void demo::Counter::add(int32_t delta)``."""
-        _runtime.check(_bind().demo_Counter_add_int32(
-            self._ptr(),
-            _runtime.to_int(delta, ctypes.c_int32, "delta"),
-        ))
+        delta = _runtime.to_int(delta, ctypes.c_int32, "delta")
+        _runtime.check(_bind().demo_Counter_add_int32(self._ptr(), delta))
 
     def add_double(self, delta):
         """Wraps ``void demo::Counter::add(double delta)``."""
-        _runtime.check(_bind().demo_Counter_add_double(
-            self._ptr(),
-            _runtime.to_float(delta, ctypes.c_double, "delta"),
-        ))
+        delta = _runtime.to_float(delta, ctypes.c_double, "delta")
+        _runtime.check(_bind().demo_Counter_add_double(self._ptr(), delta))
 
     def value(self):
         """Wraps ``int32_t demo::Counter::value() const``."""
         _out = ctypes.c_int32()
-        _runtime.check(_bind().demo_Counter_value(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().demo_Counter_value(self._ptr(), _out))
         return _out.value
 
     def isZero(self):
         """Wraps ``bool demo::Counter::isZero() const``."""
         _out = ctypes.c_bool()
-        _runtime.check(_bind().demo_Counter_isZero(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().demo_Counter_isZero(self._ptr(), _out))
         return _out.value
 
     def setLimit(self, limit):
         """Wraps ``void demo::Counter::setLimit(int64_t limit)``."""
-        _runtime.check(_bind().demo_Counter_setLimit(
-            self._ptr(),
-            _runtime.to_int(limit, ctypes.c_int64, "limit"),
-        ))
+        limit = _runtime.to_int(limit, ctypes.c_int64, "limit")
+        _runtime.check(_bind().demo_Counter_setLimit(self._ptr(), limit))
 
     def limit(self):
         """Wraps ``int64_t demo::Counter::limit() const``."""
         _out = ctypes.c_int64()
-        _runtime.check(_bind().demo_Counter_limit(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().demo_Counter_limit(self._ptr(), _out))
         return _out.value
 
     def reserve(self, bytes):
         """Wraps ``void demo::Counter::reserve(size_t bytes)``."""
-        _runtime.check(_bind().demo_Counter_reserve(
-            self._ptr(),
-            _runtime.to_int(bytes, ctypes.c_size_t, "bytes"),
-        ))
+        bytes = _runtime.to_int(bytes, ctypes.c_size_t, "bytes")
+        _runtime.check(_bind().demo_Counter_reserve(self._ptr(), bytes))
 
     def fail(self):
         """Wraps ``void demo::Counter::fail() const``."""
@@ -215,16 +221,14 @@ class Counter:
     def liveInstances():
         """Wraps ``static size_t demo::Counter::liveInstances()``."""
         _out = ctypes.c_size_t()
-        _runtime.check(_bind().demo_Counter_liveInstances(ctypes.byref(_out)))
+        _runtime.check(_bind().demo_Counter_liveInstances(_out))
         return _out.value
 
 
 def multiply_int32_int32(a, b):
     """Wraps ``int64_t demo::multiply(int32_t a, int32_t b)``."""
     _out = ctypes.c_int64()
-    _runtime.check(_bind().demo_multiply_int32_int32(
-        _runtime.to_int(a, ctypes.c_int32, "a"),
-        _runtime.to_int(b, ctypes.c_int32, "b"),
-        ctypes.byref(_out),
-    ))
+    a = _runtime.to_int(a, ctypes.c_int32, "a")
+    b = _runtime.to_int(b, ctypes.c_int32, "b")
+    _runtime.check(_bind().demo_multiply_int32_int32(a, b, _out))
     return _out.value

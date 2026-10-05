@@ -12,6 +12,8 @@ reported, instead of the user finding them when building.
 
 from __future__ import annotations
 
+import itertools
+import os
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -24,6 +26,33 @@ from .generator import write_files
 from .parser import ParseOptions
 from .plan import CFunction, HeaderPlan, ModulePlan
 
+# Names of the C and C++ standard headers, and of the headers that the standard
+# headers of glibc and MSVC include, which a translation unit parsed on another
+# platform does not show.
+_SYSTEM_HEADER_NAMES = frozenset(
+    """
+    assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h iso646.h limits.h locale.h
+    math.h setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbit.h stdbool.h stdckdint.h
+    stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h string.h tgmath.h threads.h time.h
+    uchar.h wchar.h wctype.h
+    algorithm any array atomic barrier bit bitset cassert ccomplex cctype cerrno cfenv cfloat
+    charconv chrono cinttypes ciso646 climits clocale cmath codecvt compare complex concepts
+    condition_variable coroutine csetjmp csignal cstdalign cstdarg cstdbool cstddef cstdint
+    cstdio cstdlib cstring ctgmath ctime cuchar cwchar cwctype deque exception execution
+    expected filesystem flat_map flat_set format forward_list fstream functional future
+    generator initializer_list iomanip ios iosfwd iostream istream iterator latch limits list
+    locale map mdspan memory memory_resource mutex new numbers numeric optional ostream print
+    queue random ranges ratio regex scoped_allocator semaphore set shared_mutex
+    source_location span spanstream sstream stack stacktrace stdexcept stdfloat stop_token
+    streambuf string string_view strstream syncstream system_error thread tuple type_traits
+    typeindex typeinfo unordered_map unordered_set utility valarray variant vector version
+    alloca.h endian.h features.h stdc-predef.h
+    corecrt.h crtdbg.h crtdefs.h sal.h vadefs.h vcruntime.h vcruntime_exception.h
+    vcruntime_new.h vcruntime_typeinfo.h xkeycheck.h xmemory xstddef xstring xtr1common
+    xutility yvals.h yvals_core.h
+    """.split()
+)
+
 
 def verify(
     plan: ModulePlan,
@@ -34,7 +63,9 @@ def verify(
     """Compile the C layer in ``files`` with libclang.
 
     ``include_dirs`` maps each header stem to the directory its generated
-    source needs on the include path. Returns warnings found in generated code.
+    source needs on the include path. Returns the warnings found in the
+    generated code, and one for each file in those directories that would
+    replace a system header (see :func:`_shadowing_files`).
 
     Raises:
         GenerationError: the generated code does not compile.
@@ -43,6 +74,7 @@ def verify(
     c_files = {path: content for path, content in files.items() if path.startswith("c/")}
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
+    shadowing: dict[tuple[Path, str], None] = {}
     with tempfile.TemporaryDirectory(prefix="bridgefex-", ignore_cleanup_errors=True) as temp:
         root = Path(temp)
         write_files(c_files, root)
@@ -65,7 +97,9 @@ def verify(
                 *(f"-D{definition}" for definition in options.defines),
                 *_without_werror(options.extra_args),
             ]
-            unit = _parse(index, source, args)
+            unit = _parse(
+                index, source, args, cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+            )
             functions = _function_lines(plan, header, c_files[f"c/{header.c_source}"])
             for diagnostic in unit.diagnostics:
                 _report(
@@ -76,6 +110,10 @@ def verify(
                     errors=errors,
                     warnings=warnings,
                 )
+            directory = include_dirs[header.stem]
+            shadowing.update(
+                ((directory, name), None) for name in _shadowing_files(unit, directory)
+            )
             del unit
 
         consumer = root / "consumer.c"
@@ -96,7 +134,60 @@ def verify(
         del unit
     if errors:
         raise GenerationError(errors)
+    for directory, name in shadowing:
+        warnings.append(
+            Diagnostic(
+                f"{directory / name} would replace the system header <{name}> if {directory} "
+                "were on the include path with -I or /I: use -iquote for it (GCC, Clang), "
+                "or an --include-root above it (MSVC has no -iquote)"
+            )
+        )
     return tuple(warnings)
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+def _shadowing_files(unit: cindex.TranslationUnit, directory: Path) -> list[str]:
+    """Files in ``directory`` that would replace a system header with -I.
+
+    The generated source is compiled here with ``-iquote directory``, which
+    only the quoted #include of the wrapped header uses. With -I, or /I (MSVC
+    has nothing else), every #include <...> looks there first, so a time.h or
+    features.h there would replace the system one. These are the files named
+    like an #include <...> of ``unit`` that resolves elsewhere, and the files
+    named like a standard header. Returns paths relative to ``directory``.
+    """
+    names: dict[str, str] = {}  # casefold -> name
+    for cursor in unit.cursor.get_children():
+        if cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE:
+            continue
+        included = cursor.get_included_file()
+        tokens = [token.spelling for token in itertools.islice(cursor.get_tokens(), 3)]
+        # Only '#include <...>': not #include_next, which only searches the
+        # directories after the including file's, nor '#include MACRO'.
+        if included is None or tokens[1:] != ["include", "<"]:
+            continue
+        name = str(cursor.spelling)
+        if _same_file(directory / name, Path(str(included.name))):
+            # #include <...> already finds the files there: a system directory,
+            # or one that the options give with -I.
+            return []
+        if (directory / name).is_file():
+            names.setdefault(name.casefold(), Path(name).as_posix())
+    try:
+        entries = sorted(entry.name for entry in directory.iterdir() if entry.is_file())
+    except OSError:
+        entries = []
+    for name in entries:
+        # Case-insensitive, as the file systems of Windows and macOS are.
+        if name.casefold() in _SYSTEM_HEADER_NAMES:
+            names.setdefault(name.casefold(), name)
+    return list(names.values())
 
 
 def _without_werror(args: Sequence[str]) -> list[str]:
@@ -115,9 +206,11 @@ def _without_werror(args: Sequence[str]) -> list[str]:
     return result
 
 
-def _parse(index: cindex.Index, source: Path, args: Sequence[str]) -> cindex.TranslationUnit:
+def _parse(
+    index: cindex.Index, source: Path, args: Sequence[str], options: int = 0
+) -> cindex.TranslationUnit:
     try:
-        return index.parse(str(source), args=list(args))
+        return index.parse(str(source), args=list(args), options=options)
     except cindex.TranslationUnitLoadError as error:
         raise GenerationError(
             [

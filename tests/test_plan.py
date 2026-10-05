@@ -234,12 +234,15 @@ def test_fingerprint_is_stable_and_tracks_declarations() -> None:
 
 
 def test_long_python_calls_are_wrapped() -> None:
-    params = tuple(Parameter(f"argument_{index}", INT32) for index in range(4))
+    params = tuple(Parameter(f"argument_{index}", INT32) for index in range(6))
     item = plan_for(header(function("f", *params))).headers[0].items[0]
     assert isinstance(item, FunctionPlan)
-    body = item.py.body(4)
-    assert body.splitlines()[1] == "    _runtime.check(_bind().ns_f("
-    assert all(len(line) <= 99 for line in body.splitlines())
+    lines = item.py.body(4).splitlines()
+    # The conversions come first, then the call, which does not fit in one line.
+    conversion = '    {0} = _runtime.to_int({0}, ctypes.c_int32, "{0}")'
+    assert lines[1:7] == [conversion.format(f"argument_{index}") for index in range(6)]
+    assert lines[7] == "    _runtime.check(_bind().ns_f("
+    assert all(len(line) <= 99 for line in lines)
 
 
 def test_parameters_named_like_macros_without_arguments_are_renamed() -> None:
@@ -272,6 +275,20 @@ def test_names_of_the_c_library_are_reserved() -> None:
         "of the system headers" in message
     )
     assert "'ns_M' of function 'ns::M()' clashes with a macro of the system headers" in message
+
+
+def test_tags_of_the_c_library_only_clash_with_handle_types() -> None:
+    """A C tag lives in its own namespace: only 'typedef struct X X;' declares one."""
+    system = VisibleNames(tag_names=frozenset({"tcp_info", "link_map"}))
+    accepted = Module("mod", (header(function("info", namespace=("tcp",))),), system)
+    assert [f.name for f in build_plan(accepted).headers[0].c_functions] == ["tcp_info"]
+    rejected = Module("mod", (header(klass("map", namespace=("link",))),), system)
+    with pytest.raises(GenerationError) as raised:
+        build_plan(rejected)
+    assert (
+        "the C name 'link_map' of the handle type of 'link::map' clashes with a struct, "
+        "union or enum tag of the system headers" in str(raised.value)
+    )
 
 
 @pytest.mark.parametrize(

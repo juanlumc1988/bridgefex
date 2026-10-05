@@ -2,6 +2,7 @@
 
 import builtins as _builtins
 import ctypes
+import sys as _sys
 import threading
 import weakref
 
@@ -53,23 +54,40 @@ def _bind():
     return _lib
 
 
-def _release(owned):
-    """Destroy an object unless close() did it already: whoever pops wins."""
-    try:
-        handle, destroy = owned.pop()
-    except IndexError:
-        return
-    destroy(handle)
+# Weak references to the objects not collected yet: they must outlive the
+# objects for their callbacks to run.
+_watchers = set()
+
+
+def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
+    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
+
+    Unless close() did it already (whoever pops ``owned`` destroys it), or the
+    interpreter is exiting: objects still alive after the exit handlers are
+    left alone, because other threads may still be using them.
+    """
+
+    def collected(ref):
+        watchers.discard(ref)
+        if is_finalizing():
+            return
+        try:
+            handle, destroy = owned.pop()
+        except IndexError:
+            return
+        destroy(handle)
+
+    ref = weakref.ref(obj, collected)
+    watchers.add(ref)
+    return ref
 
 
 def multiply_double_double(a, b):
     """Wraps ``double demo::multiply(double a, double b)``."""
     _out = ctypes.c_double()
-    _runtime.check(_bind().demo_multiply_double_double(
-        _runtime.to_float(a, ctypes.c_double, "a"),
-        _runtime.to_float(b, ctypes.c_double, "b"),
-        ctypes.byref(_out),
-    ))
+    a = _runtime.to_float(a, ctypes.c_double, "a")
+    b = _runtime.to_float(b, ctypes.c_double, "b")
+    _runtime.check(_bind().demo_multiply_double_double(a, b, _out))
     return _out.value
 
 
@@ -88,10 +106,8 @@ class Circle:
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Circle object is already initialized")
         _handle = _demo_geometry_Circle_p()
-        _runtime.check(_bind().demo_geometry_Circle_create(
-            ctypes.byref(_handle),
-            _runtime.to_float(radius, ctypes.c_double, "radius"),
-        ))
+        radius = _runtime.to_float(radius, ctypes.c_double, "radius")
+        _runtime.check(_bind().demo_geometry_Circle_create(_handle, radius))
         self._adopt(_handle)
 
     def _adopt(self, handle):
@@ -100,11 +116,9 @@ class Circle:
                 "demo::geometry::Circle: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the finalizer, so the object is destroyed once.
+        # Shared by close() and the collection callback: the object is destroyed once.
         self._owned = owned = [(handle, _bind().demo_geometry_Circle_destroy)]
-        self._finalizer = weakref.finalize(self, _release, owned)
-        # At interpreter exit, other threads may still be using the object.
-        self._finalizer.atexit = False
+        self._finalizer = _watch(self, owned)
 
     def _ptr(self):
         if not self._owned:
@@ -114,14 +128,12 @@ class Circle:
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already, and the finalizer may have been
-        # dropped without running.
+        # of this module may be gone already.
         try:
             handle, destroy = self._owned.pop()
         except (AttributeError, IndexError):
             return
         self._handle = None
-        self._finalizer.detach()
         destroy(handle)
 
     def __enter__(self):
@@ -142,31 +154,27 @@ class Circle:
     def radius(self):
         """Wraps ``double demo::geometry::Circle::radius() const``."""
         _out = ctypes.c_double()
-        _runtime.check(_bind().demo_geometry_Circle_radius(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().demo_geometry_Circle_radius(self._ptr(), _out))
         return _out.value
 
     def area(self):
         """Wraps ``double demo::geometry::Circle::area() const``."""
         _out = ctypes.c_double()
-        _runtime.check(_bind().demo_geometry_Circle_area(self._ptr(), ctypes.byref(_out)))
+        _runtime.check(_bind().demo_geometry_Circle_area(self._ptr(), _out))
         return _out.value
 
     def scale(self, factor):
         """Wraps ``void demo::geometry::Circle::scale(double factor)``."""
-        _runtime.check(_bind().demo_geometry_Circle_scale(
-            self._ptr(),
-            _runtime.to_float(factor, ctypes.c_double, "factor"),
-        ))
+        factor = _runtime.to_float(factor, ctypes.c_double, "factor")
+        _runtime.check(_bind().demo_geometry_Circle_scale(self._ptr(), factor))
 
 
 def distance(x1, y1, x2, y2):
     """Wraps ``double demo::geometry::distance(double x1, double y1, double x2, double y2)``."""
     _out = ctypes.c_double()
-    _runtime.check(_bind().demo_geometry_distance(
-        _runtime.to_float(x1, ctypes.c_double, "x1"),
-        _runtime.to_float(y1, ctypes.c_double, "y1"),
-        _runtime.to_float(x2, ctypes.c_double, "x2"),
-        _runtime.to_float(y2, ctypes.c_double, "y2"),
-        ctypes.byref(_out),
-    ))
+    x1 = _runtime.to_float(x1, ctypes.c_double, "x1")
+    y1 = _runtime.to_float(y1, ctypes.c_double, "y1")
+    x2 = _runtime.to_float(x2, ctypes.c_double, "x2")
+    y2 = _runtime.to_float(y2, ctypes.c_double, "y2")
+    _runtime.check(_bind().demo_geometry_distance(x1, y1, x2, y2, _out))
     return _out.value

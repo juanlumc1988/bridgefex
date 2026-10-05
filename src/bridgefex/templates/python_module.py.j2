@@ -2,6 +2,9 @@
 
 import builtins as _builtins
 import ctypes
+{% if h.classes %}
+import sys as _sys
+{% endif %}
 import threading
 {% if h.classes %}
 import weakref
@@ -48,13 +51,32 @@ def _bind():
 {% if h.classes %}
 
 
-def _release(owned):
-    """Destroy an object unless close() did it already: whoever pops wins."""
-    try:
-        handle, destroy = owned.pop()
-    except IndexError:
-        return
-    destroy(handle)
+# Weak references to the objects not collected yet: they must outlive the
+# objects for their callbacks to run.
+_watchers = set()
+
+
+def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
+    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
+
+    Unless close() did it already (whoever pops ``owned`` destroys it), or the
+    interpreter is exiting: objects still alive after the exit handlers are
+    left alone, because other threads may still be using them.
+    """
+
+    def collected(ref):
+        watchers.discard(ref)
+        if is_finalizing():
+            return
+        try:
+            handle, destroy = owned.pop()
+        except IndexError:
+            return
+        destroy(handle)
+
+    ref = weakref.ref(obj, collected)
+    watchers.add(ref)
+    return ref
 {% endif %}
 {% for item in h.items %}
 {% if item is class_plan %}
@@ -106,11 +128,9 @@ class {{ c.py_name }}:
                 "{{ c.model.qualified_name }}: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the finalizer, so the object is destroyed once.
+        # Shared by close() and the collection callback: the object is destroyed once.
         self._owned = owned = [(handle, _bind().{{ c.destroy.name }})]
-        self._finalizer = weakref.finalize(self, _release, owned)
-        # At interpreter exit, other threads may still be using the object.
-        self._finalizer.atexit = False
+        self._finalizer = _watch(self, owned)
 
     def _ptr(self):
         if not self._owned:
@@ -120,14 +140,12 @@ class {{ c.py_name }}:
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already, and the finalizer may have been
-        # dropped without running.
+        # of this module may be gone already.
         try:
             handle, destroy = self._owned.pop()
         except (AttributeError, IndexError):
             return
         self._handle = None
-        self._finalizer.detach()
         destroy(handle)
 
     def __enter__(self):

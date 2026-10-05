@@ -144,7 +144,7 @@ def check_geometry():
         bad = geometry.Circle.__new__(geometry.Circle)
         bad._adopt(other._handle)
         expect(Exception, bad.radius)
-        bad._finalizer.detach()
+        bad._owned.clear()  # it does not own the handle
     assert geometry.distance(0.0, 0.0, 3.0, 4.0) == 5.0
     assert geometry.multiply_double_double(1.5, 4) == 6.0
 

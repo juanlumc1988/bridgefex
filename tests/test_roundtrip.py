@@ -233,6 +233,67 @@ early.close()
     assert completed.stdout.strip() == "live at exit: 0"
 
 
+def test_objects_dropped_by_exit_handlers_are_destroyed(demo_build: tuple[Path, Path]) -> None:
+    """Even by handlers that run after weakref.finalize's own exit hook."""
+    code = """
+import atexit
+from demo import counter
+
+def at_exit():
+    temporary = counter.Counter.create_int32(1)
+    del temporary
+    print("live at exit:", counter.Counter.liveInstances())
+
+atexit.register(at_exit)
+early = counter.Counter.create_void()
+early.close()
+"""
+    completed = run_demo(demo_build, code)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "live at exit: 0"
+
+
+def test_arguments_that_close_the_object_are_refused(demo_build: tuple[Path, Path]) -> None:
+    """The arguments are converted before the handle is read, not after."""
+    code = """
+import numbers
+from demo import counter
+
+
+def call(method):
+    target = counter.Counter.create_int32(5)
+
+    class Closing:
+        def __index__(self):
+            target.close()
+            return 1
+
+        def __float__(self):
+            target.close()
+            return 1.0
+
+    numbers.Real.register(Closing)
+    try:
+        getattr(target, method)(Closing())
+    except ValueError as error:
+        print(method, error)
+    else:
+        print(method, "ran on a closed object")
+
+
+call("add_int32")
+call("add_double")
+print("live:", counter.Counter.liveInstances())
+"""
+    completed = run_demo(demo_build, code)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines() == [
+        "add_int32 Counter object is closed",
+        "add_double Counter object is closed",
+        "live: 0",
+    ]
+
+
 @pytest.mark.parametrize("imports", ["", "import logging\n", "import concurrent.futures\n"])
 def test_close_in_del_during_interpreter_shutdown(
     demo_build: tuple[Path, Path], tmp_path: Path, imports: str
@@ -292,7 +353,11 @@ def call_inside(function, marker):
         if event == "line" and frame.f_lineno == target and not fired:
             fired.append(target)
             # Tracing is off while the tracer runs, so this is not traced.
-            print("nested:", counter.Counter.liveInstances())
+            if mode == "load-default-nested-other":
+                demo.load(sys.argv[2])
+                print("nested: loaded")
+            else:
+                print("nested:", counter.Counter.liveInstances())
         return tracer
 
     sys.settrace(tracer)
@@ -326,6 +391,9 @@ assert fired, "the tracer never ran"
         # The nested call loads the library of DEMO_LIBRARY, not the one that
         # the outer call was asked for: that call must fail, not return it.
         ("load-other", ["nested:", "0", "refused:", "True"]),
+        # The outer call asked for no library in particular: the one that the
+        # nested call loaded is fine.
+        ("load-default-nested-other", ["nested:", "loaded", "outer:", "6"]),
     ],
 )
 def test_bindings_are_reentrant(
@@ -339,9 +407,10 @@ def test_bindings_are_reentrant(
         "PYTHONPATH": str(output / "python"),
         "DEMO_LIBRARY": str(other if mode == "load-other" else library),
     }
+    argument = other if mode == "load-default-nested-other" else library
     try:
         completed = subprocess.run(
-            [sys.executable, "-c", _REENTRANT, mode, str(library)],
+            [sys.executable, "-c", _REENTRANT, mode, str(argument)],
             env=environment,
             capture_output=True,
             text=True,
@@ -402,6 +471,33 @@ def test_locks_held_by_another_thread_are_free_after_fork(demo_build: tuple[Path
         check=False,
         timeout=120,
     )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines() == ["child: 6", "child exit code: 0"]
+
+
+_FORK_HOLDING = """
+import faulthandler
+import os
+
+from demo import _runtime, counter
+
+with _runtime._lock, counter._bind_lock:
+    pid = os.fork()
+    if pid == 0:
+        faulthandler.dump_traceback_later(30, exit=True)
+        print("child:", counter.multiply_int32_int32(2, 3), flush=True)
+# Leaving the with block released the locks in the child too.
+if pid == 0:
+    os._exit(0)
+print("child exit code:", os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+"""
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_locks_held_by_the_forking_thread_stay_held_after_fork(
+    demo_build: tuple[Path, Path],
+) -> None:
+    completed = run_demo(demo_build, _FORK_HOLDING)
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.splitlines() == ["child: 6", "child exit code: 0"]
 

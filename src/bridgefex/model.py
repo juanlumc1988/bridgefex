@@ -119,6 +119,11 @@ class VisibleNames:
     object_macro_names: frozenset[str] = frozenset()
     """The macros that take no arguments: they would also replace a parameter name."""
 
+    tag_names: frozenset[str] = frozenset()
+    """Struct, union and enum tags of a C translation unit, which only clash with
+    the tags of the generated handle types (C++ class names are in
+    ``global_names``)."""
+
 
 @dataclass(frozen=True, slots=True)
 class Header:

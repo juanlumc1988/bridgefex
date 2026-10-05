@@ -55,14 +55,21 @@ class Error(Exception):
 
 
 def reset_after_fork(lock):
-    """Make ``lock`` free again in the child of an os.fork(), and return it.
+    """Make ``lock`` free again in the child of an os.fork() when another thread
+    held it, and return it.
 
-    The thread that held it when another thread forked does not exist in the
-    child, which would otherwise wait for it forever.
+    That thread does not exist in the child, which would otherwise wait for it
+    forever. The thread that forked does, and releases the lock itself.
     """
     reset = getattr(lock, "_at_fork_reinit", None)
+    is_owned = getattr(lock, "_is_owned", None)
     if reset is not None and hasattr(os, "register_at_fork"):
-        os.register_at_fork(after_in_child=reset)
+
+        def after_in_child():
+            if is_owned is None or not is_owned():
+                reset()
+
+        os.register_at_fork(after_in_child=after_in_child)
     return lock
 
 
@@ -105,7 +112,7 @@ def load(path=None):
     """
     global _library, _library_path
     with _lock:
-        path = os.fsdecode(path) if path is not None else None
+        path = requested = os.fsdecode(path) if path is not None else None
         if _library is not None:
             if path and not _is_loaded_from(path):
                 raise RuntimeError(
@@ -131,9 +138,9 @@ def load(path=None):
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path
-        elif not _is_loaded_from(library_path):
-            # A reentrant call (from a finalizer or a signal handler) loaded
-            # another library in the meantime.
+        elif requested and not _is_loaded_from(library_path):
+            # In the meantime, a reentrant call (from a finalizer or a signal
+            # handler) loaded a library other than the one asked for.
             raise RuntimeError(
                 f"the {{ m.name }} library is already loaded from {_library_path!r}"
             )
