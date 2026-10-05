@@ -14,7 +14,7 @@ requires-python = ">=3.12"
 dependencies = [
     # Python bindings for libclang. Their major version must match the
     # libclang shared library that is loaded at runtime (see README).
-    "clang>=20.1,<20.2",
+    "clang>=20.1,<21.2",
     "Jinja2>=3.1,<4",
 ]
 keywords = ["bindings", "ffi", "c", "cpp", "libclang", "code-generator"]
