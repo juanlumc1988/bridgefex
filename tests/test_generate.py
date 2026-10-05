@@ -540,6 +540,8 @@ def test_include_root_does_not_drop_dot_dot_after_a_symbolic_link_in_the_root(
 def test_byte_macro_warning_needs_the_macro_and_cxx17(
     tmp_path: Path, code: str, std: str, warns: bool
 ) -> None:
+    if warns and sys.platform == "win32":
+        pytest.skip("MSVC's <exception> declares std::byte: the verification fails instead")
     header = tmp_path / "bt.h"
     header.write_text(
         f"#pragma once\n{code}class Buf {{ public: Buf(); int size() const; }};\n",
