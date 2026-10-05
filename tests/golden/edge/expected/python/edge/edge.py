@@ -23,7 +23,9 @@ class _edge_Registry(ctypes.Structure):
 _edge_Registry_p = ctypes.POINTER(_edge_Registry)
 
 _lib = None
-_bind_lock = threading.Lock()
+# Reentrant: a finalizer or signal handler that calls into this module can run
+# while _bind() declares the signatures, in the same thread.
+_bind_lock = threading.RLock()
 
 
 def _bind():
@@ -130,18 +132,26 @@ class Registry:
         self._finalizer.atexit = False
 
     def _ptr(self):
-        if not self._finalizer.alive:
+        if self._handle is None or not self._finalizer.alive:
             raise _builtins.ValueError("Registry object is closed")
         return self._handle
 
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         finalizer = _builtins.getattr(self, "_finalizer", None)
-        # detach() also works during interpreter shutdown, unlike calling the finalizer.
-        pending = finalizer.detach() if finalizer is not None else None
+        if finalizer is None:
+            return
+        # detach() also works in atexit handlers, unlike calling the finalizer.
+        pending = finalizer.detach()
         if pending is not None:
+            self._handle = None
             _, destroy, arguments, _ = pending
             destroy(*arguments)
+        elif finalizer.alive and self._handle is not None:
+            # The last garbage collection at interpreter exit cleared the weak
+            # reference without calling the finalizer, which will never run.
+            handle, self._handle = self._handle, None
+            _bind().edge_Registry_destroy(handle)
 
     def __enter__(self):
         return self

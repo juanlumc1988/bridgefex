@@ -120,7 +120,7 @@ def test_generated_macros() -> None:
         ("impl__Engine", "reserved"),
         ("_Upper", "reserved"),
         ("demo_Counter", None),
-        ("_lower", None),
+        ("_lower", "reserved"),
     ],
 )
 def test_c_identifier_problem(name: str, problem: str | None) -> None:

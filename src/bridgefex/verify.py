@@ -57,12 +57,15 @@ def verify(
                 "-Wall",
                 "-Wextra",
                 f"-I{generated}",
-                f"-I{include_dirs[header.stem]}",
+                # Only for the quoted #include of the wrapped header: with -I, a
+                # file of the user's such as time.h would also replace <time.h>.
+                "-iquote",
+                str(include_dirs[header.stem]),
                 *(f"-I{directory}" for directory in options.include_dirs),
                 *(f"-D{definition}" for definition in options.defines),
-                *options.extra_args,
+                *_without_werror(options.extra_args),
             ]
-            unit = index.parse(str(source), args=args)
+            unit = _parse(index, source, args)
             functions = _function_lines(plan, header, c_files[f"c/{header.c_source}"])
             for diagnostic in unit.diagnostics:
                 _report(
@@ -81,7 +84,7 @@ def verify(
             encoding="utf-8",
         )
         args = ["-x", "c", "-std=c2x", f"-I{generated}"]
-        unit = index.parse(str(consumer), args=args)
+        unit = _parse(index, consumer, args)
         for diagnostic in unit.diagnostics:
             if diagnostic.severity >= cindex.Diagnostic.Error:
                 errors.append(
@@ -94,6 +97,36 @@ def verify(
     if errors:
         raise GenerationError(errors)
     return tuple(warnings)
+
+
+def _without_werror(args: Sequence[str]) -> list[str]:
+    """``args`` without the options that turn warnings into errors.
+
+    The warnings of the user's headers were reported by the parser; with
+    -Wall and -Wextra, -Werror would turn new ones into errors here.
+    """
+    result: list[str] = []
+    for arg in args:
+        if arg in ("-Werror", "-pedantic-errors") or arg.startswith("-Werror="):
+            if result and result[-1] == "-Xclang":
+                result.pop()
+            continue
+        result.append(arg)
+    return result
+
+
+def _parse(index: cindex.Index, source: Path, args: Sequence[str]) -> cindex.TranslationUnit:
+    try:
+        return index.parse(str(source), args=list(args))
+    except cindex.TranslationUnitLoadError as error:
+        raise GenerationError(
+            [
+                Diagnostic(
+                    f"libclang cannot compile the generated file {source.name} ({error}); "
+                    f"arguments: {' '.join(args)}; use --no-verify to skip the verification"
+                )
+            ]
+        ) from None
 
 
 def _function_lines(
@@ -151,17 +184,18 @@ def _report(
     location = diagnostic.location
     file = Path(str(location.file.name)).resolve() if location.file is not None else None
     in_generated = file is not None and file.is_relative_to(root.resolve())
-    if severity < cindex.Diagnostic.Error and not in_generated:
-        return  # warnings of the user's own headers were reported by the parser
-    kind = "does not compile" if severity >= cindex.Diagnostic.Error else "triggers a warning"
     wrapper = _wrapper_at(location, source, functions)
     if wrapper is None:
-        # An error inside a generated helper (the exception guard, for
-        # example) has notes that point back at the wrapper that used it.
+        # A diagnostic elsewhere (in a generated helper, or in the user's
+        # header for a function that a wrapper uses but that is never defined)
+        # has notes that point back at the wrapper that caused it.
         for note in diagnostic.children:
             wrapper = _wrapper_at(note.location, source, functions)
             if wrapper is not None:
                 break
+    if severity < cindex.Diagnostic.Error and not in_generated and wrapper is None:
+        return  # warnings of the user's own headers were reported by the parser
+    kind = "does not compile" if severity >= cindex.Diagnostic.Error else "triggers a warning"
     if wrapper is not None:
         message = (
             f"the generated wrapper {wrapper.name}() for '{wrapper.description}' {kind}: "

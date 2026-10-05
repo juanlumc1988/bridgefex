@@ -94,7 +94,7 @@ bridgefex --module demo --output out include/counter.h include/geometry.h
 | `-m`, `--module NAME` | Module name, required. It prefixes the runtime C symbols (`demo_status`, `demo_last_error`, `DEMO_API`...) and names the Python package. Lowercase letters and digits, with single `_` between them. |
 | `-o`, `--output DIR` | Output directory. |
 | `--lang {python,none}` | Bindings to generate on top of the C layer (default: `python`). |
-| `--std STD` | C++ standard used to parse the headers (default: `c++17`). |
+| `--std STD` | C++ standard used to parse the headers (default: `c++17`). C++11 or later: the generated code needs it. |
 | `-I DIR`, `-D NAME[=VALUE]` | Include directories and macros for parsing. |
 | `--clang-arg=ARG` | Any other libclang argument. |
 | `--include-root DIR` | Make the `#include` lines of the generated sources relative to `DIR` (default: each header by its file name). |
@@ -120,7 +120,7 @@ out/
         └── ...
 ```
 
-Build `out/c/*.cpp` into the same shared library as your code, or into a separate one linked against it. Add `out/c` and the directories of your headers to the include path. For example:
+Build `out/c/*.cpp` into the same shared library as your code, or into a separate one linked against it. Add `out/c` and the directories of your headers to the include path. The generated sources include your headers with quotes, so `-iquote` is enough for them (GCC, Clang); unlike `-I`, it does not let a header of yours named like a standard one (`time.h`) replace it. For example:
 
 ```sh
 g++ -std=c++17 -shared -fPIC -fvisibility=hidden -I out/c -I include \
@@ -131,7 +131,7 @@ The generated sources define `DEMO_C_API_BUILD`, so the functions are exported (
 
 Generation is all-or-nothing. If any header contains something unsupported, every problem is reported as `file:line:column: message` and no file is written. Existing files in the output directory are overwritten; stale ones are not removed.
 
-**Verification.** Some C++ rules are only checked by a compiler: default arguments that make a call ambiguous, deleted or private `operator new`, implicitly deleted constructors, `consteval`, and so on. Before writing anything, bridgefex therefore compiles every generated C++ source against your header, and the generated C headers as C23, with libclang. Errors point at the declaration whose wrapper does not compile, and warnings in generated code (a call to a `[[deprecated]]` function, for example) are reported too. The verification uses the parsing options (`--std`, `-I`, `-D`...) plus the header's directory, or `--include-root`, on the include path. `--no-verify` skips it.
+**Verification.** Some C++ rules are only checked by a compiler: default arguments that make a call ambiguous, deleted or private `operator new`, implicitly deleted constructors, `consteval`, and so on. Before writing anything, bridgefex therefore compiles every generated C++ source against your header, and the generated C headers as C23, with libclang. Errors point at the declaration whose wrapper does not compile, and warnings in generated code (a call to a `[[deprecated]]` function, for example) are reported too. The verification uses the parsing options (`--std`, `-I`, `-D`...) plus the header's directory, or `--include-root`, as an `-iquote` directory. Options such as `-Werror` are left out there: the warnings of your headers are reported when parsing them. `--no-verify` skips it.
 
 ## Supported C++ (prototype)
 
@@ -154,8 +154,9 @@ Rejected with an error, for now:
 - Classes by value (`std::string`, `std::vector`...), plain `char`, `wchar_t`, `long double`.
 - Type aliases other than the standard fixed-width ones. A type is only taken as `int64_t`, `size_t`... if it is the standard one: an alias with that name declared by your code (`typedef unsigned size_t;` in your namespace) is rejected.
 - Classes with virtual methods but no virtual destructor (unless `final`).
-- Non-ASCII names, and names that would make a generated C name a keyword or a reserved identifier (`co::yield` gives `co_yield`; a leading or trailing `_` gives `__`).
-- Generated C names that clash with each other, with a declaration at global scope or a macro seen by the header, or with the generated macros.
+- Non-ASCII names, and names that would make a generated C name a keyword or a reserved identifier (`co::yield` gives `co_yield`; a namespace `_impl` gives `_impl_f`; a leading or trailing `_` elsewhere gives `__`).
+- Generated C names that clash with each other, with a declaration at global scope or a macro seen by the header, with the generated macros, or with a function, type or macro of the C library. The C library means the C and POSIX headers that exist on the platform, whether the header includes them or not: `sched::yield` would give `sched_yield`, which a C program that links the library would call instead of the system's.
+- Headers named like a generated file (`<module>_runtime.h`, or `x_c.h` when `x.h` is wrapped too), unless `--include-root` puts them in a directory: the generated sources would include the generated file instead.
 
 Copy and move constructors, deleted functions, and private or protected members are not part of the API and are skipped.
 
@@ -163,6 +164,7 @@ Copy and move constructors, deleted functions, and private or protected members 
 
 - **Names.** Every symbol starts with the C++ namespaces joined by `_`. Declarations in the global namespace use the module name instead, so a wrapper never has the same name as the function it wraps. `demo::geometry::Circle::area` becomes `demo_geometry_Circle_area`.
 - **Overloads** get a suffix built from the parameter types: `demo_Counter_add_int32`, `demo_Counter_add_double`, `demo_Counter_create_void`. Only overloaded names get one, so adding an overload renames the existing function. Every generated name is checked for clashes.
+- **Parameters** keep their C++ names, except names that the preprocessor or a language would change: keywords of C, C++ and Python, type names (`int32_t`), common platform macros (`unix`, `errno`...), the generated macros and include guards, and the macros without arguments that the header's translation unit defines. These get a trailing `_`. Unnamed parameters become `arg1`, `arg2`...
 - **Handles.** Each class becomes an opaque handle: an incomplete `struct` with the same type in C and C++, so function pointers and control-flow integrity checks see one type. `X_create...` allocates an object and returns it through `X** out_self`, which is set to NULL on failure. `X_destroy(X*)` deletes it and accepts NULL. The generated source converts between handle and class with `reinterpret_cast`.
 - **Errors.** Every function that can fail returns a `<module>_status`:
 
@@ -203,12 +205,12 @@ CI builds and runs everything on:
 - Linux x86_64 and Linux arm64 (Ubuntu 24.04), with GCC 14 and Clang 20;
 - Windows x64, with MSVC.
 
-Each of these runs with Python 3.12 and 3.14. The generated files are byte-identical on every platform.
+Each of these runs with Python 3.12 and 3.14. The generated files of the test cases are byte-identical on every platform.
 
 ## Known limitations
 
 - The wrapper sources must be compiled with the same compiler, standard library and options as the wrapped code. They call it directly.
-- Over-aligned classes (more than `alignof(std::max_align_t)`) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
+- Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Calling a `[[deprecated]]` function from the wrapper triggers the compiler's deprecation warning (bridgefex reports it).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
 

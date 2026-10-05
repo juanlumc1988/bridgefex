@@ -31,6 +31,18 @@ def test_include_spelling(tmp_path: Path) -> None:
         include_spelling(header, tmp_path / "other")
 
 
+@pytest.mark.parametrize(
+    ("directory", "name"), [("v2*", "api.h"), ("a\rb", "api.h"), ("lib", 'a"b.h')]
+)
+def test_include_spelling_rejects_what_an_include_cannot_hold(
+    tmp_path: Path, directory: str, name: str
+) -> None:
+    """Checked without touching the file system: Windows forbids some of these names."""
+    root = tmp_path / "include"
+    with pytest.raises(ConfigurationError, match="cannot write an #include"):
+        include_spelling(root / directory / name, root)
+
+
 def test_options_are_validated() -> None:
     with pytest.raises(ConfigurationError, match="no input headers"):
         bridgefex.generate([], bridgefex.Options(module="ok"))

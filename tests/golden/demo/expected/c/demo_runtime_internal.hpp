@@ -9,7 +9,8 @@
 #include <exception>
 #include <new>
 #if defined(__GLIBCXX__)
-#include <cxxabi.h>
+// Only __cxxabiv1::__forced_unwind; <cxxabi.h> would also declare a global 'abi'.
+#include <bits/cxxabi_forced.h>
 #endif
 
 namespace demo_detail {
@@ -34,7 +35,7 @@ demo_status guard(const Function& function)
         function();
         return DEMO_OK;
 #if defined(__GLIBCXX__)
-    } catch (abi::__forced_unwind&) {
+    } catch (__cxxabiv1::__forced_unwind&) {
         throw;
 #endif
     } catch (const std::bad_alloc& error) {
@@ -57,7 +58,7 @@ void guard_silently(const Function& function)
     try {
         function();
 #if defined(__GLIBCXX__)
-    } catch (abi::__forced_unwind&) {
+    } catch (__cxxabiv1::__forced_unwind&) {
         throw;
 #endif
     } catch (...) {

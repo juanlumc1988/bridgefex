@@ -138,6 +138,29 @@ def test_over_aligned_classes_need_cxx17(
     new.check()
 
 
+@pytest.mark.skipif(sys.maxsize <= 2**32, reason="operator new aligns to 8 bytes on 32-bit targets")
+def test_16_byte_alignment_is_fine_before_cxx17_on_64_bit_targets(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """operator new returns 16-byte aligned memory there, although MSVC's
+    std::max_align_t (double) is only 8-byte aligned."""
+    header = tmp_path / "vec.h"
+    header.write_text(
+        "#pragma once\nnamespace m3d {\n"
+        "class alignas(16) Vec4 { public: Vec4(); float x() const; private: float v_[4]; };\n}\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("m3d", std="c++14", languages=()))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    toolchain.syntax_check(
+        output / "c" / "vec_c.cpp",
+        "c++",
+        standard(toolchain, "c++", "c++14", probe_dir),
+        [output / "c", tmp_path],
+    ).check()
+
+
 # Modes in which an ignored status must be diagnosed. MSVC has no attribute
 # for it in C, and only [[nodiscard]] (C++17 and later) in C++.
 _NODISCARD_MODES = {

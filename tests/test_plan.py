@@ -8,7 +8,16 @@ from pathlib import Path
 import pytest
 
 from bridgefex.errors import ConfigurationError, GenerationError, Location
-from bridgefex.model import Class, Constructor, Function, Header, Method, Module, Parameter
+from bridgefex.model import (
+    Class,
+    Constructor,
+    Function,
+    Header,
+    Method,
+    Module,
+    Parameter,
+    VisibleNames,
+)
 from bridgefex.plan import ClassPlan, FunctionPlan, Role, build_plan
 from bridgefex.typemap import BUILTIN_TYPES, STANDARD_TYPEDEFS, VOID
 
@@ -231,3 +240,56 @@ def test_long_python_calls_are_wrapped() -> None:
     body = item.py.body(4)
     assert body.splitlines()[1] == "    _runtime.check(_bind().ns_f("
     assert all(len(line) <= 99 for line in body.splitlines())
+
+
+def test_parameters_named_like_macros_without_arguments_are_renamed() -> None:
+    names = VisibleNames(macro_names=frozenset({"X", "max"}), object_macro_names=frozenset({"X"}))
+    model = function(
+        "f", Parameter("X", INT32), Parameter("max", INT32), Parameter("MOD_A_C_H", INT32)
+    )
+    plan = plan_for(Header(Path("a.h"), "a.h", (model,), names))
+    item = plan.headers[0].items[0]
+    assert isinstance(item, FunctionPlan)
+    # A function-like macro cannot replace a name that is not followed by '('.
+    assert [param.name for param in item.c_function.params] == [
+        "X_",
+        "max",
+        "MOD_A_C_H_",
+        "out_result",
+    ]
+
+
+def test_names_of_the_c_library_are_reserved() -> None:
+    system = VisibleNames(global_names=frozenset({"sched_yield"}), macro_names=frozenset({"ns_M"}))
+    module = Module(
+        "mod", (header(function("yield", namespace=("sched",)), function("M")),), system
+    )
+    with pytest.raises(GenerationError) as raised:
+        build_plan(module)
+    message = str(raised.value)
+    assert (
+        "'sched_yield' of function 'sched::yield()' clashes with a global declaration "
+        "of the C library" in message
+    )
+    assert "'ns_M' of function 'ns::M()' clashes with a macro of the C library" in message
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        ("mod_runtime.h",),
+        ("MOD_RUNTIME_INTERNAL.HPP",),
+        ("mod_runtime.cpp",),
+        ("a.h", "a_c.h"),
+        ("b_c.cpp", "b.h"),
+    ],
+)
+def test_headers_named_like_generated_files(names: tuple[str, ...]) -> None:
+    headers = [header(function(f"f{i}"), name=name) for i, name in enumerate(names)]
+    with pytest.raises(GenerationError, match="has the name of a generated file"):
+        plan_for(*headers)
+
+
+def test_headers_in_a_directory_do_not_hide_generated_files() -> None:
+    model = Header(Path("lib/mod_runtime.h"), "lib/mod_runtime.h", (function("f"),))
+    assert plan_for(model).headers[0].stem == "mod_runtime"

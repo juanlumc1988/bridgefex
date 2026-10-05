@@ -183,10 +183,36 @@ def test_only_the_c_api_is_exported(built: tuple[Case, Path, Path], toolchain: T
     assert not [name for name in exported if f"{len(detail)}{detail}" in name]
 
 
-def test_close_works_during_interpreter_shutdown(toolchain: Toolchain, tmp_path: Path) -> None:
-    """An object closed by an atexit handler is really destroyed."""
+@pytest.fixture(scope="module")
+def demo_build(toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, Path]:
+    """The demo case built once: (library, output directory)."""
     case = next(case for case in CASES if case.name == "demo")
-    library, output = build(case, toolchain, tmp_path)
+    return build(case, toolchain, tmp_path_factory.mktemp("demo"))
+
+
+def run_demo(
+    demo_build: tuple[Path, Path], code: str, *, extra_path: Path | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run Python code against the demo bindings, with warnings as errors."""
+    library, output = demo_build
+    paths = [str(output / "python")] + ([str(extra_path)] if extra_path else [])
+    environment = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(paths),
+        "DEMO_LIBRARY": str(library),
+    }
+    return subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+
+
+def test_close_works_during_interpreter_shutdown(demo_build: tuple[Path, Path]) -> None:
+    """An object closed by an atexit handler is really destroyed."""
     code = """
 import atexit
 from demo import counter
@@ -201,17 +227,119 @@ atexit.register(at_exit)
 early = counter.Counter.create_void()
 early.close()
 """
+    completed = run_demo(demo_build, code)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "live at exit: 0"
+
+
+def test_close_in_del_during_interpreter_shutdown(
+    demo_build: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """The usual "close what I own in __del__" works for module-level objects too.
+
+    The last garbage collection at exit clears the weak reference of the
+    finalizer without calling it.
+    """
+    (tmp_path / "owner.py").write_text(
+        """from demo import counter
+
+
+class Owner:
+    def __init__(self):
+        self.inner = counter.Counter.create_int32(7)
+
+    def __del__(self):
+        self.inner.close()
+        self.inner.close()  # does nothing
+        print("live after close:", counter.Counter.liveInstances(), flush=True)
+
+
+kept = Owner()
+""",
+        encoding="utf-8",
+    )
+    completed = run_demo(demo_build, "import owner\nprint('exiting')", extra_path=tmp_path)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines() == ["exiting", "live after close: 0"]
+
+
+_REENTRANT = """
+import faulthandler
+import inspect
+import sys
+
+import demo
+from demo import _runtime, counter
+
+faulthandler.dump_traceback_later(60, exit=True)
+
+
+def call_inside(function, lock_name):
+    \"\"\"While function holds the lock, call the bindings from the same thread, as a
+    finalizer or a signal handler can.\"\"\"
+    lines, first = inspect.getsourcelines(function)
+    locked = first + next(i for i, line in enumerate(lines) if f"with {lock_name}:" in line)
+    fired = []
+
+    def tracer(frame, event, arg):
+        if frame.f_code is not function.__code__:
+            return None
+        if event == "line" and frame.f_lineno > locked and not fired:
+            fired.append(frame.f_lineno)
+            # Tracing is off while the tracer runs, so this is not traced.
+            print("nested:", counter.Counter.liveInstances())
+        return tracer
+
+    sys.settrace(tracer)
+    return fired
+
+if sys.argv[1] == "load":
+    fired = call_inside(_runtime.load, "_lock")
+else:
+    demo.load()
+    fired = call_inside(counter._bind, "_bind_lock")
+print("outer:", counter.multiply_int32_int32(2, 3))
+sys.settrace(None)
+assert fired, "the tracer never ran inside the lock"
+"""
+
+
+@pytest.mark.parametrize("lock", ["load", "bind"])
+def test_bindings_are_reentrant(demo_build: tuple[Path, Path], lock: str) -> None:
+    library, output = demo_build
     environment = {
         **os.environ,
         "PYTHONPATH": str(output / "python"),
         "DEMO_LIBRARY": str(library),
     }
-    completed = subprocess.run(
-        [sys.executable, "-X", "dev", "-W", "error", "-c", code],
-        env=environment,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", _REENTRANT, lock],
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.fail("deadlock: a reentrant call into the bindings never returned")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.split() == ["nested:", "0", "outer:", "6"]
+
+
+def test_load_accepts_bytes_paths(demo_build: tuple[Path, Path]) -> None:
+    library, _ = demo_build
+    code = f"""
+import os
+import demo
+from demo import _runtime, counter
+
+path = {str(library)!r}
+assert demo.load(os.fsencode(path)) is _runtime._library
+assert _runtime._library_path == path, _runtime._library_path
+assert demo.load(path) is _runtime._library
+print(counter.multiply_int32_int32(2, 3))
+"""
+    completed = run_demo(demo_build, code)
     assert completed.returncode == 0, completed.stderr
-    assert completed.stdout.strip() == "live at exit: 0"
+    assert completed.stdout.strip() == "6"

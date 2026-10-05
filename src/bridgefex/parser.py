@@ -9,6 +9,7 @@ collected before giving up, so that the user can fix them in one go.
 
 from __future__ import annotations
 
+import functools
 import os
 import re
 from dataclasses import dataclass
@@ -25,7 +26,17 @@ from clang.cindex import (
 
 from . import libclang, naming, typemap
 from .errors import ConfigurationError, Diagnostic, GenerationError, Location
-from .model import Class, Constructor, Declaration, Function, Header, Method, Parameter, ScalarType
+from .model import (
+    Class,
+    Constructor,
+    Declaration,
+    Function,
+    Header,
+    Method,
+    Parameter,
+    ScalarType,
+    VisibleNames,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,11 +130,11 @@ def _location(source_location: cindex.SourceLocation) -> Location | None:
 
 @dataclass(frozen=True, slots=True)
 class _Context:
-    global_names: frozenset[str]
-    macro_names: frozenset[str]
+    names: VisibleNames
     standard_kinds: dict[str, str]
-    """Canonical type kind of each standard typedef (int32_t...) declared at global
-    scope by a system header, e.g. {"int64_t": "LONG"} on Linux x86_64."""
+    """Canonical type kind of each standard typedef (int32_t...) declared by a
+    system header at global scope or in namespace std, e.g. {"int64_t": "LONG"}
+    on Linux x86_64."""
 
 
 _GLOBAL_NAME_KINDS = frozenset(
@@ -144,10 +155,18 @@ _GLOBAL_NAME_KINDS = frozenset(
 )
 
 
+def _record_standard_typedef(cursor: cindex.Cursor, standard_kinds: dict[str, str]) -> None:
+    name = str(cursor.spelling)
+    if name in typemap.STANDARD_TYPEDEFS and cursor.location.is_in_system_header:
+        canonical = cursor.underlying_typedef_type.get_canonical()
+        standard_kinds.setdefault(name, canonical.kind.name)
+
+
 def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
     """Names visible at global scope, macros and the standard typedefs of a translation unit."""
     global_names: set[str] = set()
     macro_names: set[str] = set()
+    object_macro_names: set[str] = set()
     standard_kinds: dict[str, str] = {}
     pending = list(unit_cursor.get_children())
     while pending:
@@ -159,20 +178,82 @@ def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
         name = str(cursor.spelling)
         if kind == CursorKind.MACRO_DEFINITION:
             macro_names.add(name)
+            if not libclang.is_macro_function_like(cursor):
+                object_macro_names.add(name)
         elif kind == CursorKind.LINKAGE_SPEC:
             pending.extend(cursor.get_children())
         elif kind in _GLOBAL_NAME_KINDS and name:
             global_names.add(name)
             if kind == CursorKind.ENUM_DECL and not cursor.is_scoped_enum():
                 global_names.update(str(child.spelling) for child in cursor.get_children())
-            if (
-                kind == CursorKind.TYPEDEF_DECL
-                and name in typemap.STANDARD_TYPEDEFS
-                and cursor.location.is_in_system_header
-            ):
-                canonical = cursor.underlying_typedef_type.get_canonical()
-                standard_kinds.setdefault(name, canonical.kind.name)
-    return _Context(frozenset(global_names), frozenset(macro_names), standard_kinds)
+            if kind == CursorKind.TYPEDEF_DECL:
+                _record_standard_typedef(cursor, standard_kinds)
+            elif kind == CursorKind.NAMESPACE and name == "std":
+                # libstdc++ declares std::size_t in namespace std itself; the
+                # global ::size_t only exists if <stddef.h> was included too.
+                for child in cursor.get_children():
+                    try:
+                        child_kind = child.kind
+                    except ValueError:
+                        continue
+                    if child_kind == CursorKind.TYPEDEF_DECL:
+                        _record_standard_typedef(child, standard_kinds)
+    names = VisibleNames(
+        frozenset(global_names), frozenset(macro_names), frozenset(object_macro_names)
+    )
+    return _Context(names, standard_kinds)
+
+
+# Headers of the C and POSIX libraries (and <windows.h>) whose names generated C
+# functions must not take, even if the wrapped headers do not include them: a C
+# program that includes both would not compile, or, worse, would call the
+# generated function instead of the library's when they have compatible types.
+_SYSTEM_HEADERS = """
+    assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h limits.h locale.h math.h
+    setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbool.h stddef.h stdint.h stdio.h
+    stdlib.h stdnoreturn.h string.h tgmath.h threads.h time.h uchar.h wchar.h wctype.h
+    aio.h arpa/inet.h dirent.h dlfcn.h fcntl.h fnmatch.h glob.h grp.h iconv.h langinfo.h
+    libgen.h mqueue.h netdb.h netinet/in.h poll.h pthread.h pwd.h regex.h sched.h
+    semaphore.h spawn.h strings.h sys/mman.h sys/resource.h sys/select.h sys/socket.h
+    sys/stat.h sys/time.h sys/types.h sys/uio.h sys/un.h sys/utsname.h sys/wait.h syslog.h
+    termios.h unistd.h utime.h wordexp.h
+""".split()
+
+
+@functools.cache
+def system_names() -> VisibleNames:
+    """Names declared by the platform's C and POSIX library headers.
+
+    Found by parsing, as C, every header of a fixed list that exists on this
+    platform. Requires :func:`bridgefex.libclang.load`.
+
+    Raises:
+        GenerationError: libclang cannot parse the probe.
+    """
+    lines = [
+        f"#if __has_include(<{header}>)\n#include <{header}>\n#endif\n"
+        for header in _SYSTEM_HEADERS
+    ]
+    lines.append("#if defined(_WIN32)\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#endif\n")
+    probe = "bridgefex_system_names.c"
+    args = ["-x", "c", "-std=c17", "-D_GNU_SOURCE"]
+    try:
+        unit = cindex.Index.create().parse(
+            probe,
+            args=args,
+            unsaved_files=[(probe, "".join(lines))],
+            options=(
+                cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+                | cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+            ),
+        )
+    except cindex.TranslationUnitLoadError as error:
+        raise GenerationError(
+            [Diagnostic(f"libclang cannot parse the C library headers ({error})")]
+        ) from error
+    # Errors (a header that needs another one first, for example) only make
+    # the list shorter; the names that were declared are still valid.
+    return _collect_context(unit.cursor).names
 
 
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:
@@ -238,8 +319,7 @@ def parse_header(path: Path, include: str, options: ParseOptions) -> ParseResult
         path=path,
         include=include,
         declarations=tuple(visitor.declarations),
-        global_names=context.global_names,
-        macro_names=context.macro_names,
+        names=context.names,
     )
     return ParseResult(header=header, warnings=tuple(sorted(warnings, key=_diagnostic_order)))
 
@@ -333,7 +413,10 @@ class _Visitor:
                 spelling = named if named.startswith("const ") else const + named
             declaration = clang_type.get_declaration()
             if declaration.kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
-                user_alias = not declaration.location.is_in_system_header
+                # The first declaration decides: redeclaring a standard typedef
+                # with the same type ('typedef int int32_t;' after <cstdint>) is
+                # valid and still names the standard type.
+                user_alias = not declaration.canonical.location.is_in_system_header
             return typemap.resolve(
                 kind=clang_type.kind.name,
                 spelling=spelling,

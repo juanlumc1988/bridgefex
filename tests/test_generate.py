@@ -8,9 +8,11 @@ generated code.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
+from clang import cindex
 
 import bridgefex
 from bridgefex.errors import BridgefexError, ConfigurationError, GenerationError
@@ -77,6 +79,10 @@ def error_of(directory: Path, code: str, std: str = "c++17") -> str:
         ("namespace co { void yield(); }", "the C name 'co_yield' of function"),
         ("namespace thread { int local(); }", "is a C or C++ keyword"),
         ("namespace impl_ { int rpm(); }", "'impl__rpm' of function 'impl_::rpm()' is a reserved"),
+        (
+            "namespace _impl { int f(int a); }",
+            "'_impl_f' of function '_impl::f(int a)' is a reserved",
+        ),
         # Classes that cannot be used through new and delete.
         (
             "namespace k { class W { public: int get() const;"
@@ -165,6 +171,18 @@ def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
         ("namespace p { std::int32_t f(std::int32_t int32_t); }", "int32_t int32_t_"),
         ("namespace p { int f(int MOD_C_API_BUILD); }", "int MOD_C_API_BUILD_"),
         ("namespace p { int f(int unix, int pascal); }", "int unix_, int pascal_"),
+        # ... and so are parameters named like a macro without arguments of the
+        # translation unit, wherever it is defined, or like an include guard.
+        ("namespace m { int scale(int value, int factor); }\n#define factor 3", "int factor_"),
+        ("namespace m { int f(); int f(int X); }\n#define X", "int X_,"),
+        ("namespace m { int f(); int f(int MOD_API_C_H); }", "int MOD_API_C_H_,"),
+        ("#define max(a, b) a\nnamespace m { int f(int max); }", "int max,"),
+        # A global 'abi' does not clash with what the generated code includes.
+        ("int abi(int x);\nnamespace abi2 { int g(); }", "mod_abi(int x"),
+        ("namespace abi { int f(); }", "abi_f("),
+        # Redeclaring a standard typedef with the same type keeps it standard.
+        ("typedef int int32_t;\nnamespace r { int32_t f(int32_t a); }", "r_f(int32_t a"),
+        ("typedef decltype(sizeof 0) size_t;\nnamespace r { size_t f(); }", "size_t* out_result"),
         # Functions declared through a function type.
         ("namespace t { typedef int Op(int, int); Op add; }", "t_add(int arg1, int arg2"),
         # Final polymorphic classes are fine.
@@ -192,6 +210,7 @@ def test_header_names_that_differ_only_in_case(tmp_path: Path) -> None:
         bridgefex.generate([first, second], bridgefex.Options("mod"))
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows forbids '*' and CR in file names")
 @pytest.mark.parametrize("directory", ["v2*", "a\rb"])
 def test_unsafe_include_paths(tmp_path: Path, directory: str) -> None:
     root = tmp_path / "include"
@@ -207,3 +226,131 @@ def test_unsafe_include_paths(tmp_path: Path, directory: str) -> None:
 def test_module_names_that_make_reserved_identifiers(name: str) -> None:
     with pytest.raises(ConfigurationError, match="invalid module name"):
         bridgefex.generate([Path("x.h")], bridgefex.Options(name))
+
+
+@pytest.mark.parametrize("include", ["cstdint", "array", "utility", "type_traits", "new"])
+def test_std_size_t_without_the_global_one(tmp_path: Path, include: str) -> None:
+    """libstdc++ declares std::size_t in namespace std; ::size_t needs <stddef.h>."""
+    header = tmp_path / "sz.h"
+    header.write_text(
+        f"#pragma once\n#include <{include}>\nnamespace z {{ std::size_t f(std::size_t a); }}\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    assert "z_f(size_t a, size_t* out_result)" in result.files["c/sz_c.h"]
+
+
+def test_macros_of_the_wrapped_header_do_not_change_standard_headers(tmp_path: Path) -> None:
+    header = tmp_path / "bt.h"
+    header.write_text(
+        "#pragma once\n#define byte unsigned char\n"
+        "class Buf { public: Buf(); int size() const; };\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod", std="c++17"))
+    assert "mod_Buf_size(" in result.files["c/bt_c.h"]
+
+
+def test_library_headers_named_like_standard_headers(tmp_path: Path) -> None:
+    """A time.h next to the wrapped header must not replace <time.h>."""
+    directory = tmp_path / "include" / "lib"
+    directory.mkdir(parents=True)
+    (directory / "time.h").write_text(
+        "#pragma once\nnamespace lib { class Duration { public: int ms() const; }; }\n",
+        encoding="utf-8",
+    )
+    header = directory / "clock.h"
+    header.write_text(
+        '#pragma once\n#include <cstdint>\n#include <ctime>\n#include "time.h"\n'
+        "namespace lib { class Clock { public: Clock(); std::int64_t now() const; }; }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    assert "lib_Clock_now(" in result.files["c/clock_c.h"]
+
+
+@pytest.mark.parametrize("werror", ["-Werror", "-Werror=unused-variable"])
+def test_werror_does_not_reject_warnings_of_the_wrapped_header(tmp_path: Path, werror: str) -> None:
+    header = write_header(tmp_path, "namespace w { inline int h(int x) { int unused; return x; } }")
+    result = bridgefex.generate([header], bridgefex.Options("mod", clang_args=(werror,)))
+    assert "w_h(int x" in result.files["c/api_c.h"]
+
+
+def test_functions_used_but_never_defined_are_reported(tmp_path: Path) -> None:
+    result = generate(tmp_path, "static int hidden(int x);")
+    assert any(
+        "the generated wrapper mod_hidden()" in str(warning) and "not defined" in str(warning)
+        for warning in result.warnings
+    ), result.warnings
+
+
+def test_libclang_failures_during_verification_are_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    header = write_header(tmp_path, "namespace f { int g(); }")
+
+    # Only verification parses a .cpp file.
+    original = cindex.Index.parse
+
+    def parse(self: cindex.Index, path: str, *args: object, **kwargs: object) -> object:
+        if path.endswith(".cpp"):
+            raise cindex.TranslationUnitLoadError("Error parsing translation unit.")
+        return original(self, path, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cindex.Index, "parse", parse)
+    with pytest.raises(GenerationError, match="libclang cannot compile the generated file api_c"):
+        bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.parametrize("std", ["c++98", "c++03", "gnu++98", "gnu++03"])
+def test_standards_before_cxx11_are_rejected(tmp_path: Path, std: str) -> None:
+    with pytest.raises(ConfigurationError, match="needs C\\+\\+11 or later"):
+        generate(tmp_path, "namespace o { int add(int a, int b); }", std)
+
+
+def test_names_of_the_c_library_are_reserved(tmp_path: Path) -> None:
+    """Even when the wrapped header does not include the library header."""
+    header = tmp_path / "quick.h"
+    header.write_text("#pragma once\nnamespace quick { void exit(int code); }\n", encoding="utf-8")
+    with pytest.raises(
+        GenerationError, match=r"'quick_exit' .* clashes with a global declaration of the C library"
+    ):
+        bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="POSIX names of glibc")
+def test_posix_names_are_reserved(tmp_path: Path) -> None:
+    header = tmp_path / "tasks.h"
+    header.write_text("#pragma once\nnamespace sched { int yield(); }\n", encoding="utf-8")
+    with pytest.raises(GenerationError, match=r"'sched_yield' .* of the C library"):
+        bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.parametrize(
+    "names",
+    [("mod_runtime.h",), ("mod_runtime_internal.hpp",), ("a.h", "a_c.h"), ("Mod_Runtime.h",)],
+)
+def test_headers_named_like_generated_files(tmp_path: Path, names: tuple[str, ...]) -> None:
+    headers = [
+        write_header(tmp_path, f"namespace n{i} {{ int f(); }}", name=name)
+        for i, name in enumerate(names)
+    ]
+    with pytest.raises(GenerationError, match="has the name of a generated file"):
+        bridgefex.generate(headers, bridgefex.Options("mod"))
+
+
+def test_a_directory_avoids_the_names_of_generated_files(tmp_path: Path) -> None:
+    root = tmp_path / "include"
+    header = write_header(root / "lib", "namespace n { int f(); }", name="mod_runtime.h")
+    result = bridgefex.generate([header], bridgefex.Options("mod", include_root=root))
+    assert '#include "lib/mod_runtime.h"' in result.files["c/mod_runtime_c.cpp"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symbolic links need privileges on Windows")
+def test_include_root_with_symbolic_links(tmp_path: Path) -> None:
+    real = write_header(tmp_path / "real", "namespace w { int f(); }", name="w.h")
+    linked = tmp_path / "inc" / "lib" / "w.h"
+    linked.parent.mkdir(parents=True)
+    linked.symlink_to(real)
+    result = bridgefex.generate([linked], bridgefex.Options("mod", include_root=tmp_path / "inc"))
+    assert '#include "lib/w.h"' in result.files["c/w_c.cpp"]

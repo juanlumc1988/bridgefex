@@ -54,7 +54,9 @@ class Error(Exception):
         return (type(self), (self.status, self.message))
 
 
-_lock = threading.Lock()
+# Reentrant: a finalizer or signal handler that calls into the bindings can run
+# while the library is being loaded, in the same thread.
+_lock = threading.RLock()
 _library = None
 _library_path = None
 """Absolute path of the loaded library, or its bare file name when the system
@@ -91,7 +93,7 @@ def load(path=None):
     """
     global _library, _library_path
     with _lock:
-        path = os.fspath(path) if path is not None else None
+        path = os.fsdecode(path) if path is not None else None
         if _library is not None:
             if path and not _is_loaded_from(path):
                 raise RuntimeError(
@@ -114,9 +116,10 @@ def load(path=None):
         _check_fingerprint(library, path)
         library.{{ m.last_error }}.argtypes = []
         library.{{ m.last_error }}.restype = ctypes.c_char_p
-        _library = library
-        _library_path = os.path.abspath(path) if _has_directory(path) else path
-        return library
+        library_path = os.path.abspath(path) if _has_directory(path) else path
+        if _library is None:  # else a reentrant call loaded it in the meantime
+            _library, _library_path = library, library_path
+        return _library
 
 
 def _check_fingerprint(library, path):

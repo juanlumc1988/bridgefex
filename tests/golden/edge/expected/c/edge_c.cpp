@@ -3,18 +3,36 @@
 #define EDGE_C_API_BUILD
 #endif
 
-// The wrapped header comes first: a global C++ declaration that clashed with a
-// generated C function would then be a compile error, not a silent redirection.
+// The standard headers that the generated code needs come before the wrapped
+// header, so that its macros cannot change them.
+#include <cstddef>
+#include <exception>
+#include <new>
+#if defined(__GLIBCXX__)
+#include <bits/cxxabi_forced.h>
+#endif
+
+// The wrapped header comes before the generated ones: a global C++ declaration
+// that clashed with a generated C function would then be a compile error, not a
+// silent redirection.
 #include "edge.h"
 
 #include "edge_c.h"
 #include "edge_runtime_internal.hpp"
 
-#include <cstddef>
-
 #if !defined(__cpp_aligned_new)
-// Before C++17, new ignores alignments larger than that of std::max_align_t.
-static_assert(alignof(::edge::Registry) <= alignof(std::max_align_t),
+// Before C++17, new ignores alignments larger than the default one of the
+// platform's operator new.
+namespace edge_detail {
+#if defined(__STDCPP_DEFAULT_NEW_ALIGNMENT__)
+constexpr std::size_t new_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+#elif defined(_MSC_VER) && defined(_WIN64)
+constexpr std::size_t new_alignment = 16;  // std::max_align_t is double there
+#else
+constexpr std::size_t new_alignment = alignof(std::max_align_t);
+#endif
+}  // namespace edge_detail
+static_assert(alignof(::edge::Registry) <= edge_detail::new_alignment,
               "edge::Registry is over-aligned: compile this file as C++17 or later");
 #endif
 

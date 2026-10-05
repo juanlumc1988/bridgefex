@@ -133,8 +133,10 @@ def c_identifier_problem(name: str) -> str | None:
     """Why ``name`` cannot be a generated C identifier, or None if it can."""
     if name in KEYWORDS:
         return "is a C or C++ keyword"
-    if "__" in name or (name.startswith("_") and len(name) > 1 and name[1].isupper()):
-        return "is a reserved identifier in C and C++ (it contains '__' or starts with '_X')"
+    # Generated names are global, where C and C++ reserve every name that
+    # starts with '_'.
+    if "__" in name or name.startswith("_"):
+        return "is a reserved identifier in C and C++ (it contains '__' or starts with '_')"
     return None
 
 

@@ -39,6 +39,7 @@ class _State:
         self.path: Path | None = None
         self.version = ""
         self.is_inline_namespace: Any = None
+        self.is_macro_function_like: Any = None
 
 
 _state = _State()
@@ -175,10 +176,14 @@ def load(path: str | os.PathLike[str] | None = None) -> str:
         is_inline_namespace = library.clang_Cursor_isInlineNamespace
         is_inline_namespace.argtypes = [cindex.Cursor]
         is_inline_namespace.restype = ctypes.c_uint
+        is_macro_function_like = library.clang_Cursor_isMacroFunctionLike
+        is_macro_function_like.argtypes = [cindex.Cursor]
+        is_macro_function_like.restype = ctypes.c_uint
 
         _state.path = chosen
         _state.version = version
         _state.is_inline_namespace = is_inline_namespace
+        _state.is_macro_function_like = is_macro_function_like
         return version
 
 
@@ -187,3 +192,10 @@ def is_inline_namespace(cursor: cindex.Cursor) -> bool:
     if _state.is_inline_namespace is None:
         raise LibclangError("libclang is not loaded")
     return bool(_state.is_inline_namespace(cursor))
+
+
+def is_macro_function_like(cursor: cindex.Cursor) -> bool:
+    """True if the macro definition ``cursor`` takes arguments. Requires :func:`load`."""
+    if _state.is_macro_function_like is None:
+        raise LibclangError("libclang is not loaded")
+    return bool(_state.is_macro_function_like(cursor))

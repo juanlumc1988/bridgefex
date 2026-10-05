@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -12,11 +13,12 @@ from . import naming
 from .errors import ConfigurationError, Diagnostic, GenerationError
 from .generator import LANGUAGES, render
 from .model import Header, Module
-from .parser import ParseOptions, parse_header
+from .parser import ParseOptions, parse_header, system_names
 from .plan import build_plan
 from .verify import verify
 
 _STANDARD = re.compile(r"(c|gnu)\+\+[0-9a-z]+")
+_BEFORE_CXX11 = re.compile(r"(c|gnu)\+\+(98|03)")
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,17 +54,22 @@ class Result:
     generated code triggers."""
 
 
+def _relative_spelling(header: Path, include_root: Path) -> str | None:
+    # Lexically first: in include trees made of symbolic links, the real file
+    # of a header is often somewhere else.
+    path, root = Path(os.path.abspath(header)), Path(os.path.abspath(include_root))
+    if not path.is_relative_to(root):
+        path, root = header.resolve(), include_root.resolve()
+        if not path.is_relative_to(root):
+            return None
+    return path.relative_to(root).as_posix()
+
+
 def include_spelling(header: Path, include_root: Path | None) -> str:
     """How the generated C++ source includes ``header``."""
-    if include_root is None:
-        spelling = header.name
-    else:
-        try:
-            spelling = header.resolve().relative_to(include_root.resolve()).as_posix()
-        except ValueError:
-            raise ConfigurationError(
-                f"header {header} is not inside the include root {include_root}"
-            ) from None
+    spelling = header.name if include_root is None else _relative_spelling(header, include_root)
+    if spelling is None:
+        raise ConfigurationError(f"header {header} is not inside the include root {include_root}")
     # The spelling goes into an #include line and into a /* */ comment.
     unsafe = any(
         character in '"\\' or ord(character) < 0x20 or ord(character) == 0x7F
@@ -89,6 +96,11 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
         raise ConfigurationError("no input headers")
     if not _STANDARD.fullmatch(options.std):
         raise ConfigurationError(f"invalid C++ standard '{options.std}' (expected e.g. c++17)")
+    if _BEFORE_CXX11.fullmatch(options.std):
+        raise ConfigurationError(
+            f"the generated C++ code needs C++11 or later, not {options.std}; "
+            "use --std=c++11 or newer"
+        )
     unknown = sorted(set(options.languages) - set(LANGUAGES))
     if unknown:
         raise ConfigurationError(f"unknown languages: {', '.join(unknown)}")
@@ -119,7 +131,8 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
     if problems:
         raise GenerationError(problems)
 
-    plan = build_plan(Module(name=options.module, headers=tuple(parsed)))
+    module = Module(name=options.module, headers=tuple(parsed), system_names=system_names())
+    plan = build_plan(module)
     files = render(plan, options.languages)
     if options.verify:
         warnings.extend(verify(plan, files, include_dirs, parse_options))
