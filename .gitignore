@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Native build products
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.exp
+*.lib
+*.pdb
+*.exe

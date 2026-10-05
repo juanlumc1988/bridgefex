@@ -1,0 +1,4 @@
+# Options passed to bridgefex for this case.
+module = "demo"
+headers = ["counter.h", "geometry.h"]
+std = "c++17"

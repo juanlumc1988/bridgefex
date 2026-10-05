@@ -1,0 +1,3 @@
+# Keep LF line endings on every platform. Golden files are compared byte by
+# byte, so a CRLF checkout on Windows would make every golden test fail.
+* text=auto eol=lf

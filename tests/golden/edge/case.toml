@@ -1,0 +1,4 @@
+# Options passed to bridgefex for this case.
+module = "edge"
+headers = ["edge.h"]
+std = "c++17"

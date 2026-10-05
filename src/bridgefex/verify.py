@@ -1,0 +1,313 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Compile the generated code with libclang before anything is written.
+
+The parser rejects every construct it knows to be unsupported, but some C++
+rules (overload resolution with default arguments, deleted special members,
+consteval, access to operator new...) are only checked by a compiler. So the
+generated C++ sources are compiled against the user's headers, and the
+generated C headers as C, with libclang. An error becomes a bridgefex error
+that points at the wrapped declaration, and a warning in the generated code is
+reported, instead of the user finding them when building.
+"""
+
+from __future__ import annotations
+
+import functools
+import itertools
+import os
+import tempfile
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+
+from clang import cindex
+
+from . import libclang
+from .errors import Diagnostic, GenerationError, Location
+from .generator import write_files
+from .parser import ParseOptions
+from .plan import CFunction, HeaderPlan, ModulePlan
+
+# Names of the C and C++ standard headers, and of the headers that the standard
+# headers of glibc and MSVC include, which a translation unit parsed on another
+# platform does not show.
+_SYSTEM_HEADER_NAMES = frozenset(
+    """
+    assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h iso646.h limits.h locale.h
+    math.h setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbit.h stdbool.h stdckdint.h
+    stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h string.h tgmath.h threads.h time.h
+    uchar.h wchar.h wctype.h
+    algorithm any array atomic barrier bit bitset cassert ccomplex cctype cerrno cfenv cfloat
+    charconv chrono cinttypes ciso646 climits clocale cmath codecvt compare complex concepts
+    condition_variable coroutine csetjmp csignal cstdalign cstdarg cstdbool cstddef cstdint
+    cstdio cstdlib cstring ctgmath ctime cuchar cwchar cwctype deque exception execution
+    expected filesystem flat_map flat_set format forward_list fstream functional future
+    generator initializer_list iomanip ios iosfwd iostream istream iterator latch limits list
+    locale map mdspan memory memory_resource mutex new numbers numeric optional ostream print
+    queue random ranges ratio regex scoped_allocator semaphore set shared_mutex
+    source_location span spanstream sstream stack stacktrace stdexcept stdfloat stop_token
+    streambuf string string_view strstream syncstream system_error thread tuple type_traits
+    typeindex typeinfo unordered_map unordered_set utility valarray variant vector version
+    alloca.h endian.h features.h stdc-predef.h
+    corecrt.h crtdbg.h crtdefs.h sal.h vadefs.h vcruntime.h vcruntime_exception.h
+    vcruntime_new.h vcruntime_typeinfo.h xkeycheck.h xmemory xstddef xstring xtr1common
+    xutility yvals.h yvals_core.h
+    concurrencysal.h eh.h malloc.h use_ansi.h vcruntime_string.h corecrt_malloc.h corecrt_math.h
+    corecrt_memcpy_s.h corecrt_memory.h corecrt_search.h corecrt_terminate.h corecrt_wstdlib.h
+    corecrt_wstring.h
+    """.split()
+)
+
+
+def verify(
+    plan: ModulePlan,
+    files: Mapping[str, str],
+    include_dirs: Mapping[str, Path],
+    options: ParseOptions,
+) -> tuple[Diagnostic, ...]:
+    """Compile the C layer in ``files`` with libclang.
+
+    ``include_dirs`` maps each header stem to the directory its generated
+    source needs on the include path. Returns the warnings found in the
+    generated code, and one for each file in those directories that would
+    replace a system header (see :func:`_shadowing_files`).
+
+    Raises:
+        GenerationError: the generated code does not compile.
+    """
+    libclang.load()
+    _named_like_system_headers.cache_clear()  # directories may change between calls
+    c_files = {path: content for path, content in files.items() if path.startswith("c/")}
+    errors: list[Diagnostic] = []
+    warnings: list[Diagnostic] = []
+    shadowing: dict[tuple[Path, str], None] = {}
+    with tempfile.TemporaryDirectory(prefix="bridgefex-", ignore_cleanup_errors=True) as temp:
+        root = Path(temp)
+        write_files(c_files, root)
+        generated = root / "c"
+        index = cindex.Index.create()
+        for header in plan.headers:
+            source = generated / header.c_source
+            args = [
+                "-x",
+                "c++",
+                f"-std={options.std}",
+                "-Wall",
+                "-Wextra",
+                f"-I{generated}",
+                # Only for the quoted #include of the wrapped header: with -I, a
+                # file of the user's such as time.h would also replace <time.h>.
+                "-iquote",
+                str(include_dirs[header.stem]),
+                *(f"-I{directory}" for directory in options.include_dirs),
+                *(f"-D{definition}" for definition in options.defines),
+                *_without_werror(options.extra_args),
+            ]
+            unit = _parse(
+                index, source, args, cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+            )
+            functions = _function_lines(plan, header, c_files[f"c/{header.c_source}"])
+            for diagnostic in unit.diagnostics:
+                _report(
+                    diagnostic,
+                    root=root,
+                    source=source,
+                    functions=functions,
+                    errors=errors,
+                    warnings=warnings,
+                )
+            directory = include_dirs[header.stem]
+            shadowing.update(
+                ((directory, name), None) for name in _shadowing_files(unit, directory)
+            )
+            del unit
+
+        consumer = root / "consumer.c"
+        consumer.write_text(
+            "".join(f'#include "{header.c_header}"\n' for header in plan.headers),
+            encoding="utf-8",
+        )
+        args = ["-x", "c", "-std=c2x", f"-I{generated}"]
+        unit = _parse(index, consumer, args)
+        for diagnostic in unit.diagnostics:
+            if diagnostic.severity >= cindex.Diagnostic.Error:
+                errors.append(
+                    Diagnostic(
+                        "the generated C headers do not compile as C: "
+                        f"{_describe(diagnostic, root)}"
+                    )
+                )
+        del unit
+    if errors:
+        raise GenerationError(errors)
+    for directory, name in shadowing:
+        warnings.append(
+            Diagnostic(
+                f"{directory / name} would replace the system header <{name}> if {directory} "
+                "were on the include path with -I or /I: use -iquote for it (GCC, Clang), "
+                "or an --include-root above it (MSVC has no -iquote)"
+            )
+        )
+    return tuple(warnings)
+
+
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
+@functools.cache
+def _named_like_system_headers(directory: Path) -> tuple[str, ...]:
+    """Files of ``directory`` named like a system header, case-insensitively (so are the
+    file systems of Windows and macOS). Names are filtered before any stat call."""
+    try:
+        with os.scandir(directory) as entries:
+            candidates = [e.name for e in entries if e.name.casefold() in _SYSTEM_HEADER_NAMES]
+    except OSError:
+        return ()
+    return tuple(sorted(name for name in candidates if (directory / name).is_file()))
+
+
+def _shadowing_files(unit: cindex.TranslationUnit, directory: Path) -> list[str]:
+    """Files in ``directory`` that would replace a system header with -I.
+
+    The generated source is compiled here with ``-iquote directory``, which
+    only the quoted #include of the wrapped header uses. With -I, or /I (MSVC
+    has nothing else), every #include <...> looks there first, so a time.h or
+    features.h there would replace the system one. These are the files named
+    like an #include <...> of ``unit`` that resolves elsewhere, and the files
+    named like a standard header. Returns paths relative to ``directory``.
+    """
+    names: dict[str, str] = {}  # casefold -> name
+    for cursor in unit.cursor.get_children():
+        if cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE:
+            continue
+        included = cursor.get_included_file()
+        tokens = [token.spelling for token in itertools.islice(cursor.get_tokens(), 3)]
+        # Only '#include <...>': not #include_next, which only searches the
+        # directories after the including file's, nor '#include MACRO'.
+        if included is None or tokens[1:] != ["include", "<"]:
+            continue
+        name = str(cursor.spelling)
+        if _same_file(directory / name, Path(str(included.name))):
+            # #include <...> already finds the files there: a system directory,
+            # or one that the options give with -I.
+            return []
+        if (directory / name).is_file():
+            names.setdefault(name.casefold(), Path(name).as_posix())
+    for name in _named_like_system_headers(directory):
+        names.setdefault(name.casefold(), name)
+    return list(names.values())
+
+
+def _without_werror(args: Sequence[str]) -> list[str]:
+    """``args`` without the options that turn warnings into errors.
+
+    The warnings of the user's headers were reported by the parser; with
+    -Wall and -Wextra, -Werror would turn new ones into errors here.
+    """
+    result: list[str] = []
+    for arg in args:
+        if arg in ("-Werror", "-pedantic-errors") or arg.startswith("-Werror="):
+            if result and result[-1] == "-Xclang":
+                result.pop()
+            continue
+        result.append(arg)
+    return result
+
+
+def _parse(
+    index: cindex.Index, source: Path, args: Sequence[str], options: int = 0
+) -> cindex.TranslationUnit:
+    try:
+        return index.parse(str(source), args=list(args), options=options)
+    except cindex.TranslationUnitLoadError as error:
+        raise GenerationError(
+            [
+                Diagnostic(
+                    f"libclang cannot compile the generated file {source.name} ({error}); "
+                    f"arguments: {' '.join(args)}; use --no-verify to skip the verification"
+                )
+            ]
+        ) from None
+
+
+def _function_lines(
+    plan: ModulePlan, header: HeaderPlan, source: str
+) -> list[tuple[int, CFunction]]:
+    """Line of the definition of every wrapper in a generated source, in order."""
+    definitions = {
+        f"{plan.status_type if function.returns_status else 'void'} {function.signature}": function
+        for function in header.c_functions
+    }
+    return [
+        (number, definitions[line])
+        for number, line in enumerate(source.splitlines(), start=1)
+        if line in definitions
+    ]
+
+
+def _describe(diagnostic: cindex.Diagnostic, root: Path) -> str:
+    location = diagnostic.location
+    if location.file is None:
+        return str(diagnostic.spelling)
+    path = Path(str(location.file.name))
+    try:
+        shown = path.resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        shown = str(path)
+    return f"{shown}:{location.line}:{location.column}: {diagnostic.spelling}"
+
+
+def _wrapper_at(
+    location: cindex.SourceLocation, source: Path, functions: Sequence[tuple[int, CFunction]]
+) -> CFunction | None:
+    """The wrapper whose definition contains ``location``, if it is in ``source``."""
+    if location.file is None or Path(str(location.file.name)).resolve() != source.resolve():
+        return None
+    wrapper = None
+    for line, function in functions:
+        if line <= location.line:
+            wrapper = function
+    return wrapper
+
+
+def _report(
+    diagnostic: cindex.Diagnostic,
+    *,
+    root: Path,
+    source: Path,
+    functions: Sequence[tuple[int, CFunction]],
+    errors: list[Diagnostic],
+    warnings: list[Diagnostic],
+) -> None:
+    severity = diagnostic.severity
+    if severity < cindex.Diagnostic.Warning:
+        return
+    location = diagnostic.location
+    file = Path(str(location.file.name)).resolve() if location.file is not None else None
+    in_generated = file is not None and file.is_relative_to(root.resolve())
+    wrapper = _wrapper_at(location, source, functions)
+    if wrapper is None:
+        # A diagnostic elsewhere (in a generated helper, or in the user's
+        # header for a function that a wrapper uses but that is never defined)
+        # has notes that point back at the wrapper that caused it.
+        for note in diagnostic.children:
+            wrapper = _wrapper_at(note.location, source, functions)
+            if wrapper is not None:
+                break
+    if severity < cindex.Diagnostic.Error and not in_generated and wrapper is None:
+        return  # warnings of the user's own headers were reported by the parser
+    kind = "does not compile" if severity >= cindex.Diagnostic.Error else "triggers a warning"
+    if wrapper is not None:
+        message = (
+            f"the generated wrapper {wrapper.name}() for '{wrapper.description}' {kind}: "
+            f"{diagnostic.spelling}"
+        )
+        diagnostic_location: Location | None = wrapper.location
+    else:
+        message = f"the generated code {kind}: {_describe(diagnostic, root)}"
+        diagnostic_location = None
+    target = errors if severity >= cindex.Diagnostic.Error else warnings
+    target.append(Diagnostic(message, diagnostic_location))
