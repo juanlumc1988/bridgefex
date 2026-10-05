@@ -6,7 +6,7 @@
 #include "scalars_runtime.h"
 #include "scalars_runtime_internal.hpp"
 
-#include <cstddef>
+#include <stddef.h>
 #include <cstring>
 
 namespace scalars_detail {
@@ -16,7 +16,7 @@ namespace scalars_detail {
 namespace {
 
 // Longer messages are truncated.
-const std::size_t kMaxMessageSize = 1024;
+const size_t kMaxMessageSize = 1024;
 
 thread_local char last_error_message[kMaxMessageSize];
 
@@ -27,7 +27,7 @@ void set_last_error(const char* message) noexcept
     if (message == nullptr) {
         message = "";
     }
-    std::size_t length = std::strlen(message);
+    size_t length = std::strlen(message);
     if (length >= kMaxMessageSize) {
         length = kMaxMessageSize - 1;
         // Do not cut a UTF-8 sequence in half.

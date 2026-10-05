@@ -12,6 +12,7 @@ reported, instead of the user finding them when building.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import os
 import tempfile
@@ -50,6 +51,9 @@ _SYSTEM_HEADER_NAMES = frozenset(
     corecrt.h crtdbg.h crtdefs.h sal.h vadefs.h vcruntime.h vcruntime_exception.h
     vcruntime_new.h vcruntime_typeinfo.h xkeycheck.h xmemory xstddef xstring xtr1common
     xutility yvals.h yvals_core.h
+    concurrencysal.h eh.h malloc.h use_ansi.h vcruntime_string.h corecrt_malloc.h corecrt_math.h
+    corecrt_memcpy_s.h corecrt_memory.h corecrt_search.h corecrt_terminate.h corecrt_wstdlib.h
+    corecrt_wstring.h
     """.split()
 )
 
@@ -71,6 +75,7 @@ def verify(
         GenerationError: the generated code does not compile.
     """
     libclang.load()
+    _named_like_system_headers.cache_clear()  # directories may change between calls
     c_files = {path: content for path, content in files.items() if path.startswith("c/")}
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
@@ -152,6 +157,18 @@ def _same_file(first: Path, second: Path) -> bool:
         return False
 
 
+@functools.cache
+def _named_like_system_headers(directory: Path) -> tuple[str, ...]:
+    """Files of ``directory`` named like a system header, case-insensitively (so are the
+    file systems of Windows and macOS). Names are filtered before any stat call."""
+    try:
+        with os.scandir(directory) as entries:
+            candidates = [e.name for e in entries if e.name.casefold() in _SYSTEM_HEADER_NAMES]
+    except OSError:
+        return ()
+    return tuple(sorted(name for name in candidates if (directory / name).is_file()))
+
+
 def _shadowing_files(unit: cindex.TranslationUnit, directory: Path) -> list[str]:
     """Files in ``directory`` that would replace a system header with -I.
 
@@ -179,14 +196,8 @@ def _shadowing_files(unit: cindex.TranslationUnit, directory: Path) -> list[str]
             return []
         if (directory / name).is_file():
             names.setdefault(name.casefold(), Path(name).as_posix())
-    try:
-        entries = sorted(entry.name for entry in directory.iterdir() if entry.is_file())
-    except OSError:
-        entries = []
-    for name in entries:
-        # Case-insensitive, as the file systems of Windows and macOS are.
-        if name.casefold() in _SYSTEM_HEADER_NAMES:
-            names.setdefault(name.casefold(), name)
+    for name in _named_like_system_headers(directory):
+        names.setdefault(name.casefold(), name)
     return list(names.values())
 
 

@@ -229,6 +229,13 @@ def _collect_context(unit_cursor: cindex.Cursor, *, c_tags: bool = False) -> _Co
         elif kind == CursorKind.LINKAGE_SPEC:
             pending.extend(cursor.get_children())
         elif kind in _GLOBAL_NAME_KINDS and name:
+            if c_tags and kind in (CursorKind.STRUCT_DECL, CursorKind.UNION_DECL):
+                # In C, tags and enumerators declared inside a struct have file scope.
+                pending.extend(
+                    node
+                    for node in cursor.walk_preorder()
+                    if node != cursor and node.kind in _C_TAG_KINDS
+                )
             # Not the spelling of an anonymous one, 'enum (unnamed at f.h:1:1)'.
             if naming.is_identifier(name):
                 (tag_names if c_tags and kind in _C_TAG_KINDS else global_names).add(name)
@@ -330,6 +337,25 @@ def selects_cxx11(options: ParseOptions) -> bool:
     except cindex.TranslationUnitLoadError:
         return True  # parsing the headers reports the problem
     return not any(_CXX11_MARKER in str(diagnostic.spelling) for diagnostic in unit.diagnostics)
+
+
+def macro_defined_after(header: Path, macro: str, options: ParseOptions) -> bool:
+    """True if ``macro`` is still defined after ``header``, in C++17 or later.
+
+    Requires :func:`bridgefex.libclang.load`.
+    """
+    probe = "bridgefex_macro_probe.hpp"
+    text = (
+        f'#include "{header.resolve().as_posix()}"\n'
+        f"#if defined({macro}) && __cplusplus >= 201703L\n#error {_CXX11_MARKER}_macro\n#endif\n"
+    )
+    try:
+        unit = cindex.Index.create().parse(
+            probe, args=options.clang_args(), unsaved_files=[(probe, text)]
+        )
+    except cindex.TranslationUnitLoadError:
+        return True
+    return any(f"{_CXX11_MARKER}_macro" in str(d.spelling) for d in unit.diagnostics)
 
 
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:

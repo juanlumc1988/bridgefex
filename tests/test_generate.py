@@ -527,3 +527,39 @@ def test_include_root_does_not_drop_dot_dot_after_a_symbolic_link_in_the_root(
     root = tmp_path / "inc" / "lnk" / ".."
     with pytest.raises(ConfigurationError, match="not inside the include root"):
         bridgefex.generate([header], bridgefex.Options("mod", include_root=root))
+
+
+@pytest.mark.parametrize(
+    ("code", "std", "warns"),
+    [
+        ("#define byte unsigned char\n", "c++17", True),
+        ("#define byte unsigned char\n", "c++14", False),
+        ("#define byte unsigned char\n#undef byte\n", "c++17", False),
+    ],
+)
+def test_byte_macro_warning_needs_the_macro_and_cxx17(
+    tmp_path: Path, code: str, std: str, warns: bool
+) -> None:
+    header = tmp_path / "bt.h"
+    header.write_text(
+        f"#pragma once\n{code}class Buf {{ public: Buf(); int size() const; }};\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod", std=std))
+    assert bool([w for w in result.warnings if "macro 'byte'" in str(w)]) is warns
+
+
+def test_files_named_like_msvc_headers_are_reported(tmp_path: Path) -> None:
+    (tmp_path / "malloc.h").write_text("#pragma once\n", encoding="utf-8")
+    header = write_header(tmp_path, "namespace s { int g(); }")
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    assert any("system header <malloc.h>" in str(w) for w in result.warnings)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="tags and enumerators of glibc's headers")
+def test_enumerators_nested_in_system_structs_are_reserved(tmp_path: Path) -> None:
+    """RT_ADD is declared inside struct r_debug of <link.h>, at file scope in C."""
+    assert "RT_ADD" in system_names().global_names
+    header = write_header(tmp_path, "namespace RT { int ADD(); }", name="rt.h")
+    with pytest.raises(GenerationError, match="'RT_ADD'"):
+        bridgefex.generate([header], bridgefex.Options("mod"))

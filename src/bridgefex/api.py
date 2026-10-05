@@ -13,7 +13,7 @@ from . import libclang, naming
 from .errors import ConfigurationError, Diagnostic, GenerationError
 from .generator import LANGUAGES, render
 from .model import Header, Module
-from .parser import ParseOptions, parse_header, selects_cxx11, system_names
+from .parser import ParseOptions, macro_defined_after, parse_header, selects_cxx11, system_names
 from .plan import build_plan
 from .verify import verify
 
@@ -159,14 +159,16 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
             continue
         parsed.append(result.header)
         warnings.extend(result.warnings)
-        if "byte" in result.header.names.object_macro_names:
+        if "byte" in result.header.names.object_macro_names and macro_defined_after(
+            header, "byte", parse_options
+        ):
             # A common idiom of C code, which the verification with
             # libstdc++ cannot catch.
             warnings.append(
                 Diagnostic(
-                    f"{header} defines a macro 'byte': the generated source includes <new> "
-                    "and <exception> after the header, and with libc++ and MSVC they "
-                    "declare std::byte in C++17 and later, so it only compiles with libstdc++"
+                    f"{header} still defines a macro 'byte' when it ends: the generated source "
+                    "includes <new> and <exception> after the header, and with libc++ and MSVC "
+                    "they declare std::byte in C++17 and later, so it only compiles with libstdc++"
                 )
             )
     if problems:
