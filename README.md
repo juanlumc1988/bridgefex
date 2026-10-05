@@ -207,6 +207,8 @@ CI builds and runs everything on:
 
 Each of these runs with Python 3.12 and 3.14. The generated files of the test cases are byte-identical on every platform.
 
+Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runner is native). The checks that guard class layouts (see Known limitations) are written for that case, but were only reasoned about there, not run.
+
 ## Known limitations
 
 - The wrapper sources must be compiled with the same compiler, standard library and options as the wrapped code. They call it directly.
