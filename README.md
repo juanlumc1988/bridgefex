@@ -196,7 +196,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
   4. the system search path.
 
   On Windows, a library's own dependencies are found in its directory and the system directories. Use `os.add_dll_directory()` for others.
-- Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking. Loading and binding are thread-safe, reentrant (a `__del__` may call into the bindings) and safe across `os.fork()`.
+- Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking. That includes `close()`: closing an object while another thread, a `sys.setprofile`/`sys.settrace` hook or a signal handler is about to call a method of it is not supported. A cyclic object whose class defines `__del__` finds itself closed there, because CPython runs weak-reference callbacks before finalizers on cyclic garbage; use `with` or `close()` for such objects. Calling `__init__` again from inside the conversion of its own arguments is not supported either. Loading and binding are thread-safe, reentrant (a `__del__` may call into the bindings) and safe across `os.fork()`.
 
 ## Platforms
 
