@@ -54,9 +54,21 @@ class Error(Exception):
         return (type(self), (self.status, self.message))
 
 
+def reset_after_fork(lock):
+    """Make ``lock`` free again in the child of an os.fork(), and return it.
+
+    The thread that held it when another thread forked does not exist in the
+    child, which would otherwise wait for it forever.
+    """
+    reset = getattr(lock, "_at_fork_reinit", None)
+    if reset is not None and hasattr(os, "register_at_fork"):
+        os.register_at_fork(after_in_child=reset)
+    return lock
+
+
 # Reentrant: a finalizer or signal handler that calls into the bindings can run
 # while the library is being loaded, in the same thread.
-_lock = threading.RLock()
+_lock = reset_after_fork(threading.RLock())
 _library = None
 _library_path = None
 """Absolute path of the loaded library, or its bare file name when the system
@@ -117,8 +129,14 @@ def load(path=None):
         library.{{ m.last_error }}.argtypes = []
         library.{{ m.last_error }}.restype = ctypes.c_char_p
         library_path = os.path.abspath(path) if _has_directory(path) else path
-        if _library is None:  # else a reentrant call loaded it in the meantime
+        if _library is None:
             _library, _library_path = library, library_path
+        elif not _is_loaded_from(library_path):
+            # A reentrant call (from a finalizer or a signal handler) loaded
+            # another library in the meantime.
+            raise RuntimeError(
+                f"the {{ m.name }} library is already loaded from {_library_path!r}"
+            )
         return _library
 
 

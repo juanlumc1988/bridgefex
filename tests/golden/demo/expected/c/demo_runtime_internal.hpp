@@ -15,6 +15,21 @@
 
 namespace demo_detail {
 
+#if !defined(__cpp_aligned_new)
+// Alignment of the memory that operator new returns before C++17, which
+// ignores larger alignments. <stddef.h> only: <cstddef> would declare
+// std::byte.
+#if defined(__STDCPP_DEFAULT_NEW_ALIGNMENT__)
+constexpr decltype(sizeof 0) new_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+#elif defined(_MSC_VER) && defined(_WIN64)
+constexpr decltype(sizeof 0) new_alignment = 16;
+#elif defined(_MSC_VER)
+constexpr decltype(sizeof 0) new_alignment = 8;
+#else
+constexpr decltype(sizeof 0) new_alignment = alignof(::max_align_t);
+#endif
+#endif
+
 // Stores a copy of message as the last error of the calling thread.
 void set_last_error(const char* message) noexcept;
 

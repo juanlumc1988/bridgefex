@@ -258,10 +258,11 @@ class _Builder:
         self._c_names: dict[str, tuple[str, Location | None]] = {}
         # Names that generated C identifiers must not take: declarations at
         # global scope and macros seen by the parsed headers, and those of the
-        # C library, which C programs that use the generated API also see.
+        # system headers (C library, POSIX...), which C programs that use the
+        # generated API also see.
         self._external: dict[str, str] = {}
         sources = [(header.names, f"seen by {header.path}") for header in module.headers]
-        sources.append((module.system_names, "of the C library"))
+        sources.append((module.system_names, "of the system headers"))
         for names, where in sources:
             for name in names.global_names:
                 self._external.setdefault(name, f"a global declaration {where}")

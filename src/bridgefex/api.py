@@ -13,7 +13,7 @@ from . import naming
 from .errors import ConfigurationError, Diagnostic, GenerationError
 from .generator import LANGUAGES, render
 from .model import Header, Module
-from .parser import ParseOptions, parse_header, system_names
+from .parser import SYSTEM_HEADERS, ParseOptions, parse_header, system_names
 from .plan import build_plan
 from .verify import verify
 
@@ -54,11 +54,20 @@ class Result:
     generated code triggers."""
 
 
+def _same_file(first: Path, second: Path) -> bool:
+    try:
+        return os.path.samefile(first, second)
+    except OSError:
+        return False
+
+
 def _relative_spelling(header: Path, include_root: Path) -> str | None:
     # Lexically first: in include trees made of symbolic links, the real file
     # of a header is often somewhere else.
     path, root = Path(os.path.abspath(header)), Path(os.path.abspath(include_root))
-    if not path.is_relative_to(root):
+    # The lexical path drops 'link/..', which the file system resolves through
+    # the link: it must still name the header.
+    if not path.is_relative_to(root) or not _same_file(path, header):
         path, root = header.resolve(), include_root.resolve()
         if not path.is_relative_to(root):
             return None
@@ -80,6 +89,66 @@ def include_spelling(header: Path, include_root: Path | None) -> str:
     return spelling
 
 
+def _last_standard(args: Sequence[str]) -> str | None:
+    """The value of the last -std option in ``args``, if any."""
+    standard = None
+    for position, arg in enumerate(args):
+        for prefix in ("-std=", "--std="):
+            if arg.startswith(prefix):
+                standard = arg.removeprefix(prefix)
+        if arg == "--std" and position + 1 < len(args):
+            standard = args[position + 1]
+    return standard
+
+
+# Names of the C, POSIX and C++ standard headers.
+_STANDARD_HEADERS = frozenset(
+    name.casefold()
+    for name in (
+        *(header for header in SYSTEM_HEADERS if "/" not in header),
+        *"""
+        algorithm any array atomic barrier bit bitset cassert ccomplex cctype cerrno cfenv
+        cfloat charconv chrono cinttypes ciso646 climits clocale cmath codecvt compare
+        complex concepts condition_variable coroutine csetjmp csignal cstdalign cstdarg
+        cstdbool cstddef cstdint cstdio cstdlib cstring ctgmath ctime cuchar cwchar cwctype
+        deque exception execution expected filesystem flat_map flat_set format forward_list
+        fstream functional future generator initializer_list iomanip ios iosfwd iostream
+        istream iterator latch limits list locale map mdspan memory memory_resource mutex new
+        numbers numeric optional ostream print queue random ranges ratio regex
+        scoped_allocator semaphore set shared_mutex source_location span spanstream sstream
+        stack stacktrace stdexcept stdfloat stop_token streambuf string string_view
+        strstream syncstream system_error thread tuple type_traits typeindex typeinfo
+        unordered_map unordered_set utility valarray variant vector version
+        """.split(),
+    )
+)
+
+
+def _standard_header_warnings(headers: Sequence[Path]) -> list[Diagnostic]:
+    """Warn about files named like standard headers next to the wrapped headers.
+
+    The generated sources include a header by its file name, so its directory
+    goes on the include path. With -I (the only option of MSVC), a time.h
+    there would also replace <time.h>.
+    """
+    warnings: list[Diagnostic] = []
+    for directory in dict.fromkeys(header.parent for header in headers):
+        try:
+            names = sorted(entry.name for entry in directory.iterdir() if entry.is_file())
+        except OSError:
+            continue
+        for name in names:
+            if name.casefold() in _STANDARD_HEADERS:
+                warnings.append(
+                    Diagnostic(
+                        f"{directory / name} has the name of a standard header: put "
+                        f"{directory} on the include path with -iquote (GCC, Clang), not -I, "
+                        "or use --include-root (MSVC has no -iquote)"
+                    )
+                )
+    return warnings
+
+
 def generate(headers: Sequence[Path], options: Options) -> Result:
     """Parse ``headers`` and generate the C layer and the requested bindings.
 
@@ -94,12 +163,13 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
     naming.check_module_name(options.module)
     if not headers:
         raise ConfigurationError("no input headers")
-    if not _STANDARD.fullmatch(options.std):
-        raise ConfigurationError(f"invalid C++ standard '{options.std}' (expected e.g. c++17)")
-    if _BEFORE_CXX11.fullmatch(options.std):
+    # A -std in --clang-arg comes later on the command line, so it wins.
+    std = _last_standard(options.clang_args) or options.std
+    if not _STANDARD.fullmatch(std):
+        raise ConfigurationError(f"invalid C++ standard '{std}' (expected e.g. c++17)")
+    if _BEFORE_CXX11.fullmatch(std):
         raise ConfigurationError(
-            f"the generated C++ code needs C++11 or later, not {options.std}; "
-            "use --std=c++11 or newer"
+            f"the generated C++ code needs C++11 or later, not {std}; use --std=c++11 or newer"
         )
     unknown = sorted(set(options.languages) - set(LANGUAGES))
     if unknown:
@@ -131,6 +201,8 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
     if problems:
         raise GenerationError(problems)
 
+    if options.include_root is None:
+        warnings.extend(_standard_header_warnings(headers))
     module = Module(name=options.module, headers=tuple(parsed), system_names=system_names())
     plan = build_plan(module)
     files = render(plan, options.languages)

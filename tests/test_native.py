@@ -4,6 +4,7 @@
 - the thread-local, truncated, UTF-8-safe last error of the generated runtime;
 - glibc thread cancellation through a generated wrapper;
 - the compile-time check for over-aligned classes before C++17;
+- a unity build of the generated sources of a module;
 - <MODULE>_NODISCARD really warns when a status is ignored;
 - the test toolchain really turns warnings into errors (otherwise every
   "compiles without warnings" test would pass vacuously).
@@ -259,3 +260,16 @@ def test_objects_alive_at_exit_are_not_destroyed(
     )
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.split() == ["destroyed", "exiting"]
+
+
+def test_unity_build(toolchain: Toolchain, tmp_path: Path, probe_dir: Path) -> None:
+    """The generated sources of a module can be compiled as one translation unit."""
+    unity = tmp_path / "unity.cpp"
+    unity.write_text(
+        "".join(f'#include "{source.name}"\n' for source in sorted(DEMO_C.glob("*.cpp"))),
+        encoding="utf-8",
+    )
+    include_dirs = [DEMO_C, GOLDEN_DIR / "demo" / "input"]
+    for wanted in ("c++14", "c++17"):
+        flag = standard(toolchain, "c++", wanted, probe_dir)
+        toolchain.syntax_check(unity, "c++", flag, include_dirs).check()

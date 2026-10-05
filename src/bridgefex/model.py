@@ -144,4 +144,4 @@ class Module:
     name: str
     headers: tuple[Header, ...]
     system_names: VisibleNames = VisibleNames()
-    """Names of the platform's C library (see :func:`bridgefex.parser.system_names`)."""
+    """Names of the platform's system headers (see :func:`bridgefex.parser.system_names`)."""

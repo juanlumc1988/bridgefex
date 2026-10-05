@@ -23,7 +23,7 @@ _demo_geometry_Circle_p = ctypes.POINTER(_demo_geometry_Circle)
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
 # while _bind() declares the signatures, in the same thread.
-_bind_lock = threading.RLock()
+_bind_lock = _runtime.reset_after_fork(threading.RLock())
 
 
 def _bind():
@@ -53,6 +53,15 @@ def _bind():
     return _lib
 
 
+def _release(owned):
+    """Destroy an object unless close() did it already: whoever pops wins."""
+    try:
+        handle, destroy = owned.pop()
+    except IndexError:
+        return
+    destroy(handle)
+
+
 def multiply_double_double(a, b):
     """Wraps ``double demo::multiply(double a, double b)``."""
     _out = ctypes.c_double()
@@ -72,7 +81,7 @@ class Circle:
     alive when the interpreter exits are not destroyed.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle")
+    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
 
     def __init__(self, radius):
         """Wraps ``demo::geometry::Circle::Circle(double radius)``."""
@@ -91,31 +100,29 @@ class Circle:
                 "demo::geometry::Circle: the C layer returned a NULL handle"
             )
         self._handle = handle
-        self._finalizer = weakref.finalize(self, _bind().demo_geometry_Circle_destroy, handle)
+        # Shared by close() and the finalizer, so the object is destroyed once.
+        self._owned = owned = [(handle, _bind().demo_geometry_Circle_destroy)]
+        self._finalizer = weakref.finalize(self, _release, owned)
         # At interpreter exit, other threads may still be using the object.
         self._finalizer.atexit = False
 
     def _ptr(self):
-        if self._handle is None or not self._finalizer.alive:
+        if not self._owned:
             raise _builtins.ValueError("Circle object is closed")
         return self._handle
 
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
-        finalizer = _builtins.getattr(self, "_finalizer", None)
-        if finalizer is None:
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already, and the finalizer may have been
+        # dropped without running.
+        try:
+            handle, destroy = self._owned.pop()
+        except (AttributeError, IndexError):
             return
-        # detach() also works in atexit handlers, unlike calling the finalizer.
-        pending = finalizer.detach()
-        if pending is not None:
-            self._handle = None
-            _, destroy, arguments, _ = pending
-            destroy(*arguments)
-        elif finalizer.alive and self._handle is not None:
-            # The last garbage collection at interpreter exit cleared the weak
-            # reference without calling the finalizer, which will never run.
-            handle, self._handle = self._handle, None
-            _bind().demo_geometry_Circle_destroy(handle)
+        self._handle = None
+        self._finalizer.detach()
+        destroy(handle)
 
     def __enter__(self):
         return self

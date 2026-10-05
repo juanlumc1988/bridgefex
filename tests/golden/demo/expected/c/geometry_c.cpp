@@ -3,35 +3,19 @@
 #define DEMO_C_API_BUILD
 #endif
 
-// The standard headers that the generated code needs come before the wrapped
-// header, so that its macros cannot change them.
-#include <cstddef>
-#include <exception>
-#include <new>
-#if defined(__GLIBCXX__)
-#include <bits/cxxabi_forced.h>
-#endif
-
-// The wrapped header comes before the generated ones: a global C++ declaration
-// that clashed with a generated C function would then be a compile error, not a
-// silent redirection.
+// The wrapped header comes first, as in the library's own sources: macros
+// that it defines for the standard headers (_FILE_OFFSET_BITS,
+// _GLIBCXX_USE_CXX11_ABI...) then apply here too, so its classes have the same
+// layout here as in the library. And a global C++ declaration that clashed
+// with a generated C function would be a compile error, not a silent
+// redirection.
 #include "geometry.h"
 
 #include "geometry_c.h"
 #include "demo_runtime_internal.hpp"
 
 #if !defined(__cpp_aligned_new)
-// Before C++17, new ignores alignments larger than the default one of the
-// platform's operator new.
-namespace demo_detail {
-#if defined(__STDCPP_DEFAULT_NEW_ALIGNMENT__)
-constexpr std::size_t new_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
-#elif defined(_MSC_VER) && defined(_WIN64)
-constexpr std::size_t new_alignment = 16;  // std::max_align_t is double there
-#else
-constexpr std::size_t new_alignment = alignof(std::max_align_t);
-#endif
-}  // namespace demo_detail
+// Before C++17, new ignores alignments larger than the default one.
 static_assert(alignof(::demo::geometry::Circle) <= demo_detail::new_alignment,
               "demo::geometry::Circle is over-aligned: compile this file as C++17 or later");
 #endif

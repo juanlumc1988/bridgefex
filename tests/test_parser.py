@@ -243,3 +243,24 @@ def test_alias_named_size_t_is_still_rejected_on_msvc(tmp_path: Path) -> None:
     )
     with pytest.raises(GenerationError, match="type alias 'my::size_t' is not supported"):
         parse_header(path, "input.h", ParseOptions(extra_args=_MSVC_TARGET))
+
+
+def test_std_size_t_declared_like_libcxx(tmp_path: Path) -> None:
+    """libc++ declares std::size_t with 'using' in the inline namespace std::__1,
+    and <type_traits> or <limits> do not declare ::size_t."""
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "libcxx_like.h").write_text(
+        "#pragma once\nnamespace std { inline namespace __1 {"
+        " using size_t = decltype(sizeof(int)); } }\n",
+        encoding="utf-8",
+    )
+    path = tmp_path / "input.h"
+    path.write_text(
+        "#pragma once\n#include <libcxx_like.h>\nnamespace n { std::size_t f(std::size_t a); }\n",
+        encoding="utf-8",
+    )
+    options = ParseOptions(extra_args=("-nostdinc++", "-isystem", str(system)))
+    (function,) = parse_header(path, "input.h", options).header.declarations
+    assert isinstance(function, Function)
+    assert function.result.c_name == "size_t"

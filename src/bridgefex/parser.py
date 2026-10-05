@@ -162,6 +162,44 @@ def _record_standard_typedef(cursor: cindex.Cursor, standard_kinds: dict[str, st
         standard_kinds.setdefault(name, canonical.kind.name)
 
 
+def _record_std_typedefs(namespace: cindex.Cursor, standard_kinds: dict[str, str]) -> None:
+    """Standard typedefs declared in namespace std itself.
+
+    libstdc++ declares std::size_t there (the global ::size_t only exists if
+    <stddef.h> was included too); libc++ declares it with 'using' in the inline
+    namespace std::__1.
+    """
+    pending = [namespace]
+    while pending:
+        for child in pending.pop().get_children():
+            try:
+                kind = child.kind
+            except ValueError:
+                continue
+            if kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
+                _record_standard_typedef(child, standard_kinds)
+            elif kind == CursorKind.NAMESPACE and libclang.is_inline_namespace(child):
+                pending.append(child)
+
+
+def _defines_function_like_macro(cursor: cindex.Cursor) -> bool:
+    """True if the macro definition takes arguments: '(' right after its name.
+
+    Read from the definition itself; libclang's clang_Cursor_isMacroFunctionLike
+    looks at the macro at the end of the translation unit, so it says False
+    for a function-like macro that was #undef'd (min and max after
+    <windows.h>, isnan after <cmath>).
+    """
+    tokens = iter(cursor.get_tokens())
+    name, parenthesis = next(tokens, None), next(tokens, None)
+    return (
+        name is not None
+        and parenthesis is not None
+        and parenthesis.spelling == "("
+        and parenthesis.extent.start.offset == name.extent.end.offset
+    )
+
+
 def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
     """Names visible at global scope, macros and the standard typedefs of a translation unit."""
     global_names: set[str] = set()
@@ -178,7 +216,7 @@ def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
         name = str(cursor.spelling)
         if kind == CursorKind.MACRO_DEFINITION:
             macro_names.add(name)
-            if not libclang.is_macro_function_like(cursor):
+            if not _defines_function_like_macro(cursor):
                 object_macro_names.add(name)
         elif kind == CursorKind.LINKAGE_SPEC:
             pending.extend(cursor.get_children())
@@ -189,40 +227,41 @@ def _collect_context(unit_cursor: cindex.Cursor) -> _Context:
             if kind == CursorKind.TYPEDEF_DECL:
                 _record_standard_typedef(cursor, standard_kinds)
             elif kind == CursorKind.NAMESPACE and name == "std":
-                # libstdc++ declares std::size_t in namespace std itself; the
-                # global ::size_t only exists if <stddef.h> was included too.
-                for child in cursor.get_children():
-                    try:
-                        child_kind = child.kind
-                    except ValueError:
-                        continue
-                    if child_kind == CursorKind.TYPEDEF_DECL:
-                        _record_standard_typedef(child, standard_kinds)
+                _record_std_typedefs(cursor, standard_kinds)
     names = VisibleNames(
         frozenset(global_names), frozenset(macro_names), frozenset(object_macro_names)
     )
     return _Context(names, standard_kinds)
 
 
-# Headers of the C and POSIX libraries (and <windows.h>) whose names generated C
-# functions must not take, even if the wrapped headers do not include them: a C
-# program that includes both would not compile, or, worse, would call the
-# generated function instead of the library's when they have compatible types.
-_SYSTEM_HEADERS = """
+# Headers of the C library, POSIX and glibc (and <windows.h> on Windows) whose
+# names generated C functions must not take, even if the wrapped headers do not
+# include them: a C program that includes both would not compile, or, worse,
+# would call the generated function instead of the library's (ELF interposition).
+# Only the headers that exist on the platform are read.
+SYSTEM_HEADERS = """
     assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h limits.h locale.h math.h
-    setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbool.h stddef.h stdint.h stdio.h
-    stdlib.h stdnoreturn.h string.h tgmath.h threads.h time.h uchar.h wchar.h wctype.h
-    aio.h arpa/inet.h dirent.h dlfcn.h fcntl.h fnmatch.h glob.h grp.h iconv.h langinfo.h
-    libgen.h mqueue.h netdb.h netinet/in.h poll.h pthread.h pwd.h regex.h sched.h
-    semaphore.h spawn.h strings.h sys/mman.h sys/resource.h sys/select.h sys/socket.h
-    sys/stat.h sys/time.h sys/types.h sys/uio.h sys/un.h sys/utsname.h sys/wait.h syslog.h
-    termios.h unistd.h utime.h wordexp.h
+    setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbit.h stdbool.h stdckdint.h
+    stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h string.h tgmath.h threads.h time.h
+    uchar.h wchar.h wctype.h
+    aio.h arpa/inet.h dirent.h dlfcn.h fcntl.h fnmatch.h ftw.h glob.h grp.h iconv.h
+    langinfo.h libgen.h monetary.h mqueue.h net/if.h netdb.h netinet/in.h netinet/tcp.h
+    nl_types.h poll.h pthread.h pwd.h regex.h sched.h search.h semaphore.h spawn.h
+    strings.h sys/ipc.h sys/mman.h sys/msg.h sys/resource.h sys/select.h sys/sem.h
+    sys/shm.h sys/socket.h sys/stat.h sys/statvfs.h sys/time.h sys/times.h sys/types.h
+    sys/uio.h sys/un.h sys/utsname.h sys/wait.h syslog.h termios.h unistd.h utime.h
+    utmpx.h wordexp.h
+    argz.h envz.h err.h error.h execinfo.h fts.h getopt.h gnu/libc-version.h ifaddrs.h
+    link.h malloc.h mntent.h netinet/ether.h printf.h pty.h resolv.h shadow.h
+    sys/epoll.h sys/eventfd.h sys/fanotify.h sys/file.h sys/inotify.h sys/ioctl.h
+    sys/mount.h sys/prctl.h sys/random.h sys/sendfile.h sys/signalfd.h sys/sysinfo.h
+    sys/timerfd.h utmp.h
 """.split()
 
 
 @functools.cache
 def system_names() -> VisibleNames:
-    """Names declared by the platform's C and POSIX library headers.
+    """Names declared by the platform's system headers (see SYSTEM_HEADERS).
 
     Found by parsing, as C, every header of a fixed list that exists on this
     platform. Requires :func:`bridgefex.libclang.load`.
@@ -230,13 +269,16 @@ def system_names() -> VisibleNames:
     Raises:
         GenerationError: libclang cannot parse the probe.
     """
-    lines = [
-        f"#if __has_include(<{header}>)\n#include <{header}>\n#endif\n"
-        for header in _SYSTEM_HEADERS
+    libclang.load()
+    # <windows.h> first: <stdnoreturn.h> defines a 'noreturn' macro that breaks
+    # its __declspec(noreturn).
+    lines = ["#if defined(_WIN32)\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#endif\n"]
+    lines += [
+        f"#if __has_include(<{header}>)\n#include <{header}>\n#endif\n" for header in SYSTEM_HEADERS
     ]
-    lines.append("#if defined(_WIN32)\n#define WIN32_LEAN_AND_MEAN\n#include <windows.h>\n#endif\n")
     probe = "bridgefex_system_names.c"
-    args = ["-x", "c", "-std=c17", "-D_GNU_SOURCE"]
+    # No error limit: an error must not stop the headers after it.
+    args = ["-x", "c", "-std=c17", "-D_GNU_SOURCE", "-ferror-limit=0"]
     try:
         unit = cindex.Index.create().parse(
             probe,

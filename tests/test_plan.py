@@ -269,9 +269,9 @@ def test_names_of_the_c_library_are_reserved() -> None:
     message = str(raised.value)
     assert (
         "'sched_yield' of function 'sched::yield()' clashes with a global declaration "
-        "of the C library" in message
+        "of the system headers" in message
     )
-    assert "'ns_M' of function 'ns::M()' clashes with a macro of the C library" in message
+    assert "'ns_M' of function 'ns::M()' clashes with a macro of the system headers" in message
 
 
 @pytest.mark.parametrize(

@@ -10,6 +10,7 @@ against it, each in its own process.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -232,13 +233,16 @@ early.close()
     assert completed.stdout.strip() == "live at exit: 0"
 
 
+@pytest.mark.parametrize("imports", ["", "import logging\n", "import concurrent.futures\n"])
 def test_close_in_del_during_interpreter_shutdown(
-    demo_build: tuple[Path, Path], tmp_path: Path
+    demo_build: tuple[Path, Path], tmp_path: Path, imports: str
 ) -> None:
     """The usual "close what I own in __del__" works for module-level objects too.
 
-    The last garbage collection at exit clears the weak reference of the
-    finalizer without calling it.
+    At exit the finalizer may be dropped without running: the last garbage
+    collection clears its weak reference, or, when something keeps the
+    registry of finalizers alive (logging does), it is called after
+    finalizers were disabled.
     """
     (tmp_path / "owner.py").write_text(
         """from demo import counter
@@ -258,7 +262,8 @@ kept = Owner()
 """,
         encoding="utf-8",
     )
-    completed = run_demo(demo_build, "import owner\nprint('exiting')", extra_path=tmp_path)
+    code = f"{imports}import owner\nprint('exiting')"
+    completed = run_demo(demo_build, code, extra_path=tmp_path)
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.splitlines() == ["exiting", "live after close: 0"]
 
@@ -274,18 +279,18 @@ from demo import _runtime, counter
 faulthandler.dump_traceback_later(60, exit=True)
 
 
-def call_inside(function, lock_name):
-    \"\"\"While function holds the lock, call the bindings from the same thread, as a
-    finalizer or a signal handler can.\"\"\"
+def call_inside(function, marker):
+    \"\"\"Call the bindings from the same thread, as a finalizer or a signal handler
+    can, just before function runs its first line that contains marker.\"\"\"
     lines, first = inspect.getsourcelines(function)
-    locked = first + next(i for i, line in enumerate(lines) if f"with {lock_name}:" in line)
+    target = first + next(i for i, line in enumerate(lines) if marker in line)
     fired = []
 
     def tracer(frame, event, arg):
         if frame.f_code is not function.__code__:
             return None
-        if event == "line" and frame.f_lineno > locked and not fired:
-            fired.append(frame.f_lineno)
+        if event == "line" and frame.f_lineno == target and not fired:
+            fired.append(target)
             # Tracing is off while the tracer runs, so this is not traced.
             print("nested:", counter.Counter.liveInstances())
         return tracer
@@ -293,28 +298,50 @@ def call_inside(function, lock_name):
     sys.settrace(tracer)
     return fired
 
-if sys.argv[1] == "load":
-    fired = call_inside(_runtime.load, "_lock")
-else:
+
+mode = sys.argv[1]
+if mode == "bind":
     demo.load()
-    fired = call_inside(counter._bind, "_bind_lock")
-print("outer:", counter.multiply_int32_int32(2, 3))
+    fired = call_inside(counter._bind, ".argtypes = ")
+else:
+    # Inside the lock, after the library was loaded but before it is published.
+    fired = call_inside(_runtime.load, "_check_fingerprint(library, path)")
+if mode == "load-other":
+    try:
+        demo.load(sys.argv[2])
+    except RuntimeError as error:
+        print("refused:", "already loaded from" in str(error))
+else:
+    print("outer:", counter.multiply_int32_int32(2, 3))
 sys.settrace(None)
-assert fired, "the tracer never ran inside the lock"
+assert fired, "the tracer never ran"
 """
 
 
-@pytest.mark.parametrize("lock", ["load", "bind"])
-def test_bindings_are_reentrant(demo_build: tuple[Path, Path], lock: str) -> None:
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("load", ["nested:", "0", "outer:", "6"]),
+        ("bind", ["nested:", "0", "outer:", "6"]),
+        # The nested call loads the library of DEMO_LIBRARY, not the one that
+        # the outer call was asked for: that call must fail, not return it.
+        ("load-other", ["nested:", "0", "refused:", "True"]),
+    ],
+)
+def test_bindings_are_reentrant(
+    demo_build: tuple[Path, Path], tmp_path: Path, mode: str, expected: list[str]
+) -> None:
     library, output = demo_build
+    other = tmp_path / library.name
+    shutil.copyfile(library, other)
     environment = {
         **os.environ,
         "PYTHONPATH": str(output / "python"),
-        "DEMO_LIBRARY": str(library),
+        "DEMO_LIBRARY": str(other if mode == "load-other" else library),
     }
     try:
         completed = subprocess.run(
-            [sys.executable, "-c", _REENTRANT, lock],
+            [sys.executable, "-c", _REENTRANT, mode, str(library)],
             env=environment,
             capture_output=True,
             text=True,
@@ -324,7 +351,59 @@ def test_bindings_are_reentrant(demo_build: tuple[Path, Path], lock: str) -> Non
     except subprocess.TimeoutExpired:
         pytest.fail("deadlock: a reentrant call into the bindings never returned")
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert completed.stdout.split() == ["nested:", "0", "outer:", "6"]
+    assert completed.stdout.split() == expected
+
+
+_FORK = """
+import faulthandler
+import os
+import threading
+
+from demo import _runtime, counter
+
+held, release = threading.Event(), threading.Event()
+
+
+def hold_the_locks():
+    with _runtime._lock, counter._bind_lock:
+        held.set()
+        release.wait()
+
+
+thread = threading.Thread(target=hold_the_locks)
+thread.start()
+held.wait()
+pid = os.fork()
+if pid == 0:
+    faulthandler.dump_traceback_later(30, exit=True)
+    print("child:", counter.multiply_int32_int32(2, 3), flush=True)
+    os._exit(0)
+release.set()
+thread.join()
+print("child exit code:", os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+"""
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_locks_held_by_another_thread_are_free_after_fork(demo_build: tuple[Path, Path]) -> None:
+    """The thread that held them does not exist in the child."""
+    library, output = demo_build
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DEMO_LIBRARY": str(library),
+    }
+    completed = subprocess.run(
+        # No -W error: Python warns that forking a multi-threaded process may deadlock.
+        [sys.executable, "-c", _FORK],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.splitlines() == ["child: 6", "child exit code: 0"]
 
 
 def test_load_accepts_bytes_paths(demo_build: tuple[Path, Path]) -> None:

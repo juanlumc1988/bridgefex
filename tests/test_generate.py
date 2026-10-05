@@ -177,6 +177,16 @@ def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
         ("namespace m { int f(); int f(int X); }\n#define X", "int X_,"),
         ("namespace m { int f(); int f(int MOD_API_C_H); }", "int MOD_API_C_H_,"),
         ("#define max(a, b) a\nnamespace m { int f(int max); }", "int max,"),
+        # ... even after an #undef (the <windows.h> min/max pattern).
+        (
+            "#define min(a, b) a\n#define max(a, b) b\n#undef min\n#undef max\n"
+            "namespace m { int clamp(int value, int min, int max); }",
+            "int value, int min, int max,",
+        ),
+        ("#include <cmath>\nnamespace m { bool classify(double isnan); }", "double isnan,"),
+        # Macros of the C library that C programs may include: with <complex.h>,
+        # 'double complex' would declare an unnamed 'double _Complex' parameter.
+        ("namespace m { double mix(double complex, double I); }", "double complex_, double I_"),
         # A global 'abi' does not clash with what the generated code includes.
         ("int abi(int x);\nnamespace abi2 { int g(); }", "mod_abi(int x"),
         ("namespace abi { int f(); }", "abi_f("),
@@ -255,11 +265,39 @@ def test_std_size_t_without_the_global_one(tmp_path: Path, include: str) -> None
     assert "z_f(size_t a, size_t* out_result)" in result.files["c/sz_c.h"]
 
 
-def test_macros_of_the_wrapped_header_do_not_change_standard_headers(tmp_path: Path) -> None:
+@pytest.mark.skipif(sys.platform == "win32", reason="a libstdc++ configuration macro")
+def test_configuration_macros_of_the_wrapped_header_apply_to_the_generated_source(
+    tmp_path: Path,
+) -> None:
+    """The wrapped header comes first in the generated source, as in the library's
+    own sources: here std::string must be the old-ABI one in both."""
+    header = tmp_path / "named.h"
+    header.write_text(
+        "#pragma once\n#define _GLIBCXX_USE_CXX11_ABI 0\n#include <string>\n"
+        "namespace n { class Named { public: Named(); int size() const;"
+        " private: std::string name_; }; }\n",
+        encoding="utf-8",
+    )
+    # Verification compiles the generated source: with a standard header
+    # before named.h, std::string would be ambiguous there.
+    source = bridgefex.generate([header], bridgefex.Options("mod")).files["c/named_c.cpp"]
+    includes = [line for line in source.splitlines() if line.startswith("#include")]
+    assert includes[0] == '#include "named.h"'
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="MSVC's <exception> declares std::byte")
+@pytest.mark.parametrize(
+    "code",
+    [
+        "#define byte unsigned char\n",
+        "#include <cstdio>\nusing namespace std;\ntypedef unsigned char byte;\n",
+    ],
+)
+def test_the_generated_code_does_not_declare_std_byte(tmp_path: Path, code: str) -> None:
     header = tmp_path / "bt.h"
     header.write_text(
-        "#pragma once\n#define byte unsigned char\n"
-        "class Buf { public: Buf(); int size() const; };\n",
+        f"#pragma once\n{code}class Buf {{ public: Buf(); int size() const;"
+        " private: byte data_[4]; };\n",
         encoding="utf-8",
     )
     result = bridgefex.generate([header], bridgefex.Options("mod", std="c++17"))
@@ -282,6 +320,12 @@ def test_library_headers_named_like_standard_headers(tmp_path: Path) -> None:
     )
     result = bridgefex.generate([header], bridgefex.Options("mod"))
     assert "lib_Clock_now(" in result.files["c/clock_c.h"]
+    # -I, the only option of MSVC, would let it replace <time.h>.
+    (warning,) = (str(w) for w in result.warnings if "standard header" in str(w))
+    assert "time.h has the name of a standard header" in warning
+    assert "-iquote" in warning
+    rooted = bridgefex.Options("mod", include_root=tmp_path / "include")
+    assert not [w for w in bridgefex.generate([header], rooted).warnings if "standard" in str(w)]
 
 
 @pytest.mark.parametrize("werror", ["-Werror", "-Werror=unused-variable"])
@@ -323,22 +367,53 @@ def test_standards_before_cxx11_are_rejected(tmp_path: Path, std: str) -> None:
         generate(tmp_path, "namespace o { int add(int a, int b); }", std)
 
 
+@pytest.mark.parametrize(
+    "clang_args",
+    [("-std=c++03",), ("--std=gnu++98",), ("--std", "c++98"), ("-std=c++20", "-std=c++03")],
+)
+def test_standards_before_cxx11_are_rejected_in_clang_args(
+    tmp_path: Path, clang_args: tuple[str, ...]
+) -> None:
+    """The last -std wins, also when it comes from --clang-arg."""
+    header = write_header(tmp_path, "namespace o { int add(int a, int b); }")
+    with pytest.raises(ConfigurationError, match="needs C\\+\\+11 or later"):
+        bridgefex.generate([header], bridgefex.Options("mod", clang_args=clang_args))
+
+
 def test_names_of_the_c_library_are_reserved(tmp_path: Path) -> None:
     """Even when the wrapped header does not include the library header."""
     header = tmp_path / "quick.h"
     header.write_text("#pragma once\nnamespace quick { void exit(int code); }\n", encoding="utf-8")
     with pytest.raises(
-        GenerationError, match=r"'quick_exit' .* clashes with a global declaration of the C library"
+        GenerationError,
+        match=r"'quick_exit' .* clashes with a global declaration of the system headers",
     ):
         bridgefex.generate([header], bridgefex.Options("mod"))
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="POSIX names of glibc")
-def test_posix_names_are_reserved(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("code", "name"),
+    [
+        ("namespace sched { int yield(); }", "sched_yield"),
+        ("namespace epoll { int create(int size); }", "epoll_create"),
+        ("namespace TCP { int NODELAY(); }", "TCP_NODELAY"),
+    ],
+)
+def test_posix_names_are_reserved(tmp_path: Path, code: str, name: str) -> None:
     header = tmp_path / "tasks.h"
-    header.write_text("#pragma once\nnamespace sched { int yield(); }\n", encoding="utf-8")
-    with pytest.raises(GenerationError, match=r"'sched_yield' .* of the C library"):
+    header.write_text(f"#pragma once\n{code}\n", encoding="utf-8")
+    with pytest.raises(GenerationError, match=rf"'{name}' .* of the system headers"):
         bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="names of <windows.h>")
+def test_windows_names_are_reserved(tmp_path: Path) -> None:
+    """Module 's' would define S_OK, which <windows.h> defines too."""
+    header = tmp_path / "api.h"
+    header.write_text("#pragma once\nnamespace w { int f(); }\n", encoding="utf-8")
+    with pytest.raises(GenerationError, match=r"'S_OK' .* clashes with a macro of the system"):
+        bridgefex.generate([header], bridgefex.Options("s"))
 
 
 @pytest.mark.parametrize(
@@ -369,3 +444,15 @@ def test_include_root_with_symbolic_links(tmp_path: Path) -> None:
     linked.symlink_to(real)
     result = bridgefex.generate([linked], bridgefex.Options("mod", include_root=tmp_path / "inc"))
     assert '#include "lib/w.h"' in result.files["c/w_c.cpp"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symbolic links need privileges on Windows")
+def test_include_root_does_not_drop_dot_dot_after_a_symbolic_link(tmp_path: Path) -> None:
+    """inc/detail/../api.h is vendor/v2/api.h when inc/detail links into vendor/v2."""
+    write_header(tmp_path / "inc", "namespace old_api { int legacy(); }")
+    real = write_header(tmp_path / "vendor" / "v2", "namespace api { int version(); }")
+    (real.parent / "detail").mkdir()
+    (tmp_path / "inc" / "detail").symlink_to(real.parent / "detail")
+    header = tmp_path / "inc" / "detail" / ".." / "api.h"
+    with pytest.raises(ConfigurationError, match="not inside the include root"):
+        bridgefex.generate([header], bridgefex.Options("mod", include_root=tmp_path / "inc"))

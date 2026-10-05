@@ -120,10 +120,10 @@ out/
         └── ...
 ```
 
-Build `out/c/*.cpp` into the same shared library as your code, or into a separate one linked against it. Add `out/c` and the directories of your headers to the include path. The generated sources include your headers with quotes, so `-iquote` is enough for them (GCC, Clang); unlike `-I`, it does not let a header of yours named like a standard one (`time.h`) replace it. For example:
+Build `out/c/*.cpp` into the same shared library as your code, or into a separate one linked against it. Add `out/c` and the directories of your headers to the include path. The generated sources include your headers with quotes, so `-iquote` is enough for the latter (GCC, Clang). Unlike `-I`, it does not let a header of yours named like a standard one (`time.h`) replace the standard header. MSVC has no `-iquote`: if a header of yours has such a name, generate with `--include-root` set to a parent directory and put that directory on `/I`. bridgefex warns when it finds such a file. For example:
 
 ```sh
-g++ -std=c++17 -shared -fPIC -fvisibility=hidden -I out/c -I include \
+g++ -std=c++17 -shared -fPIC -fvisibility=hidden -I out/c -iquote include \
     out/c/*.cpp src/*.cpp -o libdemo.so
 ```
 
@@ -155,7 +155,7 @@ Rejected with an error, for now:
 - Type aliases other than the standard fixed-width ones. A type is only taken as `int64_t`, `size_t`... if it is the standard one: an alias with that name declared by your code (`typedef unsigned size_t;` in your namespace) is rejected.
 - Classes with virtual methods but no virtual destructor (unless `final`).
 - Non-ASCII names, and names that would make a generated C name a keyword or a reserved identifier (`co::yield` gives `co_yield`; a namespace `_impl` gives `_impl_f`; a leading or trailing `_` elsewhere gives `__`).
-- Generated C names that clash with each other, with a declaration at global scope or a macro seen by the header, with the generated macros, or with a function, type or macro of the C library. The C library means the C and POSIX headers that exist on the platform, whether the header includes them or not: `sched::yield` would give `sched_yield`, which a C program that links the library would call instead of the system's.
+- Generated C names that clash with each other, with a declaration at global scope or a macro seen by the header, with the generated macros, or with a function, type or macro of the system headers. The system headers are a fixed list of C, POSIX and glibc headers, plus `<windows.h>` on Windows; only the ones that exist on the platform are read, whether the header includes them or not. `sched::yield` would give `sched_yield`, which a C program that links the library would call instead of the system's. A header can therefore be accepted on one platform and rejected on another (module `s` defines `S_OK`, which `<windows.h>` defines too).
 - Headers named like a generated file (`<module>_runtime.h`, or `x_c.h` when `x.h` is wrapped too), unless `--include-root` puts them in a directory: the generated sources would include the generated file instead.
 
 Copy and move constructors, deleted functions, and private or protected members are not part of the API and are skipped.
@@ -164,7 +164,7 @@ Copy and move constructors, deleted functions, and private or protected members 
 
 - **Names.** Every symbol starts with the C++ namespaces joined by `_`. Declarations in the global namespace use the module name instead, so a wrapper never has the same name as the function it wraps. `demo::geometry::Circle::area` becomes `demo_geometry_Circle_area`.
 - **Overloads** get a suffix built from the parameter types: `demo_Counter_add_int32`, `demo_Counter_add_double`, `demo_Counter_create_void`. Only overloaded names get one, so adding an overload renames the existing function. Every generated name is checked for clashes.
-- **Parameters** keep their C++ names, except names that the preprocessor or a language would change: keywords of C, C++ and Python, type names (`int32_t`), common platform macros (`unix`, `errno`...), the generated macros and include guards, and the macros without arguments that the header's translation unit defines. These get a trailing `_`. Unnamed parameters become `arg1`, `arg2`...
+- **Parameters** keep their C++ names, except names that the preprocessor or a language would change: keywords of C, C++ and Python, type names (`int32_t`), common macros of the C library and of the platforms (`errno`, `complex`, `I`, `st_mtime`, `unix`...), the generated macros and include guards, and the macros without arguments that the header's translation unit defines. These get a trailing `_`. Unnamed parameters become `arg1`, `arg2`...
 - **Handles.** Each class becomes an opaque handle: an incomplete `struct` with the same type in C and C++, so function pointers and control-flow integrity checks see one type. `X_create...` allocates an object and returns it through `X** out_self`, which is set to NULL on failure. `X_destroy(X*)` deletes it and accepts NULL. The generated source converts between handle and class with `reinterpret_cast`.
 - **Errors.** Every function that can fail returns a `<module>_status`:
 
@@ -196,7 +196,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
   4. the system search path.
 
   On Windows, a library's own dependencies are found in its directory and the system directories. Use `os.add_dll_directory()` for others.
-- Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking.
+- Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking. Loading and binding are thread-safe, reentrant (a `__del__` may call into the bindings) and safe across `os.fork()`.
 
 ## Platforms
 
@@ -210,6 +210,7 @@ Each of these runs with Python 3.12 and 3.14. The generated files of the test ca
 ## Known limitations
 
 - The wrapper sources must be compiled with the same compiler, standard library and options as the wrapped code. They call it directly.
+- Each generated source includes its wrapped header first, as your own sources do, so that macros the header defines for the standard library (`_FILE_OFFSET_BITS`, `_GLIBCXX_USE_CXX11_ABI`...) give the same class layouts as in your library. A header whose macros break a standard header included after it (`#define uint32_t ...`) breaks the generated source too.
 - Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Calling a `[[deprecated]]` function from the wrapper triggers the compiler's deprecation warning (bridgefex reports it).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
@@ -227,7 +228,7 @@ ruff check . && ruff format --check . && mypy
 - **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported.
 - **Standard tests** compile the generated code in every supported language standard.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
-- **Native tests** check the thread-local last error, thread cancellation, the alignment check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
+- **Native tests** check the thread-local last error, thread cancellation, the alignment check, a unity build, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
 - Set `BRIDGEFEX_SKIP_NATIVE_TESTS=1` to skip the tests that need a compiler.
 
 Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh), which installs libclang 20, the compilers and the virtual environment.

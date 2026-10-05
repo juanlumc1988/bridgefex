@@ -40,13 +40,18 @@ _CPP_KEYWORDS = frozenset(
 KEYWORDS = _C_KEYWORDS | _CPP_KEYWORDS
 """Keywords of C and C++: never valid as generated identifiers."""
 
-# Object-like macros of common environments: system headers, the GNU dialects
-# (unix, linux, i386) and <windows.h>. A parameter with one of these names would
-# be replaced by the preprocessor in the user's C code.
+# Object-like macros of common environments: the C library (<complex.h> turns a
+# 'double complex' parameter into an unnamed 'double _Complex' one), POSIX and
+# glibc struct-field macros, the GNU dialects (unix, linux, i386) and
+# <windows.h>. A parameter with one of these names would be replaced by the
+# preprocessor in the user's C code. The list is fixed, so that the generated
+# code does not depend on the platform that generates it.
 _COMMON_MACROS = frozenset(
     """
-    errno stdin stdout stderr NULL EOF unix linux i386 small interface near far pascal
-    cdecl hyper IN OUT OPTIONAL
+    errno stdin stdout stderr NULL EOF complex imaginary I noreturn math_errhandling
+    h_errno h_addr st_atime st_mtime st_ctime d_fileno s6_addr sched_priority sa_handler
+    sa_sigaction si_pid si_uid si_status si_addr si_value si_band si_int si_ptr si_fd
+    unix linux i386 small interface near far pascal cdecl hyper IN OUT OPTIONAL
     """.split()
 )
 
@@ -70,14 +75,18 @@ RESERVED_PARAMETER_NAMES = (
 # Members that every generated Python class defines.
 RESERVED_MEMBER_NAMES = frozenset(
     """
-    close _adopt _ptr _handle _finalizer __init__ __enter__ __exit__ __copy__ __deepcopy__
-    __reduce__ __slots__ __weakref__
+    close _adopt _ptr _handle _finalizer _owned __init__ __enter__ __exit__ __copy__
+    __deepcopy__ __reduce__ __slots__ __weakref__
     """.split()
 )
 
-# Globals of every generated per-header Python module.
+# Globals of every generated per-header Python module, and the builtins that
+# close() names directly (it cannot use _builtins at interpreter exit).
 MODULE_GLOBALS = frozenset(
-    "ctypes weakref threading _builtins _runtime _lib _bind _bind_lock __all__".split()
+    """
+    ctypes weakref threading _builtins _runtime _lib _bind _bind_lock _release __all__
+    AttributeError IndexError
+    """.split()
 )
 
 # Names defined by the generated package's __init__.py. A header with one of
