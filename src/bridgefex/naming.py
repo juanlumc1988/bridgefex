@@ -9,7 +9,6 @@ import sys
 from collections.abc import Iterable, Sequence
 
 from .errors import ConfigurationError
-from .model import ScalarType
 from .typemap import STANDARD_TYPEDEFS
 
 # Lowercase; no trailing '_' and no '__', which would make every generated
@@ -180,11 +179,12 @@ def c_prefix(namespace: Sequence[str], module: str) -> str:
     return "_".join(namespace) if namespace else module
 
 
-def overload_suffix(parameter_types: Sequence[ScalarType]) -> str:
-    """Suffix that tells overloads apart, for example ``_int32_double`` or ``_void``."""
-    if not parameter_types:
+def overload_suffix(tokens: Sequence[str]) -> str:
+    """Suffix that tells overloads apart from the tokens of their parameter types,
+    for example ``_int32_double``, or ``_void`` without parameters."""
+    if not tokens:
         return "_void"
-    return "_" + "_".join(scalar.token for scalar in parameter_types)
+    return "_" + "_".join(tokens)
 
 
 def python_name(name: str) -> str:

@@ -84,11 +84,16 @@ def test_class_functions_and_signatures() -> None:
         "*out_result = ::ns::Counter::count();",
     ]
     create, destroy, value, _, count = item.c_functions
-    assert [p.name for p in create.null_checked] == ["out_self"]
-    assert destroy.null_checked == ()
+    # Outputs that the function allocates are checked and reset first.
+    assert [c.condition for c in create.owned_checks] == ["out_self == nullptr"]
+    assert create.resets == ("*out_self = nullptr;",)
+    assert create.checks == ()
+    assert (destroy.owned_checks, destroy.resets, destroy.checks) == ((), (), ())
     assert not destroy.returns_status
-    assert [p.role for p in value.null_checked] == [Role.SELF, Role.OUT_RESULT]
-    assert [p.name for p in count.null_checked] == ["out_result"]
+    assert [c.message for c in value.checks] == ["'self' is NULL", "'out_result' is NULL"]
+    assert {c.helper for c in value.checks} == {"null_argument"}
+    assert [c.condition for c in count.checks] == ["out_result == nullptr"]
+    assert [p.role for p in value.params] == [Role.SELF, Role.OUT_RESULT]
     assert item.constructors[0].name == "__init__"
     assert [m.is_static for m in item.members] == [False, False, True]
 
@@ -99,7 +104,8 @@ def test_void_function_has_no_out_parameter() -> None:
     assert isinstance(item, FunctionPlan)
     assert item.c_function.signature == "ns_reset(void)"
     assert item.c_function.statement == "::ns::reset();"
-    assert item.py.result_ctype is None
+    assert item.py.result.value is None
+    assert item.py.result.setup == ()
 
 
 def test_overloads_get_suffixes_only_when_overloaded() -> None:
@@ -219,10 +225,10 @@ def test_python_conversions() -> None:
     model = function("f", Parameter("a", INT32), Parameter("b", DOUBLE), Parameter("c", BOOL))
     item = plan_for(header(model)).headers[0].items[0]
     assert isinstance(item, FunctionPlan)
-    assert [arg.conversion for arg in item.py.args] == [
-        '_runtime.to_int(a, ctypes.c_int32, "a")',
-        '_runtime.to_float(b, ctypes.c_double, "b")',
-        '_runtime.to_bool(c, "c")',
+    assert [arg.conversions for arg in item.py.args] == [
+        ('a = _runtime.to_int(a, ctypes.c_int32, "a")',),
+        ('b = _runtime.to_float(b, ctypes.c_double, "b")',),
+        ('c = _runtime.to_bool(c, "c")',),
     ]
     assert item.c_function.ctypes_argtypes == (
         "[ctypes.c_int32, ctypes.c_double, ctypes.c_bool, ctypes.POINTER(ctypes.c_int32)]"

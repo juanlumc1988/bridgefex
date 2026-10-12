@@ -57,8 +57,8 @@ def test_overload_suffix() -> None:
     int32 = STANDARD_TYPEDEFS["int32_t"].type
     double = BUILTIN_TYPES["DOUBLE"]
     assert naming.overload_suffix([]) == "_void"
-    assert naming.overload_suffix([int32]) == "_int32"
-    assert naming.overload_suffix([int32, double]) == "_int32_double"
+    assert naming.overload_suffix([int32.token]) == "_int32"
+    assert naming.overload_suffix([int32.token, double.token]) == "_int32_double"
 
 
 def test_parameter_names() -> None:

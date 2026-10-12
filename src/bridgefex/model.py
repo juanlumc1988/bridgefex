@@ -47,12 +47,16 @@ class ScalarType:
         return self.category is TypeCategory.VOID
 
 
+Type = ScalarType
+"""Every type that can cross the C boundary."""
+
+
 @dataclass(frozen=True, slots=True)
 class Parameter:
     name: str
     """Name in the C++ declaration; empty when the parameter is unnamed."""
 
-    type: ScalarType
+    type: Type
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +66,7 @@ class Function:
     name: str
     namespace: tuple[str, ...]
     parameters: tuple[Parameter, ...]
-    result: ScalarType
+    result: Type
     location: Location
 
     @property
@@ -82,7 +86,7 @@ class Constructor:
 class Method:
     name: str
     parameters: tuple[Parameter, ...]
-    result: ScalarType
+    result: Type
     is_const: bool
     is_static: bool
     location: Location

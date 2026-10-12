@@ -16,8 +16,7 @@ from enum import Enum
 
 from . import naming
 from .errors import Diagnostic, GenerationError, Location
-from .model import Class, Function, Header, Module, Parameter, ScalarType, TypeCategory
-from .typemap import VOID
+from .model import Class, Function, Header, Module, Parameter, ScalarType, Type, TypeCategory
 
 
 class Role(Enum):
@@ -33,11 +32,29 @@ class CParam:
     c_type: str
     role: Role
     ctypes_type: str
-    scalar: ScalarType | None = None
 
     @property
     def declaration(self) -> str:
         return f"{self.c_type} {self.name}"
+
+
+@dataclass(frozen=True, slots=True)
+class Precondition:
+    """A check that runs before the guarded call: when ``condition`` holds, the
+    function returns the status of the ``helper`` of the generated runtime."""
+
+    condition: str
+    """C++ expression, true when the argument is not valid."""
+
+    helper: str
+    """Function of the detail namespace that sets the message and gives the status."""
+
+    message: str
+    """What is wrong, without the name of the function (which the template adds)."""
+
+
+def _null_check(name: str) -> Precondition:
+    return Precondition(f"{name} == nullptr", "null_argument", f"'{name}' is NULL")
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,10 +68,18 @@ class CFunction:
     description: str
     """The wrapped C++ declaration, for comments and docstrings."""
 
-    null_checked: tuple[CParam, ...]
-    """Pointer parameters that must not be NULL."""
-
     ctypes_restype: str
+
+    owned_checks: tuple[Precondition, ...] = ()
+    """NULL checks of the outputs that the function allocates (out_self...),
+    which come first so that the outputs can be reset on every failure."""
+
+    resets: tuple[str, ...] = ()
+    """Statements that reset those outputs, run after their NULL checks."""
+
+    checks: tuple[Precondition, ...] = ()
+    """The other checks: NULL checks of self, of pointer inputs and of the
+    caller's result storage, in parameter order, then value checks."""
 
     location: Location | None = None
     """Where the wrapped C++ declaration is."""
@@ -72,7 +97,23 @@ class CFunction:
 @dataclass(frozen=True, slots=True)
 class PyArg:
     name: str
-    conversion: str
+    conversions: tuple[str, ...]
+    """Statements that check and convert the argument, rebinding its name (and
+    computing derived locals), before the call."""
+
+
+@dataclass(frozen=True, slots=True)
+class PyResult:
+    """How a Python function gets the result of its C function."""
+
+    setup: tuple[str, ...] = ()
+    """Statements that create the output locals, before the conversions."""
+
+    value: str | None = None
+    """Expression returned after the call, or None for ``void``."""
+
+
+_NO_RESULT = PyResult()
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,9 +124,7 @@ class PyCallable:
     call_args: tuple[str, ...]
     """Arguments of the C call, in order."""
 
-    result_ctype: str | None
-    """ctypes type of the result (``ctypes.c_int32``), or None for ``void``."""
-
+    result: PyResult = _NO_RESULT
     is_static: bool = False
 
     @property
@@ -102,7 +141,7 @@ class PyCallable:
         by reference itself, without a call to ``ctypes.byref``).
         """
         pad = " " * indent
-        lines = [f"{pad}{arg.name} = {arg.conversion}" for arg in self.args]
+        lines = [f"{pad}{line}" for arg in self.args for line in arg.conversions]
         head = f"_runtime.check(_bind().{self.function.name}("
         one_line = f"{pad}{head}{', '.join(self.call_args)}))"
         if len(one_line) <= _MAX_LINE_LENGTH:
@@ -116,15 +155,41 @@ class PyCallable:
     def body(self, indent: int) -> str:
         """Statements of a method or function that calls the C function."""
         pad = " " * indent
-        if self.result_ctype is None:
-            return self.check_call(indent)
-        return "\n".join(
-            (
-                f"{pad}_out = {self.result_ctype}()",
-                self.check_call(indent),
-                f"{pad}return _out.value",
-            )
-        )
+        lines = [f"{pad}{line}" for line in self.result.setup]
+        lines.append(self.check_call(indent))
+        if self.result.value is not None:
+            lines.append(f"{pad}return {self.result.value}")
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True, slots=True)
+class LoweredParam:
+    """A C++ parameter as the generated code passes it."""
+
+    c_params: tuple[CParam, ...]
+    argument: str
+    """C++ expression passed to the wrapped function."""
+
+    null_checks: tuple[Precondition, ...]
+    value_checks: tuple[Precondition, ...]
+    py: PyArg
+    call_args: tuple[str, ...]
+    """Arguments of the C call, in Python."""
+
+
+@dataclass(frozen=True, slots=True)
+class LoweredResult:
+    """A C++ result as the generated code returns it."""
+
+    c_params: tuple[CParam, ...]
+    """Output parameters, after the inputs."""
+
+    statement: str
+    """The guarded statement, with ``{call}`` where the wrapped call goes."""
+
+    null_checks: tuple[Precondition, ...]
+    py: PyResult
+    call_args: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,9 +310,22 @@ class ModulePlan:
 _MAX_LINE_LENGTH = 99
 
 
+def _spelling(type_: Type) -> str:
+    """How a type is spelled in comments and docstrings: never a libclang
+    spelling, which differs between platforms and standard libraries."""
+    return type_.c_name
+
+
+def _token(type_: Type) -> str:
+    """Name of a type in overload suffixes."""
+    return type_.token
+
+
 def _describe_params(parameters: Sequence[Parameter]) -> str:
     return ", ".join(
-        f"{parameter.type.c_name} {parameter.name}" if parameter.name else parameter.type.c_name
+        f"{_spelling(parameter.type)} {parameter.name}"
+        if parameter.name
+        else _spelling(parameter.type)
         for parameter in parameters
     )
 
@@ -352,78 +430,109 @@ class _Builder:
 
     def _suffix(self, key: tuple[str, ...], parameters: Sequence[Parameter]) -> str:
         if self._overloads[key] > 1:
-            return naming.overload_suffix([parameter.type for parameter in parameters])
+            return naming.overload_suffix([_token(parameter.type) for parameter in parameters])
         return ""
 
-    def _params(
+    # Lowering: how each type crosses the boundary --------------------------------
+
+    def _lower_params(
         self, parameters: Sequence[Parameter], reserved: Iterable[str] = ()
-    ) -> list[CParam]:
+    ) -> list[LoweredParam]:
         taken = self._parameter_macros | frozenset(reserved)
         names = naming.parameter_names([parameter.name for parameter in parameters], taken)
         return [
-            CParam(
-                name=name,
-                c_type=parameter.type.c_name,
-                role=Role.INPUT,
-                ctypes_type=f"ctypes.{parameter.type.ctypes_name}",
-                scalar=parameter.type,
-            )
+            self._lower_param(name, parameter.type)
             for name, parameter in zip(names, parameters, strict=True)
         ]
+
+    @staticmethod
+    def _lower_param(name: str, type_: Type) -> LoweredParam:
+        return LoweredParam(
+            c_params=(CParam(name, type_.c_name, Role.INPUT, f"ctypes.{type_.ctypes_name}"),),
+            argument=name,
+            null_checks=(),
+            value_checks=(),
+            py=PyArg(name, (f"{name} = {_conversion(name, type_)}",)),
+            call_args=(name,),
+        )
+
+    @staticmethod
+    def _lower_result(type_: Type) -> LoweredResult:
+        if type_.is_void:
+            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    f"{type_.c_name}*",
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER(ctypes.{type_.ctypes_name})",
+                ),
+            ),
+            statement="*out_result = {call};",
+            null_checks=(_null_check("out_result"),),
+            py=PyResult(setup=(f"_out = ctypes.{type_.ctypes_name}()",), value="_out.value"),
+            call_args=("_out",),
+        )
 
     def _status_function(
         self,
         name: str,
-        params: Sequence[CParam],
+        params: Sequence[LoweredParam],
         call: str,
-        result: ScalarType,
+        result: Type,
         description: str,
         *,
         location: Location,
-    ) -> CFunction:
-        """A function that returns a status and passes the result through an out-parameter."""
-        all_params = list(params)
-        if result.is_void:
-            statement = f"{call};"
-        else:
-            all_params.append(
-                CParam(
-                    name="out_result",
-                    c_type=f"{result.c_name}*",
-                    role=Role.OUT_RESULT,
-                    ctypes_type=f"ctypes.POINTER(ctypes.{result.ctypes_name})",
-                    scalar=result,
-                )
-            )
-            statement = f"*out_result = {call};"
-        return CFunction(
+        self_param: CParam | None = None,
+    ) -> tuple[CFunction, LoweredResult]:
+        """A function that returns a status and passes the result through out-parameters.
+
+        ``call`` is the wrapped call, with ``{arguments}`` where the arguments go.
+        """
+        lowered = self._lower_result(result)
+        leading = (self_param,) if self_param is not None else ()
+        null_checks = [_null_check(param.name) for param in leading]
+        for param in params:
+            null_checks += param.null_checks
+        null_checks += lowered.null_checks
+        arguments = ", ".join(param.argument for param in params)
+        function = CFunction(
             name=name,
-            params=tuple(all_params),
+            params=(
+                *leading,
+                *(c for param in params for c in param.c_params),
+                *lowered.c_params,
+            ),
             returns_status=True,
-            statement=statement,
+            statement=lowered.statement.replace("{call}", call.replace("{arguments}", arguments)),
             description=description,
-            null_checked=tuple(param for param in all_params if param.role is not Role.INPUT),
             ctypes_restype="_runtime.Status",
+            checks=(*null_checks, *(c for param in params for c in param.value_checks)),
             location=location,
         )
+        return function, lowered
 
     @staticmethod
-    def _python_callable(name: str, function: CFunction, result: ScalarType) -> PyCallable:
-        args: list[PyArg] = []
-        call_args: list[str] = []
-        for param in function.params:
-            if param.role is Role.SELF:
-                call_args.append("self._ptr()")
-            elif param.role is Role.OUT_SELF:
-                call_args.append("_handle")
-            elif param.role is Role.OUT_RESULT:
-                call_args.append("_out")
-            else:
-                assert param.scalar is not None
-                args.append(PyArg(param.name, _conversion(param.name, param.scalar)))
-                call_args.append(param.name)
-        result_ctype = None if result.is_void else f"ctypes.{result.ctypes_name}"
-        return PyCallable(name, function, tuple(args), tuple(call_args), result_ctype)
+    def _python_callable(
+        name: str,
+        function: CFunction,
+        params: Sequence[LoweredParam],
+        result: LoweredResult | None,
+        *,
+        leading: Sequence[str] = (),
+    ) -> PyCallable:
+        """``leading`` are the call arguments before the parameters (self._ptr()...)."""
+        call_args = [*leading, *(arg for param in params for arg in param.call_args)]
+        if result is not None:
+            call_args += result.call_args
+        return PyCallable(
+            name,
+            function,
+            tuple(param.py for param in params),
+            tuple(call_args),
+            result.py if result is not None else _NO_RESULT,
+        )
 
     # Declarations ------------------------------------------------------------
 
@@ -457,25 +566,32 @@ class _Builder:
             out_self = CParam(
                 "out_self", f"{c_type}**", Role.OUT_SELF, f"ctypes.POINTER({pointer_name})"
             )
-            params = self._params(constructor.parameters, reserved=(pointer_name,))
-            arguments = ", ".join(param.name for param in params)
+            params = self._lower_params(constructor.parameters, reserved=(pointer_name,))
+            arguments = ", ".join(param.argument for param in params)
             description = (
                 f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
             )
             function = CFunction(
                 name=name,
-                params=(out_self, *params),
+                params=(out_self, *(c for param in params for c in param.c_params)),
                 returns_status=True,
                 statement=(
                     f"*out_self = reinterpret_cast<{c_type}*>(new {cpp_name}({arguments}));"
                 ),
                 description=description,
-                null_checked=(out_self,),
                 ctypes_restype="_runtime.Status",
+                owned_checks=(_null_check("out_self"),),
+                resets=("*out_self = nullptr;",),
+                checks=(
+                    *(c for param in params for c in param.null_checks),
+                    *(c for param in params for c in param.value_checks),
+                ),
                 location=constructor.location,
             )
             py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
-            constructors.append(self._python_callable(py_name, function, VOID))
+            constructors.append(
+                self._python_callable(py_name, function, params, None, leading=("_handle",))
+            )
 
         destroy_name = f"{c_type}_destroy"
         self._reserve_c_name(destroy_name, f"the destructor of '{cpp_name}'", model.location)
@@ -485,7 +601,6 @@ class _Builder:
             returns_status=False,
             statement=f"delete {cast_self(False)};",
             description=f"{model.qualified_name}::~{model.name}()",
-            null_checked=(),
             ctypes_restype="None",
             location=model.location,
         )
@@ -498,29 +613,34 @@ class _Builder:
             name = f"{c_type}_{method.name}{suffix}"
             what = f"method '{cpp_name}::{method.name}({_describe_params(method.parameters)})'"
             self._reserve_c_name(name, what, method.location)
-            params = self._params(method.parameters)
-            arguments = ", ".join(param.name for param in params)
+            params = self._lower_params(method.parameters)
             qualifiers = " const" if method.is_const else ""
             static = "static " if method.is_static else ""
             description = (
-                f"{static}{method.result.c_name} {model.qualified_name}::{method.name}"
+                f"{static}{_spelling(method.result)} {model.qualified_name}::{method.name}"
                 f"({_describe_params(method.parameters)}){qualifiers}"
             )
             if method.is_static:
-                call = f"{cpp_name}::{method.name}({arguments})"
-                function = self._status_function(
-                    name, params, call, method.result, description, location=method.location
-                )
-            else:
-                call = f"{cast_self(method.is_const)}->{method.name}({arguments})"
-                function = self._status_function(
+                function, result = self._status_function(
                     name,
-                    [self_param(method.is_const), *params],
-                    call,
+                    params,
+                    f"{cpp_name}::{method.name}({{arguments}})",
                     method.result,
                     description,
                     location=method.location,
                 )
+                leading: tuple[str, ...] = ()
+            else:
+                function, result = self._status_function(
+                    name,
+                    params,
+                    f"{cast_self(method.is_const)}->{method.name}({{arguments}})",
+                    method.result,
+                    description,
+                    location=method.location,
+                    self_param=self_param(method.is_const),
+                )
+                leading = ("self._ptr()",)
             py_name = naming.member_name(method.name + suffix, reserved=factory_names)
             if py_name in py_names:
                 self.errors.append(
@@ -531,7 +651,7 @@ class _Builder:
                     )
                 )
             py_names[py_name] = method.location
-            member = self._python_callable(py_name, function, method.result)
+            member = self._python_callable(py_name, function, params, result, leading=leading)
             members.append(dataclasses.replace(member, is_static=method.is_static))
 
         return ClassPlan(
@@ -551,17 +671,21 @@ class _Builder:
         name = f"{prefix}_{model.name}{suffix}"
         what = f"function '{model.qualified_name}({_describe_params(model.parameters)})'"
         self._reserve_c_name(name, what, model.location)
-        params = self._params(model.parameters)
-        arguments = ", ".join(param.name for param in params)
-        call = f"::{model.qualified_name}({arguments})"
+        params = self._lower_params(model.parameters)
         description = (
-            f"{model.result.c_name} {model.qualified_name}({_describe_params(model.parameters)})"
+            f"{_spelling(model.result)} {model.qualified_name}"
+            f"({_describe_params(model.parameters)})"
         )
-        function = self._status_function(
-            name, params, call, model.result, description, location=model.location
+        function, result = self._status_function(
+            name,
+            params,
+            f"::{model.qualified_name}({{arguments}})",
+            model.result,
+            description,
+            location=model.location,
         )
         py_name = naming.python_name(model.name + suffix)
-        return FunctionPlan(model, self._python_callable(py_name, function, model.result))
+        return FunctionPlan(model, self._python_callable(py_name, function, params, result))
 
     def build_header(self, header: Header) -> HeaderPlan:
         stem = naming.check_header_stem(header.stem)

@@ -45,13 +45,18 @@ extern "C" {
 {% if f.returns_status %}
 {{ m.status_type }} {{ f.signature }}
 {
-{% for p in f.null_checked %}
-    if ({{ p.name }} == nullptr) {
-        return {{ m.detail_namespace }}::null_argument("{{ f.name }}: '{{ p.name }}' is NULL");
+{% for c in f.owned_checks %}
+    if ({{ c.condition }}) {
+        return {{ m.detail_namespace }}::{{ c.helper }}("{{ f.name }}: {{ c.message }}");
     }
 {% endfor %}
-{% for p in f.null_checked if p.role.value == "out_self" %}
-    *{{ p.name }} = nullptr;
+{% for statement in f.resets %}
+    {{ statement }}
+{% endfor %}
+{% for c in f.checks %}
+    if ({{ c.condition }}) {
+        return {{ m.detail_namespace }}::{{ c.helper }}("{{ f.name }}: {{ c.message }}");
+    }
 {% endfor %}
     return {{ m.detail_namespace }}::guard([&]() { {{ f.statement }} });
 }
