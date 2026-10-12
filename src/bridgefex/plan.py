@@ -434,7 +434,9 @@ class _Builder:
             c_type, f"the handle type of '{model.qualified_name}'", model.location, tag=True
         )
         cpp_name = "::" + model.qualified_name
-        pointer_name = f"_{c_type}_p"
+        # '__' separates the role from the C name: C names never contain it, so
+        # the class X_p cannot take the pointer type of X.
+        pointer_name = f"_{c_type}__p"
         key = (*model.namespace, model.name)
 
         def self_param(is_const: bool) -> CParam:

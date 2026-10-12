@@ -18,7 +18,7 @@ class _demo_Counter(ctypes.Structure):
     """Opaque C handle of demo::Counter."""
 
 
-_demo_Counter_p = ctypes.POINTER(_demo_Counter)
+_demo_Counter__p = ctypes.POINTER(_demo_Counter)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -35,29 +35,29 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-            lib.demo_Counter_create_void.argtypes = [ctypes.POINTER(_demo_Counter_p)]
+            lib.demo_Counter_create_void.argtypes = [ctypes.POINTER(_demo_Counter__p)]
             lib.demo_Counter_create_void.restype = _runtime.Status
-            lib.demo_Counter_create_int32.argtypes = [ctypes.POINTER(_demo_Counter_p), ctypes.c_int32]
+            lib.demo_Counter_create_int32.argtypes = [ctypes.POINTER(_demo_Counter__p), ctypes.c_int32]
             lib.demo_Counter_create_int32.restype = _runtime.Status
-            lib.demo_Counter_destroy.argtypes = [_demo_Counter_p]
+            lib.demo_Counter_destroy.argtypes = [_demo_Counter__p]
             lib.demo_Counter_destroy.restype = None
-            lib.demo_Counter_increment.argtypes = [_demo_Counter_p]
+            lib.demo_Counter_increment.argtypes = [_demo_Counter__p]
             lib.demo_Counter_increment.restype = _runtime.Status
-            lib.demo_Counter_add_int32.argtypes = [_demo_Counter_p, ctypes.c_int32]
+            lib.demo_Counter_add_int32.argtypes = [_demo_Counter__p, ctypes.c_int32]
             lib.demo_Counter_add_int32.restype = _runtime.Status
-            lib.demo_Counter_add_double.argtypes = [_demo_Counter_p, ctypes.c_double]
+            lib.demo_Counter_add_double.argtypes = [_demo_Counter__p, ctypes.c_double]
             lib.demo_Counter_add_double.restype = _runtime.Status
-            lib.demo_Counter_value.argtypes = [_demo_Counter_p, ctypes.POINTER(ctypes.c_int32)]
+            lib.demo_Counter_value.argtypes = [_demo_Counter__p, ctypes.POINTER(ctypes.c_int32)]
             lib.demo_Counter_value.restype = _runtime.Status
-            lib.demo_Counter_isZero.argtypes = [_demo_Counter_p, ctypes.POINTER(ctypes.c_bool)]
+            lib.demo_Counter_isZero.argtypes = [_demo_Counter__p, ctypes.POINTER(ctypes.c_bool)]
             lib.demo_Counter_isZero.restype = _runtime.Status
-            lib.demo_Counter_setLimit.argtypes = [_demo_Counter_p, ctypes.c_int64]
+            lib.demo_Counter_setLimit.argtypes = [_demo_Counter__p, ctypes.c_int64]
             lib.demo_Counter_setLimit.restype = _runtime.Status
-            lib.demo_Counter_limit.argtypes = [_demo_Counter_p, ctypes.POINTER(ctypes.c_int64)]
+            lib.demo_Counter_limit.argtypes = [_demo_Counter__p, ctypes.POINTER(ctypes.c_int64)]
             lib.demo_Counter_limit.restype = _runtime.Status
-            lib.demo_Counter_reserve.argtypes = [_demo_Counter_p, ctypes.c_size_t]
+            lib.demo_Counter_reserve.argtypes = [_demo_Counter__p, ctypes.c_size_t]
             lib.demo_Counter_reserve.restype = _runtime.Status
-            lib.demo_Counter_fail.argtypes = [_demo_Counter_p]
+            lib.demo_Counter_fail.argtypes = [_demo_Counter__p]
             lib.demo_Counter_fail.restype = _runtime.Status
             lib.demo_Counter_liveInstances.argtypes = [ctypes.POINTER(ctypes.c_size_t)]
             lib.demo_Counter_liveInstances.restype = _runtime.Status
@@ -114,7 +114,7 @@ class Counter:
     @_builtins.classmethod
     def create_void(cls):
         """Wraps ``demo::Counter::Counter()``."""
-        _handle = _demo_Counter_p()
+        _handle = _demo_Counter__p()
         _runtime.check(_bind().demo_Counter_create_void(_handle))
         _self = cls.__new__(cls)
         _self._adopt(_handle)
@@ -123,7 +123,7 @@ class Counter:
     @_builtins.classmethod
     def create_int32(cls, start):
         """Wraps ``demo::Counter::Counter(int32_t start)``."""
-        _handle = _demo_Counter_p()
+        _handle = _demo_Counter__p()
         start = _runtime.to_int(start, ctypes.c_int32, "start")
         _runtime.check(_bind().demo_Counter_create_int32(_handle, start))
         _self = cls.__new__(cls)

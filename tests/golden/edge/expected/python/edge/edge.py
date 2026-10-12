@@ -21,7 +21,7 @@ class _edge_Registry(ctypes.Structure):
     """Opaque C handle of edge::Registry."""
 
 
-_edge_Registry_p = ctypes.POINTER(_edge_Registry)
+_edge_Registry__p = ctypes.POINTER(_edge_Registry)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -46,17 +46,17 @@ def _bind():
             lib.edge_getattr.restype = _runtime.Status
             lib.edge_threading.argtypes = [ctypes.POINTER(ctypes.c_int)]
             lib.edge_threading.restype = _runtime.Status
-            lib.edge_Registry_create.argtypes = [ctypes.POINTER(_edge_Registry_p)]
+            lib.edge_Registry_create.argtypes = [ctypes.POINTER(_edge_Registry__p)]
             lib.edge_Registry_create.restype = _runtime.Status
-            lib.edge_Registry_destroy.argtypes = [_edge_Registry_p]
+            lib.edge_Registry_destroy.argtypes = [_edge_Registry__p]
             lib.edge_Registry_destroy.restype = None
-            lib.edge_Registry_classmethod.argtypes = [_edge_Registry_p, ctypes.POINTER(ctypes.c_int)]
+            lib.edge_Registry_classmethod.argtypes = [_edge_Registry__p, ctypes.POINTER(ctypes.c_int)]
             lib.edge_Registry_classmethod.restype = _runtime.Status
-            lib.edge_Registry_staticmethod.argtypes = [_edge_Registry_p, ctypes.POINTER(ctypes.c_int)]
+            lib.edge_Registry_staticmethod.argtypes = [_edge_Registry__p, ctypes.POINTER(ctypes.c_int)]
             lib.edge_Registry_staticmethod.restype = _runtime.Status
-            lib.edge_Registry_throwOnDestroy.argtypes = [_edge_Registry_p, ctypes.c_bool]
+            lib.edge_Registry_throwOnDestroy.argtypes = [_edge_Registry__p, ctypes.c_bool]
             lib.edge_Registry_throwOnDestroy.restype = _runtime.Status
-            lib.edge_Registry_fail.argtypes = [_edge_Registry_p]
+            lib.edge_Registry_fail.argtypes = [_edge_Registry__p]
             lib.edge_Registry_fail.restype = _runtime.Status
             lib.edge_Registry_liveCount.argtypes = [ctypes.POINTER(ctypes.c_int)]
             lib.edge_Registry_liveCount.restype = _runtime.Status
@@ -140,7 +140,7 @@ class Registry:
         """Wraps ``edge::Registry::Registry()``."""
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Registry object is already initialized")
-        _handle = _edge_Registry_p()
+        _handle = _edge_Registry__p()
         _runtime.check(_bind().edge_Registry_create(_handle))
         self._adopt(_handle)
 

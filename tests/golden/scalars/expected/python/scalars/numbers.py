@@ -46,7 +46,7 @@ class _scalars_Accumulator(ctypes.Structure):
     """Opaque C handle of Accumulator."""
 
 
-_scalars_Accumulator_p = ctypes.POINTER(_scalars_Accumulator)
+_scalars_Accumulator__p = ctypes.POINTER(_scalars_Accumulator)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -63,17 +63,17 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-            lib.scalars_Accumulator_create.argtypes = [ctypes.POINTER(_scalars_Accumulator_p)]
+            lib.scalars_Accumulator_create.argtypes = [ctypes.POINTER(_scalars_Accumulator__p)]
             lib.scalars_Accumulator_create.restype = _runtime.Status
-            lib.scalars_Accumulator_destroy.argtypes = [_scalars_Accumulator_p]
+            lib.scalars_Accumulator_destroy.argtypes = [_scalars_Accumulator__p]
             lib.scalars_Accumulator_destroy.restype = None
-            lib.scalars_Accumulator_push.argtypes = [_scalars_Accumulator_p, ctypes.c_double]
+            lib.scalars_Accumulator_push.argtypes = [_scalars_Accumulator__p, ctypes.c_double]
             lib.scalars_Accumulator_push.restype = _runtime.Status
-            lib.scalars_Accumulator_total.argtypes = [_scalars_Accumulator_p, ctypes.POINTER(ctypes.c_double)]
+            lib.scalars_Accumulator_total.argtypes = [_scalars_Accumulator__p, ctypes.POINTER(ctypes.c_double)]
             lib.scalars_Accumulator_total.restype = _runtime.Status
-            lib.scalars_Accumulator_count.argtypes = [_scalars_Accumulator_p, ctypes.POINTER(ctypes.c_size_t)]
+            lib.scalars_Accumulator_count.argtypes = [_scalars_Accumulator__p, ctypes.POINTER(ctypes.c_size_t)]
             lib.scalars_Accumulator_count.restype = _runtime.Status
-            lib.scalars_Accumulator_reset.argtypes = [_scalars_Accumulator_p]
+            lib.scalars_Accumulator_reset.argtypes = [_scalars_Accumulator__p]
             lib.scalars_Accumulator_reset.restype = _runtime.Status
             lib.scalars_Accumulator_version.argtypes = [ctypes.POINTER(ctypes.c_int)]
             lib.scalars_Accumulator_version.restype = _runtime.Status
@@ -181,7 +181,7 @@ class Accumulator:
         """Wraps ``Accumulator::Accumulator()``."""
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Accumulator object is already initialized")
-        _handle = _scalars_Accumulator_p()
+        _handle = _scalars_Accumulator__p()
         _runtime.check(_bind().scalars_Accumulator_create(_handle))
         self._adopt(_handle)
 

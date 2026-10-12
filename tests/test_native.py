@@ -263,6 +263,49 @@ def test_objects_alive_at_exit_are_not_destroyed(
     assert completed.stdout.split() == ["destroyed", "exiting"]
 
 
+def test_classes_named_like_generated_python_names(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """Classes X and X_p must not share a Python name (X's handle pointer type)."""
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    header = source_dir / "pair.h"
+    header.write_text(
+        "#pragma once\nnamespace pair {\n"
+        "class Circle { public: int r() const; };\n"
+        "class Circle_p { public: int q() const; };\n}\n",
+        encoding="utf-8",
+    )
+    (source_dir / "pair.cpp").write_text(
+        '#include "pair.h"\n'
+        "int pair::Circle::r() const { return 1; }\n"
+        "int pair::Circle_p::q() const { return 2; }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("pair"))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    library = tmp_path / toolchain.shared_library_name("pair")
+    sources = [*sorted((output / "c").glob("*.cpp")), source_dir / "pair.cpp"]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.build_shared_library(sources, [output / "c", source_dir], library, flag).check()
+    code = "from pair import pair\nprint(pair.Circle().r(), pair.Circle_p().q())\n"
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "PAIR_LIBRARY": str(library),
+    }
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.split() == ["1", "2"]
+
+
 @pytest.mark.parametrize(
     ("modules", "reverse"),
     [

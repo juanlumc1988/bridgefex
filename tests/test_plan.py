@@ -135,6 +135,14 @@ def test_overload_set_across_headers() -> None:
     assert names == ["ns_scale_int32", "ns_scale_double"]
 
 
+def test_private_python_names_of_classes_do_not_clash() -> None:
+    """The pointer type of X must not be the mirror of a class named X_p."""
+    plan = plan_for(header(klass("Circle"), klass("Circle_p")))
+    circle, circle_p = plan.headers[0].classes
+    names = [circle.struct_name, circle.pointer_name, circle_p.struct_name, circle_p.pointer_name]
+    assert names == ["_ns_Circle", "_ns_Circle__p", "_ns_Circle_p", "_ns_Circle_p__p"]
+
+
 def test_global_namespace_uses_module_prefix() -> None:
     plan = plan_for(header(klass("Box", namespace=()), function("f", namespace=())), module="lib")
     assert [f.name for f in plan.headers[0].c_functions] == [
