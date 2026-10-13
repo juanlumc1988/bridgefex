@@ -115,6 +115,29 @@ def _bind():
             _lib = lib
     return _lib
 {% endif %}
+{% for t in m.thunks %}
+
+
+{{ t.type_name }} = ctypes.CFUNCTYPE(None, {{ t.ctypes_args | join(", ") }})
+
+
+def {{ t.name }}({{ t.params | join(", ") }}):
+    # Called by C++. An exception goes to the call that passed the callback,
+    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    _scope = None
+    try:
+        _function, _scope, _name = _runtime.callback_target(_user_data)
+        if _scope.error is not None:
+            return
+{{ t.body }}
+    except BaseException as _error:
+        if _scope is None or not _scope.fail(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+{{ t.name }} = {{ t.type_name }}({{ t.name }})
+{% endfor %}
 {% endset %}
 """Types of the "{{ m.name }}" bindings: the handles, enums and value structs of every header.
 

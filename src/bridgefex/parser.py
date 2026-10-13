@@ -29,6 +29,8 @@ from clang.cindex import (
 from . import libclang, naming, typemap
 from .errors import ConfigurationError, Diagnostic, GenerationError, Location
 from .model import (
+    CallbackArgument,
+    CallbackType,
     Class,
     Constructor,
     ContainerKind,
@@ -822,6 +824,7 @@ class _Visitor:
         self, clang_type: cindex.Type, cursor: cindex.Cursor, context: str, *, allow_void: bool
     ) -> Type | None:
         spelling = str(clang_type.spelling)
+        is_result = allow_void
         try:
             # Before the scalars: they reject plain char and references.
             string = string_type(clang_type)
@@ -831,7 +834,7 @@ class _Visitor:
             if (
                 clang_type.kind == TypeKind.RVALUEREFERENCE
                 and not allow_void  # a parameter, not a result
-                and _std_record_name(clang_type.get_pointee()) in _CONTAINERS
+                and _std_record_name(clang_type.get_pointee()) in (*_CONTAINERS, "function")
             ):
                 # A sink parameter: the wrapper passes a temporary anyway.
                 clang_type = clang_type.get_pointee()
@@ -849,17 +852,13 @@ class _Visitor:
             if clang_type.get_canonical().kind == TypeKind.ENUM:
                 return _enum_ref(clang_type)
             if clang_type.get_canonical().kind == TypeKind.RECORD:
-                std_name = _std_record_name(clang_type)
-                if std_name in _CONTAINERS:
-                    container = self._container(
-                        clang_type, std_name, cursor, context, by_reference=by_reference
-                    )
-                    if container is not None and rvalue_reference:
-                        container = dataclasses.replace(container, rvalue_reference=True)
-                    return container
-                if std_name in _UNSUPPORTED_STD_CLASSES:
-                    raise typemap.UnsupportedTypeError(f"std::{std_name} is not supported yet")
-                return _struct_ref(clang_type, by_reference=by_reference)
+                record = self._record(
+                    clang_type, cursor, context, is_result=is_result, by_reference=by_reference
+                )
+                if record is not None and rvalue_reference:
+                    assert isinstance(record, ContainerType | CallbackType)
+                    record = dataclasses.replace(record, rvalue_reference=True)
+                return record
             user_alias = False
             if clang_type.kind == TypeKind.ELABORATED:
                 # The named type is spelled with its real qualification
@@ -999,7 +998,7 @@ class _Visitor:
         element = self._type(element_type, cursor, f"element of {context}", allow_void=False)
         if element is None:
             return None
-        if isinstance(element, ContainerType) or (
+        if isinstance(element, ContainerType | CallbackType) or (
             isinstance(element, StringType) and element.kind is not StringKind.STRING
         ):
             raise typemap.UnsupportedTypeError(
@@ -1010,6 +1009,85 @@ class _Visitor:
         if isinstance(element, StringType | StructRef) and element.by_reference:
             raise typemap.UnsupportedTypeError(f"std::{name} of references is not supported")
         return ContainerType(kind, element, length, by_reference=by_reference)
+
+    def _record(
+        self,
+        clang_type: cindex.Type,
+        cursor: cindex.Cursor,
+        context: str,
+        *,
+        is_result: bool,
+        by_reference: bool,
+    ) -> ContainerType | CallbackType | StructRef | None:
+        """A class type: a std container, a std::function or a value struct."""
+        std_name = _std_record_name(clang_type)
+        if std_name in _CONTAINERS:
+            return self._container(clang_type, std_name, cursor, context, by_reference=by_reference)
+        if std_name == "function":
+            if is_result:
+                raise typemap.UnsupportedTypeError("std::function results are not supported")
+            return self._callback(clang_type, cursor, context, by_reference=by_reference)
+        if std_name in _UNSUPPORTED_STD_CLASSES:
+            raise typemap.UnsupportedTypeError(f"std::{std_name} is not supported yet")
+        return _struct_ref(clang_type, by_reference=by_reference)
+
+    def _callback(
+        self, written: cindex.Type, cursor: cindex.Cursor, context: str, *, by_reference: bool
+    ) -> CallbackType | None:
+        """A std::function, whose signature is read from the type as written
+        (std::int64_t, not the platform's 'long')."""
+        if written.kind not in (TypeKind.ELABORATED, TypeKind.TYPEDEF, TypeKind.RECORD):
+            raise typemap.UnsupportedTypeError("deduced types (auto, decltype) are not supported")
+        if written.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        for alias in _alias_templates(cursor):
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the signature of '{written.spelling}' (alias template "
+                f"'{alias.spelling}'); write std::function<...>"
+            )
+        canonical = written.get_canonical()
+        signature = written.get_template_argument_type(0)
+        if (
+            int(written.get_num_template_arguments()) != 1
+            or signature.kind != TypeKind.FUNCTIONPROTO
+            or signature.get_canonical() != canonical.get_template_argument_type(0).get_canonical()
+        ):
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the signature of '{written.spelling}'; write std::function<...>"
+            )
+        if signature.is_function_variadic():
+            raise typemap.UnsupportedTypeError("variadic callbacks are not supported")
+        written_result = signature.get_result()
+        if written_result.kind in (TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE):
+            raise typemap.UnsupportedTypeError(
+                "callbacks that return a reference are not supported"
+            )
+        what = f"callback {context}"
+        result = self._type(written_result, cursor, f"result of {what}", allow_void=True)
+        if result is None:
+            return None
+        if not isinstance(result, ScalarType | EnumRef):
+            raise typemap.UnsupportedTypeError(
+                f"callbacks that return '{written_result.spelling}' are not supported yet"
+            )
+        arguments: list[CallbackArgument] = []
+        references: list[bool] = []
+        for position, written_argument in enumerate(signature.argument_types(), start=1):
+            argument = self._type(
+                written_argument, cursor, f"argument {position} of {what}", allow_void=False
+            )
+            if argument is None:
+                return None
+            if not isinstance(argument, ScalarType | EnumRef | StructRef | StringType):
+                raise typemap.UnsupportedTypeError(
+                    f"callbacks that take '{written_argument.spelling}' are not supported yet"
+                )
+            arguments.append(argument)
+            references.append(
+                isinstance(argument, ScalarType | EnumRef)
+                and written_argument.kind == TypeKind.LVALUEREFERENCE
+            )
+        return CallbackType(result, tuple(arguments), tuple(references), by_reference)
 
     # Namespace scope -----------------------------------------------------
 
@@ -1421,6 +1499,9 @@ class _Visitor:
             return None
         if isinstance(type_, ContainerType):
             self._error(field, f"{where}: containers in value structs are not supported yet")
+            return None
+        if isinstance(type_, CallbackType):
+            self._error(field, f"{where}: std::function in value structs is not supported yet")
             return None
         location = _location(field.location)
         assert location is not None

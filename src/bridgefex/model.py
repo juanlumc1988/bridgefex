@@ -192,7 +192,51 @@ class ContainerType:
         return f"const {name}&" if self.by_reference else name
 
 
-Type = ScalarType | StringType | EnumRef | StructRef | ContainerType
+CallbackArgument = ScalarType | EnumRef | StructRef | StringType
+"""Every type that a callback can take."""
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackType:
+    """``std::function<R(A...)>``: a C callback with its user_data and release
+    function."""
+
+    result: ScalarType | EnumRef
+    """A scalar (``void`` too) or an enum."""
+
+    arguments: tuple[CallbackArgument, ...]
+    references: tuple[bool, ...]
+    """For each argument: True for ``const T&`` of a scalar or an enum, which the
+    model of the type does not keep (the C++ spelling of the signature does)."""
+
+    by_reference: bool = False
+    """True for ``const std::function<...>&``."""
+
+    rvalue_reference: bool = False
+    """True for ``std::function<...>&&``, which is passed like a value."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def signature(self) -> str:
+        """The function type, ``R (A...)``."""
+        arguments = [
+            f"const {argument.cpp_spelling}&" if reference else argument.cpp_spelling
+            for argument, reference in zip(self.arguments, self.references, strict=True)
+        ]
+        return f"{self.result.cpp_spelling} ({', '.join(arguments)})"
+
+    @property
+    def cpp_spelling(self) -> str:
+        name = f"std::function<{self.signature}>"
+        if self.rvalue_reference:
+            return f"{name}&&"
+        return f"const {name}&" if self.by_reference else name
+
+
+Type = ScalarType | StringType | EnumRef | StructRef | ContainerType | CallbackType
 """Every type that can cross the C boundary."""
 
 FieldType = ScalarType | EnumRef | StructRef

@@ -17,6 +17,7 @@ from enum import Enum
 from . import naming
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
+    CallbackType,
     Class,
     ContainerKind,
     ContainerType,
@@ -58,8 +59,14 @@ class CParam:
     length: int | None = None
     """The bound of an array parameter (``const float m[4]``)."""
 
+    function_params: str | None = None
+    """The parameters of a function pointer parameter, whose ``c_type`` is then
+    the result type (``void (*f)(void*, int32_t)``)."""
+
     @property
     def declaration(self) -> str:
+        if self.function_params is not None:
+            return f"{self.c_type} (*{self.name})({self.function_params})"
         if self.length is not None:
             return f"{self.c_type} {self.name}[{self.length}]"
         return f"{self.c_type} {self.name}"
@@ -124,6 +131,10 @@ class CFunction:
     compile_checks: tuple[str, ...] = ()
     """static_asserts at the start of the function body."""
 
+    prologue: tuple[str, ...] = ()
+    """Declarations before the checks: the owners of the callbacks, which
+    release them on every return."""
+
     @property
     def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
         """Each NULL check of an output that the function allocates, with its reset."""
@@ -145,6 +156,11 @@ class PyArg:
     conversions: tuple[str, ...]
     """Statements that check and convert the argument, rebinding its name (and
     computing derived locals), before the call."""
+
+    registration: tuple[str, tuple[str, ...]] | None = None
+    """For a callback: the targets and the arguments of the statement that
+    registers it in the call's scope, after every conversion (which may fail)
+    and right before the call."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +202,10 @@ class PyCallable:
     def parameter_list(self) -> str:
         return ", ".join(arg.name for arg in self.args)
 
+    @property
+    def registrations(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
+        return tuple(arg.registration for arg in self.args if arg.registration is not None)
+
     def check_call(self, indent: int, before_call: Sequence[str] = ()) -> str:
         """The argument conversions, the ``before_call`` statements, then the C
         call wrapped in ``_runtime.check``, indented by ``indent`` spaces.
@@ -197,19 +217,61 @@ class PyCallable:
         """
         pad = " " * indent
         lines = [f"{pad}{line}" for arg in self.args for line in arg.conversions]
+        if self.registrations:
+            lines.append(self._scoped_call(indent, before_call))
+            return "\n".join(lines)
         lines += [pad + statement for statement in before_call]
         lines.append(self._call(indent))
         return "\n".join(lines)
 
-    def _call(self, indent: int) -> str:
+    def _scoped_call(
+        self,
+        indent: int,
+        before_call: Sequence[str] = (),
+        read: str | None = None,
+        cleanup: Sequence[str] = (),
+    ) -> str:
+        """The call of a function with callbacks, in a scope that keeps the
+        errors of its callbacks (see _runtime.CallScope).
+
+        The callbacks are registered last, right before the call: if anything
+        before the call fails, the scope drops them, since C++ will never
+        release them (_scope.call marks the call). The release of allocated
+        outputs comes first in the ``finally``, inline (see PyResult.cleanup).
+        """
         pad = " " * indent
-        head = f"_runtime.check(_bind().{self.function.name}("
-        one_line = f"{pad}{head}{', '.join(self.call_args)}))"
+        inner = " " * (indent + 4)
+        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:"]
+        lines += [
+            _python_call(f"{targets} = _scope.callback", arguments, indent + 4)
+            for targets, arguments in self.registrations
+        ]
+        lines += [inner + statement for statement in before_call]
+        lines.append(
+            _python_call(
+                "_status = _scope.call",
+                (f"_bind().{self.function.name}", *self.call_args),
+                indent + 4,
+            )
+        )
+        lines.append(f"{inner}_scope.close()")
+        lines.append(f"{inner}_scope.check(_status)")
+        if read is not None:
+            lines.append(inner + read)
+        lines.append(f"{pad}finally:")
+        lines += [inner + line for line in cleanup]
+        lines.append(f"{inner}_scope.close()")
+        return "\n".join(lines)
+
+    def _call(self, indent: int, head: str = "_runtime.check(_bind()", tail: str = ")") -> str:
+        pad = " " * indent
+        head = f"{head}.{self.function.name}("
+        one_line = f"{pad}{head}{', '.join(self.call_args)}){tail}"
         if len(one_line) <= _MAX_LINE_LENGTH:
             return one_line
         lines = [pad + head]
         lines += [f"{pad}    {argument}," for argument in self.call_args]
-        lines.append(f"{pad}))")
+        lines.append(f"{pad}){tail}")
         return "\n".join(lines)
 
     def body(self, indent: int) -> str:
@@ -217,7 +279,10 @@ class PyCallable:
         pad = " " * indent
         result = self.result
         lines = [f"{pad}{line}" for line in result.setup]
-        if result.read is None:
+        if self.registrations:
+            lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
+            lines.append(self._scoped_call(indent, read=result.read, cleanup=result.cleanup))
+        elif result.read is None:
             lines.append(self.check_call(indent))
         else:
             # The conversions stay out of the 'try': nothing is allocated yet.
@@ -251,6 +316,13 @@ class LoweredParam:
     """A temporary (prvalue) of the parameter's type, when ``argument`` passes
     an lvalue: see :func:`_temporaries_check`."""
 
+    prologue: tuple[str, ...] = ()
+    """Declarations at the start of the C function (CFunction.prologue)."""
+
+    probe: str | None = None
+    """An expression of the argument's type and value category, for unevaluated
+    operands, when ``argument`` cannot appear there: a lambda before C++20."""
+
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
     """A static_assert that fails to compile if the wrapped function cannot take
@@ -264,7 +336,7 @@ def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> 
     """
     if all(param.temporary is None for param in params):
         return ()
-    arguments = ", ".join(param.temporary or param.argument for param in params)
+    arguments = ", ".join(param.temporary or param.probe or param.argument for param in params)
     probe = call.replace("{arguments}", arguments)
     return (
         f"static_assert(sizeof(decltype(static_cast<void>({probe}))*) != 0,\n"
@@ -571,7 +643,7 @@ class HeaderPlan:
         """Standard headers of the types that cross the boundary in the generated
         source: the wrapped header may only declare them (<iosfwd>)."""
         kinds: set[StringKind] = set()
-        for element in map(_element_or_self, _header_types(self.header)):
+        for element in _components(_header_types(self.header)):
             if isinstance(element, StringType):
                 kinds.add(element.kind)
         includes = []
@@ -587,12 +659,21 @@ class HeaderPlan:
             # std::vector.
             containers.add(ContainerKind.VECTOR)
         includes += [kind.value for kind in ContainerKind if kind in containers]
+        if any(isinstance(type_, CallbackType) for type_ in _header_types(self.header)):
+            includes.append("functional")
         return tuple(includes)
 
 
-def _element_or_self(type_: Type) -> Type:
-    """The element of a container, or the type itself."""
-    return type_.element if isinstance(type_, ContainerType) else type_
+def _components(types: Iterable[Type]) -> Iterable[Type]:
+    """The types and the types they are made of: the element of a container,
+    the result and arguments of a callback."""
+    for type_ in types:
+        yield type_
+        if isinstance(type_, ContainerType):
+            yield type_.element
+        elif isinstance(type_, CallbackType):
+            yield type_.result
+            yield from type_.arguments
 
 
 def _header_types(header: Header, *, fields: bool = True) -> Iterable[Type]:
@@ -613,11 +694,45 @@ def _header_types(header: Header, *, fields: bool = True) -> Iterable[Type]:
 
 
 @dataclass(frozen=True, slots=True)
+class ThunkPlan:
+    """The Python function that C++ calls for the callbacks of one C signature."""
+
+    name: str
+    ctypes_args: tuple[str, ...]
+    """The ctypes types of the C parameters, user_data first."""
+
+    params: tuple[str, ...]
+    arguments: tuple[str, ...]
+    """The Python values of the arguments of ``_function``."""
+
+    check: tuple[str, ...] | None
+    """The check of the result ``_value``, as the head and the arguments of a
+    call, or None for ``void``."""
+
+    @property
+    def body(self) -> str:
+        """The statements that call ``_function`` and write the checked result,
+        indented for the thunk's ``try``."""
+        if self.check is None:
+            return _python_call("_function", self.arguments, 8)
+        call = _python_call("_value = _function", self.arguments, 8)
+        head, *arguments = self.check
+        return f"{call}\n{_python_call(f'_out_result[0] = {head}', arguments, 8)}"
+
+    @property
+    def type_name(self) -> str:
+        return f"{self.name}__type"
+
+
+@dataclass(frozen=True, slots=True)
 class ModulePlan:
     name: str
     headers: tuple[HeaderPlan, ...]
     structs: tuple[StructPlan, ...] = ()
     """Every value struct, each after the structs it contains."""
+
+    thunks: tuple[ThunkPlan, ...] = ()
+    """The callback thunks of every header, by name."""
 
     @property
     def macro_prefix(self) -> str:
@@ -646,6 +761,10 @@ class ModulePlan:
     @property
     def string_type(self) -> str:
         return f"{self.name}_string"
+
+    @property
+    def disable_callbacks(self) -> str:
+        return f"{self.name}_disable_callbacks"
 
     @property
     def public_headers(self) -> tuple[str, ...]:
@@ -725,6 +844,22 @@ class _Copies:
 _MAX_LINE_LENGTH = 99
 
 
+def _python_call(head: str, arguments: Sequence[str], indent: int) -> str:
+    """``head(arguments)`` indented by ``indent`` spaces: on one line if it fits,
+    else with the arguments on the next line, else one per line."""
+    pad = " " * indent
+    one_line = f"{pad}{head}({', '.join(arguments)})"
+    if len(one_line) <= _MAX_LINE_LENGTH:
+        return one_line
+    inner = f"{pad}    {', '.join(arguments)}"
+    if len(inner) <= _MAX_LINE_LENGTH:
+        return f"{pad}{head}(\n{inner}\n{pad})"
+    lines = [f"{pad}{head}("]
+    lines += [f"{pad}    {argument}," for argument in arguments]
+    lines.append(f"{pad})")
+    return "\n".join(lines)
+
+
 def _spelling(type_: Type) -> str:
     """How a type is spelled in comments and docstrings: never a libclang
     spelling, which differs between platforms and standard libraries."""
@@ -743,7 +878,24 @@ def _token(type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str]) -> 
         if type_.kind is ContainerKind.ARRAY:
             return f"array{type_.length}_{element}"
         return f"{type_.kind.value}_{element}"
+    if isinstance(type_, CallbackType):
+        parts = [_token(part, enums, structs) for part in (type_.result, *type_.arguments)]
+        return "_".join(["function", *parts])
     return type_.token
+
+
+def _callback_locals(callbacks: Sequence[CallbackType]) -> frozenset[str]:
+    """The names that the generated code of these callbacks declares in the C
+    function (the owners) and in the lambdas that call them: no parameter may
+    take them, it would be shadowed (-Wshadow)."""
+    if not callbacks:
+        return frozenset()
+    count = max(len(callback.arguments) for callback in callbacks)
+    return frozenset(
+        {"_callback", "_user_data", "_result"}
+        | {f"_arg{position}" for position in range(1, count + 1)}
+        | {f"_owner{position}" for position in range(1, len(callbacks) + 1)}
+    )
 
 
 def _describe_params(parameters: Sequence[Parameter]) -> str:
@@ -798,6 +950,7 @@ class _Builder:
             ("last_error", "the last-error function"),
             ("api_fingerprint", "the API fingerprint function"),
             ("free", "the function that releases returned memory"),
+            ("disable_callbacks", "the function that disables the callbacks"),
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
@@ -852,6 +1005,7 @@ class _Builder:
         self._structs = self._collect_structs(module)
         # Per header stem, the headers whose structs its functions use.
         self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
+        self.thunks: dict[str, ThunkPlan] = {}
 
     # Bookkeeping -------------------------------------------------------------
 
@@ -1255,7 +1409,10 @@ class _Builder:
     def _lower_params(
         self, parameters: Sequence[Parameter], location: Location, reserved: Iterable[str] = ()
     ) -> list[LoweredParam]:
-        taken = self._parameter_macros | frozenset(reserved)
+        callbacks = [
+            parameter.type for parameter in parameters if isinstance(parameter.type, CallbackType)
+        ]
+        taken = self._parameter_macros | frozenset(reserved) | _callback_locals(callbacks)
         cpp_names = [parameter.name for parameter in parameters]
         names = naming.parameter_names(cpp_names, taken)
         sizes = naming.derived_names(
@@ -1268,14 +1425,33 @@ class _Builder:
             "_size",
             taken,
         )
-        return [
-            self._lower_param(name, size, parameter.type, location)
-            for name, size, parameter in zip(names, sizes, parameters, strict=True)
-        ]
+        is_callback = [isinstance(parameter.type, CallbackType) for parameter in parameters]
+        derived = taken | {size for size in sizes if size is not None}
+        user_data = naming.derived_names(cpp_names, names, is_callback, "_user_data", derived)
+        derived |= {name for name in user_data if name is not None}
+        releases = naming.derived_names(cpp_names, names, is_callback, "_release", derived)
+        lowered: list[LoweredParam] = []
+        owners = 0
+        for position, (name, parameter) in enumerate(zip(names, parameters, strict=True)):
+            type_ = parameter.type
+            if isinstance(type_, CallbackType):
+                owners += 1
+                data, release = user_data[position], releases[position]
+                assert data is not None
+                assert release is not None
+                lowered.append(
+                    self._lower_callback_param(
+                        (name, data, release, f"_owner{owners}"), type_, location
+                    )
+                )
+            else:
+                lowered.append(self._lower_param(name, sizes[position], type_, location))
+        return lowered
 
     def _lower_param(
         self, name: str, size: str | None, type_: Type, location: Location
     ) -> LoweredParam:
+        assert not isinstance(type_, CallbackType)  # see _lower_callback_param
         if isinstance(type_, StringType):
             return self._lower_string_param(name, size, type_)
         if isinstance(type_, EnumRef):
@@ -1295,6 +1471,228 @@ class _Builder:
             py=PyArg(name, (f"{name} = {_conversion(name, type_)}",)),
             call_args=(name,),
         )
+
+    def _lower_callback_param(
+        self, names: tuple[str, str, str, str], type_: CallbackType, location: Location
+    ) -> LoweredParam:
+        """A std::function: three C parameters (see the runtime header). ``names``:
+        the callback, its user_data, its release function and its owner."""
+        name, user_data, release, owner = names
+        detail = f"{self.module.name}_detail"
+        c_args = ["void*"]
+        lambda_params = [f"decltype({name}) _callback", "void* _user_data"]
+        passed = ["_user_data"]
+        ctypes_args = ["ctypes.c_void_p"]
+        py_params = ["_user_data"]
+        py_args: list[str] = []
+        tokens: list[str] = []
+        for position, part in enumerate(type_.arguments, start=1):
+            local = f"_arg{position}"
+            lowered = self._callback_argument(part, local, location)
+            if lowered is None:  # reported
+                return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            cpp, c_types, pass_c, ctypes_types, py_value, token = lowered
+            lambda_params.append(f"{cpp} {local}")
+            c_args += c_types
+            passed += pass_c
+            ctypes_args += ctypes_types
+            py_params += [local, f"{local}_size"] if len(c_types) == 2 else [local]
+            py_args.append(py_value)
+            tokens.append(token)
+        result = self._callback_result(type_.result, location)
+        if result is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        result_cpp, result_c, result_ctypes, check, result_token = result
+        call = f"_callback({', '.join(passed)}"
+        if result_c is None:
+            body = f"{call});"
+        else:
+            c_args.append(f"{result_c}*")
+            ctypes_args.append(f"ctypes.POINTER({result_ctypes})")
+            py_params.append("_out_result")
+            back = "_result" if result_cpp == result_c else f"static_cast<{result_cpp}>(_result)"
+            valid = self._valid_range(type_.result, location)
+            if valid is not None:
+                # Another value would be undefined behaviour; 0 is always valid,
+                # and it is what a callback that does not write gives. int
+                # needs no check at its own limits.
+                terms = [f"_result < {valid[0]}"] if valid[0] > _INT_MIN else []
+                terms += [f"_result > {valid[1]}"] if valid[1] < _INT_MAX else []
+                if terms:
+                    back = f"{' || '.join(terms)} ? {result_cpp}() : {back}"
+            body = f"{result_c} _result{{}}; {call}, &_result); return {back};"
+        signature = self._callback_signature(type_, location)
+        invoke = f"[]({', '.join(lambda_params)}) -> {result_cpp} {{ {body} }}"
+        argument = (
+            f"{detail}::make_callback<::std::function<{signature}>, {result_cpp}>("
+            f"{name}, {owner}, {invoke})"
+        )
+        thunk = ThunkPlan(
+            name="_callback__" + "__".join([result_token, *tokens]),
+            ctypes_args=tuple(ctypes_args),
+            params=tuple(py_params),
+            arguments=tuple(py_args),
+            check=check,
+        )
+        known = self.thunks.setdefault(thunk.name, thunk)
+        assert known == thunk, (known, thunk)
+        return LoweredParam(
+            c_params=(
+                CParam(
+                    name,
+                    "void",
+                    Role.INPUT,
+                    f"_types.{thunk.type_name}",
+                    function_params=", ".join(c_args),
+                ),
+                CParam(user_data, "void*", Role.INPUT, "ctypes.c_void_p"),
+                CParam(release, "void", Role.INPUT, "_runtime.Release", function_params="void*"),
+            ),
+            argument=argument,
+            null_checks=(),
+            value_checks=(),
+            py=PyArg(
+                name,
+                (f'{name} = _runtime.to_callback({name}, "{name}")',),
+                registration=(
+                    f"{name}, {user_data}, {release}",
+                    (name, f"_types.{thunk.name}", f'"{name}"'),
+                ),
+            ),
+            call_args=(name, user_data, release),
+            prologue=(f"{detail}::callback_owner {owner}({release}, {user_data});",),
+            probe=f"::std::function<{signature}>()",
+        )
+
+    def _callback_argument(
+        self, type_: Type, local: str, location: Location
+    ) -> tuple[str, list[str], list[str], list[str], str, str] | None:
+        """How a callback argument crosses to C: (the C++ parameter of the invoke
+        lambda, its C types, the C arguments, their ctypes types, the Python
+        value, the token of the thunk name)."""
+        detail = f"{self.module.name}_detail"
+        if isinstance(type_, StringType):
+            if type_.kind is StringKind.C_STRING:
+                return (
+                    "const char*",
+                    ["const char*"],
+                    [local],
+                    ["ctypes.c_void_p"],
+                    f"_runtime.callback_c_string({local})",
+                    "cstr",
+                )
+            cpp = (
+                "const ::std::string&" if type_.kind is StringKind.STRING else "::std::string_view"
+            )
+            return (
+                cpp,
+                ["const char*", "size_t"],
+                [f"{local}.data()", f"{local}.size()"],
+                ["ctypes.c_void_p", "ctypes.c_size_t"],
+                f"_runtime.callback_string({local}, {local}_size)",
+                "string",
+            )
+        if isinstance(type_, EnumRef):
+            enum = self._enum(type_, location)
+            if enum is None:
+                return None
+            return (
+                enum.cpp_name,
+                [enum.c_type],
+                [f"static_cast<{enum.c_type}>({local})"],
+                [enum.ctypes_type],
+                f"_runtime.enum_result({enum.c_type}, {local})",
+                enum.c_type,
+            )
+        if isinstance(type_, StructRef):
+            struct = self._struct(type_, location)
+            if struct is None:
+                return None
+            return (
+                f"const {struct.cpp_name}&",
+                [f"const {struct.c_type}*"],
+                [f"{detail}::address_of({detail}::to_c({local}))"],
+                [f"ctypes.POINTER({struct.mirror})"],
+                f"{struct.mirror}__from_c({local}.contents)",
+                struct.c_type,
+            )
+        assert isinstance(type_, ScalarType)
+        return (
+            type_.c_name,
+            [type_.c_name],
+            [local],
+            [f"ctypes.{type_.ctypes_name}"],
+            local,
+            type_.token,
+        )
+
+    def _callback_result(
+        self, type_: ScalarType | EnumRef, location: Location
+    ) -> tuple[str, str | None, str, tuple[str, ...] | None, str] | None:
+        """How a callback result crosses from C: (its C++ type, its C type or
+        None for void, its ctypes type, the Python check of ``_value`` as the
+        head and arguments of a call, the token of the thunk name)."""
+        what = 'what="the result of callback"'
+        if isinstance(type_, EnumRef):
+            enum = self._enum(type_, location)
+            if enum is None:
+                return None
+            valid = enum.model.valid_range
+            check: tuple[str, ...] = (
+                "_runtime.to_enum",
+                "_value",
+                enum.c_type,
+                enum.ctypes_type,
+                "_name",
+                "None" if valid is None else f"({valid[0]}, {valid[1]})",
+                what,
+            )
+            return enum.cpp_name, enum.c_type, enum.ctypes_type, check, enum.c_type
+        if type_.is_void:
+            return "void", None, "None", None, "void"
+        ctypes_type = f"ctypes.{type_.ctypes_name}"
+        if type_.category is TypeCategory.BOOL:
+            check = ("_runtime.to_bool", "_value", "_name", what)
+        elif type_.category is TypeCategory.FLOATING:
+            check = ("_runtime.to_float", "_value", ctypes_type, "_name", what)
+        else:
+            check = ("_runtime.to_int", "_value", ctypes_type, "_name", what)
+        return type_.c_name, type_.c_name, ctypes_type, check, type_.token
+
+    def _valid_range(self, type_: Type, location: Location) -> tuple[int, int] | None:
+        """The values of an enum without a fixed underlying type, else None."""
+        if not isinstance(type_, EnumRef):
+            return None
+        enum = self._enum(type_, location)
+        return None if enum is None else enum.model.valid_range
+
+    def _callback_signature(self, type_: CallbackType, location: Location) -> str:
+        """The function type of a std::function, fully qualified, as the header
+        declares it (a reference too): the generated std::function must have
+        its exact type."""
+
+        def spell(part: Type, reference: bool) -> str:
+            if isinstance(part, EnumRef):
+                enum = self._enum(part, location)
+                name = enum.cpp_name if enum is not None else "::" + part.qualified_name
+            elif isinstance(part, StructRef):
+                name = "::" + part.qualified_name
+                return f"const {name}&" if part.by_reference else name
+            elif isinstance(part, StringType):
+                if part.kind is StringKind.C_STRING:
+                    return "const char*"
+                name = f"::std::{part.kind.value}"
+                return f"const {name}&" if part.by_reference else name
+            else:
+                assert isinstance(part, ScalarType)
+                name = part.c_name
+            return f"const {name}&" if reference else name
+
+        arguments = ", ".join(
+            spell(argument, reference)
+            for argument, reference in zip(type_.arguments, type_.references, strict=True)
+        )
+        return f"{spell(type_.result, False)} ({arguments})"
 
     def _lower_string_param(self, name: str, size: str | None, type_: StringType) -> LoweredParam:
         data = CParam(name, "const char*", Role.INPUT, "ctypes.c_char_p")
@@ -1689,6 +2087,7 @@ class _Builder:
         )
 
     def _lower_result(self, type_: Type, location: Location) -> LoweredResult:
+        assert not isinstance(type_, CallbackType)  # the parser rejects them
         if type_.is_void:
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
         if isinstance(type_, StringType):
@@ -1787,6 +2186,7 @@ class _Builder:
             checks=(*null_checks, *(c for param in params for c in param.value_checks)),
             location=location,
             compile_checks=_temporaries_check(call, params, f"'{description}'"),
+            prologue=tuple(line for param in params for line in param.prologue),
         )
         return function, lowered
 
@@ -1870,6 +2270,7 @@ class _Builder:
                 compile_checks=_temporaries_check(
                     f"{cpp_name}({{arguments}})", params, f"'{description}'"
                 ),
+                prologue=tuple(line for param in params for line in param.prologue),
             )
             py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
             constructors.append(
@@ -2004,14 +2405,14 @@ class _Builder:
             else:
                 items.append(self._enums[declaration.usr])
         owners: dict[str, Header] = {}
-        for type_ in map(_element_or_self, _header_types(header, fields=False)):
+        for type_ in _components(_header_types(header, fields=False)):
             if isinstance(type_, StructRef) and type_.usr in self._structs:
                 owner = self._struct_headers[type_.usr]
                 if owner is not header:
                     owners.setdefault(owner.stem, owner)
         self.foreign_struct_headers[header.stem] = tuple(owners.values())
         foreign: dict[str, EnumPlan] = {}
-        for type_ in map(_element_or_self, _header_types(header)):
+        for type_ in _components(_header_types(header)):
             if isinstance(type_, EnumRef) and type_.usr in self._enums:
                 owner = self._enum_headers[type_.usr]
                 enum = self._enums[type_.usr]
@@ -2099,7 +2500,7 @@ class _Builder:
 #      success only; ERROR_INVALID_ARGUMENT for invalid members.
 #   4  std::vector: elements in one block that <module>_free releases, never
 #      NULL on success (1 byte when empty); <module>_string elements.
-C_API_CONVENTIONS = 4
+C_API_CONVENTIONS = 5
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:
@@ -2180,7 +2581,12 @@ def build_plan(module: Module) -> ModulePlan:
         )
         for plan in headers
     ]
-    return ModulePlan(name=module.name, headers=tuple(headers), structs=_structs_in_order(headers))
+    return ModulePlan(
+        name=module.name,
+        headers=tuple(headers),
+        structs=_structs_in_order(headers),
+        thunks=tuple(builder.thunks[name] for name in sorted(builder.thunks)),
+    )
 
 
 def _structs_in_order(headers: Sequence[HeaderPlan]) -> tuple[StructPlan, ...]:

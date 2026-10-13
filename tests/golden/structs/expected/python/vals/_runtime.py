@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "VALS_LIBRARY"
 
-API_FINGERPRINT = "54aa5c39822687b0a81a4718543f5d76"
+API_FINGERPRINT = "3fa3ac9ab1f81201dd5c3cdd4fdf94fe"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -143,6 +143,8 @@ def load(path=None):
         library.vals_last_error.restype = ctypes.c_char_p
         library.vals_free.argtypes = [ctypes.c_void_p]
         library.vals_free.restype = None
+        library.vals_disable_callbacks.argtypes = [Release]
+        library.vals_disable_callbacks.restype = None
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path
@@ -179,7 +181,16 @@ def library():
 
 
 def check(status):
-    """Raise Error if a call did not return OK."""
+    """Raise Error if a call did not return OK; first, a KeyboardInterrupt that
+    a callback of no call with callbacks got during it (see _InterruptForwarder)."""
+    interrupt = getattr(_scopes, "interrupt", None)
+    if interrupt is not None:
+        _scopes.interrupt = None
+        if status != OK:
+            interrupt.add_note(
+                f"(the C++ call then failed too: {_STATUS_NAMES.get(status, status)})"
+            )
+        raise interrupt
     if status != OK:
         message = _library.vals_last_error()
         raise Error(status, message.decode("utf-8", "replace") if message else "")
@@ -245,19 +256,19 @@ def _integer_range(ctype):
     return 0, (1 << bits) - 1
 
 
-def to_int(value, ctype, name):
+def to_int(value, ctype, name, what="argument"):
     """Check that value fits in the C integer type; ctypes would silently wrap it."""
     if isinstance(value, bool):
-        raise TypeError(f"argument {name!r} must be an integer, not bool")
+        raise TypeError(f"{what} {name!r} must be an integer, not bool")
     try:
         number = operator.index(value)
     except TypeError:
         raise TypeError(
-            f"argument {name!r} must be an integer, not {_type_name(value)}"
+            f"{what} {name!r} must be an integer, not {_type_name(value)}"
         ) from None
     low, high = _integer_range(ctype)
     if not low <= number <= high:
-        raise OverflowError(f"argument {name!r} must be in [{low}, {high}], got {number}")
+        raise OverflowError(f"{what} {name!r} must be in [{low}, {high}], got {number}")
     return number
 
 
@@ -269,21 +280,21 @@ def _type_name(value):
     return cls.__qualname__ if module == "builtins" else f"{module}.{cls.__qualname__}"
 
 
-def to_bool(value, name):
+def to_bool(value, name, what="argument"):
     """Accept only True and False, so that mistakes such as passing 2 are caught."""
     if not isinstance(value, bool):
-        raise TypeError(f"argument {name!r} must be a bool, not {_type_name(value)}")
+        raise TypeError(f"{what} {name!r} must be a bool, not {_type_name(value)}")
     return value
 
 
-def to_float(value, ctype, name):
+def to_float(value, ctype, name, what="argument"):
     """Check that value is a real number that fits in the C floating type."""
     if isinstance(value, bool) or not isinstance(value, numbers.Real):
-        raise TypeError(f"argument {name!r} must be a real number, not {_type_name(value)}")
+        raise TypeError(f"{what} {name!r} must be a real number, not {_type_name(value)}")
     number = float(value)
     limit = _FLOAT_MAX.get(ctype)
     if limit is not None and math.isfinite(number) and abs(number) > limit:
-        raise OverflowError(f"argument {name!r} must be in [{-limit}, {limit}], got {number}")
+        raise OverflowError(f"{what} {name!r} must be in [{-limit}, {limit}], got {number}")
     return number
 
 
@@ -343,31 +354,31 @@ def decode(data):
     return data.decode("utf-8")
 
 
-def to_enum(value, cls, ctype, name, valid=None):
+def to_enum(value, cls, ctype, name, valid=None, what="argument"):
     """A member of the IntEnum cls or an int (flag combinations, other values),
     but not bool nor a member of another enum. ``valid`` is the range of an enum
     without a fixed underlying type; otherwise the C type's range applies."""
     if isinstance(value, bool) or (isinstance(value, enum.Enum) and not isinstance(value, cls)):
         raise TypeError(
-            f"argument {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
+            f"{what} {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
         )
     try:
         number = operator.index(value)
     except TypeError:
         raise TypeError(
-            f"argument {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
+            f"{what} {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
         ) from None
     if valid is not None:
         low, high = valid
         if not low <= number <= high:
             raise ValueError(
-                f"argument {name!r} must be a value of {cls.__qualname__} in [{low}, {high}], "
+                f"{what} {name!r} must be a value of {cls.__qualname__} in [{low}, {high}], "
                 f"got {number}"
             )
         return number
     low, high = _integer_range(ctype)
     if not low <= number <= high:
-        raise OverflowError(f"argument {name!r} must be in [{low}, {high}], got {number}")
+        raise OverflowError(f"{what} {name!r} must be in [{low}, {high}], got {number}")
     return number
 
 
@@ -576,3 +587,214 @@ def fixed(array, length, name):
     if len(array) != length:
         raise ValueError(f"argument {name!r} must have {length} elements, got {len(array)}")
     return array
+
+
+# Callbacks ---------------------------------------------------------------------
+#
+# A callable passed for a std::function parameter is registered in _callbacks
+# under an integer key, which is the user_data of the C callback. The C function
+# pointers are fixed thunks (one per callback signature, in _types.py) and
+# ``release``, so no ctypes closure is ever freed while C++ may call it: a
+# callback that C++ calls after releasing it finds no entry and is reported,
+# instead of jumping into freed memory.
+
+_callbacks = {}
+"""(function, scope, parameter name) of each callback that C++ holds, by key."""
+
+_callback_lock = reset_after_fork(threading.RLock())
+_next_key = 1
+_MAX_KEY = (1 << (8 * ctypes.sizeof(ctypes.c_void_p))) - 1
+
+Release = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+"""C type of the release function of the callbacks."""
+
+# C++ calls it exactly once per callback, on any thread, when its last copy is
+# destroyed. dict.pop, not a Python function: a pending signal cannot skip it.
+release = Release(_callbacks.pop)
+_no_release = Release()
+"""NULL: ctypes does not accept None for a function pointer argument."""
+
+_disabled = False
+"""Set at exit, once C++ no longer calls the callbacks (see _disable_callbacks)."""
+
+
+class CallScope:
+    """A call of the bindings that passes callbacks.
+
+    An exception raised by one of its callbacks while the call runs, on any
+    thread, is raised by the call when it returns; its remaining callbacks are
+    then skipped (C++ gets their default result). Once the call has returned,
+    an exception raised by a callback that C++ kept goes to sys.unraisablehook,
+    as for any ctypes callback.
+    """
+
+    __slots__ = ("_active", "_called", "_keys", "_stack", "error")
+
+    def __init__(self):
+        self._active = True
+        self._called = False
+        self._keys = []
+        self.error = None
+        stack = getattr(_scopes, "stack", None)
+        if stack is None:
+            stack = _scopes.stack = []
+        self._stack = stack
+        stack.append(self)
+
+    def callback(self, function, thunk, name):
+        """The C arguments (callback, user_data, release) for ``function``."""
+        global _next_key
+        if function is None:
+            # A NULL callback: C++ gets an empty std::function.
+            return type(thunk)(), None, _no_release
+        if _disabled:
+            raise RuntimeError(
+                f"argument {name!r}: callbacks are disabled at exit, C++ would not call it"
+            )
+        with _callback_lock:
+            # On 32-bit platforms the keys wrap around after 2**32 - 1 callbacks.
+            key = _next_key
+            while key in _callbacks:
+                key = key + 1 if key < _MAX_KEY else 1
+            _next_key = key + 1 if key < _MAX_KEY else 1
+            _callbacks[key] = (function, self, name)
+            self._keys.append(key)
+        return thunk, key, release
+
+    def call(self, function, *args):
+        """Call the C function, which from then on owns the callbacks: C++
+        releases each of them. An exception raised after the C call, such as a
+        KeyboardInterrupt that was pending, does not change that."""
+        self._called = True
+        try:
+            return function(*args)
+        except ctypes.ArgumentError:
+            # Raised by ctypes before the call.
+            self._called = False
+            raise
+
+    def close(self):
+        """End the call. If the C function was not called, C++ will never
+        release the callbacks registered for it: they are dropped."""
+        dropped = []
+        with _callback_lock:
+            self._active = False
+            if not self._called:
+                for key in self._keys:
+                    entry = _callbacks.get(key)
+                    if entry is not None and entry[1] is self:
+                        dropped.append(_callbacks.pop(key))
+            self._keys = []
+        if self in self._stack:
+            self._stack.remove(self)
+        # The functions are destroyed here, out of the lock: a finalizer that
+        # waits for a thread whose callback fails (see fail) cannot deadlock.
+        del dropped
+
+    def fail(self, error):
+        """Keep the first error of the call; False if the call has returned."""
+        with _callback_lock:
+            if not self._active:
+                return False
+            if self.error is None:
+                self.error = error
+            return True
+
+    def check(self, status):
+        """Raise the error of a callback, else Error if status is not OK."""
+        error = self.error
+        if error is not None:
+            self.error = None
+            if status != OK:
+                error.add_note(
+                    f"(the C++ call then failed too: {_STATUS_NAMES.get(status, status)})"
+                )
+            raise error
+        check(status)
+
+
+class _InterruptForwarder:
+    """sys.unraisablehook that gives a KeyboardInterrupt to the innermost call
+    with callbacks of the thread that raised it, else chains to the previous hook.
+
+    A signal handler that raises runs when a Python function starts: for a
+    callback, before the thunk's ``try``, so ctypes reports the exception as
+    unraisable and C++ would go on calling. Through this hook, the call skips
+    its remaining callbacks and raises it. Without such a call, as for a stored
+    callback that a call without callbacks runs on the main thread, the call
+    raises it when it returns (see check).
+    """
+
+    __slots__ = ("_bridgefex_scopes_v1", "previous")
+
+    def __init__(self, previous, scopes):
+        self.previous = previous
+        # The other packages of bindings find the stacks here, instead of
+        # chaining one more hook (the name is the protocol: CallScope.fail).
+        self._bridgefex_scopes_v1 = scopes
+
+    def __call__(self, unraisable):
+        if issubclass(unraisable.exc_type, KeyboardInterrupt):
+            stack = getattr(self._bridgefex_scopes_v1, "stack", None)
+            if stack and stack[-1].fail(unraisable.exc_value):
+                return
+            if threading.current_thread() is threading.main_thread():
+                self._bridgefex_scopes_v1.interrupt = unraisable.exc_value
+                return
+        self.previous(unraisable)
+
+
+def _forward_interrupts():
+    """The hook of the bindings of every package: installed by the first one."""
+    scopes = getattr(sys.unraisablehook, "_bridgefex_scopes_v1", None)
+    if isinstance(scopes, threading.local):
+        return scopes
+    scopes = threading.local()
+    sys.unraisablehook = _InterruptForwarder(sys.unraisablehook, scopes)
+    return scopes
+
+
+_scopes = _forward_interrupts()
+"""Per thread: ``stack``, the calls with callbacks that run, innermost last;
+``interrupt``, for check. Shared by the bindings of every package."""
+
+
+def callback_target(user_data):
+    """(function, scope, name) of a callback, for the thunks."""
+    try:
+        return _callbacks[user_data]
+    except KeyError:
+        raise RuntimeError(
+            f"a C++ callback was called after it was released (user_data {user_data})"
+        ) from None
+
+
+def to_callback(value, name):
+    """Accept a callable or None (an empty std::function)."""
+    if value is not None and not callable(value):
+        raise TypeError(f"argument {name!r} must be callable or None, not {_type_name(value)}")
+    return value
+
+
+def callback_string(data, size):
+    """A sized string argument of a callback, valid only during the call."""
+    return decode(string_at(ctypes.c_void_p(data), size))
+
+
+def callback_c_string(data):
+    """A const char* argument of a callback: None if NULL."""
+    return None if data is None else decode(ctypes.string_at(data))
+
+
+def _disable_callbacks():
+    """At exit: C++ must neither call nor release the callbacks any more (a
+    std::function in a C++ global is destroyed after Python, and a C++ thread
+    may still call one). C++ then gets their default results, and a call that
+    passes a callback raises RuntimeError."""
+    global _disabled
+    _disabled = True
+    if _library is not None:
+        _library.vals_disable_callbacks(release)
+
+
+atexit.register(_disable_callbacks)

@@ -98,6 +98,25 @@ DEMO_API const char* demo_api_fingerprint(void);
  */
 DEMO_API void demo_free(void* memory);
 
+/*
+ * Callbacks. A std::function parameter is passed as three C parameters: a
+ * callback, its user_data and a release function. The callback is called with
+ * user_data first, then the arguments, then (for a non-void result) a pointer
+ * to the result, which is value-initialized beforehand (0, false): a callback
+ * that does not write it gives that value. It may be called on any thread and
+ * must not throw nor longjmp. Pointer arguments are only valid during the call.
+ * Unless release is NULL, release(user_data) is called exactly once, on any
+ * thread, when C++ no longer holds the callback: possibly before the function
+ * returns, and also when the function fails. A NULL callback is an empty
+ * std::function.
+ *
+ * demo_disable_callbacks(release): from now on, the callbacks given with
+ * this release function are neither called (C++ gets their default result)
+ * nor released. For language runtimes that shut down while C++ may still hold
+ * their callbacks (in globals, or in objects that are never destroyed).
+ */
+DEMO_API void demo_disable_callbacks(void (*release)(void*));
+
 #ifdef __cplusplus
 }
 #endif

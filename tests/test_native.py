@@ -581,3 +581,81 @@ def test_large_arrays_by_reference_do_not_overflow_the_stack(
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert completed.stdout.splitlines() == ["2 2"]
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux") or platform.libc_ver()[0] != "glibc",
+    reason="thread cancellation by forced unwinding is specific to glibc",
+)
+def test_thread_exit_inside_a_callback_ends_the_thread(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """pthread_exit() in a callback unwinds through the generated code, which is
+    not noexcept there, and the callback is still released once."""
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    header = source_dir / "runner.h"
+    header.write_text(
+        "#pragma once\n#include <functional>\n"
+        "namespace cx { void run(std::function<void()> f); }\n",
+        encoding="utf-8",
+    )
+    (source_dir / "runner.cpp").write_text(
+        '#include "runner.h"\nvoid cx::run(std::function<void()> f) { f(); }\n',
+        encoding="utf-8",
+    )
+    (source_dir / "main.c").write_text(
+        """#include "runner_c.h"
+#include <pthread.h>
+#include <stdio.h>
+
+static int releases = 0;
+
+static void release(void* user_data)
+{
+    (void)user_data;
+    ++releases;
+}
+
+static void stop(void* user_data)
+{
+    (void)user_data;
+    pthread_exit(NULL);
+}
+
+static void* body(void* argument)
+{
+    cx_status status = cx_run(stop, NULL, release);
+    (void)argument;
+    (void)status;
+    puts("not reached");
+    return NULL;
+}
+
+int main(void)
+{
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, body, NULL) != 0 || pthread_join(thread, NULL) != 0) {
+        return 1;
+    }
+    printf("thread ended normally, %d release\\n", releases);
+    return 0;
+}
+""",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("cx", languages=()))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    library = tmp_path / "libcx.so"
+    sources = [*sorted((output / "c").glob("*.cpp")), source_dir / "runner.cpp"]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.build_shared_library(sources, [output / "c", source_dir], library, flag).check()
+    program = tmp_path / "main"
+    c_flag = standard(toolchain, "c", "c11", probe_dir)
+    toolchain.build_c_executable(
+        source_dir / "main.c", [output / "c"], library, program, c_flag
+    ).check()
+    completed = subprocess.run([str(program)], capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.splitlines() == ["thread ended normally, 1 release"]

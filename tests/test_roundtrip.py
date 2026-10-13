@@ -825,3 +825,34 @@ def test_cyclic_object_is_closed_in_its_del(
     assert completed.returncode == 0, completed.stderr
     assert completed.stderr == ""
     assert completed.stdout.splitlines() == ["del: Counter object is closed", "live: 0"]
+
+
+@pytest.fixture(scope="module")
+def callbacks_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path]:
+    """The callbacks case built once: (library, output directory)."""
+    case = next(case for case in CASES if case.name == "callbacks")
+    return build(case, toolchain, tmp_path_factory.mktemp("callbacks"))
+
+
+@pytest.mark.parametrize("disable", [True, False])
+def test_callbacks_are_disabled_at_exit(callbacks_build: tuple[Path, Path], disable: bool) -> None:
+    """A C++ global holds a Python callback, and a static destructor calls it
+    after Python has finalized: the bindings disable the callbacks at exit. The
+    control without it shows that the scenario would crash."""
+    library, output = callbacks_build
+    code = (
+        "import atexit\nfrom cbx import _runtime, events\n"
+        f"if not {disable}:\n    atexit.unregister(_runtime._disable_callbacks)\n"
+        "events.set_log_handler(lambda level, text: None)\nevents.log_at_exit(True)\n"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(output / "python"), "CBX_LIBRARY": str(library)}
+    completed = subprocess.run(
+        [sys.executable, "-c", code], env=environment, capture_output=True, text=True, check=False
+    )
+    if disable:
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+    elif sys.platform != "win32":
+        # Windows ends the process differently: the call may not crash there.
+        assert completed.returncode != 0
