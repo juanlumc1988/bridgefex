@@ -1,0 +1,6 @@
+# Options passed to bridgefex for this case.
+module = "cbx"
+headers = ["events.h"]
+std = "c++17"
+# std::string_view arguments.
+min_cxx = "c++17"

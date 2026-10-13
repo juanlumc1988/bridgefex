@@ -717,3 +717,31 @@ def test_array_and_span_forms(tmp_path: Path) -> None:
         "std::span<const int64_t>",
     ]
     assert function.result.cpp_spelling == "std::array<float, 8>"
+
+
+def test_callback_forms(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <functional>
+        #include <string>
+        namespace c {
+        enum class E : int { a };
+        struct P { int x; };
+        using Handler = std::function<void(const std::string&)>;
+        void f(std::function<std::int64_t(const std::int32_t&, E, const E&)> a,
+               const std::function<bool(P, const P&, const char*)>& b,
+               std::function<void(std::string, std::string_view)>&& c,
+               const std::function<E()> d, Handler e);
+        }
+        """,
+    )
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    spellings = [parameter.type.cpp_spelling for parameter in function.parameters]
+    assert spellings == [
+        "std::function<int64_t (const int32_t&, c::E, const c::E&)>",
+        "const std::function<bool (c::P, const c::P&, const char*)>&",
+        "std::function<void (std::string, std::string_view)>&&",
+        "std::function<c::E ()>",
+        "std::function<void (const std::string&)>",
+    ]

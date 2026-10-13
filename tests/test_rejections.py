@@ -275,6 +275,36 @@ def test_a_rejected_member_rejects_its_class_only(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("code", "message"),
     [
+        ("std::function<void()> f();", "std::function results are not supported"),
+        ("void f(std::function<void()>& g);", "non-const references"),
+        ("void f(std::function<void()>* g);", "pointers are not supported yet"),
+        ("void f(std::function<std::string()> g);", "callbacks that return 'std::string'"),
+        ("struct P { int x; };\nvoid f(std::function<P()> g);", "callbacks that return"),
+        ("void f(std::function<const int&()> g);", "return a reference"),
+        ("void f(std::function<void(int, ...)> g);", "variadic callbacks"),
+        ("void f(std::function<void(int&)> g);", "non-const references"),
+        (
+            "void f(std::function<void(std::function<void()>)> g);",
+            "callbacks that take 'std::function<void ()>'",
+        ),
+        ("void f(std::function<void(std::vector<int>)> g);", "callbacks that take"),
+        ("void f(std::vector<std::function<void()>> g);", "std::vector of"),
+        ("struct S { std::function<void()> f; };", "std::function in value structs"),
+        (
+            "template <class T> using Fn = std::function<void(T)>;\nvoid f(Fn<int> g);",
+            "alias template 'Fn'",
+        ),
+        ("void f(void (*g)(int));", "pointers are not supported yet"),
+    ],
+)
+def test_rejected_callbacks(tmp_path: Path, code: str, message: str) -> None:
+    errors = errors_for(tmp_path, "#include <functional>\n#include <vector>\n" + code)
+    assert any(message in error for error in errors), errors
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
         ("#include <span>\nvoid f(std::span<int> s);", "non-const elements"),
         ("#include <span>\nvoid f(std::span<const int, 3> s);", "fixed extent"),
         # The element is const: only the alias is refused.

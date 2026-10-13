@@ -7,6 +7,7 @@
 #include "spn_runtime_internal.hpp"
 
 #include <stddef.h>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
@@ -40,6 +41,61 @@ void set_last_error(const char* message) noexcept
     last_error_message[length] = '\0';
 }
 
+namespace {
+
+// The release function given to spn_disable_callbacks(), or NULL.
+std::atomic<void (*)(void*)> disabled_release{nullptr};
+
+}  // namespace
+
+struct callback_state {
+    callback_state(void (*release_function)(void*), void* data)
+        : release(release_function), user_data(data), references(1)
+    {
+    }
+
+    void (*release)(void*);
+    void* user_data;
+    std::atomic<size_t> references;
+};
+
+bool callbacks_disabled(void (*release)(void*)) noexcept
+{
+    return release != nullptr && release == disabled_release.load();
+}
+
+callback_state* new_callback_state(void (*release)(void*), void* user_data)
+{
+    return new callback_state(release, user_data);
+}
+
+void retain_callback_state(callback_state* state) noexcept
+{
+    state->references.fetch_add(1, std::memory_order_relaxed);
+}
+
+void release_callback_state(callback_state* state) noexcept
+{
+    if (state->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        void (*release)(void*) = state->release;
+        void* user_data = state->user_data;
+        delete state;
+        if (release != nullptr && !callbacks_disabled(release)) {
+            release(user_data);
+        }
+    }
+}
+
+void* callback_user_data(const callback_state* state) noexcept
+{
+    return state->user_data;
+}
+
+bool callback_disabled(const callback_state* state) noexcept
+{
+    return callbacks_disabled(state->release);
+}
+
 }  // namespace spn_detail
 
 extern "C" const char* spn_last_error(void)
@@ -49,10 +105,15 @@ extern "C" const char* spn_last_error(void)
 
 extern "C" const char* spn_api_fingerprint(void)
 {
-    return "6baf4077082e8c69506ff8fe95e9f143";
+    return "68e83c534cc826047bc0f6db12fc5f92";
 }
 
 extern "C" void spn_free(void* memory)
 {
     std::free(memory);
+}
+
+extern "C" void spn_disable_callbacks(void (*release)(void*))
+{
+    spn_detail::disabled_release.store(release);
 }

@@ -98,6 +98,9 @@ extern "C" {
 {% if f.returns_status %}
 {{ m.status_type }} {{ f.signature }}
 {
+{% for line in f.prologue %}
+    {{ line }}
+{% endfor %}
 {% for check in f.compile_checks %}
     {{ check }}
 {% endfor %}

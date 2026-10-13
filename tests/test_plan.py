@@ -12,6 +12,7 @@ import pytest
 from bridgefex.errors import ConfigurationError, GenerationError, Location
 from bridgefex.generator import render
 from bridgefex.model import (
+    CallbackType,
     Class,
     Constructor,
     ContainerKind,
@@ -293,8 +294,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 4
-PINNED_RUNTIME_SHA256 = "c7c4bc6ec88639e702976715c55392feab5ce2bdbeb35f7efe6c86acbbbdcf1d"
+PINNED_CONVENTIONS = 5
+PINNED_RUNTIME_SHA256 = "6f000591c0f6067aa144dbdc9a3284970f9bd77639570fc6e68652189ccd6b40"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -1038,3 +1039,144 @@ def test_array_and_span_overload_tokens() -> None:
         "ns_f_span_int32",
         "ns_f_vector_int32",
     ]
+
+
+def callback(result: object, *arguments: object, references: tuple[bool, ...] = ()) -> CallbackType:
+    refs = references or (False,) * len(arguments)
+    return CallbackType(result, arguments, refs)  # type: ignore[arg-type]
+
+
+def test_callback_parameters() -> None:
+    f = callback(INT32, INT32, references=(True,))
+    model = Function("sum", ("ns",), (Parameter("f", f),), INT32, HERE)
+    item = only_function(plan_for(header(model)))
+    function = item.c_function
+    assert function.signature == (
+        "ns_sum(void (*f)(void*, int32_t, int32_t*), void* f_user_data, "
+        "void (*f_release)(void*), int32_t* out_result)"
+    )
+    # The owner comes first: it releases the callback on every return.
+    assert function.prologue == ("mod_detail::callback_owner _owner1(f_release, f_user_data);",)
+    assert (
+        "mod_detail::make_callback<::std::function<int32_t (const int32_t&)>, int32_t>(f, _owner1, "
+        "[](decltype(f) _callback, void* _user_data, int32_t _arg1) -> int32_t "
+        "{ int32_t _result{}; _callback(_user_data, _arg1, &_result); return _result; })"
+    ) in function.statement
+    assert function.ctypes_argtypes == (
+        "[_types._callback__int32__int32__type, ctypes.c_void_p, _runtime.Release, "
+        "ctypes.POINTER(ctypes.c_int32)]"
+    )
+    assert item.py.args[0].conversions == ('f = _runtime.to_callback(f, "f")',)
+    assert item.py.registrations == (
+        ("f, f_user_data, f_release", ("f", "_types._callback__int32__int32", '"f"')),
+    )
+    body = item.py.body(4)
+    # Registered last, right before the call; the scope is closed in any case.
+    assert body.index("_scope.callback(") < body.index("_status = _bind().ns_sum(")
+    assert "    finally:\n        _scope.close(_status is None)" in body
+
+
+def test_callback_arguments_and_thunks() -> None:
+    sink = callback(VOID, COLOR, ref("Point", True), STRING_REF, VIEW, C_STRING)
+    model = Function("each", ("ns",), (Parameter("f", sink),), VOID, HERE)
+    plan = plan_for(enum_header(color(), POINT, model))
+    function = plan.headers[0].c_functions[-1]
+    assert function.signature.startswith(
+        "ns_each(void (*f)(void*, ns_Color, const ns_Point*, const char*, size_t, "
+        "const char*, size_t, const char*), "
+    )
+    assert (
+        "::std::function<void (::ns::Color, const ::ns::Point&, const ::std::string&, "
+        "::std::string_view, const char*)>"
+    ) in function.statement
+    assert "mod_detail::address_of(mod_detail::to_c(_arg2))" in function.statement
+    assert "_arg3.data(), _arg3.size()" in function.statement
+    (thunk,) = plan.thunks
+    assert thunk.name == "_callback__void__ns_Color__ns_Point__string__string__cstr"
+    assert thunk.params == (
+        "_user_data",
+        "_arg1",
+        "_arg2",
+        "_arg3",
+        "_arg3_size",
+        "_arg4",
+        "_arg4_size",
+        "_arg5",
+    )
+    assert thunk.arguments == (
+        "_runtime.enum_result(ns_Color, _arg1)",
+        "_ns_Point__from_c(_arg2.contents)",
+        "_runtime.callback_string(_arg3, _arg3_size)",
+        "_runtime.callback_string(_arg4, _arg4_size)",
+        "_runtime.callback_c_string(_arg5)",
+    )
+    assert thunk.check is None
+
+
+def test_callback_results() -> None:
+    unfixed = dataclasses.replace(
+        color(fixed=False), underlying=BUILTIN_TYPES["INT"], enumerators=(Enumerator("A", 0),)
+    )
+    model = Function("g", ("ns",), (Parameter("f", callback(COLOR)),), VOID, HERE)
+    plan = plan_for(enum_header(unfixed, model))
+    statement = plan.headers[0].c_functions[-1].statement
+    # 0 is always a value: an invalid result becomes the default.
+    assert (
+        "return _result < 0 || _result > 1 ? ::ns::Color() : static_cast<::ns::Color>(_result);"
+        in (statement)
+    )
+    (thunk,) = plan.thunks
+    assert thunk.check == (
+        "_runtime.to_enum",
+        "_value",
+        "ns_Color",
+        "ctypes.c_int",
+        "_name",
+        "(0, 1)",
+        'what="the result of callback"',
+    )
+    assert "_out_result[0] = _runtime.to_enum(" in thunk.body
+
+
+def test_callback_names() -> None:
+    model = function(
+        "f",
+        Parameter("g", callback(VOID, INT32, INT32)),
+        Parameter("g_user_data", INT32),
+        Parameter("_arg2", INT32),
+        Parameter("_owner1", INT32),
+        Parameter("h", callback(VOID)),
+    )
+    names = [p.name for p in only_function(plan_for(header(model))).c_function.params]
+    assert names == [
+        "g",
+        "g_user_data_",
+        "g_release",
+        "g_user_data",
+        "_arg2_",
+        "_owner1_",
+        "h",
+        "h_user_data",
+        "h_release",
+        "out_result",
+    ]
+
+
+def test_callback_overload_tokens() -> None:
+    plan = plan_for(
+        header(
+            function("f", Parameter("g", callback(VOID, INT32))),
+            function("f", Parameter("g", callback(INT32))),
+        )
+    )
+    assert [f.name for f in plan.headers[0].c_functions] == [
+        "ns_f_function_void_int32",
+        "ns_f_function_int32",
+    ]
+
+
+def test_thunks_are_shared_by_the_headers() -> None:
+    first = header(function("f", Parameter("g", callback(VOID, INT32))), name="a.h")
+    second = header(function("h", Parameter("g", callback(VOID, INT32))), name="b.h")
+    plan = plan_for(first, second)
+    assert [thunk.name for thunk in plan.thunks] == ["_callback__void__int32"]

@@ -376,3 +376,72 @@ def test_sequences_that_cannot_be_iterated(runtime: ModuleType) -> None:
 
     with pytest.raises(TypeError, match="argument 'a' must be a sequence"):
         runtime.to_array(Scalar(), ctypes.c_int32, "a", runtime.check_int)
+
+
+def test_call_scope(runtime: ModuleType) -> None:
+    def thunk() -> None:
+        pass
+
+    scope = runtime.CallScope()
+    _, key, release = scope.callback(len, ctypes.CFUNCTYPE(None)(thunk), "f")
+    assert release is runtime.release
+    assert runtime.callback_target(key) == (len, scope, "f")
+    assert scope.fail(ValueError("first"))
+    assert scope.fail(KeyError("second"))
+    scope.close()
+    assert not scope.fail(ValueError("late"))  # returned: unraisable instead
+    # C++ releases it exactly once.
+    runtime.release(key)
+    with pytest.raises(RuntimeError, match="called after it was released"):
+        runtime.callback_target(key)
+    with pytest.raises(ValueError, match="first") as raised:
+        scope.check(runtime.ERROR_EXCEPTION)
+    assert raised.value.__notes__ == ["(the C++ call then failed too: ERROR_EXCEPTION)"]
+    scope.check(runtime.OK)  # the error was raised once
+
+
+def test_call_scope_drops_what_cxx_never_got(runtime: ModuleType) -> None:
+    thunk = ctypes.CFUNCTYPE(None)(lambda: None)
+    scope = runtime.CallScope()
+    _, key, _ = scope.callback(len, thunk, "f")
+    scope.close(dropped=True)
+    assert key not in runtime._callbacks
+    # None is an empty std::function: nothing is registered.
+    scope = runtime.CallScope()
+    function, user_data, release = scope.callback(None, thunk, "f")
+    assert not function
+    assert user_data is None
+    assert not release
+    scope.close()
+
+
+def test_interrupts_go_to_the_innermost_call(runtime: ModuleType) -> None:
+    seen = []
+    previous = sys.unraisablehook
+    sys.unraisablehook = seen.append
+    try:
+        outer = runtime.CallScope()
+        inner = runtime.CallScope()
+        hook = sys.unraisablehook
+        assert isinstance(hook, runtime._InterruptForwarder)
+        assert hook.previous == seen.append
+        interrupt = KeyboardInterrupt()
+        hook(type("U", (), {"exc_type": KeyboardInterrupt, "exc_value": interrupt})())
+        assert inner.error is interrupt
+        assert outer.error is None
+        inner.close()
+        outer.close()
+        # No call on this thread any more: to the previous hook.
+        other = type("U", (), {"exc_type": KeyboardInterrupt, "exc_value": KeyboardInterrupt()})()
+        hook(other)
+        assert seen == [other]
+    finally:
+        sys.unraisablehook = previous
+
+
+def test_to_callback(runtime: ModuleType) -> None:
+    assert runtime.to_callback(None, "f") is None
+    assert runtime.to_callback(len, "f") is len
+    with pytest.raises(TypeError, match="argument 'f' must be callable or None, not int"):
+        runtime.to_callback(5, "f")
+    assert runtime.callback_c_string(None) is None

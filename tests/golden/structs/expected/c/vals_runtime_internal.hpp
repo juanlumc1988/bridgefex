@@ -395,6 +395,121 @@ void guard_silently(const Function& function)
     }
 }
 
+// Callbacks (see vals_runtime.h): a std::function parameter becomes
+// three C parameters, the callback, its user_data and its release function.
+
+// True if vals_disable_callbacks() disabled this release function.
+bool callbacks_disabled(void (*release)(void*)) noexcept;
+
+// What the copies of a std::function made from a C callback share: the last
+// one destroyed calls release(user_data). A reference count of its own rather
+// than std::shared_ptr, whose instantiations GCC exports from the shared
+// library. Defined in the runtime source, so that the generated sources need
+// no <atomic>.
+struct callback_state;
+callback_state* new_callback_state(void (*release)(void*), void* user_data);
+void retain_callback_state(callback_state* state) noexcept;
+void release_callback_state(callback_state* state) noexcept;
+void* callback_user_data(const callback_state* state) noexcept;
+bool callback_disabled(const callback_state* state) noexcept;
+
+// Owns the user_data of a C callback until a callback_ref takes it over: if
+// none does (a NULL argument, a NULL callback, an exception), the end of the
+// wrapper releases it.
+class callback_owner {
+public:
+    callback_owner(void (*release)(void*), void* user_data) noexcept
+        : release_(release), user_data_(user_data)
+    {
+    }
+
+    ~callback_owner()
+    {
+        if (release_ != nullptr && !callbacks_disabled(release_)) {
+            release_(user_data_);
+        }
+    }
+
+    callback_owner(const callback_owner&) = delete;
+    callback_owner& operator=(const callback_owner&) = delete;
+
+    // Hands the ownership over to a new shared state. If new throws, keeps it.
+    callback_state* share()
+    {
+        callback_state* state = new_callback_state(release_, user_data_);
+        release_ = nullptr;
+        return state;
+    }
+
+private:
+    void (*release_)(void*);
+    void* user_data_;
+};
+
+class callback_ref {
+public:
+    explicit callback_ref(callback_owner& owner) : state_(owner.share()) {}
+
+    callback_ref(const callback_ref& other) noexcept : state_(other.state_)
+    {
+        retain_callback_state(state_);
+    }
+
+    callback_ref& operator=(const callback_ref&) = delete;
+
+    ~callback_ref() { release_callback_state(state_); }
+
+    void* user_data() const noexcept { return callback_user_data(state_); }
+    bool disabled() const noexcept { return callback_disabled(state_); }
+
+private:
+    callback_state* state_;
+};
+
+// The target of the std::function: invoke(callback, user_data, args...), or
+// the default Result once the callbacks are disabled. Not noexcept: a thread
+// cancellation inside the callback must unwind.
+template <typename Result, typename Callback, typename Invoke>
+class bound_callback {
+public:
+    bound_callback(Callback callback, const callback_ref& ref, Invoke invoke)
+        : callback_(callback), ref_(ref), invoke_(invoke)
+    {
+    }
+
+    template <typename... Args>
+    Result operator()(Args&&... args) const
+    {
+        if (ref_.disabled()) {
+            return Result();
+        }
+        return invoke_(callback_, ref_.user_data(), static_cast<Args&&>(args)...);
+    }
+
+private:
+    Callback callback_;
+    callback_ref ref_;
+    Invoke invoke_;
+};
+
+// The std::function for a C callback: empty if callback is NULL.
+template <typename Function, typename Result, typename Callback, typename Invoke>
+Function make_callback(Callback callback, callback_owner& owner, Invoke invoke)
+{
+    if (callback == nullptr) {
+        return Function();
+    }
+    return Function(bound_callback<Result, Callback, Invoke>(callback, callback_ref(owner), invoke));
+}
+
+// The address of a C struct for a callback: valid until the end of the full
+// expression, which contains the call of the callback.
+template <typename T>
+const T* address_of(const T& value) noexcept
+{
+    return &value;
+}
+
 }  // namespace vals_detail
 
 #endif  // VALS_RUNTIME_INTERNAL_HPP
