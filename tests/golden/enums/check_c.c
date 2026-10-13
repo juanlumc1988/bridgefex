@@ -80,7 +80,7 @@ int main(void)
     /* ~ keeps the upper bits of a 64-bit flag word. */
     check(colors_flip(colors_Flags_Bit31, &flags) == ENM_OK && flags == ~colors_Flags_Bit31,
           "flip");
-    sprintf(text, "%" PRIu64, (uint64_t)colors_Flags_All);
+    snprintf(text, sizeof text, "%" PRIu64, (uint64_t)colors_Flags_All);
     check(strcmp(text, "18446744073709551615") == 0, "PRIu64");
     check(colors_plain(colors_Plain_Low, &plain) == ENM_OK && plain == colors_Plain_Low, "plain");
     check(colors_wide(colors_Wide_Min, &wide) == ENM_OK && wide == colors_Wide_Min, "wide");

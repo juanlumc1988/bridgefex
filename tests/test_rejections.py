@@ -135,12 +135,14 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         (
             "#include <vector>\ntemplate <class T> using Fixed = std::vector<std::int64_t>;"
             " Fixed<long> f();",
-            "the alias template 'Fixed' must be std::vector<...> of its own parameters",
+            # The alias template, or (where long is not int64_t) the argument.
+            "cannot read the element type of",
         ),
         (
             "#include <vector>\ntemplate <class T> using Fixed = std::vector<std::int64_t>;"
             " using Longs = Fixed<long>; void f(const Longs& v);",
-            "the alias template 'Fixed' must be std::vector<...> of its own parameters",
+            # The alias template, or (where long is not int64_t) the argument.
+            "cannot read the element type of",
         ),
         (
             "#include <array>\ntemplate <class T> using Three = std::array<T, 3>;"
@@ -206,8 +208,6 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         # Enums.
         ("void f(std::byte b);", "std::byte is not supported yet; use std::uint8_t"),
         ("#include <new>\nvoid f(std::align_val_t a);", "standard library enum 'std::align_val_t'"),
-        ("enum E { a = 0x80000000 };", "does not fit in int"),
-        ("enum E { a = -2147483649LL };", "does not fit in int"),
         ("enum class E : bool { a };", "underlying type 'bool' is not supported"),
         ("enum class E : std::size_t { a };", "underlying type 'size_t' is not supported"),
         ("enum class E : char { a };", "plain 'char' is not supported"),
@@ -288,3 +288,13 @@ def test_rejected_spans(tmp_path: Path, code: str, message: str) -> None:
         parse_header(path, "input.h", ParseOptions(std="c++20"))
     errors = [str(diagnostic) for diagnostic in raised.value.diagnostics]
     assert any(message in error for error in errors), errors
+
+
+@pytest.mark.parametrize("code", ["enum E { a = 0x80000000 };", "enum E { a = -2147483649LL };"])
+def test_unfixed_enums_must_fit_in_int(tmp_path: Path, code: str) -> None:
+    errors = errors_for(tmp_path, code)
+    # MSVC targets fix the underlying type to int: there clang refuses the value.
+    assert any(
+        "does not fit in int" in error or "not representable in the underlying type 'int'" in error
+        for error in errors
+    ), errors

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -419,9 +420,13 @@ def test_array_lengths_are_checked_where_the_sources_are_built(
     ("declaration", "message"),
     [
         # Longer, it would be written past the end of the caller's array.
-        ("std::array<int, ARR_N> f();", "does not have the type (or the length) in the C header"),
-        ("int f(std::array<int, ARR_N> a);", "array<int, 4>"),
-        ("int f(const std::array<int, ARR_N>& a);", "array<int, 4>"),
+        (
+            "std::array<int, ARR_N> f();",
+            r"does not have the type \(or the length\) in the C header",
+        ),
+        # Spelled 'array<int, 4>', or 'array<int,4>' by MSVC.
+        ("int f(std::array<int, ARR_N> a);", "array<int, ?4>"),
+        ("int f(const std::array<int, ARR_N>& a);", "array<int, ?4>"),
     ],
 )
 def test_std_array_lengths_are_checked_where_the_sources_are_built(
@@ -450,7 +455,7 @@ def test_std_array_lengths_are_checked_where_the_sources_are_built(
     bad.write_text(f'#define ARR_N {length}\n#include "sarr_c.cpp"\n', encoding="utf-8")
     completed = toolchain.syntax_check(bad, "c++", flag, [output / "c", tmp_path])
     assert completed.returncode != 0
-    assert message in completed.output, completed.output
+    assert re.search(message, completed.output), completed.output
 
 
 @pytest.mark.parametrize(

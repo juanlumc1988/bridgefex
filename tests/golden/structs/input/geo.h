@@ -34,6 +34,10 @@ struct Msg {
 };
 #pragma pack(pop)
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4324)  // padded because of alignas: that is the point
+#endif
 struct alignas(16) Wide {
     float f;
     std::int64_t big;
@@ -42,6 +46,9 @@ struct alignas(16) Wide {
     signed char c;
     std::uint8_t bytes[4];
 };
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 typedef struct {
     int from;      // a Python keyword

@@ -571,6 +571,9 @@ def test_enumerators_nested_in_system_structs_are_reserved(tmp_path: Path) -> No
         bridgefex.generate([header], bridgefex.Options("mod"))
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="the <iosfwd> of the MSVC STL does not declare std::string"
+)
 def test_strings_of_a_header_that_only_declares_them(tmp_path: Path) -> None:
     """With only <iosfwd>, std::string is incomplete: the generated source
     includes <string> itself."""
@@ -629,10 +632,12 @@ def _render_then(monkeypatch: pytest.MonkeyPatch, change: object) -> None:
 
 
 def test_c_headers_are_verified_as_c99(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    def repeat_a_typedef(files: dict[str, str]) -> None:
-        files["c/api_c.h"] += "typedef int mod_twice;\ntypedef int mod_twice;\n"
+    def add_an_anonymous_union(files: dict[str, str]) -> None:
+        # C11, not C99. (Not a repeated typedef, which MSVC targets accept, nor
+        # _Static_assert, which glibc defines as a macro before C11.)
+        files["c/api_c.h"] += "struct mod_anonymous { union { int a; float b; }; };\n"
 
-    _render_then(monkeypatch, repeat_a_typedef)
+    _render_then(monkeypatch, add_an_anonymous_union)
     error = error_of(tmp_path, "namespace v { int f(); }")
     assert "the generated C headers do not compile as C" in error
     assert "-std=c99" in error
