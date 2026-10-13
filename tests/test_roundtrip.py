@@ -602,8 +602,20 @@ _SIGNAL_ROUNDS = 200
 
 
 def _asan_runtime(toolchain: Toolchain) -> str | None:
-    """Path of the ASan runtime of the C++ compiler, to preload into Python."""
+    """Path of GCC's ASan runtime, to preload into Python.
+
+    GCC only: Clang does not link its runtime into shared libraries, and its
+    own runtime is a separate package.
+    """
     if toolchain.kind != "gnu" or not sys.platform.startswith("linux"):
+        return None
+    macros = subprocess.run(
+        [toolchain.cxx, "-dM", "-E", "-x", "c++", os.devnull],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if macros.returncode != 0 or "__clang__" in macros.stdout:
         return None
     completed = subprocess.run(
         [toolchain.cxx, "-print-file-name=libasan.so"],
@@ -622,7 +634,7 @@ def demo_asan_build(
     """The demo case built with AddressSanitizer: (library, output dir, runtime)."""
     runtime = _asan_runtime(toolchain)
     if runtime is None:
-        pytest.skip("needs GCC or Clang with AddressSanitizer on Linux")
+        pytest.skip("needs GCC with AddressSanitizer on Linux")
     case = next(case for case in CASES if case.name == "demo")
     flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
     library, output = build(case, toolchain, tmp_path_factory.mktemp("demo_asan"), flags)

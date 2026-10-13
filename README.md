@@ -230,7 +230,7 @@ ruff check . && ruff format --check . && mypy
 ```
 
 - **Golden tests** compare the generated files with `tests/golden/<case>/expected` byte by byte.
-- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC or Clang on Linux), for example with signals arriving during C calls.
+- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC on Linux), for example with signals arriving during C calls.
 - **Standard tests** compile the generated code in every supported language standard.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
 - **Native tests** check the thread-local last error, thread cancellation, the alignment check, unity builds and their glibc check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
