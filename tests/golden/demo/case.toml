@@ -1,4 +1,4 @@
 # Options passed to bridgefex for this case.
 module = "demo"
-headers = ["counter.h", "geometry.h"]
+headers = ["counter.h", "geometry.h", "sleeper.h"]
 std = "c++17"

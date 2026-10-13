@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -30,7 +32,9 @@ pytestmark = pytest.mark.usefixtures("libclang_loaded")
 CXX_STANDARD = "c++17"
 
 
-def build(case: Case, toolchain: Toolchain, directory: Path) -> tuple[Path, Path]:
+def build(
+    case: Case, toolchain: Toolchain, directory: Path, extra_flags: Sequence[str] = ()
+) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir)."""
     output = directory / "out"
     result = bridgefex.generate(case.headers, case.options())
@@ -38,7 +42,7 @@ def build(case: Case, toolchain: Toolchain, directory: Path) -> tuple[Path, Path
     library = directory / toolchain.shared_library_name(case.module)
     sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)
     toolchain.build_shared_library(
-        sources, [output / "c", case.input_dir], library, CXX_STANDARD
+        sources, [output / "c", case.input_dir], library, CXX_STANDARD, extra_flags
     ).check()
     return library, output
 
@@ -518,3 +522,265 @@ print(counter.multiply_int32_int32(2, 3))
     completed = run_demo(demo_build, code)
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "6"
+
+
+_PENDING_SIGNALS = """
+import faulthandler
+import gc
+import signal
+import sys
+import threading
+import time
+
+from demo import sleeper
+
+faulthandler.dump_traceback_later(240, exit=True)
+scenario, rounds = sys.argv[1], int(sys.argv[2])
+
+
+def interrupt(signum, frame):
+    raise KeyboardInterrupt
+
+
+signal.signal(signal.SIGINT, interrupt)
+signal.signal(signal.SIGUSR1, interrupt)
+signal.signal(signal.SIGUSR2, signal.SIG_IGN)
+main = threading.main_thread().ident
+go, sent = threading.Event(), threading.Event()
+
+
+def shoot():
+    # One thread for all the rounds: no thread is torn down during a round.
+    while True:
+        go.wait()
+        go.clear()
+        time.sleep(0.01)
+        signal.pthread_kill(main, signal.SIGINT)
+        signal.pthread_kill(main, signal.SIGUSR1)
+        sent.set()
+
+
+threading.Thread(target=shoot, daemon=True).start()
+
+
+def one_round():
+    if scenario == "constructor":
+        go.set()
+        sleeper.Sleeper(50)
+    else:
+        # Dropped while the exception unwinds, with a signal still pending.
+        napping = sleeper.Sleeper(0)
+        go.set()
+        napping.nap(50)
+
+
+interrupted = 0
+for _ in range(rounds):
+    # A flag, not a count: Python 3.12 can catch the second signal here too.
+    hit = False
+    try:
+        one_round()
+    except KeyboardInterrupt:
+        hit = True
+    # After a handler raised, the other pending one runs at an unrelated
+    # later check (a collection, another thread...). raise_signal() runs the
+    # pending handlers itself: no signal is left for the next round.
+    while True:
+        try:
+            sent.wait()
+            signal.raise_signal(signal.SIGUSR2)
+            break
+        except KeyboardInterrupt:
+            pass
+    sent.clear()
+    interrupted += hit
+gc.collect()
+print("interrupted:", interrupted, "live:", sleeper.Sleeper.liveInstances())
+"""
+
+_SIGNAL_ROUNDS = 200
+
+
+def _asan_runtime(toolchain: Toolchain) -> str | None:
+    """Path of GCC's ASan runtime, to preload into Python.
+
+    GCC only: Clang does not link its runtime into shared libraries, and its
+    own runtime is a separate package.
+    """
+    if toolchain.kind != "gnu" or not sys.platform.startswith("linux"):
+        return None
+    macros = subprocess.run(
+        [toolchain.cxx, "-dM", "-E", "-x", "c++", os.devnull],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if macros.returncode != 0 or "__clang__" in macros.stdout:
+        return None
+    completed = subprocess.run(
+        [toolchain.cxx, "-print-file-name=libasan.so"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    path = completed.stdout.strip()
+    return path if completed.returncode == 0 and os.path.isabs(path) else None
+
+
+@pytest.fixture(scope="module")
+def demo_asan_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path, str]:
+    """The demo case built with AddressSanitizer: (library, output dir, runtime)."""
+    runtime = _asan_runtime(toolchain)
+    if runtime is None:
+        pytest.skip("needs GCC with AddressSanitizer on Linux")
+    case = next(case for case in CASES if case.name == "demo")
+    flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
+    library, output = build(case, toolchain, tmp_path_factory.mktemp("demo_asan"), flags)
+    return library, output, runtime
+
+
+def _run_signals(
+    library: Path, output: Path, scenario: str, preload: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DEMO_LIBRARY": str(library),
+    }
+    if preload is not None:
+        environment["LD_PRELOAD"] = preload
+        # The interpreter itself is not built for LeakSanitizer.
+        environment["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=0"
+    command = [sys.executable, "-X", "dev", "-W", "error", "-c", _PENDING_SIGNALS]
+    return subprocess.run(
+        [*command, scenario, str(_SIGNAL_ROUNDS)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+
+
+def _check_no_leak(completed: subprocess.CompletedProcess[str]) -> None:
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    # The collection runs no Python function: nothing for a signal to abandon.
+    assert "Exception ignored" not in completed.stderr, completed.stderr
+    words = completed.stdout.split()
+    assert words[0::2] == ["interrupted:", "live:"], completed.stdout
+    interrupted, live = int(words[1]), int(words[3])
+    assert live == 0
+    # The signals came while the C++ code slept in almost every round; a busy
+    # machine may delay a few of them past the call.
+    assert _SIGNAL_ROUNDS * 9 // 10 <= interrupted <= _SIGNAL_ROUNDS, completed.stdout
+
+
+_POSIX_SIGNALS = pytest.mark.skipif(
+    not hasattr(signal, "pthread_kill") or not hasattr(signal, "SIGUSR1"),
+    reason="needs signal.pthread_kill and SIGUSR1",
+)
+
+
+@_POSIX_SIGNALS
+@pytest.mark.parametrize("scenario", ["constructor", "drop"])
+def test_pending_signals_do_not_leak_objects(demo_build: tuple[Path, Path], scenario: str) -> None:
+    """Two signals arrive while the C++ code sleeps; both handlers raise.
+
+    "constructor": a signal raised right after the C constructor returns must
+    not leak the new object. "drop": an object collected while a signal is
+    pending must still be destroyed.
+    """
+    library, output = demo_build
+    _check_no_leak(_run_signals(library, output, scenario))
+
+
+@_POSIX_SIGNALS
+@pytest.mark.parametrize("scenario", ["constructor", "drop"])
+def test_pending_signals_do_not_double_free(
+    demo_asan_build: tuple[Path, Path, str], scenario: str
+) -> None:
+    library, output, runtime = demo_asan_build
+    completed = _run_signals(library, output, scenario, preload=runtime)
+    assert "AddressSanitizer" not in completed.stderr, completed.stderr
+    _check_no_leak(completed)
+
+
+def test_asan_build_reports_a_double_free(demo_asan_build: tuple[Path, Path, str]) -> None:
+    """The check above would see one: destroying a closed object twice is reported."""
+    library, output, runtime = demo_asan_build
+    code = (
+        "from demo import sleeper\n"
+        "s = sleeper.Sleeper(0)\n"
+        "handle = s._handle\n"
+        "s.close()\n"
+        "sleeper._bind().demo_Sleeper_destroy(handle)\n"
+    )
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DEMO_LIBRARY": str(library),
+        "LD_PRELOAD": runtime,
+        "ASAN_OPTIONS": "detect_leaks=0",
+    }
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode != 0
+    assert "attempting double-free" in completed.stderr, completed.stderr
+
+
+_CYCLIC_DEL = """
+import gc
+from demo import counter
+
+
+class Cyclic(counter.Counter):
+    def __del__(self):
+        try:
+            self.value()
+        except ValueError as error:
+            print("del:", error)
+        self.close()
+
+
+cyclic = Cyclic.create_int32(3)
+cyclic.me = cyclic
+del cyclic
+gc.collect()
+print("live:", counter.Counter.liveInstances())
+"""
+
+
+@pytest.mark.parametrize("sanitized", [False, True], ids=["plain", "asan"])
+def test_cyclic_object_is_closed_in_its_del(
+    request: pytest.FixtureRequest, sanitized: bool
+) -> None:
+    """The collection destroyed it before __del__ ran: __del__ must not use or
+    destroy it again."""
+    environment = dict(os.environ)
+    if sanitized:
+        library, output, runtime = request.getfixturevalue("demo_asan_build")
+        environment["LD_PRELOAD"] = runtime
+        environment["ASAN_OPTIONS"] = "detect_leaks=0"
+    else:
+        library, output = request.getfixturevalue("demo_build")
+    environment["PYTHONPATH"] = str(output / "python")
+    environment["DEMO_LIBRARY"] = str(library)
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", _CYCLIC_DEL],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == ["del: Counter object is closed", "live: 0"]

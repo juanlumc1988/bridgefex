@@ -48,5 +48,5 @@ extern "C" const char* demo_last_error(void)
 
 extern "C" const char* demo_api_fingerprint(void)
 {
-    return "5a48ab072fcc0fbcc123b1960bfb1aec";
+    return "b57bfdd6437195147f17e5663159b0df";
 }

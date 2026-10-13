@@ -186,7 +186,8 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 
 - One module per header. Classes and functions keep their C++ names. Python keywords, and names the generated code needs (`ctypes`, `threading`...), get a trailing `_` (`from` becomes `from_`). Header names must not be `load`, `Error`, `OK` or `ERROR_*`, which the package itself defines.
 - A class with one constructor is created with `Counter(args)`. With several, use the factories named after the C functions: `Counter.create_void()`, `Counter.create_int32(5)`.
-- The C++ object is destroyed by `close()`, at the end of a `with` block, or by the garbage collector, whichever comes first. Objects still alive after the exit handlers (`atexit`) are not destroyed, because other threads may still be using them: close them, or use `with`. Objects that an exit handler releases are destroyed. Using a closed object raises `ValueError`. Copying, pickling or calling `__init__` again raises `TypeError`, because the handle cannot be shared.
+- The C++ object is destroyed by `close()`, at the end of a `with` block, or by the garbage collector, whichever comes first. Objects still alive after the exit handlers (`atexit`) are not destroyed, because other threads may still be using them: close them, or use `with`. Objects that an exit handler registered after importing the package releases are destroyed. Using a closed object raises `ValueError`. Copying, pickling or calling `__init__` again raises `TypeError`, because the handle cannot be shared.
+- Signals do not leak objects. A handler that raises (`KeyboardInterrupt`) when a constructor returns cannot leak the new object: the C call writes the handle that the garbage collector destroys, and the half-built object is collected with the exception. The garbage collector destroys an object without running Python code (the weak reference's callback is the C destroy function, which ctypes calls with the handle as `_as_parameter_`), so a signal that is pending at that time cannot skip the destruction either.
 - Arguments are checked before the call. Integers must fit the C type (`OverflowError` instead of ctypes' silent wrap-around). `bool` parameters only accept `True` and `False`. Floating-point parameters accept real numbers.
 - C++ exceptions raise `<module>.Error`, with `.status`, `.status_name` and the message. Errors can be pickled, for example to come back from a worker process.
 - The library is loaded from, in order:
@@ -217,6 +218,7 @@ Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runne
 - Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Calling a `[[deprecated]]` function from the wrapper triggers the compiler's deprecation warning (bridgefex reports it).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
+- A signal that a handler turns into an exception during `close()` can postpone the destruction until the object is collected. Under a `sys.settrace`, `sys.setprofile` or `sys.monitoring` hook, which runs Python code between two lines, such an exception can also leak the object.
 
 ## Development
 
@@ -228,7 +230,7 @@ ruff check . && ruff format --check . && mypy
 ```
 
 - **Golden tests** compare the generated files with `tests/golden/<case>/expected` byte by byte.
-- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported.
+- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC on Linux), for example with signals arriving during C calls.
 - **Standard tests** compile the generated code in every supported language standard.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
 - **Native tests** check the thread-local last error, thread cancellation, the alignment check, unity builds and their glibc check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.

@@ -6,6 +6,7 @@ generated package on PYTHONPATH and DEMO_LIBRARY pointing at the built library.
 """
 
 import copy
+import ctypes
 import gc
 import math
 import pickle
@@ -140,11 +141,11 @@ def check_geometry():
     # A constructor that throws reports the error and creates nothing.
     expect(demo.Error, geometry.Circle, -1.0, status=demo.ERROR_EXCEPTION, message="radius")
     # Handles of one class are refused by functions of another.
-    with counter.Counter.create_void() as other:
-        bad = geometry.Circle.__new__(geometry.Circle)
-        bad._adopt(other._handle)
-        expect(Exception, bad.radius)
-        bad._owned.clear()  # it does not own the handle
+    with counter.Counter.create_void() as other, geometry.Circle(1.0) as bad:
+        own = bad._handle
+        bad._handle = other._handle
+        expect(ctypes.ArgumentError, bad.radius)
+        bad._handle = own
     assert geometry.distance(0.0, 0.0, 3.0, 4.0) == 5.0
     assert geometry.multiply_double_double(1.5, 4) == 6.0
 
