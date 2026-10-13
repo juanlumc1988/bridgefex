@@ -382,6 +382,32 @@ _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 
 
+def _array_type(clang_type: cindex.Type) -> cindex.Type:
+    """The array type behind aliases (typedef std::uint8_t mac_t[6];), whose
+    element keeps its spelling."""
+    while clang_type.kind != TypeKind.CONSTANTARRAY:
+        if clang_type.kind == TypeKind.ELABORATED:
+            clang_type = clang_type.get_named_type()
+        elif clang_type.kind == TypeKind.TYPEDEF:
+            clang_type = clang_type.get_declaration().underlying_typedef_type
+        else:
+            return clang_type.get_canonical()
+    return clang_type
+
+
+def _may_throw(function: cindex.Cursor) -> bool:
+    """True unless the function cannot throw: no specification (a destructor's
+    default), noexcept, noexcept(true) or throw(). libclang does not evaluate
+    noexcept(expression): any other expression counts as one that may throw."""
+    kind = function.exception_specification_kind
+    if kind == cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
+        return "noexcept(true)" not in str(function.type.spelling).replace(" ", "")
+    return kind in (
+        cindex.ExceptionSpecificationKind.DYNAMIC,
+        cindex.ExceptionSpecificationKind.MS_ANY,
+    )
+
+
 def is_value_struct(definition: cindex.Cursor) -> bool:
     """True for a class definition with a public non-static data member: its
     values are copied across the boundary, member by member. Other classes are
@@ -421,6 +447,8 @@ def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
     if clang_type.is_volatile_qualified():
         raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
     declaration = clang_type.get_canonical().get_declaration()
+    if declaration.kind == CursorKind.UNION_DECL:
+        raise typemap.UnsupportedTypeError(f"'{spelling}': unions are not supported")
     if (
         libclang.std_declaration_name(declaration) is not None
         or declaration.is_anonymous()
@@ -1129,7 +1157,6 @@ class _Visitor:
             ):
                 continue
             public = member.access_specifier == AccessSpecifier.PUBLIC
-            available = not self._unavailable(member)
             member_name = f"'{qualified}::{member.spelling}'"
             if kind == CursorKind.CXX_BASE_SPECIFIER:
                 self._error(member, f"{where}: inheritance is not supported yet")
@@ -1143,11 +1170,12 @@ class _Visitor:
                 declares_constructor = True
                 self._error(member, f"{where}: constructor templates are not supported")
             elif kind == CursorKind.DESTRUCTOR:
-                if not public or not available or member.is_virtual_method():
-                    self._error(member, f"{where} needs a public, non-virtual destructor")
-            elif kind == CursorKind.CXX_METHOD and member.spelling == "operator=":
-                if member.is_move_assignment_operator_method():
-                    declares_move = True
+                self._check_struct_destructor(member, where)
+            elif kind == CursorKind.CXX_METHOD and (
+                member.is_copy_assignment_operator_method()
+                or member.is_move_assignment_operator_method()
+            ):
+                declares_move |= bool(member.is_move_assignment_operator_method())
             elif kind == CursorKind.CXX_METHOD:
                 self._error(member, f"{where}: methods are not supported yet ({member_name})")
             elif kind == CursorKind.CONVERSION_FUNCTION:
@@ -1168,18 +1196,41 @@ class _Visitor:
             self._error(cursor, f"{where} cannot be copied: it declares a move operation only")
         return enums
 
+    def _check_struct_destructor(self, member: cindex.Cursor, where: str) -> None:
+        if (
+            member.access_specifier != AccessSpecifier.PUBLIC
+            or self._unavailable(member)
+            or member.is_virtual_method()
+        ):
+            self._error(member, f"{where} needs a public, non-virtual destructor")
+        elif _may_throw(member):
+            # The generated code destroys temporaries after it writes the
+            # result, which must stay unchanged on failure.
+            self._error(member, f"{where}: destructors that may throw are not supported")
+
     def _struct_constructor(self, member: cindex.Cursor, where: str) -> str:
         """What a constructor of a value struct is: "copy", "move", "default" (a
         usable default constructor) or "" (reported if it is not allowed)."""
         usable = member.access_specifier == AccessSpecifier.PUBLIC and not self._unavailable(member)
         if member.is_copy_constructor():
-            if not usable:
+            arguments = list(member.get_arguments())
+            from_const = bool(arguments) and arguments[0].type.get_pointee().is_const_qualified()
+            if not usable or member.is_explicit_method() or not from_const:
                 self._error(
                     member,
-                    f"{where} cannot be copied: its copy constructor is deleted or not public",
+                    f"{where} cannot be copied: its copy constructor is deleted, not public, "
+                    "explicit or takes a non-const reference",
                 )
             return "copy"
         if member.is_move_constructor():
+            if not usable or member.is_explicit_method():
+                # Returning a local by value needs it (it is not ignored like a
+                # missing one).
+                self._error(
+                    member,
+                    f"{where} cannot be moved: its move constructor is deleted, not public or "
+                    "explicit",
+                )
             return "move"
         if not list(member.get_arguments()):
             return "default" if usable else ""
@@ -1199,12 +1250,20 @@ class _Visitor:
                 f"{where} is not public: every data member of a value struct must be public",
             )
             return None
+        declaration = field.type.get_declaration()
         if (
             not name
             or field.is_anonymous_record_decl()
-            or field.type.get_declaration().is_anonymous()
+            or (
+                declaration.kind
+                in (CursorKind.STRUCT_DECL, CursorKind.UNION_DECL, CursorKind.CLASS_DECL)
+                and declaration.is_anonymous()
+            )
         ):
             self._error(field, f"anonymous unions and structs in '{qualified}' are not supported")
+            return None
+        if self._unavailable(field):
+            self._error(field, f"{where} is unavailable: the value cannot be copied")
             return None
         if not self._check_name(field, name):
             return None
@@ -1221,7 +1280,11 @@ class _Visitor:
             self._error(field, f"{where}: arrays without a size are not supported")
             return None
         if canonical.kind == TypeKind.CONSTANTARRAY:
+            clang_type = _array_type(clang_type)
             length = int(clang_type.get_array_size())
+            if length < 1:
+                self._error(field, f"{where}: arrays of size 0 are not supported")
+                return None
             clang_type = clang_type.get_array_element_type()
             canonical = clang_type.get_canonical()
             if canonical.kind in (TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY):

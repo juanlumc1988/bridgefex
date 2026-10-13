@@ -31,10 +31,14 @@
 #include "vals_runtime_internal.hpp"
 
 // The code below names the wrapped declarations to expose them, deprecated
-// ones too: that is no reason to warn here.
+// ones too: that is no reason to warn here. Nor is a member that a default
+// constructor of the user leaves uninitialized: it is copied as it is.
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #elif defined(_MSC_VER)
 #pragma warning(push)
 #pragma warning(disable : 4996)

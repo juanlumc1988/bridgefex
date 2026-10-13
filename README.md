@@ -158,7 +158,7 @@ Rejected with an error, for now:
 - Pointers (except `const char*`) and non-const references.
 - Classes by value other than value structs and `std::vector` (`std::array`, `std::map`, `std::pair`...), plain `char`, `wchar_t`, `long double`.
 - Vectors of other types (`char`, `const char*`, `std::string_view`, pointers, other containers), with another allocator (`std::pmr::vector`), non-const references and pointers to vectors, and vectors in value structs.
-- In value structs: bit-fields, `const`, reference, pointer and string members, `char` arrays, multi-dimensional arrays, anonymous unions, base classes, methods and constructors with parameters. Non-const references and pointers to value structs.
+- In value structs: bit-fields, `const`, reference, pointer and string members, `char` arrays, multi-dimensional or empty arrays, anonymous unions, base classes, methods and constructors with parameters, destructors that may throw, copy or move constructors that are deleted, private or explicit. Unions. Non-const references and pointers to value structs.
 - Type aliases other than the standard fixed-width ones. A type is only taken as `int64_t`, `size_t`... if it is the standard one: an alias with that name declared by your code (`typedef unsigned size_t;` in your namespace) is rejected.
 - Classes with virtual methods but no virtual destructor (unless `final`).
 - Non-ASCII names, and names that would make a generated C name a keyword or a reserved identifier (`co::yield` gives `co_yield`; a namespace `_impl` gives `_impl_f`; a leading or trailing `_` elsewhere gives `__`).
@@ -235,7 +235,7 @@ Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runne
 - Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Deprecated declarations are wrapped without deprecation warnings: the generated sources turn them off (`-Wdeprecated-declarations`, MSVC C4996).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
-- Value structs and vectors cross the boundary as copies, on each call: from Python, a large vector or array costs a loop that checks every element (bytes-like objects are copied at once into byte vectors), and the data exists twice while the C++ vector is built. A user-provided default constructor that leaves members uninitialized gives indeterminate values in `<c_type>_init`, as in C++.
+- Value structs and vectors cross the boundary as copies, on each call: from Python, a large vector or array costs a loop that checks every element (bytes-like objects are copied at once into byte vectors), and the data exists twice while the C++ vector is built. A user-provided default constructor that leaves members uninitialized gives indeterminate values in `<c_type>_init`, as in C++ (undefined behaviour for `bool` and enum members).
 - A packed C++ struct whose members have non-trivial constructors is undefined behaviour in C++ itself; bridgefex cannot make it safe.
 - Enumerator values are read with the options given to bridgefex. Building the library with other options that change them (`-D`, another target for an enumerator that depends on `sizeof`) fails at a `static_assert` in the generated source.
 - A C++ identifier spelled like a generated macro (`demo_Color_Red`) is replaced by the preprocessor in code that includes the C headers.

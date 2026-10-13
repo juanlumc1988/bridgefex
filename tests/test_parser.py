@@ -641,3 +641,29 @@ def test_vector_element_types_keep_their_spelling_on_every_target(tmp_path: Path
         (function,) = parse_header(path, "input.h", options).header.declarations
         assert isinstance(function, Function)
         assert function.parameters[0].type.cpp_spelling == "std::vector<int64_t>", target
+
+
+def test_struct_members_of_array_aliases_and_allowed_specials(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        typedef std::uint8_t mac_t[6];
+        using Pair = std::int16_t[2];
+        struct Eth { mac_t src; Pair p; };
+        struct Ok { int x; ~Ok() noexcept; Ok& operator=(const Ok&) = default; };
+        struct Ok2 { int x; ~Ok2() noexcept(true); };
+        """,
+    )
+    structs = {d.name: d for d in header.declarations if isinstance(d, Struct)}
+    eth = structs["Eth"].fields
+    assert [(f.length, f.type.c_name) for f in eth] == [(6, "uint8_t"), (2, "int16_t")]  # type: ignore[union-attr]
+    assert set(structs) == {"Eth", "Ok", "Ok2"}
+
+
+def test_anonymous_enum_members_get_one_message(tmp_path: Path) -> None:
+    path = tmp_path / "input.h"
+    path.write_text(PRELUDE + "struct S { enum { A, B } kind; };\n", encoding="utf-8")
+    with pytest.raises(GenerationError) as raised:
+        parse_header(path, "input.h", ParseOptions())
+    messages = [d.message for d in raised.value.diagnostics]
+    assert all("anonymous enums" in message for message in messages), messages
