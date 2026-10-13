@@ -788,3 +788,28 @@ def test_containers_of_the_structs_and_enums_of_another_header(
     assert '#include "a.h"' in source
     assert '#include "a_c_internal.hpp"' in source
     assert "std::underlying_type<::a::F>::type, short>" in source
+
+
+def test_spans_that_convert_their_elements_call_the_span_overload(tmp_path: Path) -> None:
+    """The converted copy is passed as a span: as a std::vector, it would go to
+    the vector overloads (deleted here, so the verification would fail). The
+    header does not include <vector>, which the copy needs."""
+    header = write_header(
+        tmp_path,
+        "#pragma once\n#include <span>\n#include <string>\n#include <cstdint>\n"
+        "namespace t {\nenum class E : std::uint8_t { a };\nstruct P { int x; };\n"
+        "int f(std::span<const E> v);\nint g(std::span<const std::string> v);\n"
+        "int h(std::span<const P> v);\n}\n",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod", std="c++20"))
+    assert "#include <vector>" in result.files["c/api_c.cpp"]
+    overloads = write_header(
+        tmp_path,
+        "#pragma once\n#include <span>\n#include <string>\n#include <vector>\n#include <cstdint>\n"
+        "namespace t {\nenum class E : std::uint8_t { a };\nstruct P { int x; };\n"
+        "int f(std::span<const E> v);\nint f(const std::vector<E>& v) = delete;\n"
+        "int g(std::span<const std::string> v);\nint g(std::vector<std::string> v) = delete;\n"
+        "int h(std::span<const P> v);\nint h(std::vector<P>&& v) = delete;\n}\n",
+        "overloads.h",
+    )
+    bridgefex.generate([overloads], bridgefex.Options("mod", std="c++20"))

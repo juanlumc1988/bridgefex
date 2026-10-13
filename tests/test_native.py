@@ -517,3 +517,62 @@ def test_unity_build_refuses_a_header_that_sets_file_offset_bits_too_late(
     late = toolchain.syntax_check(unity, "c++", flag, include_dirs)
     assert late.returncode != 0
     assert "lf.h sets _FILE_OFFSET_BITS or _TIME_BITS, but a system header" in late.output
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="sets the stack size with setrlimit")
+def test_large_arrays_by_reference_do_not_overflow_the_stack(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """A std::array taken by reference is converted on the heap: as a temporary
+    on the stack, 16 MiB would overflow a stack of 8 MiB."""
+    import resource  # noqa: PLC0415 (POSIX only)
+
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    header = source_dir / "big.h"
+    header.write_text(
+        "#pragma once\n#include <array>\n#include <cstddef>\n#include <cstdint>\n"
+        "namespace big {\nusing Table = std::array<std::uint8_t, 16 * 1024 * 1024>;\n"
+        "std::size_t count(const Table& table);\nstd::size_t count_moved(Table&& table);\n}\n",
+        encoding="utf-8",
+    )
+    (source_dir / "big.cpp").write_text(
+        '#include "big.h"\nnamespace big {\n'
+        "std::size_t count(const Table& table) {\n"
+        "    std::size_t n = 0;\n    for (auto x : table) n += x != 0;\n    return n;\n}\n"
+        "std::size_t count_moved(Table&& table) { return count(table); }\n}\n",
+        encoding="utf-8",
+    )
+    (source_dir / "main.c").write_text(
+        '#include <stdio.h>\n#include <stdlib.h>\n#include "big_c.h"\n'
+        "int main(void)\n{\n"
+        "    uint8_t* table = calloc(16u * 1024u * 1024u, 1);\n"
+        "    size_t n = 0, m = 0;\n"
+        "    if (table == NULL) { return 2; }\n"
+        "    table[0] = 1;\n    table[16u * 1024u * 1024u - 1u] = 7;\n"
+        "    if (big_count(table, &n) != BIG_OK || big_count_moved(table, &m) != BIG_OK) {\n"
+        "        return 1;\n    }\n"
+        '    printf("%zu %zu\\n", n, m);\n    free(table);\n    return 0;\n}\n',
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("big", languages=()))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    library = tmp_path / "libbig.so"
+    sources = [*sorted((output / "c").glob("*.cpp")), source_dir / "big.cpp"]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.build_shared_library(sources, [output / "c", source_dir], library, flag).check()
+    program = tmp_path / "main"
+    c_flag = standard(toolchain, "c", "c11", probe_dir)
+    toolchain.build_c_executable(
+        source_dir / "main.c", [output / "c"], library, program, c_flag
+    ).check()
+
+    def small_stack() -> None:
+        resource.setrlimit(resource.RLIMIT_STACK, (8 * 1024 * 1024, resource.RLIM_INFINITY))
+
+    completed = subprocess.run(
+        [str(program)], capture_output=True, text=True, check=False, preexec_fn=small_stack
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.splitlines() == ["2 2"]

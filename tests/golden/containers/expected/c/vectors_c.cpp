@@ -322,7 +322,7 @@ cont_status vec_twice(const float m[4], float out_result[4])
     if (out_result == nullptr) {
         return cont_detail::null_argument("vec_twice: 'out_result' is NULL");
     }
-    return cont_detail::guard([&]() { cont_detail::copy_to<std::array<float, 4>>(::vec::twice(static_cast<const std::array<float, 4>&>(cont_detail::array_in<std::array<float, 4>>(m))), out_result); });
+    return cont_detail::guard([&]() { cont_detail::copy_to<std::array<float, 4>>(::vec::twice(static_cast<const std::array<float, 4>&>(*cont_detail::array_on_heap<std::array<float, 4>>(m))), out_result); });
 }
 
 // std::array<vec::Point, 2> vec::swap(std::array<vec::Point, 2> points)
@@ -357,7 +357,7 @@ cont_status vec_sum_levels(const vec_Level levels[2], int* out_result)
     if (out_result == nullptr) {
         return cont_detail::null_argument("vec_sum_levels: 'out_result' is NULL");
     }
-    return cont_detail::guard([&]() { *out_result = ::vec::sum_levels(static_cast<const std::array<::vec::Level, 2>&>(cont_detail::array_in<std::array<::vec::Level, 2>>(levels, cont_detail::enum_in<::vec::Level>{0, 1, "an element of 'levels' is not a value of vec::Level (0..1)"}))); });
+    return cont_detail::guard([&]() { *out_result = ::vec::sum_levels(static_cast<const std::array<::vec::Level, 2>&>(*cont_detail::array_on_heap<std::array<::vec::Level, 2>>(levels, cont_detail::enum_in<::vec::Level>{0, 1, "an element of 'levels' is not a value of vec::Level (0..1)"}))); });
 }
 
 // vec::Bag::Bag(const std::vector<std::string>& items)

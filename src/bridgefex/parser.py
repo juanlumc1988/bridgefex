@@ -979,13 +979,16 @@ class _Visitor:
             length = int(declaration.get_template_argument_unsigned_value(1))
             if length < 1:
                 raise typemap.UnsupportedTypeError("std::array of size 0 is not supported")
+            if element_type.get_canonical().is_const_qualified():
+                raise typemap.UnsupportedTypeError("std::array of const elements is not supported")
         else:
             # std::dynamic_extent is size_t(-1): -1 whatever the size of size_t.
             if int(declaration.get_template_argument_value(1)) != -1:
                 raise typemap.UnsupportedTypeError(
                     "std::span with a fixed extent is not supported yet"
                 )
-            if not element_type.is_const_qualified():
+            # Through a typedef too: 'using CI = const int; std::span<CI>'.
+            if not element_type.get_canonical().is_const_qualified():
                 raise typemap.UnsupportedTypeError(
                     "std::span of non-const elements (an output buffer) is not supported yet"
                 )

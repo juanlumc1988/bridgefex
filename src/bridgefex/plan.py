@@ -582,6 +582,10 @@ class HeaderPlan:
         containers = {
             type_.kind for type_ in _header_types(self.header) if isinstance(type_, ContainerType)
         }
+        if ContainerKind.SPAN in containers:
+            # The elements of a span that must be converted are copied into a
+            # std::vector.
+            containers.add(ContainerKind.VECTOR)
         includes += [kind.value for kind in ContainerKind if kind in containers]
         return tuple(includes)
 
@@ -1502,6 +1506,11 @@ class _Builder:
         if span and element.to_cpp is None and not isinstance(type_.element, StringType):
             # The same type on both sides: a view of the caller's elements.
             temporary = f"std::span<const {element.cpp}>({name}, {size})"
+        elif span:
+            # A view of the converted copy, which lives until the end of the
+            # call: as a std::vector, the argument would rather go to an
+            # overload for vectors.
+            temporary = f"std::span<const {element.cpp}>({temporary})"
         by_reference = type_.by_reference and not span  # a span is a view anyway
         argument = f"static_cast<const {vector}&>({temporary})" if by_reference else temporary
         pointer = f"ctypes.POINTER({element.ctypes_in})"
@@ -1535,8 +1544,14 @@ class _Builder:
         detail = f"{self.module.name}_detail"
         array = f"std::array<{element.cpp}, {type_.length}>"
         converter = "" if element.to_cpp is None else ", " + element.to_cpp.replace("{name}", name)
-        temporary = f"{detail}::array_in<{array}>({name}{converter})"
-        argument = f"static_cast<const {array}&>({temporary})" if type_.by_reference else temporary
+        if type_.by_reference or type_.rvalue_reference:
+            # On the heap, which the C++ API needs no more than the stack: a
+            # large array would overflow the stack as a temporary.
+            heap = f"*{detail}::array_on_heap<{array}>({name}{converter})"
+            reference = "const " + array + "&" if type_.by_reference else array + "&&"
+            argument = f"static_cast<{reference}>({heap})"
+        else:
+            argument = f"{detail}::array_in<{array}>({name}{converter})"
         conversion = element.py_in.replace("{name}", name)
         return LoweredParam(
             c_params=(

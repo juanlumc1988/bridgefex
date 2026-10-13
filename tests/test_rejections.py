@@ -162,6 +162,7 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ),
         ("#include <deque>\nvoid f(std::deque<int> d);", "std::deque is not supported yet"),
         ("#include <array>\nvoid f(std::array<int, 0> a);", "std::array of size 0"),
+        ("#include <array>\nvoid f(std::array<const int, 2> a);", "std::array of const elements"),
         ("#include <array>\nvoid f(std::array<std::string, 2> a);", "std::array of std::string"),
         ("#include <array>\nvoid f(std::array<int, 2>& a);", "non-const references"),
         ("#include <array>\nstd::array<int, 2>&& f();", "references are not supported yet"),
@@ -276,6 +277,8 @@ def test_a_rejected_member_rejects_its_class_only(tmp_path: Path) -> None:
     [
         ("#include <span>\nvoid f(std::span<int> s);", "non-const elements"),
         ("#include <span>\nvoid f(std::span<const int, 3> s);", "fixed extent"),
+        # The element is const: only the alias is refused.
+        ("#include <span>\nusing CI = const int; void f(std::span<CI> s);", "type alias 'CI'"),
     ],
 )
 def test_rejected_spans(tmp_path: Path, code: str, message: str) -> None:

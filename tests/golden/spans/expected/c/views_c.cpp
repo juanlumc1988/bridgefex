@@ -27,6 +27,7 @@
 #include "views_c.h"
 #include "spn_runtime_internal.hpp"
 #include <string>
+#include <vector>
 #include <span>
 
 // The code below names the wrapped declarations to expose them, deprecated
@@ -100,7 +101,7 @@ spn_status views_count_red(const views_Color* colors, size_t colors_size, int* o
     if (out_result == nullptr) {
         return spn_detail::null_argument("views_count_red: 'out_result' is NULL");
     }
-    return spn_detail::guard([&]() { *out_result = ::views::count_red(spn_detail::vector_in<std::vector<::views::Color>>(colors, colors_size, spn_detail::cast_to<::views::Color>())); });
+    return spn_detail::guard([&]() { *out_result = ::views::count_red(std::span<const ::views::Color>(spn_detail::vector_in<std::vector<::views::Color>>(colors, colors_size, spn_detail::cast_to<::views::Color>()))); });
 }
 
 // double views::sum_x(std::span<const views::Point> points)
@@ -112,7 +113,7 @@ spn_status views_sum_x(const views_Point* points, size_t points_size, double* ou
     if (out_result == nullptr) {
         return spn_detail::null_argument("views_sum_x: 'out_result' is NULL");
     }
-    return spn_detail::guard([&]() { *out_result = ::views::sum_x(spn_detail::vector_in<std::vector<::views::Point>>(points, points_size, [](const views_Point& _item) { return spn_detail::from_c(_item); })); });
+    return spn_detail::guard([&]() { *out_result = ::views::sum_x(std::span<const ::views::Point>(spn_detail::vector_in<std::vector<::views::Point>>(points, points_size, [](const views_Point& _item) { return spn_detail::from_c(_item); }))); });
 }
 
 // size_t views::total(std::span<const std::string> words)
@@ -127,7 +128,7 @@ spn_status views_total(const spn_string* words, size_t words_size, size_t* out_r
     if (out_result == nullptr) {
         return spn_detail::null_argument("views_total: 'out_result' is NULL");
     }
-    return spn_detail::guard([&]() { *out_result = ::views::total(spn_detail::strings_in<std::vector<std::string>>(words, words_size)); });
+    return spn_detail::guard([&]() { *out_result = ::views::total(std::span<const std::string>(spn_detail::strings_in<std::vector<std::string>>(words, words_size))); });
 }
 
 }  // extern "C"

@@ -251,24 +251,59 @@ Vector vector_in(const CType* items, size_t count, Convert convert)
     return result;
 }
 
-// A std::array argument from its elements at items (never NULL).
+// Copies the elements at items (never NULL) into a std::array.
 template <typename Array, typename CType>
-Array array_in(const CType* items)
+void array_fill(Array& result, const CType* items)
 {
-    Array result{};
     for (size_t index = 0; index != result.size(); ++index) {
         result[index] = items[index];
     }
-    return result;
 }
 
 template <typename Array, typename CType, typename Convert>
-Array array_in(const CType* items, Convert convert)
+void array_fill(Array& result, const CType* items, Convert convert)
 {
-    Array result{};
     for (size_t index = 0; index != result.size(); ++index) {
         result[index] = convert(items[index]);
     }
+}
+
+// A std::array argument passed by value.
+template <typename Array, typename CType, typename... Convert>
+Array array_in(const CType* items, Convert... convert)
+{
+    Array result{};
+    array_fill(result, items, convert...);
+    return result;
+}
+
+// An object on the heap, deleted at the end of the full expression that
+// creates it.
+template <typename T>
+class heap_value {
+public:
+    explicit heap_value(T* value) noexcept : value_(value) {}
+
+    heap_value(heap_value&& other) noexcept : value_(other.value_) { other.value_ = nullptr; }
+
+    heap_value(const heap_value&) = delete;
+    heap_value& operator=(const heap_value&) = delete;
+
+    ~heap_value() { delete value_; }
+
+    T& operator*() const noexcept { return *value_; }
+
+private:
+    T* value_;
+};
+
+// A std::array argument passed by reference: on the heap, since a large one
+// would overflow the stack, where C++ code does not need it.
+template <typename Array, typename CType, typename... Convert>
+heap_value<Array> array_on_heap(const CType* items, Convert... convert)
+{
+    heap_value<Array> result(new Array());
+    array_fill(*result, items, convert...);
     return result;
 }
 
