@@ -100,7 +100,9 @@ class CFunction:
     which come first so that the outputs can be reset on every failure."""
 
     resets: tuple[str, ...] = ()
-    """Statements that reset those outputs, run after their NULL checks."""
+    """Statements that reset those outputs, one per check: each runs right
+    after its check, so that a NULL output that comes after it cannot leave
+    it unset."""
 
     checks: tuple[Precondition, ...] = ()
     """The other checks: NULL checks of self, of pointer inputs and of the
@@ -108,6 +110,14 @@ class CFunction:
 
     location: Location | None = None
     """Where the wrapped C++ declaration is."""
+
+    compile_checks: tuple[str, ...] = ()
+    """static_asserts at the start of the function body."""
+
+    @property
+    def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
+        """Each NULL check of an output that the function allocates, with its reset."""
+        return tuple(zip(self.owned_checks, self.resets, strict=True))
 
     @property
     def signature(self) -> str:
@@ -225,6 +235,30 @@ class LoweredParam:
     py: PyArg
     call_args: tuple[str, ...]
     """Arguments of the C call, in Python."""
+
+    temporary: str | None = None
+    """The argument as a temporary (prvalue), when ``argument`` passes it as an
+    lvalue: see :func:`_temporaries_check`."""
+
+
+def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
+    """A static_assert that fails to compile if the wrapped function cannot take
+    its string arguments as temporaries, as with 'f(std::string&&) = delete'.
+
+    The wrapper passes const references as lvalues, so that a 'f(std::string&&)'
+    or a forwarding template of a header that is not wrapped does not take the
+    call instead of the wrapped function. A deleted overload for temporaries is
+    the sign of a function that keeps a reference to its argument, which would
+    dangle after the call: this check keeps it an error.
+    """
+    if all(param.temporary is None for param in params):
+        return ()
+    arguments = ", ".join(param.temporary or param.argument for param in params)
+    probe = call.replace("{arguments}", arguments)
+    return (
+        f"static_assert(sizeof(decltype(static_cast<void>({probe}))*) != 0,\n"
+        f'                  "{what} must accept temporaries: it would keep a dangling reference");',
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -595,8 +629,6 @@ class _Builder:
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
-        # The string type of the containers (not generated yet).
-        self._reserve_c_name(f"{module.name}_string", "a type of the runtime", None, tag=True)
         # A parameter named like a macro without arguments would be replaced
         # by it: the generated macros and include guards, and the macros of the
         # wrapped headers (the generated source includes them first).
@@ -618,9 +650,19 @@ class _Builder:
                     plan = self._enum_plan(enum, header, scope)
                     self._enums.setdefault(enum.usr, plan)
                     self._enum_headers.setdefault(enum.usr, header)
-        # A parameter named like an enumerator macro would be replaced by it.
+        # A parameter named like an enumerator macro would be replaced by it,
+        # and one named like a generated type would hide the type in the
+        # prototypes and in the wrappers ('ns_Color ns_Color, ns_Color b').
         self._parameter_macros |= {
             enumerator.macro for enum in self._enums.values() for enumerator in enum.enumerators
+        }
+        self._parameter_macros |= {enum.c_type for enum in self._enums.values()}
+        self._parameter_macros |= {f"{module.name}_status"}
+        self._parameter_macros |= {
+            f"{naming.c_prefix(declaration.namespace, module.name)}_{declaration.name}"
+            for header in module.headers
+            for declaration in header.declarations
+            if isinstance(declaration, Class)
         }
 
     # Bookkeeping -------------------------------------------------------------
@@ -796,13 +838,18 @@ class _Builder:
                 py=PyArg(name, (f'{name} = _runtime.to_c_string({name}, "{name}")',)),
                 call_args=(name,),
             )
-        # A prvalue: overload resolution then sees what a C++ caller passing a
-        # temporary would see, and a deleted '&&' overload is an error.
         constructor = "std::string" if type_.kind is StringKind.STRING else "std::string_view"
         detail = f"{self.module.name}_detail"
+        temporary = f"{constructor}({detail}::string_data({name}), {size})"
+        # A const reference gets an lvalue, which only the overloads for const
+        # references take (see _temporaries_check); a value gets the temporary.
+        argument = (
+            f"static_cast<const {constructor}&>({temporary})" if type_.by_reference else temporary
+        )
         return LoweredParam(
             c_params=(data, CParam(size, "size_t", Role.SIZE, "ctypes.c_size_t")),
-            argument=f"{constructor}({detail}::string_data({name}), {size})",
+            argument=argument,
+            temporary=temporary if type_.by_reference else None,
             null_checks=(_sized_null_check(name, size),),
             value_checks=(),
             # The size of the exact bytes object: before self._ptr(), so that
@@ -962,6 +1009,7 @@ class _Builder:
             resets=lowered.resets,
             checks=(*null_checks, *(c for param in params for c in param.value_checks)),
             location=location,
+            compile_checks=_temporaries_check(call, params, f"'{description}'"),
         )
         return function, lowered
 
@@ -1042,6 +1090,9 @@ class _Builder:
                     *(c for param in params for c in param.value_checks),
                 ),
                 location=constructor.location,
+                compile_checks=_temporaries_check(
+                    f"{cpp_name}({{arguments}})", params, f"'{description}'"
+                ),
             )
             py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
             constructors.append(

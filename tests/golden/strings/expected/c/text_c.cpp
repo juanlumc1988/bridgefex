@@ -39,6 +39,8 @@ extern "C" {
 // text::Person::Person(const std::string& name)
 txt_status text_Person_create_string(text_Person** out_self, const char* name, size_t name_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::Person(std::string(txt_detail::string_data(name), name_size))))*) != 0,
+                  "'text::Person::Person(const std::string& name)' must accept temporaries: it would keep a dangling reference");
     if (out_self == nullptr) {
         return txt_detail::null_argument("text_Person_create_string: 'out_self' is NULL");
     }
@@ -46,7 +48,7 @@ txt_status text_Person_create_string(text_Person** out_self, const char* name, s
     if (name == nullptr && name_size != 0) {
         return txt_detail::null_argument("text_Person_create_string: 'name' is NULL and 'name_size' is not 0");
     }
-    return txt_detail::guard([&]() { *out_self = reinterpret_cast<text_Person*>(new ::text::Person(std::string(txt_detail::string_data(name), name_size))); });
+    return txt_detail::guard([&]() { *out_self = reinterpret_cast<text_Person*>(new ::text::Person(static_cast<const std::string&>(std::string(txt_detail::string_data(name), name_size)))); });
 }
 
 // text::Person::Person(const char* name, int age)
@@ -76,10 +78,10 @@ txt_status text_Person_name(const text_Person* self, char** out_result, size_t* 
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_name: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_Person_name: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (self == nullptr) {
         return txt_detail::null_argument("text_Person_name: 'self' is NULL");
@@ -93,10 +95,10 @@ txt_status text_Person_name_ref(const text_Person* self, char** out_result, size
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_name_ref: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_Person_name_ref: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (self == nullptr) {
         return txt_detail::null_argument("text_Person_name_ref: 'self' is NULL");
@@ -110,10 +112,10 @@ txt_status text_Person_c_name(const text_Person* self, char** out_result, size_t
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_c_name: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_Person_c_name: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (self == nullptr) {
         return txt_detail::null_argument("text_Person_c_name: 'self' is NULL");
@@ -148,13 +150,15 @@ txt_status text_Person_age(const text_Person* self, int* out_result)
 // std::string text::Person::greet(const std::string& who, const char* tag) const
 txt_status text_Person_greet(const text_Person* self, const char* who, size_t who_size, const char* tag, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::text::Person*>(self)->greet(std::string(txt_detail::string_data(who), who_size), tag)))*) != 0,
+                  "'std::string text::Person::greet(const std::string& who, const char* tag) const' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_greet: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_Person_greet: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (self == nullptr) {
         return txt_detail::null_argument("text_Person_greet: 'self' is NULL");
@@ -165,7 +169,7 @@ txt_status text_Person_greet(const text_Person* self, const char* who, size_t wh
     if (tag == nullptr) {
         return txt_detail::null_argument("text_Person_greet: 'tag' is NULL");
     }
-    return txt_detail::guard([&]() { txt_detail::return_string(reinterpret_cast<const ::text::Person*>(self)->greet(std::string(txt_detail::string_data(who), who_size), tag), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_string(reinterpret_cast<const ::text::Person*>(self)->greet(static_cast<const std::string&>(std::string(txt_detail::string_data(who), who_size)), tag), out_result, out_result_size); });
 }
 
 // static std::string text::Person::species()
@@ -174,10 +178,10 @@ txt_status text_Person_species(char** out_result, size_t* out_result_size)
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_species: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_Person_species: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_string(::text::Person::species(), out_result, out_result_size); });
 }
@@ -185,13 +189,15 @@ txt_status text_Person_species(char** out_result, size_t* out_result_size)
 // size_t text::count(const std::string& s)
 txt_status text_count_string(const char* s, size_t s_size, size_t* out_result)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::count(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+                  "'size_t text::count(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("text_count_string: 's' is NULL and 's_size' is not 0");
     }
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_count_string: 'out_result' is NULL");
     }
-    return txt_detail::guard([&]() { *out_result = ::text::count(std::string(txt_detail::string_data(s), s_size)); });
+    return txt_detail::guard([&]() { *out_result = ::text::count(static_cast<const std::string&>(std::string(txt_detail::string_data(s), s_size))); });
 }
 
 // size_t text::count(const char* s)
@@ -209,13 +215,15 @@ txt_status text_count_cstr(const char* s, size_t* out_result)
 // std::string text::concat(const std::string& a, std::string b)
 txt_status text_concat(const char* a, size_t a_size, const char* b, size_t b_size, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::concat(std::string(txt_detail::string_data(a), a_size), std::string(txt_detail::string_data(b), b_size))))*) != 0,
+                  "'std::string text::concat(const std::string& a, std::string b)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_concat: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_concat: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (a == nullptr && a_size != 0) {
         return txt_detail::null_argument("text_concat: 'a' is NULL and 'a_size' is not 0");
@@ -223,24 +231,26 @@ txt_status text_concat(const char* a, size_t a_size, const char* b, size_t b_siz
     if (b == nullptr && b_size != 0) {
         return txt_detail::null_argument("text_concat: 'b' is NULL and 'b_size' is not 0");
     }
-    return txt_detail::guard([&]() { txt_detail::return_string(::text::concat(std::string(txt_detail::string_data(a), a_size), std::string(txt_detail::string_data(b), b_size)), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_string(::text::concat(static_cast<const std::string&>(std::string(txt_detail::string_data(a), a_size)), std::string(txt_detail::string_data(b), b_size)), out_result, out_result_size); });
 }
 
 // std::string text::echo(const std::string& s)
 txt_status text_echo(const char* s, size_t s_size, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::echo(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+                  "'std::string text::echo(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_echo: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_echo: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("text_echo: 's' is NULL and 's_size' is not 0");
     }
-    return txt_detail::guard([&]() { txt_detail::return_string(::text::echo(std::string(txt_detail::string_data(s), s_size)), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_string(::text::echo(static_cast<const std::string&>(std::string(txt_detail::string_data(s), s_size))), out_result, out_result_size); });
 }
 
 // const char* text::maybe_null(bool null)
@@ -249,10 +259,10 @@ txt_status text_maybe_null(bool null, char** out_result, size_t* out_result_size
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_maybe_null: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_maybe_null: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_c_string(::text::maybe_null(null), out_result, out_result_size); });
 }
@@ -260,18 +270,20 @@ txt_status text_maybe_null(bool null, char** out_result, size_t* out_result_size
 // std::string text::fail(const std::string& message)
 txt_status text_fail(const char* message, size_t message_size, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::fail(std::string(txt_detail::string_data(message), message_size))))*) != 0,
+                  "'std::string text::fail(const std::string& message)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_fail: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_fail: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (message == nullptr && message_size != 0) {
         return txt_detail::null_argument("text_fail: 'message' is NULL and 'message_size' is not 0");
     }
-    return txt_detail::guard([&]() { txt_detail::return_string(::text::fail(std::string(txt_detail::string_data(message), message_size)), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_string(::text::fail(static_cast<const std::string&>(std::string(txt_detail::string_data(message), message_size))), out_result, out_result_size); });
 }
 
 // std::string text::binary()
@@ -280,10 +292,10 @@ txt_status text_binary(char** out_result, size_t* out_result_size)
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_binary: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_binary: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_string(::text::binary(), out_result, out_result_size); });
 }
@@ -291,35 +303,41 @@ txt_status text_binary(char** out_result, size_t* out_result_size)
 // const char* text::first_char(const std::string& s)
 txt_status text_first_char(const char* s, size_t s_size, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::first_char(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+                  "'const char* text::first_char(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_first_char: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_first_char: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("text_first_char: 's' is NULL and 's_size' is not 0");
     }
-    return txt_detail::guard([&]() { txt_detail::return_c_string(::text::first_char(std::string(txt_detail::string_data(s), s_size)), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_c_string(::text::first_char(static_cast<const std::string&>(std::string(txt_detail::string_data(s), s_size))), out_result, out_result_size); });
 }
 
 // size_t text::length(const std::string& s, size_t s_size)
 txt_status text_length(const char* s, size_t s_size_, size_t s_size, size_t* out_result)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::length(std::string(txt_detail::string_data(s), s_size_), s_size)))*) != 0,
+                  "'size_t text::length(const std::string& s, size_t s_size)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size_ != 0) {
         return txt_detail::null_argument("text_length: 's' is NULL and 's_size_' is not 0");
     }
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_length: 'out_result' is NULL");
     }
-    return txt_detail::guard([&]() { *out_result = ::text::length(std::string(txt_detail::string_data(s), s_size_), s_size); });
+    return txt_detail::guard([&]() { *out_result = ::text::length(static_cast<const std::string&>(std::string(txt_detail::string_data(s), s_size_)), s_size); });
 }
 
 // size_t text::total(const std::string& from, const std::string& x_, const std::string&)
 txt_status text_total(const char* from_, size_t from_size, const char* x_, size_t x_size, const char* arg3, size_t arg3_size, size_t* out_result)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::total(std::string(txt_detail::string_data(from_), from_size), std::string(txt_detail::string_data(x_), x_size), std::string(txt_detail::string_data(arg3), arg3_size))))*) != 0,
+                  "'size_t text::total(const std::string& from, const std::string& x_, const std::string&)' must accept temporaries: it would keep a dangling reference");
     if (from_ == nullptr && from_size != 0) {
         return txt_detail::null_argument("text_total: 'from_' is NULL and 'from_size' is not 0");
     }
@@ -332,24 +350,26 @@ txt_status text_total(const char* from_, size_t from_size, const char* x_, size_
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_total: 'out_result' is NULL");
     }
-    return txt_detail::guard([&]() { *out_result = ::text::total(std::string(txt_detail::string_data(from_), from_size), std::string(txt_detail::string_data(x_), x_size), std::string(txt_detail::string_data(arg3), arg3_size)); });
+    return txt_detail::guard([&]() { *out_result = ::text::total(static_cast<const std::string&>(std::string(txt_detail::string_data(from_), from_size)), static_cast<const std::string&>(std::string(txt_detail::string_data(x_), x_size)), static_cast<const std::string&>(std::string(txt_detail::string_data(arg3), arg3_size))); });
 }
 
 // std::string text::alias(const std::string& name)
 txt_status text_alias(const char* name, size_t name_size, char** out_result, size_t* out_result_size)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::text::alias(std::string(txt_detail::string_data(name), name_size))))*) != 0,
+                  "'std::string text::alias(const std::string& name)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_alias: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_alias: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (name == nullptr && name_size != 0) {
         return txt_detail::null_argument("text_alias: 'name' is NULL and 'name_size' is not 0");
     }
-    return txt_detail::guard([&]() { txt_detail::return_string(::text::alias(std::string(txt_detail::string_data(name), name_size)), out_result, out_result_size); });
+    return txt_detail::guard([&]() { txt_detail::return_string(::text::alias(static_cast<const std::string&>(std::string(txt_detail::string_data(name), name_size))), out_result, out_result_size); });
 }
 
 // const char* text::c_alias(const char* text)
@@ -358,10 +378,10 @@ txt_status text_c_alias(const char* text, char** out_result, size_t* out_result_
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_c_alias: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_c_alias: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (text == nullptr) {
         return txt_detail::null_argument("text_c_alias: 'text' is NULL");
@@ -375,10 +395,10 @@ txt_status text_signal_twice(size_t size, char** out_result, size_t* out_result_
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_signal_twice: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("text_signal_twice: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_string(::text::signal_twice(size), out_result, out_result_size); });
 }

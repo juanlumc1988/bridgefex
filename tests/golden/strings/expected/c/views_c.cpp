@@ -36,10 +36,10 @@ txt_status views_first_word(const char* s, size_t s_size, char** out_result, siz
     if (out_result == nullptr) {
         return txt_detail::null_argument("views_first_word: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("views_first_word: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("views_first_word: 's' is NULL and 's_size' is not 0");
@@ -50,13 +50,15 @@ txt_status views_first_word(const char* s, size_t s_size, char** out_result, siz
 // size_t views::size_of(const std::string_view& s)
 txt_status views_size_of(const char* s, size_t s_size, size_t* out_result)
 {
+    static_assert(sizeof(decltype(static_cast<void>(::views::size_of(std::string_view(txt_detail::string_data(s), s_size))))*) != 0,
+                  "'size_t views::size_of(const std::string_view& s)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("views_size_of: 's' is NULL and 's_size' is not 0");
     }
     if (out_result == nullptr) {
         return txt_detail::null_argument("views_size_of: 'out_result' is NULL");
     }
-    return txt_detail::guard([&]() { *out_result = ::views::size_of(std::string_view(txt_detail::string_data(s), s_size)); });
+    return txt_detail::guard([&]() { *out_result = ::views::size_of(static_cast<const std::string_view&>(std::string_view(txt_detail::string_data(s), s_size))); });
 }
 
 // std::string_view views::empty()
@@ -65,10 +67,10 @@ txt_status views_empty(char** out_result, size_t* out_result_size)
     if (out_result == nullptr) {
         return txt_detail::null_argument("views_empty: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("views_empty: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_string(::views::empty(), out_result, out_result_size); });
 }
@@ -79,10 +81,10 @@ txt_status views_literal(char** out_result, size_t* out_result_size)
     if (out_result == nullptr) {
         return txt_detail::null_argument("views_literal: 'out_result' is NULL");
     }
+    *out_result = nullptr;
     if (out_result_size == nullptr) {
         return txt_detail::null_argument("views_literal: 'out_result_size' is NULL");
     }
-    *out_result = nullptr;
     *out_result_size = 0;
     return txt_detail::guard([&]() { txt_detail::return_string(::views::literal(), out_result, out_result_size); });
 }

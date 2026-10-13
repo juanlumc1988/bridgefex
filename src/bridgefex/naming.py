@@ -193,6 +193,19 @@ def python_name(name: str) -> str:
     return f"{name}_" if keyword.iskeyword(name) else name
 
 
+def unique_name(candidate: str, taken: Iterable[str]) -> str:
+    """``candidate``, else with a trailing ``_``, else with a number (``x2``,
+    ``x3``...): never ``__``, which C and C++ reserve."""
+    if candidate not in taken:
+        return candidate
+    if not candidate.endswith("_") and candidate + "_" not in taken:
+        return candidate + "_"
+    number = 2
+    while f"{candidate}{number}" in taken:
+        number += 1
+    return f"{candidate}{number}"
+
+
 def _avoid(candidate: str, taken: frozenset[str]) -> str:
     while candidate in taken:
         candidate += "_"
@@ -214,16 +227,14 @@ def parameter_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple
 
     Unnamed parameters become ``arg1``, ``arg2``...; names that clash with a
     keyword of C, C++ or Python, a common macro, a type name or a name used
-    by the generated code get a trailing ``_``, as do the names in
-    ``reserved``. The result has no duplicates.
+    by the generated code, or with the names in ``reserved``, are made unique
+    with :func:`unique_name` (a trailing ``_`` first). The result has no
+    duplicates.
     """
     taken = RESERVED_PARAMETER_NAMES | frozenset(reserved)
     result: list[str] = []
     for position, name in enumerate(names, start=1):
-        candidate = name or f"arg{position}"
-        while candidate in taken or candidate in result:
-            candidate += "_"
-        result.append(candidate)
+        result.append(unique_name(name or f"arg{position}", taken | frozenset(result)))
     return tuple(result)
 
 
@@ -239,9 +250,9 @@ def derived_names(
 
     The name is the C++ name without trailing ``_`` (``argN`` when unnamed)
     plus ``suffix``, never the final name plus ``suffix``, which could contain
-    ``__`` (``from`` becomes ``from_``). It gets a trailing ``_`` while it
-    clashes with a reserved name, a name in ``reserved``, a final name or an
-    earlier derived name. Call it once the final names are known.
+    ``__`` (``from`` becomes ``from_``). When it clashes with a reserved name,
+    a name in ``reserved``, a final name or an earlier derived name, it is made
+    unique with :func:`unique_name`. Call it once the final names are known.
     """
     taken = RESERVED_PARAMETER_NAMES | frozenset(reserved) | frozenset(final_names)
     used: set[str] = set()
@@ -250,9 +261,9 @@ def derived_names(
         if not wanted:
             result.append(None)
             continue
-        candidate = (cpp_name.rstrip("_") or f"arg{position}") + suffix
-        while candidate in taken or candidate in used:
-            candidate += "_"
+        candidate = unique_name(
+            (cpp_name.rstrip("_") or f"arg{position}") + suffix, taken | frozenset(used)
+        )
         used.add(candidate)
         result.append(candidate)
     return tuple(result)

@@ -306,6 +306,56 @@ def test_classes_named_like_generated_python_names(
     assert completed.stdout.split() == ["1", "2"]
 
 
+def test_string_references_reach_the_wrapped_overload(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """Overloads for temporaries in a header that is not wrapped (a forwarding
+    template, 'f(std::string&&)') must not take the call of the wrapped
+    'f(const std::string&)'."""
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    (source_dir / "extra.h").write_text(
+        "#pragma once\n#include <string>\nnamespace disp {\n"
+        "template <class S> int store(S&&) { return 2; }\n"
+        "inline int keep(std::string&&) { return 2; }\n}\n",
+        encoding="utf-8",
+    )
+    header = source_dir / "disp.h"
+    header.write_text(
+        '#pragma once\n#include "extra.h"\nnamespace disp {\n'
+        "int store(const std::string& s);\nint keep(const std::string& s);\n}\n",
+        encoding="utf-8",
+    )
+    (source_dir / "disp.cpp").write_text(
+        '#include "disp.h"\n'
+        "int disp::store(const std::string&) { return 1; }\n"
+        "int disp::keep(const std::string&) { return 1; }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("disp"))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    library = tmp_path / toolchain.shared_library_name("disp")
+    sources = [*sorted((output / "c").glob("*.cpp")), source_dir / "disp.cpp"]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.build_shared_library(sources, [output / "c", source_dir], library, flag).check()
+    code = "from disp import disp\nprint(disp.store('x'), disp.keep('y'))\n"
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DISP_LIBRARY": str(library),
+    }
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.split() == ["1", "1"]
+
+
 @pytest.mark.parametrize(
     ("modules", "reverse"),
     [

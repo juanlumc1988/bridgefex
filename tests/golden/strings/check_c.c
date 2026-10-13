@@ -76,8 +76,11 @@ int main(void)
     check(text_fail("boom", 4, &s, &n) == TXT_ERROR_EXCEPTION, "exception");
     check(contains(txt_last_error(), "boom"), "message of the exception");
     check(s == NULL && n == 0, "outputs reset on an exception");
+    n = 7;
     check(text_echo("x", 1, NULL, &n) == TXT_ERROR_NULL_ARGUMENT, "NULL out_result");
+    s = garbage;
     check(text_echo("x", 1, &s, NULL) == TXT_ERROR_NULL_ARGUMENT, "NULL out_result_size");
+    check(s == NULL, "out_result reset when out_result_size is NULL");
 
     /* const char* results: NULL stays NULL. */
     check(text_maybe_null(true, &s, &n) == TXT_OK && s == NULL && n == 0, "NULL result");

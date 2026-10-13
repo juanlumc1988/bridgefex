@@ -73,7 +73,9 @@ def test_parameter_names() -> None:
         "out_result_",
     )
     # Renaming never creates duplicates.
-    assert naming.parameter_names(["self", "self_"]) == ("self_", "self__")
+    # ... nor '__', which C and C++ reserve.
+    assert naming.parameter_names(["self", "self_"]) == ("self_", "self_2")
+    assert naming.parameter_names(["x_", "x_"]) == ("x_", "x_2")
     assert naming.parameter_names(["", "arg1"]) == ("arg1", "arg1_")
     assert naming.parameter_names(["handle"], reserved={"handle"}) == ("handle_",)
 
@@ -167,6 +169,9 @@ def test_derived_names_avoid_reserved_names_and_each_other() -> None:
         ["values", "a", "a_"], ["values", "a", "a_"], [True] * 3, "_size", {"values_size"}
     )
     assert sizes == ("values_size_", "a_size", "a_size_")
+    # A chain of taken names never gives '__'.
+    cpp = ["s", "s_size", "s_size_"]
+    assert naming.derived_names(cpp, cpp, [True, False, False], "_size") == ("s_size2", None, None)
     # The C++ name, not the final one: '_' alone is the unnamed case.
     assert naming.derived_names(["_"], ["_"], [True], "_size") == ("arg1_size",)
 

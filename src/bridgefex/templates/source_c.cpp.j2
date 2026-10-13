@@ -87,13 +87,14 @@ extern "C" {
 {% if f.returns_status %}
 {{ m.status_type }} {{ f.signature }}
 {
-{% for c in f.owned_checks %}
+{% for check in f.compile_checks %}
+    {{ check }}
+{% endfor %}
+{% for c, reset in f.owned_outputs %}
     if ({{ c.condition }}) {
         return {{ m.detail_namespace }}::{{ c.helper }}("{{ f.name }}: {{ c.message }}");
     }
-{% endfor %}
-{% for statement in f.resets %}
-    {{ statement }}
+    {{ reset }}
 {% endfor %}
 {% for c in f.checks %}
     if ({{ c.condition }}) {

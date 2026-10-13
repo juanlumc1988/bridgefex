@@ -415,9 +415,17 @@ def test_string_parameters() -> None:
     assert function.ctypes_argtypes == (
         "[ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p]"
     )
+    # A const reference gets an lvalue: overloads for temporaries of headers
+    # that are not wrapped do not take the call...
     assert function.statement == (
-        "::ns::f(std::string(mod_detail::string_data(a), a_size), "
-        "std::string_view(mod_detail::string_data(b), b_size), c);"
+        "::ns::f(static_cast<const std::string&>(std::string(mod_detail::string_data(a), "
+        "a_size)), std::string_view(mod_detail::string_data(b), b_size), c);"
+    )
+    # ... and a deleted overload for temporaries is still a compile error.
+    (check,) = function.compile_checks
+    assert check.startswith(
+        "static_assert(sizeof(decltype(static_cast<void>(::ns::f(std::string("
+        "mod_detail::string_data(a), a_size), std::string_view("
     )
     assert [(c.condition, c.message) for c in function.checks] == [
         ("a == nullptr && a_size != 0", "'a' is NULL and 'a_size' is not 0"),
@@ -524,10 +532,32 @@ def test_size_parameters_avoid_other_names() -> None:
     assert params == ["s", "s_size_", "t_", "t_size_", "t_size", "out_result"]
 
 
-@pytest.mark.parametrize("name", ["free", "string"])
-def test_runtime_names_of_strings_are_reserved(name: str) -> None:
-    with pytest.raises(GenerationError, match=f"'mod_{name}'"):
-        plan_for(header(function(name, namespace=("mod",))))
+def test_runtime_names_of_strings_are_reserved() -> None:
+    with pytest.raises(GenerationError, match="'mod_free'"):
+        plan_for(header(function("free", namespace=("mod",))))
+
+
+def test_outputs_are_reset_right_after_their_own_check() -> None:
+    """With out_result valid and out_result_size NULL, out_result is reset too."""
+    model = Function("f", ("ns",), (), STRING, HERE)
+    item = only_function(plan_for(header(model)))
+    pairs = [(c.condition, reset) for c, reset in item.c_function.owned_outputs]
+    assert pairs == [
+        ("out_result == nullptr", "*out_result = nullptr;"),
+        ("out_result_size == nullptr", "*out_result_size = 0;"),
+    ]
+
+
+def test_parameters_named_like_generated_types_are_renamed() -> None:
+    model = function(
+        "f",
+        Parameter("ns_Color", COLOR),
+        Parameter("ns_K", INT32),
+        Parameter("mod_status", INT32),
+    )
+    plan = plan_for(enum_header(color(), klass("K"), model))
+    names = [p.name for p in plan.headers[0].c_functions[-1].params]
+    assert names == ["ns_Color_", "ns_K_", "mod_status_", "out_result"]
 
 
 def test_header_std_includes() -> None:

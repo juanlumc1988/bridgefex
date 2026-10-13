@@ -194,7 +194,9 @@ def _check_python(plan: ModulePlan, files: Mapping[str, str], root: Path) -> lis
                     f"{error.msg}"
                 )
             )
-    if errors or not sys.executable:
+    # Without an interpreter to run (bridgefex embedded, or frozen into an
+    # executable), the import is not checked.
+    if errors or not sys.executable or getattr(sys, "frozen", False):
         return errors
     write_files(python_files, root)
     modules = [
