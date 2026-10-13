@@ -26,3 +26,10 @@ class _demo_geometry_Circle(ctypes.Structure):
 
 
 _demo_geometry_Circle__p = ctypes.POINTER(_demo_geometry_Circle)
+
+
+class _demo_Sleeper(ctypes.Structure):
+    """Opaque C handle of demo::Sleeper."""
+
+
+_demo_Sleeper__p = ctypes.POINTER(_demo_Sleeper)

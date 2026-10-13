@@ -225,10 +225,16 @@ class Toolchain:
         include_dirs: Sequence[Path],
         output: Path,
         cxx_standard: str,
+        extra_flags: Sequence[str] = (),
     ) -> CommandResult:
-        """Build a shared library from C++ sources; only exported symbols are visible."""
+        """Build a shared library from C++ sources; only exported symbols are visible.
+
+        ``extra_flags`` go to the compiler and linker (GCC and Clang only).
+        """
         includes = [f"-I{directory}" for directory in include_dirs]
         if self.kind == "msvc":
+            if extra_flags:
+                raise ValueError("extra_flags are for GCC and Clang only")
             command = [
                 self.cxx,
                 "/nologo",
@@ -256,6 +262,7 @@ class Toolchain:
                 "-fPIC",
                 "-fvisibility=hidden",
                 "-shared",
+                *extra_flags,
                 *includes,
                 *(str(source) for source in sources),
                 "-o",

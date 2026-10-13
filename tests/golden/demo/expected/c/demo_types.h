@@ -21,6 +21,11 @@ typedef struct demo_Counter demo_Counter;
 /* Opaque handle of demo::geometry::Circle. */
 typedef struct demo_geometry_Circle demo_geometry_Circle;
 
+/* From "sleeper.h". */
+
+/* Opaque handle of demo::Sleeper. */
+typedef struct demo_Sleeper demo_Sleeper;
+
 #pragma pack(pop)
 
 #endif /* DEMO_TYPES_H */

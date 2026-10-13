@@ -186,9 +186,9 @@ class PyCallable:
     def parameter_list(self) -> str:
         return ", ".join(arg.name for arg in self.args)
 
-    def check_call(self, indent: int) -> str:
-        """The argument conversions, then the C call wrapped in ``_runtime.check``,
-        indented by ``indent`` spaces.
+    def check_call(self, indent: int, before_call: Sequence[str] = ()) -> str:
+        """The argument conversions, the ``before_call`` statements, then the C
+        call wrapped in ``_runtime.check``, indented by ``indent`` spaces.
 
         The conversions run Python code (``__index__``, ``__float__``), which
         could close the object: they come before ``self._ptr()``, after which
@@ -197,6 +197,7 @@ class PyCallable:
         """
         pad = " " * indent
         lines = [f"{pad}{line}" for arg in self.args for line in arg.conversions]
+        lines += [pad + statement for statement in before_call]
         lines.append(self._call(indent))
         return "\n".join(lines)
 

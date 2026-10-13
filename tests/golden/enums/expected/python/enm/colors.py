@@ -2,9 +2,7 @@
 
 import builtins as _builtins
 import ctypes
-import sys as _sys
 import threading
-import weakref
 
 from . import _runtime, _types
 
@@ -101,34 +99,6 @@ def _bind():
             lib.colors_Lamp_level.restype = _runtime.Status
             _lib = lib
     return _lib
-
-
-# Weak references to the objects not collected yet: they must outlive the
-# objects for their callbacks to run.
-_watchers = set()
-
-
-def _watch(obj, owned, watchers=_watchers, is_finalizing=_sys.is_finalizing):
-    """Destroy the C++ object of ``obj`` when ``obj`` is collected.
-
-    Unless close() did it already (whoever pops ``owned`` destroys it), or the
-    interpreter is exiting: objects still alive after the exit handlers are
-    left alone, because other threads may still be using them.
-    """
-
-    def collected(ref):
-        watchers.discard(ref)
-        if is_finalizing():
-            return
-        try:
-            handle, destroy = owned.pop()
-        except IndexError:
-            return
-        destroy(handle)
-
-    ref = weakref.ref(obj, collected)
-    watchers.add(ref)
-    return ref
 
 
 def mix(a, b):
@@ -251,10 +221,23 @@ class Lamp:
         """Wraps ``colors::Lamp::Lamp(colors::Color color)``."""
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Lamp object is already initialized")
-        _handle = _types._colors_Lamp__p()
         color = _runtime.to_enum(color, _types.colors_Color, ctypes.c_uint8, "color")
+        _handle = self._watch()
         _runtime.check(_bind().colors_Lamp_create(_handle, color))
         self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._colors_Lamp__p()
+        self._handle = None
+        self._owned = []
+        self._finalizer = _runtime.watch(self, handle, _bind().colors_Lamp_destroy)
+        return handle
 
     def _adopt(self, handle):
         if not handle:
@@ -262,24 +245,37 @@ class Lamp:
                 "colors::Lamp: the C layer returned a NULL handle"
             )
         self._handle = handle
-        # Shared by close() and the collection callback: the object is destroyed once.
-        self._owned = owned = [(handle, _bind().colors_Lamp_destroy)]
-        self._finalizer = _watch(self, owned)
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().colors_Lamp_destroy, _types._colors_Lamp__p()))
 
     def _ptr(self):
-        if not self._owned:
+        if not self._owned or self._collected():
             raise _builtins.ValueError("Lamp object is closed")
         return self._handle
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit.
+        armed = self._finalizer
+        return armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
         """Destroy the C++ object now. Calling it again does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
-            handle, destroy = self._owned.pop()
+            destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
         self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
         destroy(handle)
 
     def __enter__(self):
