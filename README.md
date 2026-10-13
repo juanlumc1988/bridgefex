@@ -277,10 +277,13 @@ Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/
 
 ## Roadmap
 
-1. Prototype: classes, functions and scalar types; C layer and Python bindings; golden and round-trip tests. *(this version)*
-2. More types (strings, enums, POD structs, containers, callbacks) and ownership annotations.
-3. A second target language (C# P/Invoke or Rust `extern`).
-4. Inheritance and virtual methods.
+1. Prototype: classes, functions and scalar types; C layer and Python bindings; golden and round-trip tests. *(done)*
+2. More types: strings, enums, POD structs, containers and callbacks *(done)*; handles across headers and ownership annotations.
+3. Python complete: inheritance and virtual methods, which change the C layer that every language shares.
+4. Language-neutral architecture: one plan with one backend per language, and a conformance suite that every backend runs on the same golden headers.
+5. C# (P/Invoke), on that common base.
+6. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.
+7. Rust (`extern "C"` with safe wrappers).
 
 ## The name
 
