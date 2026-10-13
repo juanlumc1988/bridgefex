@@ -170,7 +170,7 @@ assert registered() == 0
 # cancelled: it finishes its loop, but its callbacks no longer run Python.
 for _ in range(5):
     interrupted = []
-    timer_thread = threading.Timer(0.02, os.kill, (os.getpid(), signal.SIGINT))
+    timer_thread = threading.Timer(0.02, signal.raise_signal, (signal.SIGINT,))
     timer_thread.start()
     expect(KeyboardInterrupt, events.sum, 10**6, lambda i, seen=interrupted: seen.append(i) or 1)
     timer_thread.join()
@@ -194,7 +194,7 @@ assert registered() == 0
 
 # A signal raised as the call returns: C++ keeps the callback, so the registry
 # keeps it too.
-timer_thread = threading.Timer(0.05, os.kill, (os.getpid(), signal.SIGINT))
+timer_thread = threading.Timer(0.05, signal.raise_signal, (signal.SIGINT,))
 timer_thread.start()
 expect(KeyboardInterrupt, events.store_and_sleep, lambda value: value * 2, 500)
 timer_thread.join()
