@@ -141,6 +141,7 @@ Generation is all-or-nothing. If any header contains something unsupported, ever
 | Free functions | Including overloads, also across headers of the same module, and functions declared through a function type (`typedef int Op(int); Op f;`). |
 | Namespaces | Nested namespaces too. |
 | Scalar types by value | `bool`; `signed char`, `short`, `int`, `long`, `long long` and their unsigned versions; `float`, `double`; `int8_t` … `uint64_t`, `size_t` (with or without `std::`). `const` values and `const T&` of these are passed by value. |
+| Enums | Scoped and unscoped, at namespace scope or public in a wrapped class, also `typedef enum {...} Name;`, as parameters and results (`const E&` too). An enum may be declared opaquely (`enum class E : int;`) in a header and defined in another wrapped header. The underlying type, when fixed, must be a supported integer type other than `bool` and `size_t`. Without a fixed underlying type, every enumerator must fit in `int`. |
 | Strings | `std::string`, `std::string_view` (C++17) and `const char*`, as parameters and results, also through aliases. `const` values and `const T&` of `std::string` and `std::string_view` are passed by value. Not `std::string&` (an output parameter), `std::string&&`, `char*`, other character types (`std::wstring`, `std::u8string`...) or custom traits and allocators. |
 
 Rejected with an error, for now:
@@ -148,8 +149,9 @@ Rejected with an error, for now:
 - Templates.
 - Inheritance and virtual methods (a virtual destructor is fine).
 - Operators and conversion functions.
-- Public data members, nested types.
-- Enums, unions, global variables, `extern "C"` blocks.
+- Public data members, nested types other than enums.
+- Anonymous enums (`enum { kSize = 4 };`), enums that no wrapped header defines, `std::byte` and the other enums of the standard library.
+- Unions, global variables, `extern "C"` blocks.
 - Anonymous and inline namespaces.
 - Pointers (except `const char*`) and non-const references.
 - Classes by value (`std::vector`...), plain `char`, `wchar_t`, `long double`.
@@ -166,6 +168,8 @@ Copy and move constructors, deleted functions, and private or protected members 
 - **Names.** Every symbol starts with the C++ namespaces joined by `_`. Declarations in the global namespace use the module name instead, so a wrapper never has the same name as the function it wraps. `demo::geometry::Circle::area` becomes `demo_geometry_Circle_area`.
 - **Overloads** get a suffix built from the parameter types: `demo_Counter_add_int32`, `demo_Counter_add_double`, `demo_Counter_create_void`. Only overloaded names get one, so adding an overload renames the existing function. Every generated name is checked for clashes.
 - **Parameters** keep their C++ names, except names that the preprocessor or a language would change: keywords of C, C++ and Python, type names (`int32_t`), common macros of the C library and of the platforms (`errno`, `complex`, `I`, `st_mtime`, `unix`...), the generated macros and include guards, and the macros without arguments that the header's translation unit defines. These get a trailing `_`. Unnamed parameters become `arg1`, `arg2`...
+- **Types.** `<module>_types.h`, which every `<stem>_c.h` includes, declares the handles and enums of all headers, so that a header can use the types of another.
+- **Enums.** An enum becomes a `typedef` of its underlying type (`int` when it is not fixed) and one macro per enumerator: `typedef uint8_t demo_Color;` and `#define demo_Color_Red 0`. The macros have the type of the enum (`UINT64_C(2147483648)` for a `uint64_t` enum, so `~` keeps the upper bits) and work in `#if`. Every value of an enum with a fixed underlying type is accepted. Without one, only the values of [dcl.enum] are, the range in the comment of the typedef; others return `ERROR_INVALID_ARGUMENT`. The generated source checks with `static_assert` that the C types and values are the C++ ones, with the compiler and options that build it.
 - **Handles.** Each class becomes an opaque handle: an incomplete `struct` with the same type in C and C++, so function pointers and control-flow integrity checks see one type. `X_create...` allocates an object and returns it through `X** out_self`, which is set to NULL on failure. `X_destroy(X*)` deletes it and accepts NULL. The generated source converts between handle and class with `reinterpret_cast`.
 - **Errors.** Every function that can fail returns a `<module>_status`:
 
@@ -193,6 +197,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 - The C++ object is destroyed by `close()`, at the end of a `with` block, or by the garbage collector, whichever comes first. Objects still alive after the exit handlers (`atexit`) are not destroyed, because other threads may still be using them: close them, or use `with`. Objects that an exit handler releases are destroyed. Using a closed object raises `ValueError`. Copying, pickling or calling `__init__` again raises `TypeError`, because the handle cannot be shared.
 - Arguments are checked before the call. Integers must fit the C type (`OverflowError` instead of ctypes' silent wrap-around). `bool` parameters only accept `True` and `False`. Floating-point parameters accept real numbers.
 - String parameters accept `str`, encoded as UTF-8 (strictly: lone surrogates raise `UnicodeEncodeError`), and bytes-like objects with 1-byte items (`bytes`, `bytearray`, `memoryview`...), which are copied first. A `const char*` parameter refuses NUL characters (`ValueError`), which C++ would not see. String results are decoded as strict UTF-8: on invalid data the `UnicodeDecodeError` keeps the bytes in `.object`. A NULL `const char*` result is `None`. The memory of a result is released even when Ctrl-C interrupts the call.
+- Enums become `IntEnum` classes, nested ones as class attributes (`Lamp.State`), with the C++ names, except Python keywords and the names that `IntEnum` reserves (`mro`, `bit_length`...), which get a trailing `_`. Arguments accept a member or an `int` (flag combinations), not `bool` or a member of another enum: `OverflowError` outside the C type, `ValueError` outside the valid range of an enum without a fixed underlying type. Results are members, or `int` for values that are not enumerators.
 - C++ exceptions raise `<module>.Error`, with `.status`, `.status_name` and the message. Errors can be pickled, for example to come back from a worker process.
 - The library is loaded from, in order:
   1. `<module>.load(path)`;
@@ -222,6 +227,8 @@ Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runne
 - Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Calling a `[[deprecated]]` function from the wrapper triggers the compiler's deprecation warning (bridgefex reports it).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
+- Enumerator values are read with the options given to bridgefex. Building the library with other options that change them (`-D`, another target for an enumerator that depends on `sizeof`) fails at a `static_assert` in the generated source.
+- A C++ identifier spelled like a generated macro (`demo_Color_Red`) is replaced by the preprocessor in code that includes the C headers.
 - Strings cross the boundary as copies. A function that keeps a `const char*`, `std::string_view` or `const std::string&` argument after it returns keeps a dangling pointer. A deleted `f(std::string&&)` overload, the usual sign of that, makes the generation fail.
 - A `const char*` result must be NUL-terminated: it is copied with `strlen`. A `const char*` result that the caller must free (`strdup`, `new[]`) leaks. A `(const char* data, size_t size)` pair is two separate parameters, and Python cannot pass NULs through `data`.
 - A string result exists briefly up to four times: as the C++ string, the C copy, Python bytes and `str`.

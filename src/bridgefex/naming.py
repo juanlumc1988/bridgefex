@@ -256,3 +256,18 @@ def derived_names(
         used.add(candidate)
         result.append(candidate)
     return tuple(result)
+
+
+# Names that an IntEnum member cannot take: 'mro' makes the class creation
+# fail, the others would hide the int method of every member. Fixed, not
+# computed from the running Python, so that the output does not depend on it.
+_ENUM_MEMBER_RESERVED = frozenset(
+    "mro as_integer_ratio bit_count bit_length conjugate from_bytes is_integer to_bytes".split()
+)
+
+
+def enum_member_name(name: str) -> str:
+    """Python name of an enumerator in an IntEnum (``None`` becomes ``None_``)."""
+    if keyword.iskeyword(name) or name in _ENUM_MEMBER_RESERVED:
+        return f"{name}_"
+    return name

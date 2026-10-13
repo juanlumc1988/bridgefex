@@ -2,7 +2,7 @@
 #ifndef TXT_VIEWS_C_H
 #define TXT_VIEWS_C_H
 
-#include "txt_runtime.h"
+#include "txt_types.h"
 
 #ifdef __cplusplus
 extern "C" {

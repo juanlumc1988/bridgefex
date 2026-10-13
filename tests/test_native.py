@@ -317,6 +317,8 @@ def test_classes_named_like_generated_python_names(
         (("demo", "scalars"), True),
         (("strings", "demo"), False),
         (("strings", "demo"), True),
+        (("enums", "strings"), False),
+        (("enums", "strings"), True),
     ],
 )
 def test_unity_build(
@@ -334,7 +336,8 @@ def test_unity_build(
     unity.write_text("".join(f'#include "{source.name}"\n' for source in sources), encoding="utf-8")
     include_dirs = [*directories, *(GOLDEN_DIR / module / "input" for module in modules)]
     # The strings case needs C++17 (std::string_view).
-    for wanted in ("c++17",) if "strings" in modules else ("c++14", "c++17"):
+    needs_cxx17 = {"strings", "enums"} & set(modules)
+    for wanted in ("c++17",) if needs_cxx17 else ("c++14", "c++17"):
         flag = standard(toolchain, "c++", wanted, probe_dir)
         toolchain.syntax_check(unity, "c++", flag, include_dirs).check()
 

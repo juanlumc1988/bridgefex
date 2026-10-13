@@ -3,14 +3,7 @@
 #ifndef {{ h.guard }}
 #define {{ h.guard }}
 
-#include "{{ m.runtime_header }}"
-{% if h.classes %}
-
-/* Opaque handles. */
-{% for c in h.classes %}
-typedef struct {{ c.c_type }} {{ c.c_type }};
-{% endfor %}
-{% endif %}
+#include "{{ m.types_header }}"
 
 #ifdef __cplusplus
 extern "C" {

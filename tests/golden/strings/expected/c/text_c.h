@@ -2,10 +2,7 @@
 #ifndef TXT_TEXT_C_H
 #define TXT_TEXT_C_H
 
-#include "txt_runtime.h"
-
-/* Opaque handles. */
-typedef struct text_Person text_Person;
+#include "txt_types.h"
 
 #ifdef __cplusplus
 extern "C" {

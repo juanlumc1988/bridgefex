@@ -4,7 +4,7 @@ import builtins as _builtins
 import ctypes
 import threading
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "first_word",

@@ -29,8 +29,8 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         # Declarations at namespace scope.
         ("template <typename T> class Box {};", "template 'Box' is not supported"),
         ("template <typename T> T id(T v);", "template 'id' is not supported"),
-        ("enum Color { red };", "enum 'Color' is not supported yet"),
-        ("enum class Mode { a };", "enum 'Mode' is not supported yet"),
+        ("enum { red };", "anonymous enums are not supported yet"),
+        ("namespace n { enum { a }; }", "anonymous enums are not supported yet"),
         ("union U { int a; };", "union 'U' is not supported"),
         ("extern int counter;", "global variable 'counter' is not supported"),
         ('extern "C" { int c_function(); }', 'extern "C" blocks are not supported'),
@@ -49,7 +49,7 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("class A { public: int value; };", "public data member 'A::value'"),
         ("class A { public: static int shared; };", "public data member 'A::shared'"),
         ("class A { public: struct Inner {}; };", "nested type 'A::Inner'"),
-        ("class A { public: enum E { x }; };", "nested type 'A::E'"),
+        ("class A { public: struct N {}; };", "nested type 'A::N'"),
         ("class A { ~A(); public: int f(); };", "has no public destructor"),
         ("class A { public: ~A() = delete; };", "has no public destructor"),
         ("class A { A(); public: int f(); };", "no public constructor"),
@@ -83,7 +83,22 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("using Id = int; void f(Id id);", "type alias 'Id' is not supported yet"),
         ("void f(volatile int v);", "volatile"),
         ("void f(int (&values)[3]);", "non-const references"),
-        ("enum class E { a }; void f(E e);", "enum"),
+        # Enums.
+        ("void f(std::byte b);", "std::byte is not supported yet; use std::uint8_t"),
+        ("#include <new>\nvoid f(std::align_val_t a);", "standard library enum 'std::align_val_t'"),
+        ("enum E { a = 0x80000000 };", "does not fit in int"),
+        ("enum E { a = -2147483649LL };", "does not fit in int"),
+        ("enum class E : bool { a };", "underlying type 'bool' is not supported"),
+        ("enum class E : std::size_t { a };", "underlying type 'size_t' is not supported"),
+        ("enum class E : char { a };", "plain 'char' is not supported"),
+        ("enum class E : wchar_t { a };", "wchar_t"),
+        ("typedef unsigned char u8; enum class E : u8 { a };", "type alias 'u8'"),
+        ("enum class E { a }; void f(volatile E e);", "volatile"),
+        ("enum class E { a }; void f(E& e);", "non-const references"),
+        ("enum class E { a }; void f(E&& e);", "references are not supported yet"),
+        ("enum class E { a }; void f(const E* e);", "pointers are not supported yet"),
+        ("class A { enum P { x }; public: void f(P p); };", "enum 'P' is not public in its class"),
+        ("enum { k = 1 }; void f(decltype(k) v);", "anonymous enums are not supported yet"),
         ("void f(decltype(nullptr) p);", "nullptr_t"),
     ],
 )
@@ -105,7 +120,7 @@ def test_all_problems_are_reported_at_once(tmp_path: Path) -> None:
         """
         void a(char c);
         class B { public: int value; virtual void v(); };
-        enum E { x };
+        enum { x };
         """,
     )
     # char, the data member, the virtual method, the missing virtual destructor, the enum.

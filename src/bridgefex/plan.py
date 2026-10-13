@@ -18,6 +18,8 @@ from . import naming
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
     Class,
+    Enumeration,
+    EnumRef,
     Function,
     Header,
     Module,
@@ -249,6 +251,95 @@ class LoweredResult:
     """Statements that reset those outputs, so they are NULL on every failure."""
 
 
+# How each C type spells its constants: a suffix, or a macro of <stdint.h>.
+# The spelling depends on the type, never on the value, so that every constant
+# has exactly the (promoted) type of the enum: 2147483648 of a uint64_t enum is
+# UINT64_C(2147483648), and ~ keeps its upper bits.
+_LITERAL_FORMS = {
+    "signed char": "",
+    "unsigned char": "",
+    "short": "",
+    "unsigned short": "",
+    "int": "",
+    "unsigned int": "U",
+    "long": "L",
+    "unsigned long": "UL",
+    "long long": "LL",
+    "unsigned long long": "ULL",
+    "int8_t": "",
+    "uint8_t": "",
+    "int16_t": "",
+    "uint16_t": "",
+    "int32_t": "INT32_C",
+    "uint32_t": "UINT32_C",
+    "int64_t": "INT64_C",
+    "uint64_t": "UINT64_C",
+}
+
+
+def c_literal(value: int, c_type: str) -> str:
+    """``value`` as a C constant of the type ``c_type`` (after the integer
+    promotions), without casts, so that it also works in ``#if``."""
+    form = _LITERAL_FORMS[c_type]
+
+    def literal(number: int) -> str:
+        return f"{form}({number})" if form.endswith("_C") else f"{number}{form}"
+
+    if value >= 0:
+        return literal(value)
+    if -value in (2**31, 2**63):
+        # The minimum of a 32 or 64-bit type: its magnitude is not a constant
+        # of the type.
+        return f"(-{literal(-value - 1)} - 1)"
+    return f"(-{literal(-value)})"
+
+
+@dataclass(frozen=True, slots=True)
+class EnumeratorPlan:
+    model_name: str
+    macro: str
+    literal: str
+    py_name: str
+    value: int
+    deprecated: bool
+
+
+@dataclass(frozen=True, slots=True)
+class EnumPlan:
+    model: Enumeration
+    c_type: str
+    enumerators: tuple[EnumeratorPlan, ...]
+    py_name: str
+    """Its name in the header module, or the class attribute of a nested enum."""
+
+    py_qualname: str
+    py_module: str
+
+    @property
+    def cpp_name(self) -> str:
+        return "::" + self.model.qualified_name
+
+    @property
+    def ctypes_type(self) -> str:
+        return f"ctypes.{self.model.underlying.ctypes_name}"
+
+    @property
+    def py_type(self) -> str:
+        """The IntEnum, as the generated header modules name it."""
+        return f"_types.{self.c_type}"
+
+    @property
+    def comment(self) -> str:
+        valid = self.model.valid_range
+        if valid is None:
+            return self.model.description
+        return f"{self.model.description}: only the values {valid[0]}..{valid[1]} are valid"
+
+    @property
+    def has_deprecated(self) -> bool:
+        return any(enumerator.deprecated for enumerator in self.enumerators)
+
+
 @dataclass(frozen=True, slots=True)
 class ClassPlan:
     model: Class
@@ -261,9 +352,17 @@ class ClassPlan:
     members: tuple[PyCallable, ...]
     """Methods and static methods, in source order."""
 
+    enums: tuple[EnumPlan, ...] = ()
+    """Nested enums."""
+
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
+
+    @property
+    def py_pointer(self) -> str:
+        """The ctypes pointer type, as the generated header modules name it."""
+        return f"_types.{self.pointer_name}"
 
     @property
     def single_constructor(self) -> bool:
@@ -295,12 +394,31 @@ class HeaderPlan:
     c_header: str
     c_source: str
     guard: str
-    items: tuple[ClassPlan | FunctionPlan, ...]
-    """Classes and free functions, in source order."""
+    items: tuple[ClassPlan | FunctionPlan | EnumPlan, ...]
+    """Classes, free functions and enums, in source order."""
+
+    foreign_enums: tuple[EnumPlan, ...] = ()
+    """Enums of other headers with a fixed underlying type that this header uses."""
 
     @property
     def classes(self) -> tuple[ClassPlan, ...]:
         return tuple(item for item in self.items if isinstance(item, ClassPlan))
+
+    @property
+    def types(self) -> tuple[ClassPlan | EnumPlan, ...]:
+        """Handles and enums, in source order; nested enums after their class."""
+        types: list[ClassPlan | EnumPlan] = []
+        for item in self.items:
+            if isinstance(item, ClassPlan):
+                types += [item, *item.enums]
+            elif isinstance(item, EnumPlan):
+                types.append(item)
+        return tuple(types)
+
+    @property
+    def enums(self) -> tuple[EnumPlan, ...]:
+        """The enums this header defines, nested ones included."""
+        return tuple(item for item in self.types if isinstance(item, EnumPlan))
 
     @property
     def c_functions(self) -> tuple[CFunction, ...]:
@@ -308,14 +426,14 @@ class HeaderPlan:
         for item in self.items:
             if isinstance(item, ClassPlan):
                 functions += item.c_functions
-            else:
+            elif isinstance(item, FunctionPlan):
                 functions.append(item.c_function)
         return tuple(functions)
 
     @property
     def py_exports(self) -> tuple[str, ...]:
         return tuple(
-            item.py_name if isinstance(item, ClassPlan) else item.py.name for item in self.items
+            item.py.name if isinstance(item, FunctionPlan) else item.py_name for item in self.items
         )
 
     @property
@@ -340,7 +458,7 @@ def _header_types(header: Header) -> Iterable[Type]:
         if isinstance(declaration, Function):
             yield from (parameter.type for parameter in declaration.parameters)
             yield declaration.result
-        else:
+        elif isinstance(declaration, Class):
             for constructor in declaration.constructors:
                 yield from (parameter.type for parameter in constructor.parameters)
             for method in declaration.methods:
@@ -380,7 +498,11 @@ class ModulePlan:
     @property
     def public_headers(self) -> tuple[str, ...]:
         """The generated C headers, in the order the API fingerprint hashes them."""
-        return (self.runtime_header, *(header.c_header for header in self.headers))
+        return (
+            self.runtime_header,
+            self.types_header,
+            *(header.c_header for header in self.headers),
+        )
 
     @property
     def runtime_header(self) -> str:
@@ -391,6 +513,10 @@ class ModulePlan:
         return f"{self.name}_runtime_internal.hpp"
 
     @property
+    def types_header(self) -> str:
+        return f"{self.name}_types.h"
+
+    @property
     def runtime_source(self) -> str:
         return f"{self.name}_runtime.cpp"
 
@@ -398,6 +524,9 @@ class ModulePlan:
     def library_env_var(self) -> str:
         return f"{self.macro_prefix}_LIBRARY"
 
+
+_INT_MIN = -(2**31)
+_INT_MAX = 2**31 - 1
 
 # Longest line written in one piece in the generated Python code.
 _MAX_LINE_LENGTH = 99
@@ -409,8 +538,11 @@ def _spelling(type_: Type) -> str:
     return type_.cpp_spelling
 
 
-def _token(type_: Type) -> str:
-    """Name of a type in overload suffixes."""
+def _token(type_: Type, enums: dict[str, EnumPlan]) -> str:
+    """Name of a type in overload suffixes: the C type name for an enum."""
+    if isinstance(type_, EnumRef):
+        enum = enums.get(type_.usr)
+        return enum.c_type if enum is not None else "enum"
     return type_.token
 
 
@@ -474,6 +606,22 @@ class _Builder:
         for header in module.headers:
             self._parameter_macros |= header.names.object_macro_names
         self._overloads = self._count_overloads(module)
+        # Every enum of the module, by USR: a header can use the enums of the others.
+        self._enums: dict[str, EnumPlan] = {}
+        self._enum_headers: dict[str, Header] = {}
+        for header in module.headers:
+            for declaration in header.declarations:
+                nested = declaration.enums if isinstance(declaration, Class) else ()
+                scope = (declaration,) if isinstance(declaration, Class) else ()
+                enums = (declaration,) if isinstance(declaration, Enumeration) else nested
+                for enum in enums:
+                    plan = self._enum_plan(enum, header, scope)
+                    self._enums.setdefault(enum.usr, plan)
+                    self._enum_headers.setdefault(enum.usr, header)
+        # A parameter named like an enumerator macro would be replaced by it.
+        self._parameter_macros |= {
+            enumerator.macro for enum in self._enums.values() for enumerator in enum.enumerators
+        }
 
     # Bookkeeping -------------------------------------------------------------
 
@@ -484,7 +632,7 @@ class _Builder:
             for declaration in header.declarations:
                 if isinstance(declaration, Function):
                     counts[("function", *declaration.namespace, declaration.name)] += 1
-                else:
+                elif isinstance(declaration, Class):
                     key = (*declaration.namespace, declaration.name)
                     counts[("constructor", *key)] += len(declaration.constructors)
                     for method in declaration.methods:
@@ -526,13 +674,81 @@ class _Builder:
 
     def _suffix(self, key: tuple[str, ...], parameters: Sequence[Parameter]) -> str:
         if self._overloads[key] > 1:
-            return naming.overload_suffix([_token(parameter.type) for parameter in parameters])
+            return naming.overload_suffix(
+                [_token(parameter.type, self._enums) for parameter in parameters]
+            )
         return ""
+
+    # Enums -------------------------------------------------------------------
+
+    def _enum_plan(self, model: Enumeration, header: Header, scope: tuple[Class, ...]) -> EnumPlan:
+        prefix = naming.c_prefix(model.namespace, self.module.name)
+        c_type = "_".join((prefix, *model.scope, model.name))
+        what = f"enum '{model.qualified_name}'"
+        self._reserve_c_name(c_type, f"the type of {what}", model.location)
+        enumerators: list[EnumeratorPlan] = []
+        py_names: dict[str, str] = {}
+        for enumerator in model.enumerators:
+            macro = f"{c_type}_{enumerator.name}"
+            self._reserve_c_name(
+                macro,
+                f"the constant of '{model.qualified_name}::{enumerator.name}'",
+                model.location,
+            )
+            py_name = naming.enum_member_name(enumerator.name)
+            if py_name in py_names:
+                self.errors.append(
+                    Diagnostic(
+                        f"enumerators '{py_names[py_name]}' and '{enumerator.name}' of {what} get "
+                        f"the same Python name '{py_name}'",
+                        model.location,
+                    )
+                )
+            py_names[py_name] = enumerator.name
+            enumerators.append(
+                EnumeratorPlan(
+                    model_name=enumerator.name,
+                    macro=macro,
+                    literal=c_literal(enumerator.value, model.underlying.c_name),
+                    py_name=py_name,
+                    value=enumerator.value,
+                    deprecated=enumerator.deprecated,
+                )
+            )
+        # Nested: the class attribute; the class name is final once the header
+        # module's names are assigned (see build_header).
+        py_name = naming.member_name(model.name) if scope else naming.python_name(model.name)
+        return EnumPlan(
+            model=model,
+            c_type=c_type,
+            enumerators=tuple(enumerators),
+            py_name=py_name,
+            py_qualname=py_name,
+            py_module=f"{self.module.name}.{header.stem}",
+        )
+
+    def _enum(self, ref: EnumRef, location: Location) -> EnumPlan | None:
+        """The enum of a reference, or None (reported) if no wrapped header defines it."""
+        enum = self._enums.get(ref.usr)
+        if enum is not None:
+            return enum
+        if ref.definition is None:
+            message = (
+                f"enum '{ref.qualified_name}' has no definition in the wrapped headers "
+                "(opaque enums are not supported yet)"
+            )
+        else:
+            message = (
+                f"enum '{ref.qualified_name}' is defined in {ref.definition.file}, which is "
+                "not one of the wrapped headers"
+            )
+        self.errors.append(Diagnostic(message, location))
+        return None
 
     # Lowering: how each type crosses the boundary --------------------------------
 
     def _lower_params(
-        self, parameters: Sequence[Parameter], reserved: Iterable[str] = ()
+        self, parameters: Sequence[Parameter], location: Location, reserved: Iterable[str] = ()
     ) -> list[LoweredParam]:
         taken = self._parameter_macros | frozenset(reserved)
         cpp_names = [parameter.name for parameter in parameters]
@@ -548,13 +764,17 @@ class _Builder:
             taken,
         )
         return [
-            self._lower_param(name, size, parameter.type)
+            self._lower_param(name, size, parameter.type, location)
             for name, size, parameter in zip(names, sizes, parameters, strict=True)
         ]
 
-    def _lower_param(self, name: str, size: str | None, type_: Type) -> LoweredParam:
+    def _lower_param(
+        self, name: str, size: str | None, type_: Type, location: Location
+    ) -> LoweredParam:
         if isinstance(type_, StringType):
             return self._lower_string_param(name, size, type_)
+        if isinstance(type_, EnumRef):
+            return self._lower_enum_param(name, self._enum(type_, location))
         return LoweredParam(
             c_params=(CParam(name, type_.c_name, Role.INPUT, f"ctypes.{type_.ctypes_name}"),),
             argument=name,
@@ -597,11 +817,66 @@ class _Builder:
             call_args=(name, size),
         )
 
-    def _lower_result(self, type_: Type) -> LoweredResult:
+    def _lower_enum_param(self, name: str, enum: EnumPlan | None) -> LoweredParam:
+        if enum is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        checks: list[Precondition] = []
+        valid = enum.model.valid_range
+        conversion = (
+            f'{name} = _runtime.to_enum({name}, {enum.py_type}, {enum.ctypes_type}, "{name}"'
+        )
+        if valid is not None:
+            # Other values are undefined behaviour for an enum without a fixed
+            # underlying type. int needs no check at its own limits.
+            low, high = valid
+            terms = [f"{name} < {low}"] if low > _INT_MIN else []
+            terms += [f"{name} > {high}"] if high < _INT_MAX else []
+            if terms:
+                checks.append(
+                    Precondition(
+                        " || ".join(terms),
+                        "invalid_argument",
+                        f"'{name}' is not a value of {enum.model.qualified_name} ({low}..{high})",
+                    )
+                )
+            conversion += f", ({low}, {high})"
+        return LoweredParam(
+            c_params=(CParam(name, enum.c_type, Role.INPUT, enum.ctypes_type),),
+            argument=f"static_cast<{enum.cpp_name}>({name})",
+            null_checks=(),
+            value_checks=tuple(checks),
+            py=PyArg(name, (conversion + ")",)),
+            call_args=(name,),
+        )
+
+    def _lower_enum_result(self, enum: EnumPlan | None) -> LoweredResult:
+        if enum is None:  # reported
+            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    f"{enum.c_type}*",
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER({enum.ctypes_type})",
+                ),
+            ),
+            statement=f"*out_result = static_cast<{enum.c_type}>({{call}});",
+            null_checks=(_null_check("out_result"),),
+            py=PyResult(
+                setup=(f"_out = {enum.ctypes_type}()",),
+                value=f"_runtime.enum_result({enum.py_type}, _out.value)",
+            ),
+            call_args=("_out",),
+        )
+
+    def _lower_result(self, type_: Type, location: Location) -> LoweredResult:
         if type_.is_void:
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
         if isinstance(type_, StringType):
             return self._lower_string_result(type_)
+        if isinstance(type_, EnumRef):
+            return self._lower_enum_result(self._enum(type_, location))
         return LoweredResult(
             c_params=(
                 CParam(
@@ -665,7 +940,7 @@ class _Builder:
 
         ``call`` is the wrapped call, with ``{arguments}`` where the arguments go.
         """
-        lowered = self._lower_result(result)
+        lowered = self._lower_result(result, location)
         leading = (self_param,) if self_param is not None else ()
         null_checks = [_null_check(param.name) for param in leading]
         for param in params:
@@ -727,7 +1002,7 @@ class _Builder:
 
         def self_param(is_const: bool) -> CParam:
             qualifier = "const " if is_const else ""
-            return CParam("self", f"{qualifier}{c_type}*", Role.SELF, pointer_name)
+            return CParam("self", f"{qualifier}{c_type}*", Role.SELF, f"_types.{pointer_name}")
 
         def cast_self(is_const: bool) -> str:
             # The C handle is an opaque struct; in C++ it points to the class.
@@ -741,9 +1016,12 @@ class _Builder:
             what = f"constructor '{cpp_name}({_describe_params(constructor.parameters)})'"
             self._reserve_c_name(name, what, constructor.location)
             out_self = CParam(
-                "out_self", f"{c_type}**", Role.OUT_SELF, f"ctypes.POINTER({pointer_name})"
+                "out_self",
+                f"{c_type}**",
+                Role.OUT_SELF,
+                f"ctypes.POINTER(_types.{pointer_name})",
             )
-            params = self._lower_params(constructor.parameters, reserved=(pointer_name,))
+            params = self._lower_params(constructor.parameters, constructor.location)
             arguments = ", ".join(param.argument for param in params)
             description = (
                 f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
@@ -785,12 +1063,13 @@ class _Builder:
         factory_names = {item.name for item in constructors}
         members: list[PyCallable] = []
         py_names: dict[str, Location] = {}
+        enums = self._nested_enums(model, factory_names, py_names)
         for method in model.methods:
             suffix = self._suffix(("method", *key, method.name), method.parameters)
             name = f"{c_type}_{method.name}{suffix}"
             what = f"method '{cpp_name}::{method.name}({_describe_params(method.parameters)})'"
             self._reserve_c_name(name, what, method.location)
-            params = self._lower_params(method.parameters)
+            params = self._lower_params(method.parameters, method.location)
             qualifiers = " const" if method.is_const else ""
             static = "static " if method.is_static else ""
             description = (
@@ -840,7 +1119,20 @@ class _Builder:
             constructors=tuple(constructors),
             destroy=destroy,
             members=tuple(members),
+            enums=enums,
         )
+
+    def _nested_enums(
+        self, model: Class, factory_names: set[str], py_names: dict[str, Location]
+    ) -> tuple[EnumPlan, ...]:
+        """The plans of the enums nested in a class, with their attribute names
+        (added to ``py_names``, which the methods must not take)."""
+        enums: list[EnumPlan] = []
+        for enum in model.enums:
+            py_name = naming.member_name(enum.name, reserved=factory_names)
+            py_names[py_name] = enum.location
+            enums.append(dataclasses.replace(self._enums[enum.usr], py_name=py_name))
+        return tuple(enums)
 
     def build_function(self, model: Function) -> FunctionPlan:
         prefix = naming.c_prefix(model.namespace, self.module.name)
@@ -848,7 +1140,7 @@ class _Builder:
         name = f"{prefix}_{model.name}{suffix}"
         what = f"function '{model.qualified_name}({_describe_params(model.parameters)})'"
         self._reserve_c_name(name, what, model.location)
-        params = self._lower_params(model.parameters)
+        params = self._lower_params(model.parameters, model.location)
         description = (
             f"{_spelling(model.result)} {model.qualified_name}"
             f"({_describe_params(model.parameters)})"
@@ -868,12 +1160,21 @@ class _Builder:
         stem = naming.check_header_stem(header.stem)
         guard = naming.header_guard(self.module.name, stem)
         self._reserve_c_name(guard, f"the include guard of the C header of {header.path}", None)
-        items: list[ClassPlan | FunctionPlan] = []
+        items: list[ClassPlan | FunctionPlan | EnumPlan] = []
         for declaration in header.declarations:
             if isinstance(declaration, Class):
                 items.append(self.build_class(declaration))
-            else:
+            elif isinstance(declaration, Function):
                 items.append(self.build_function(declaration))
+            else:
+                items.append(self._enums[declaration.usr])
+        foreign: dict[str, EnumPlan] = {}
+        for type_ in _header_types(header):
+            if isinstance(type_, EnumRef) and type_.usr in self._enums:
+                owner = self._enum_headers[type_.usr]
+                enum = self._enums[type_.usr]
+                if owner is not header and enum.model.fixed:
+                    foreign.setdefault(type_.usr, enum)
         return HeaderPlan(
             header=header,
             stem=stem,
@@ -881,23 +1182,31 @@ class _Builder:
             c_source=f"{stem}_c.cpp",
             guard=guard,
             items=self._assign_module_names(items),
+            foreign_enums=tuple(foreign.values()),
         )
 
     def _assign_module_names(
-        self, items: Sequence[ClassPlan | FunctionPlan]
-    ) -> tuple[ClassPlan | FunctionPlan, ...]:
-        """Give classes and functions Python names that do not hide generated globals."""
-        reserved = {item.struct_name for item in items if isinstance(item, ClassPlan)}
-        reserved |= {item.pointer_name for item in items if isinstance(item, ClassPlan)}
-        renamed: list[ClassPlan | FunctionPlan] = []
+        self, items: Sequence[ClassPlan | FunctionPlan | EnumPlan]
+    ) -> tuple[ClassPlan | FunctionPlan | EnumPlan, ...]:
+        """Give classes, functions and enums Python names that do not hide generated
+        globals, and nested enums their final qualified name."""
+        renamed: list[ClassPlan | FunctionPlan | EnumPlan] = []
         seen: dict[str, Location] = {}
         for item in items:
             if isinstance(item, ClassPlan):
-                name = naming.module_level_name(item.py_name, reserved)
+                name = naming.module_level_name(item.py_name)
                 location = item.model.location
-                renamed.append(dataclasses.replace(item, py_name=name))
+                enums = tuple(
+                    dataclasses.replace(enum, py_qualname=f"{name}.{enum.py_name}")
+                    for enum in item.enums
+                )
+                renamed.append(dataclasses.replace(item, py_name=name, enums=enums))
+            elif isinstance(item, EnumPlan):
+                name = naming.module_level_name(item.py_name)
+                location = item.model.location
+                renamed.append(dataclasses.replace(item, py_name=name, py_qualname=name))
             else:
-                name = naming.module_level_name(item.py.name, reserved)
+                name = naming.module_level_name(item.py.name)
                 location = item.model.location
                 renamed.append(
                     dataclasses.replace(item, py=dataclasses.replace(item.py, name=name))

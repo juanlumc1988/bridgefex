@@ -8,7 +8,15 @@ from pathlib import Path
 import pytest
 
 from bridgefex.errors import ConfigurationError, GenerationError
-from bridgefex.model import Class, Function, Header, StringKind, StringType
+from bridgefex.model import (
+    Class,
+    Enumeration,
+    EnumRef,
+    Function,
+    Header,
+    StringKind,
+    StringType,
+)
 from bridgefex.parser import ParseOptions, parse_header
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -383,3 +391,144 @@ def test_a_namespace_std_that_is_not_the_global_one(tmp_path: Path) -> None:
     )
     with pytest.raises(GenerationError, match="classes passed by value"):
         parse_header(path, "input.h", ParseOptions(extra_args=("-isystem", str(system))))
+
+
+def enums_of(header: Header) -> dict[str, Enumeration]:
+    return {d.name: d for d in header.declarations if isinstance(d, Enumeration)}
+
+
+def test_fixed_underlying_types_are_detected(tmp_path: Path) -> None:
+    enums = enums_of(
+        parse(
+            tmp_path,
+            """
+            #define BASE : unsigned int
+            namespace e {
+            enum [[deprecated("use X : now")]] Attr1 { a1 };
+            enum [[deprecated("x : unsigned int")]] Attr3 { a3 };
+            enum Attr2 : unsigned int { a2 };
+            enum ViaMacro BASE { m };
+            typedef enum : std::uint8_t { t1 } TypedefFixed;
+            typedef enum { t2 } TypedefUnfixed;
+            enum Long : long { l };
+            enum Plain { p };
+            enum class Scoped { s };
+            enum __attribute__((packed)) Packed { k };
+            }
+            """,
+        )
+    )
+    fixed = {name: enum.fixed for name, enum in enums.items()}
+    assert fixed == {
+        "Attr1": False,
+        "Attr3": False,
+        "Attr2": True,
+        "ViaMacro": True,
+        "TypedefFixed": True,
+        "TypedefUnfixed": False,
+        "Long": True,
+        "Plain": False,
+        "Scoped": True,
+        "Packed": False,
+    }
+    assert enums["Scoped"].underlying.c_name == "int"
+    assert enums["TypedefFixed"].underlying.c_name == "uint8_t"
+    assert enums["Long"].underlying.c_name == "long"
+    # The typedef'd one is visited once.
+    assert [d.name for d in enums_of(parse(tmp_path, "typedef enum { a } T;")).values()] == ["T"]
+
+
+def test_enumerator_values(tmp_path: Path) -> None:
+    enums = enums_of(
+        parse(
+            tmp_path,
+            """
+            namespace e {
+            enum class U8 : std::uint8_t { x = 255 };
+            enum class U64 : std::uint64_t { max = 18446744073709551615ULL, half = 1ULL << 63 };
+            enum class I64 : std::int64_t { min = INT64_MIN };
+            enum Neg { n = -5 };
+            enum class Old { a, b [[deprecated]] = 2 };
+            }
+            """,
+        )
+    )
+    values = {
+        name: [(x.name, x.value, x.deprecated) for x in enum.enumerators]
+        for name, enum in enums.items()
+    }
+    assert values == {
+        "U8": [("x", 255, False)],
+        "U64": [("max", 2**64 - 1, False), ("half", 2**63, False)],
+        "I64": [("min", -(2**63), False)],
+        "Neg": [("n", -5, False)],
+        "Old": [("a", 0, False), ("b", 2, True)],
+    }
+
+
+def test_using_enum_and_opaque_declarations_are_skipped(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        namespace e {
+        enum class Late : int;
+        enum class Color { red };
+        struct W { using enum Color; void f(); };
+        using enum Color;
+        enum class Late : int { x };
+        }
+        """,
+        std="c++20",
+    )
+    assert [d.name for d in header.declarations] == ["Color", "W", "Late"]
+    (cls,) = [d for d in header.declarations if isinstance(d, Class)]
+    assert cls.enums == ()
+
+
+def test_nested_enums_and_enum_references(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        namespace e {
+        enum class Color { red };
+        using Colour = Color;
+        class W {
+        public:
+            enum Mode { a, b };
+            void f(Mode m, const Colour& c, const Color k);
+        private:
+            enum Hidden { h };
+        };
+        }
+        """,
+    )
+    cls = only_class_of(header)
+    assert [enum.name for enum in cls.enums] == ["Mode"]
+    (mode,) = cls.enums
+    assert mode.qualified_name == "e::W::Mode"
+    assert mode.scope == ("W",)
+    types = [parameter.type for parameter in cls.methods[0].parameters]
+    assert [t.qualified_name for t in types] == ["e::W::Mode", "e::Color", "e::Color"]  # type: ignore[union-attr]
+    assert all(isinstance(t, EnumRef) for t in types)
+
+
+def only_class_of(header: Header) -> Class:
+    (cls,) = [d for d in header.declarations if isinstance(d, Class)]
+    return cls
+
+
+def test_enumerators_that_msvc_would_truncate_are_rejected_for_its_target(
+    tmp_path: Path,
+) -> None:
+    """MSVC gives such an enum the type int: its target must reject it too."""
+    path = tmp_path / "input.h"
+    path.write_text("#pragma once\nenum E { big = 0x80000000 };\n", encoding="utf-8")
+    for target, message in (
+        ("x86_64-pc-windows-msvc", "not representable in the underlying type 'int'"),
+        ("x86_64-linux-gnu", "does not fit in int"),
+        ("armv7-none-eabi", "does not fit in int"),
+    ):
+        # Not even when the options ask for it.
+        options = ParseOptions(extra_args=(f"--target={target}", "-Wno-microsoft-enum-value"))
+        with pytest.raises(GenerationError, match=message):
+            parse_header(path, "input.h", options)

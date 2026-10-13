@@ -197,7 +197,11 @@ def _check_python(plan: ModulePlan, files: Mapping[str, str], root: Path) -> lis
     if errors or not sys.executable:
         return errors
     write_files(python_files, root)
-    modules = [plan.name, *(f"{plan.name}.{header.stem}" for header in plan.headers)]
+    modules = [
+        plan.name,
+        f"{plan.name}._types",
+        *(f"{plan.name}.{header.stem}" for header in plan.headers),
+    ]
     command = [sys.executable, "-I", "-B", "-X", "dev", "-W", "error", "-c", _IMPORT_ALL]
     try:
         completed = subprocess.run(

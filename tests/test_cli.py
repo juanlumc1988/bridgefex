@@ -27,7 +27,7 @@ def test_generates_the_golden_output(
         pytest.skip("the golden files are being rewritten by test_golden.py")
     assert main(["-m", "demo", "-o", str(tmp_path), str(COUNTER), str(GEOMETRY)]) == 0
     assert read_tree(tmp_path) == read_tree(GOLDEN_DIR / "demo" / "expected")
-    assert "wrote 11 files" in capsys.readouterr().out
+    assert "wrote 13 files" in capsys.readouterr().out
 
 
 def test_lang_none_generates_only_the_c_layer(tmp_path: Path) -> None:
@@ -38,6 +38,7 @@ def test_lang_none_generates_only_the_c_layer(tmp_path: Path) -> None:
         "c/demo_runtime.cpp",
         "c/demo_runtime.h",
         "c/demo_runtime_internal.hpp",
+        "c/demo_types.h",
     ]
 
 

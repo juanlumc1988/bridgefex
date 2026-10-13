@@ -94,8 +94,82 @@ class StringType:
         return f"const {name}&" if self.by_reference else name
 
 
-Type = ScalarType | StringType
+@dataclass(frozen=True, slots=True)
+class EnumRef:
+    """A use of an enum type; the plan finds its definition (:class:`Enumeration`) by USR,
+    in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    """Where the definition seen by the using header is, if it sees one."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def cpp_spelling(self) -> str:
+        return self.qualified_name
+
+
+Type = ScalarType | StringType | EnumRef
 """Every type that can cross the C boundary."""
+
+
+@dataclass(frozen=True, slots=True)
+class Enumerator:
+    name: str
+    value: int
+    deprecated: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Enumeration:
+    """An enum definition."""
+
+    name: str
+    namespace: tuple[str, ...]
+    scope: tuple[str, ...]
+    """The class that the enum is nested in, or ()."""
+
+    usr: str
+    scoped: bool
+    """``enum class``."""
+
+    underlying: ScalarType
+    """The C type: the fixed underlying type, or ``int``."""
+
+    fixed: bool
+    """True if the underlying type is fixed: then every value of it is valid."""
+
+    enumerators: tuple[Enumerator, ...]
+    location: Location
+
+    @property
+    def qualified_name(self) -> str:
+        return "::".join((*self.namespace, *self.scope, self.name))
+
+    @property
+    def valid_range(self) -> tuple[int, int] | None:
+        """The values of an enum without a fixed underlying type ([dcl.enum]/8),
+        or None when the underlying type is fixed."""
+        if self.fixed:
+            return None
+        values = [enumerator.value for enumerator in self.enumerators]
+        low, high = min(values, default=0), max(values, default=0)
+        if low >= 0:
+            bits = max(high.bit_length(), 1)
+            return 0, (1 << bits) - 1
+        bits = max(max(high, 0).bit_length(), (-low - 1).bit_length())
+        return -(1 << bits), (1 << bits) - 1
+
+    @property
+    def description(self) -> str:
+        """The declaration, spelled the same on every platform."""
+        key = "enum class" if self.scoped else "enum"
+        base = f" : {self.underlying.c_name}" if self.fixed else ""
+        return f"{key} {self.qualified_name}{base}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,13 +223,15 @@ class Class:
     constructors: tuple[Constructor, ...]
     methods: tuple[Method, ...]
     location: Location
+    enums: tuple[Enumeration, ...] = ()
+    """Public enums nested in the class."""
 
     @property
     def qualified_name(self) -> str:
         return "::".join((*self.namespace, self.name))
 
 
-Declaration = Class | Function
+Declaration = Class | Function | Enumeration
 
 
 @dataclass(frozen=True, slots=True)

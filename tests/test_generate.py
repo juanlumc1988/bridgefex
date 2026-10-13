@@ -205,7 +205,8 @@ def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
     ],
 )
 def test_accepted(tmp_path: Path, code: str, expected: str) -> None:
-    assert expected in generate(tmp_path, code).files["c/api_c.h"]
+    files = generate(tmp_path, code).files
+    assert expected in files["c/api_c.h"] + files["c/mod_types.h"]
 
 
 def test_header_names_that_replace_package_names(tmp_path: Path) -> None:
@@ -654,3 +655,36 @@ def test_python_import_errors_are_reported(tmp_path: Path, monkeypatch: pytest.M
     # Without Python bindings, nothing is imported.
     header = write_header(tmp_path, "namespace v { int f(); }")
     bridgefex.generate([header], bridgefex.Options("mod", languages=()))
+
+
+def test_enums_of_headers_that_are_not_wrapped(tmp_path: Path) -> None:
+    (tmp_path / "other.h").write_text(
+        "#pragma once\nnamespace o { enum class Color { red }; }\n", encoding="utf-8"
+    )
+    error = error_of(tmp_path, '#include "other.h"\nnamespace u { void f(o::Color c); }')
+    assert "enum 'o::Color' is defined in" in error
+    assert "other.h, which is not one of the wrapped headers" in error
+
+
+def test_opaque_enums_need_a_definition(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "namespace u { enum class Id : int; void f(Id id); }")
+    assert "enum 'u::Id' has no definition in the wrapped headers" in error
+
+
+def test_enums_across_headers(tmp_path: Path) -> None:
+    """Each header uses the other's enum through an opaque declaration."""
+    first = write_header(
+        tmp_path,
+        "namespace x { enum class B : short; enum class A : int { a }; A f(B b); }",
+        name="first.h",
+    )
+    second = write_header(
+        tmp_path,
+        "namespace x { enum class A : int; enum class B : short { b }; B g(A a); }",
+        name="second.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    assert "is_same<std::underlying_type<::x::B>::type, short>" in result.files["c/first_c.cpp"]
+    assert "is_same<std::underlying_type<::x::A>::type, int>" in result.files["c/second_c.cpp"]
+    types = result.files["c/mod_types.h"]
+    assert types.index("typedef int x_A;") < types.index("typedef short x_B;")

@@ -14,6 +14,9 @@ from bridgefex.generator import render
 from bridgefex.model import (
     Class,
     Constructor,
+    Enumeration,
+    Enumerator,
+    EnumRef,
     Function,
     Header,
     Method,
@@ -31,6 +34,7 @@ from bridgefex.plan import (
     Role,
     api_fingerprint,
     build_plan,
+    c_literal,
 )
 from bridgefex.typemap import BUILTIN_TYPES, STANDARD_TYPEDEFS, VOID
 
@@ -285,7 +289,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 2
-PINNED_RUNTIME_SHA256 = "92ced832f885fdbfb0e92efb696ce12ea87e98cb9f281e97e89707ca919bfd83"
+PINNED_RUNTIME_SHA256 = "b3d70dad1a90cff8ac1eedc4f572bed64fa0f5d348f61edf90454d5ccec1cdf5"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -540,3 +544,204 @@ def test_headers_named_like_future_generated_files(names: tuple[str, ...]) -> No
     headers = [header(function(f"f{i}"), name=name) for i, name in enumerate(names)]
     with pytest.raises(GenerationError, match="has the name of a generated file"):
         plan_for(*headers)
+
+
+@pytest.mark.parametrize(
+    ("value", "c_type", "literal"),
+    [
+        (0, "int", "0"),
+        (-1, "int", "(-1)"),
+        (-(2**31), "int", "(-2147483647 - 1)"),
+        (2**31 - 1, "int", "2147483647"),
+        (255, "unsigned char", "255"),
+        (-128, "int8_t", "(-128)"),
+        (65535, "uint16_t", "65535"),
+        (2**32 - 1, "unsigned int", "4294967295U"),
+        (-(2**31), "int32_t", "(-INT32_C(2147483647) - 1)"),
+        (2**32 - 1, "uint32_t", "UINT32_C(4294967295)"),
+        (-(2**63), "int64_t", "(-INT64_C(9223372036854775807) - 1)"),
+        (2**31, "uint64_t", "UINT64_C(2147483648)"),
+        (2**64 - 1, "uint64_t", "UINT64_C(18446744073709551615)"),
+        (-(2**63), "long", "(-9223372036854775807L - 1)"),
+        (-(2**31), "long", "(-2147483647L - 1)"),
+        (-5, "long", "(-5L)"),
+        (7, "unsigned long", "7UL"),
+        (-(2**63), "long long", "(-9223372036854775807LL - 1)"),
+        (2**64 - 1, "unsigned long long", "18446744073709551615ULL"),
+    ],
+)
+def test_c_literal(value: int, c_type: str, literal: str) -> None:
+    assert c_literal(value, c_type) == literal
+
+
+def enumeration(*values: int, fixed: bool = False) -> Enumeration:
+    return Enumeration(
+        name="E",
+        namespace=("ns",),
+        scope=(),
+        usr="c:@N@ns@E@E",
+        scoped=False,
+        underlying=BUILTIN_TYPES["INT"],
+        fixed=fixed,
+        enumerators=tuple(Enumerator(f"v{i}", value) for i, value in enumerate(values)),
+        location=HERE,
+    )
+
+
+@pytest.mark.parametrize(
+    ("values", "valid"),
+    [
+        ((0,), (0, 1)),
+        ((), (0, 1)),
+        ((0, 5), (0, 7)),
+        ((-3, 2), (-4, 3)),
+        ((-1,), (-1, 0)),
+        ((1, 2, 4), (0, 7)),
+        ((-(2**31), 0), (-(2**31), 2**31 - 1)),
+        ((2**31 - 1,), (0, 2**31 - 1)),
+        ((100, 3000), (0, 4095)),
+    ],
+)
+def test_valid_range_of_enums_without_a_fixed_type(
+    values: tuple[int, ...], valid: tuple[int, int]
+) -> None:
+    assert enumeration(*values).valid_range == valid
+    assert enumeration(*values, fixed=True).valid_range is None
+
+
+def enum_header(*declarations: Class | Function | Enumeration, name: str = "test.h") -> Header:
+    return Header(Path(name), name, tuple(declarations))
+
+
+def color(fixed: bool = True) -> Enumeration:
+    return Enumeration(
+        name="Color",
+        namespace=("ns",),
+        scope=(),
+        usr="c:@N@ns@E@Color",
+        scoped=True,
+        underlying=STANDARD_TYPEDEFS["uint8_t"].type,
+        fixed=fixed,
+        enumerators=(Enumerator("Red", 0), Enumerator("Green", 200)),
+        location=HERE,
+    )
+
+
+COLOR = EnumRef("c:@N@ns@E@Color", "ns::Color", HERE)
+
+
+def test_enum_parameters_and_results() -> None:
+    model = Function("f", ("ns",), (Parameter("c", COLOR),), COLOR, HERE)
+    plan = plan_for(enum_header(color(), model))
+    item = plan.headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    function = item.c_function
+    assert function.signature == "ns_f(ns_Color c, ns_Color* out_result)"
+    assert function.statement == (
+        "*out_result = static_cast<ns_Color>(::ns::f(static_cast<::ns::Color>(c)));"
+    )
+    assert [c.condition for c in function.checks] == ["out_result == nullptr"]
+    assert item.py.args[0].conversions == (
+        'c = _runtime.to_enum(c, _types.ns_Color, ctypes.c_uint8, "c")',
+    )
+    assert item.py.result.value == "_runtime.enum_result(_types.ns_Color, _out.value)"
+    assert function.description == "ns::Color ns::f(ns::Color c)"
+
+
+def test_enums_without_a_fixed_type_are_range_checked() -> None:
+    unfixed = dataclasses.replace(
+        color(fixed=False),
+        underlying=BUILTIN_TYPES["INT"],
+        enumerators=(Enumerator("A", -3), Enumerator("B", 2)),
+    )
+    model = Function("f", ("ns",), (Parameter("c", COLOR),), VOID, HERE)
+    item = plan_for(enum_header(unfixed, model)).headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    (check,) = item.c_function.checks
+    assert check.condition == "c < -4 || c > 3"
+    assert check.helper == "invalid_argument"
+    assert check.message == "'c' is not a value of ns::Color (-4..3)"
+    assert item.py.args[0].conversions == (
+        'c = _runtime.to_enum(c, _types.ns_Color, ctypes.c_int, "c", (-4, 3))',
+    )
+    # No check at the limits of int itself.
+    full = dataclasses.replace(unfixed, enumerators=(Enumerator("A", -(2**31)), Enumerator("B", 0)))
+    item = plan_for(enum_header(full, model)).headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    assert item.c_function.checks == ()
+
+
+def test_enum_constants_and_names() -> None:
+    plan = plan_for(enum_header(color()))
+    (enum,) = plan.headers[0].enums
+    assert enum.c_type == "ns_Color"
+    assert [(e.macro, e.literal) for e in enum.enumerators] == [
+        ("ns_Color_Red", "0"),
+        ("ns_Color_Green", "200"),
+    ]
+    assert enum.py_name == "Color"
+    assert enum.py_module == "mod.test"
+    assert plan.headers[0].py_exports == ("Color",)
+
+
+def test_enum_overload_tokens_are_their_c_type() -> None:
+    plan = plan_for(
+        enum_header(
+            color(),
+            function("f", Parameter("c", COLOR)),
+            function("f", Parameter("i", INT32)),
+        )
+    )
+    assert [f.name for f in plan.headers[0].c_functions] == ["ns_f_ns_Color", "ns_f_int32"]
+
+
+def test_enums_of_other_headers() -> None:
+    user = function("f", Parameter("c", COLOR))
+    plan = plan_for(enum_header(user, name="a.h"), enum_header(color(), name="b.h"))
+    assert plan.headers[0].foreign_enums[0].c_type == "ns_Color"
+    assert plan.headers[1].foreign_enums == ()
+    assert plan.headers[1].enums[0].py_module == "mod.b"
+    # Without a fixed underlying type, the user sees the definition: nothing to check.
+    plan = plan_for(enum_header(user, name="a.h"), enum_header(color(False), name="b.h"))
+    assert plan.headers[0].foreign_enums == ()
+
+
+def test_enums_that_no_wrapped_header_defines() -> None:
+    elsewhere = EnumRef("c:@N@ns@E@Color", "ns::Color", Location("other.h", 3, 1))
+    with pytest.raises(
+        GenerationError, match=r"defined in other\.h, which is not one of the wrapped"
+    ):
+        plan_for(enum_header(function("f", Parameter("c", elsewhere))))
+    opaque = EnumRef("c:@N@ns@E@Color", "ns::Color", None)
+    with pytest.raises(GenerationError, match="opaque enums are not supported yet"):
+        plan_for(enum_header(function("f", Parameter("c", opaque))))
+
+
+def test_enum_names_are_reserved_and_clash_checked() -> None:
+    with pytest.raises(GenerationError, match="'ns_Color_Red' of function"):
+        plan_for(enum_header(color(), function("Color_Red")))
+    with pytest.raises(GenerationError, match="'ns_Color' of function"):
+        plan_for(enum_header(color(), function("Color")))
+    # A parameter named like an enumerator constant would be replaced by it.
+    item = plan_for(enum_header(color(), function("f", Parameter("ns_Color_Red", INT32))))
+    assert item.headers[0].c_functions[0].params[0].name == "ns_Color_Red_"
+    same = dataclasses.replace(color(), enumerators=(Enumerator("None", 0), Enumerator("None_", 1)))
+    with pytest.raises(GenerationError, match="get the same Python name 'None_'"):
+        plan_for(enum_header(same))
+
+
+def test_nested_enums() -> None:
+    nested = dataclasses.replace(
+        color(), scope=("Lamp",), usr="c:@N@ns@S@Lamp@E@Color", name="close"
+    )
+    lamp = dataclasses.replace(klass("Lamp", methods=(method("close_"),)), enums=(nested,))
+    with pytest.raises(GenerationError, match="two members of '::ns::Lamp' get the Python name"):
+        plan_for(enum_header(lamp))
+    lamp = dataclasses.replace(klass("Lamp"), enums=(dataclasses.replace(nested, name="Mode"),))
+    plan = plan_for(enum_header(lamp))
+    (item,) = plan.headers[0].items
+    assert isinstance(item, ClassPlan)
+    (enum,) = item.enums
+    assert enum.c_type == "ns_Lamp_Mode"
+    assert enum.py_qualname == "Lamp.Mode"
+    assert [t.c_type for t in plan.headers[0].types] == ["ns_Lamp", "ns_Lamp_Mode"]

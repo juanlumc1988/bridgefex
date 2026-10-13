@@ -6,20 +6,13 @@ import sys as _sys
 import threading
 import weakref
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "multiply_double_double",
     "Circle",
     "distance",
 ]
-
-
-class _demo_geometry_Circle(ctypes.Structure):
-    """Opaque C handle of demo::geometry::Circle."""
-
-
-_demo_geometry_Circle__p = ctypes.POINTER(_demo_geometry_Circle)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -38,15 +31,15 @@ def _bind():
         if _lib is None:
             lib.demo_multiply_double_double.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.demo_multiply_double_double.restype = _runtime.Status
-            lib.demo_geometry_Circle_create.argtypes = [ctypes.POINTER(_demo_geometry_Circle__p), ctypes.c_double]
+            lib.demo_geometry_Circle_create.argtypes = [ctypes.POINTER(_types._demo_geometry_Circle__p), ctypes.c_double]
             lib.demo_geometry_Circle_create.restype = _runtime.Status
-            lib.demo_geometry_Circle_destroy.argtypes = [_demo_geometry_Circle__p]
+            lib.demo_geometry_Circle_destroy.argtypes = [_types._demo_geometry_Circle__p]
             lib.demo_geometry_Circle_destroy.restype = None
-            lib.demo_geometry_Circle_radius.argtypes = [_demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
+            lib.demo_geometry_Circle_radius.argtypes = [_types._demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_Circle_radius.restype = _runtime.Status
-            lib.demo_geometry_Circle_area.argtypes = [_demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
+            lib.demo_geometry_Circle_area.argtypes = [_types._demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_Circle_area.restype = _runtime.Status
-            lib.demo_geometry_Circle_scale.argtypes = [_demo_geometry_Circle__p, ctypes.c_double]
+            lib.demo_geometry_Circle_scale.argtypes = [_types._demo_geometry_Circle__p, ctypes.c_double]
             lib.demo_geometry_Circle_scale.restype = _runtime.Status
             lib.demo_geometry_distance.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_distance.restype = _runtime.Status
@@ -105,7 +98,7 @@ class Circle:
         """Wraps ``demo::geometry::Circle::Circle(double radius)``."""
         if _builtins.getattr(self, "_finalizer", None) is not None:
             raise _builtins.TypeError("Circle object is already initialized")
-        _handle = _demo_geometry_Circle__p()
+        _handle = _types._demo_geometry_Circle__p()
         radius = _runtime.to_float(radius, ctypes.c_double, "radius")
         _runtime.check(_bind().demo_geometry_Circle_create(_handle, radius))
         self._adopt(_handle)

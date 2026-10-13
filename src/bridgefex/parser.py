@@ -30,13 +30,18 @@ from .model import (
     Class,
     Constructor,
     Declaration,
+    Enumeration,
+    Enumerator,
+    EnumRef,
     Function,
     Header,
     Method,
     Parameter,
+    ScalarType,
     StringKind,
     StringType,
     Type,
+    TypeCategory,
     VisibleNames,
 )
 
@@ -53,6 +58,10 @@ class ParseOptions:
         args += [f"-I{directory}" for directory in self.include_dirs]
         args += [f"-D{definition}" for definition in self.defines]
         args += list(self.extra_args)
+        # MSVC gives an enum without a fixed underlying type the type int, and
+        # truncates larger enumerators silently: with its target, reject them,
+        # as on the other targets (see _Visitor._parse_enum).
+        args.append("-Werror=microsoft-enum-value")
         return args
 
 
@@ -360,6 +369,53 @@ def macro_defined_after(header: Path, macro: str, options: ParseOptions) -> bool
     return any(f"{_CXX11_MARKER}_macro" in str(d.spelling) for d in unit.diagnostics)
 
 
+_INT_MIN = -(2**31)
+_INT_MAX = 2**31 - 1
+
+
+def _enum_ref(clang_type: cindex.Type) -> EnumRef:
+    """A use of an enum type (through any alias).
+
+    Raises:
+        typemap.UnsupportedTypeError: an enum that cannot cross the boundary.
+    """
+    if clang_type.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+    declaration = clang_type.get_canonical().get_declaration()
+    std_name = libclang.std_declaration_name(declaration)
+    if std_name == "byte":
+        raise typemap.UnsupportedTypeError("std::byte is not supported yet; use std::uint8_t")
+    if std_name is not None:
+        raise typemap.UnsupportedTypeError(
+            f"standard library enum 'std::{std_name}' is not supported"
+        )
+    if declaration.is_anonymous() or not declaration.spelling:
+        raise typemap.UnsupportedTypeError("anonymous enums are not supported yet")
+    parts = [str(declaration.spelling)]
+    parent = declaration.semantic_parent
+    while parent is not None and parent.kind != CursorKind.TRANSLATION_UNIT:
+        if parent.kind in (
+            CursorKind.CLASS_DECL,
+            CursorKind.STRUCT_DECL,
+        ) and declaration.access_specifier in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
+            raise typemap.UnsupportedTypeError(
+                f"enum '{declaration.spelling}' is not public in its class"
+            )
+        if parent.kind != CursorKind.LINKAGE_SPEC:
+            parts.append(str(parent.spelling))
+        parent = parent.semantic_parent
+    if declaration.location.is_in_system_header:
+        raise typemap.UnsupportedTypeError(
+            f"enum '{'::'.join(reversed(parts))}' of a system header is not supported"
+        )
+    definition = declaration.get_definition()
+    return EnumRef(
+        usr=str(declaration.get_usr()),
+        qualified_name="::".join(reversed(parts)),
+        definition=_location(definition.location) if definition is not None else None,
+    )
+
+
 # Plain char: CHAR_U where it is unsigned (ARM, -funsigned-char).
 _CHAR_KINDS = frozenset({TypeKind.CHAR_S, TypeKind.CHAR_U})
 
@@ -608,6 +664,8 @@ class _Visitor:
                 clang_type = pointee
                 spelling = str(clang_type.spelling)
                 allow_void = False
+            if clang_type.get_canonical().kind == TypeKind.ENUM:
+                return _enum_ref(clang_type)
             user_alias = False
             if clang_type.kind == TypeKind.ELABORATED:
                 # The named type is spelled with its real qualification
@@ -713,7 +771,9 @@ class _Visitor:
         elif kind in _TEMPLATE_KINDS:
             self._error(cursor, f"template '{cursor.spelling}' is not supported")
         elif kind == CursorKind.ENUM_DECL:
-            self._error(cursor, f"enum '{cursor.spelling}' is not supported yet")
+            enum = self._parse_enum(cursor, (), None)
+            if enum is not None:
+                self.declarations.append(enum)
         elif kind == CursorKind.UNION_DECL:
             self._error(cursor, f"union '{cursor.spelling}' is not supported")
         elif kind == CursorKind.VAR_DECL:
@@ -750,6 +810,90 @@ class _Visitor:
         assert location is not None  # cursors of the target header always have one
         return Function(name, namespace, parameters, result, location)
 
+    # Enums -------------------------------------------------------------------
+
+    def _parse_enum(
+        self, cursor: cindex.Cursor, scope: tuple[str, ...], namespace: tuple[str, ...] | None
+    ) -> Enumeration | None:
+        """An enum definition; ``scope`` is the class it is nested in, whose
+        ``namespace`` is given (None: the enum is at namespace scope)."""
+        if cursor.type.kind != TypeKind.ENUM:
+            return None  # C++20 'using enum E;', which libclang reports as an enum
+        if not cursor.is_definition() or not self._first_time(cursor):
+            return None  # an opaque declaration: the definition is what counts
+        name = str(cursor.spelling)
+        if cursor.is_anonymous() or not name:
+            self._error(cursor, "anonymous enums are not supported yet; give the enum a name")
+            return None
+        if not self._check_name(cursor, name):
+            return None
+        if namespace is None:
+            namespace = self._namespace_of(cursor)
+            if namespace is None:
+                return None
+        qualified = "::".join((*namespace, *scope, name))
+        fixed = libclang.has_fixed_underlying_type(cursor)
+        underlying = cursor.enum_type
+        if fixed:
+            c_type = self._type(
+                underlying, cursor, f"underlying type of enum '{qualified}'", allow_void=False
+            )
+            if c_type is None:
+                return None
+            if not isinstance(c_type, ScalarType) or c_type.category not in (
+                TypeCategory.SIGNED_INTEGER,
+                TypeCategory.UNSIGNED_INTEGER,
+            ):
+                self._error(
+                    cursor,
+                    f"enum '{qualified}': underlying type '{underlying.spelling}' is not "
+                    "supported; use a fixed-width integer type",
+                )
+                return None
+            if c_type.c_name == "size_t":
+                self._error(
+                    cursor,
+                    f"enum '{qualified}': underlying type 'size_t' is not supported (C has no "
+                    "constants of that type); use a fixed-width integer type",
+                )
+                return None
+        else:
+            c_type = typemap.BUILTIN_TYPES["INT"]
+        enumerators: list[Enumerator] = []
+        for child in cursor.get_children():
+            if child.kind != CursorKind.ENUM_CONSTANT_DECL:
+                continue
+            if child.availability == AvailabilityKind.NOT_AVAILABLE:
+                continue
+            constant = str(child.spelling)
+            if not self._check_name(child, constant):
+                return None
+            value = libclang.enumerator_value(child, underlying)
+            if not fixed and not _INT_MIN <= value <= _INT_MAX:
+                self._error(
+                    child,
+                    f"enumerator '{qualified}::{constant}' = {value} does not fit in int: the "
+                    f"underlying type of '{qualified}' then depends on the compiler (MSVC "
+                    "truncates it); give the enum a fixed underlying type, for example "
+                    "': std::uint32_t'",
+                )
+                return None
+            deprecated = child.availability == AvailabilityKind.DEPRECATED
+            enumerators.append(Enumerator(constant, value, deprecated))
+        location = _location(cursor.location)
+        assert location is not None
+        return Enumeration(
+            name=name,
+            namespace=namespace,
+            scope=scope,
+            usr=str(cursor.get_usr()),
+            scoped=bool(cursor.is_scoped_enum()),
+            underlying=c_type,
+            fixed=fixed,
+            enumerators=tuple(enumerators),
+            location=location,
+        )
+
     # Classes ---------------------------------------------------------------
 
     def _parse_class(self, cursor: cindex.Cursor, kind: CursorKind) -> Class | None:
@@ -770,7 +914,9 @@ class _Visitor:
         if cursor.is_abstract_record():
             self._error(cursor, f"class '{qualified}' is abstract and cannot be instantiated")
 
-        constructors, methods, declares_constructor = self._parse_members(cursor, qualified)
+        constructors, methods, enums, declares_constructor = self._parse_members(
+            cursor, qualified, namespace
+        )
 
         location = _location(cursor.location)
         assert location is not None  # cursors of the target header always have one
@@ -785,14 +931,23 @@ class _Visitor:
         if len(self.errors) > errors_before:
             return None
         class_key = "struct" if kind == CursorKind.STRUCT_DECL else "class"
-        return Class(name, namespace, class_key, tuple(constructors), tuple(methods), location)
+        return Class(
+            name,
+            namespace,
+            class_key,
+            tuple(constructors),
+            tuple(methods),
+            location,
+            tuple(enums),
+        )
 
     def _parse_members(
-        self, cursor: cindex.Cursor, qualified: str
-    ) -> tuple[list[Constructor], list[Method], bool]:
-        """Public constructors and methods, and whether any constructor is declared."""
+        self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
+    ) -> tuple[list[Constructor], list[Method], list[Enumeration], bool]:
+        """Public constructors, methods and enums, and whether any constructor is declared."""
         constructors: list[Constructor] = []
         methods: list[Method] = []
+        enums: list[Enumeration] = []
         declares_constructor = False
         has_virtual_method = False
         virtual_destructor = False
@@ -807,6 +962,14 @@ class _Visitor:
                 is_final = True
                 continue
             if member_kind.is_attribute() or member_kind in _IGNORED_MEMBER_KINDS:
+                continue
+            if member_kind == CursorKind.ENUM_DECL:
+                # Private and protected enums are not part of the API; a public
+                # signature that uses one is reported there.
+                if member.access_specifier == AccessSpecifier.PUBLIC:
+                    enum = self._parse_enum(member, (str(cursor.spelling),), namespace)
+                    if enum is not None:
+                        enums.append(enum)
                 continue
             if member_kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
                 # A constructor template, whatever its access, suppresses the
@@ -855,7 +1018,7 @@ class _Visitor:
                 f"class '{qualified}' has virtual methods but no virtual destructor and is "
                 "not final; this is not supported",
             )
-        return constructors, methods, declares_constructor
+        return constructors, methods, enums, declares_constructor
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
         """Report a public member that bridgefex cannot expose."""

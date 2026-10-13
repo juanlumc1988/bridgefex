@@ -6,7 +6,7 @@ import sys as _sys
 import threading
 import weakref
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "Person",
@@ -25,13 +25,6 @@ __all__ = [
     "signal_twice",
 ]
 
-
-class _text_Person(ctypes.Structure):
-    """Opaque C handle of text::Person."""
-
-
-_text_Person__p = ctypes.POINTER(_text_Person)
-
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
 # while _bind() declares the signatures, in the same thread.
@@ -47,23 +40,23 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-            lib.text_Person_create_string.argtypes = [ctypes.POINTER(_text_Person__p), ctypes.c_char_p, ctypes.c_size_t]
+            lib.text_Person_create_string.argtypes = [ctypes.POINTER(_types._text_Person__p), ctypes.c_char_p, ctypes.c_size_t]
             lib.text_Person_create_string.restype = _runtime.Status
-            lib.text_Person_create_cstr_int.argtypes = [ctypes.POINTER(_text_Person__p), ctypes.c_char_p, ctypes.c_int]
+            lib.text_Person_create_cstr_int.argtypes = [ctypes.POINTER(_types._text_Person__p), ctypes.c_char_p, ctypes.c_int]
             lib.text_Person_create_cstr_int.restype = _runtime.Status
-            lib.text_Person_destroy.argtypes = [_text_Person__p]
+            lib.text_Person_destroy.argtypes = [_types._text_Person__p]
             lib.text_Person_destroy.restype = None
-            lib.text_Person_name.argtypes = [_text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+            lib.text_Person_name.argtypes = [_types._text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.text_Person_name.restype = _runtime.Status
-            lib.text_Person_name_ref.argtypes = [_text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+            lib.text_Person_name_ref.argtypes = [_types._text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.text_Person_name_ref.restype = _runtime.Status
-            lib.text_Person_c_name.argtypes = [_text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+            lib.text_Person_c_name.argtypes = [_types._text_Person__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.text_Person_c_name.restype = _runtime.Status
-            lib.text_Person_set_name.argtypes = [_text_Person__p, ctypes.c_char_p, ctypes.c_size_t]
+            lib.text_Person_set_name.argtypes = [_types._text_Person__p, ctypes.c_char_p, ctypes.c_size_t]
             lib.text_Person_set_name.restype = _runtime.Status
-            lib.text_Person_age.argtypes = [_text_Person__p, ctypes.POINTER(ctypes.c_int)]
+            lib.text_Person_age.argtypes = [_types._text_Person__p, ctypes.POINTER(ctypes.c_int)]
             lib.text_Person_age.restype = _runtime.Status
-            lib.text_Person_greet.argtypes = [_text_Person__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+            lib.text_Person_greet.argtypes = [_types._text_Person__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.text_Person_greet.restype = _runtime.Status
             lib.text_Person_species.argtypes = [ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.text_Person_species.restype = _runtime.Status
@@ -144,7 +137,7 @@ class Person:
     @_builtins.classmethod
     def create_string(cls, name):
         """Wraps ``text::Person::Person(const std::string& name)``."""
-        _handle = _text_Person__p()
+        _handle = _types._text_Person__p()
         name = _runtime.to_bytes(name, "name")
         name_size = _builtins.len(name)
         _runtime.check(_bind().text_Person_create_string(_handle, name, name_size))
@@ -155,7 +148,7 @@ class Person:
     @_builtins.classmethod
     def create_cstr_int(cls, name, age):
         """Wraps ``text::Person::Person(const char* name, int age)``."""
-        _handle = _text_Person__p()
+        _handle = _types._text_Person__p()
         name = _runtime.to_c_string(name, "name")
         age = _runtime.to_int(age, ctypes.c_int, "age")
         _runtime.check(_bind().text_Person_create_cstr_int(_handle, name, age))
