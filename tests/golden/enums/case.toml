@@ -1,0 +1,5 @@
+# Options passed to bridgefex for this case.
+module = "enm"
+headers = ["colors.h", "shapes.h"]
+std = "c++17"
+min_cxx = "c++17"

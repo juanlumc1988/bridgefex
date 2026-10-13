@@ -7,6 +7,7 @@
 #include "demo_runtime_internal.hpp"
 
 #include <stddef.h>
+#include <cstdlib>
 #include <cstring>
 
 namespace demo_detail {
@@ -48,5 +49,10 @@ extern "C" const char* demo_last_error(void)
 
 extern "C" const char* demo_api_fingerprint(void)
 {
-    return "b57bfdd6437195147f17e5663159b0df";
+    return "e0601c288e0ba58ecbe30497be059c66";
+}
+
+extern "C" void demo_free(void* memory)
+{
+    std::free(memory);
 }

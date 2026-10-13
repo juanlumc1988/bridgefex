@@ -7,6 +7,7 @@
 #include "scalars_runtime_internal.hpp"
 
 #include <stddef.h>
+#include <cstdlib>
 #include <cstring>
 
 namespace scalars_detail {
@@ -48,5 +49,10 @@ extern "C" const char* scalars_last_error(void)
 
 extern "C" const char* scalars_api_fingerprint(void)
 {
-    return "3d692733d6bd514aacdf76be479829b4";
+    return "ddebdeacbb571ecf73165584a9b0a8c3";
+}
+
+extern "C" void scalars_free(void* memory)
+{
+    std::free(memory);
 }

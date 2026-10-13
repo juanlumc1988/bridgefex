@@ -46,13 +46,233 @@ class ScalarType:
     def is_void(self) -> bool:
         return self.category is TypeCategory.VOID
 
+    @property
+    def cpp_spelling(self) -> str:
+        return self.c_name
+
+
+class StringKind(Enum):
+    """The string types that cross the C boundary as UTF-8 bytes."""
+
+    STRING = "string"
+    """``std::string``."""
+
+    STRING_VIEW = "string_view"
+    """``std::string_view``."""
+
+    C_STRING = "cstr"
+    """``const char*``, NUL-terminated."""
+
+
+@dataclass(frozen=True, slots=True)
+class StringType:
+    kind: StringKind
+    by_reference: bool = False
+    """True for ``const std::string&`` and ``const std::string_view&``."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def token(self) -> str:
+        """Overload token: the value, ``const`` and ``const&`` forms share it."""
+        return self.kind.value
+
+    @property
+    def sized(self) -> bool:
+        """True if it crosses as a pointer and a size, False if NUL-terminated."""
+        return self.kind is not StringKind.C_STRING
+
+    @property
+    def cpp_spelling(self) -> str:
+        # Fixed, never a libclang spelling: that one depends on the standard
+        # library ('std::basic_string<char>' with libstdc++).
+        if self.kind is StringKind.C_STRING:
+            return "const char*"
+        name = f"std::{self.kind.value}"
+        return f"const {name}&" if self.by_reference else name
+
+
+@dataclass(frozen=True, slots=True)
+class EnumRef:
+    """A use of an enum type; the plan finds its definition (:class:`Enumeration`) by USR,
+    in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    """Where the definition seen by the using header is, if it sees one."""
+
+    system: bool = False
+    """Declared in a system header (which is wrapped only if given as one)."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def cpp_spelling(self) -> str:
+        return self.qualified_name
+
+
+@dataclass(frozen=True, slots=True)
+class StructRef:
+    """A use of a value struct; the plan finds its definition (:class:`Struct`) by
+    USR, in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    """Where the definition seen by the using header is, if it sees one."""
+
+    by_reference: bool = False
+    """True for ``const T&``."""
+
+    system: bool = False
+    """Declared in a system header (which is wrapped only if given as one)."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def cpp_spelling(self) -> str:
+        return f"const {self.qualified_name}&" if self.by_reference else self.qualified_name
+
+
+ElementType = ScalarType | EnumRef | StructRef | StringType
+"""Every type that a container can hold."""
+
+
+class ContainerKind(Enum):
+    VECTOR = "vector"
+    """``std::vector<T>``, with the default allocator."""
+
+    ARRAY = "array"
+    """``std::array<T, N>``."""
+
+    SPAN = "span"
+    """``std::span<const T>``, with a dynamic extent."""
+
+
+@dataclass(frozen=True, slots=True)
+class ContainerType:
+    kind: ContainerKind
+    element: ElementType
+    length: int | None = None
+    """N of std::array."""
+
+    by_reference: bool = False
+    """True for ``const C&``."""
+
+    rvalue_reference: bool = False
+    """True for ``C&&``, which is passed like a value."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def sized(self) -> bool:
+        """True if it crosses as a pointer and a size (not std::array)."""
+        return self.kind is not ContainerKind.ARRAY
+
+    @property
+    def cpp_spelling(self) -> str:
+        element = self.element.cpp_spelling
+        if self.kind is ContainerKind.ARRAY:
+            name = f"std::array<{element}, {self.length}>"
+        elif self.kind is ContainerKind.SPAN:
+            name = f"std::span<const {element}>"
+        else:
+            name = f"std::vector<{element}>"
+        if self.rvalue_reference:
+            return f"{name}&&"
+        return f"const {name}&" if self.by_reference else name
+
+
+Type = ScalarType | StringType | EnumRef | StructRef | ContainerType
+"""Every type that can cross the C boundary."""
+
+FieldType = ScalarType | EnumRef | StructRef
+"""Every type that a field of a value struct can have."""
+
+
+@dataclass(frozen=True, slots=True)
+class Field:
+    name: str
+    type: FieldType
+    length: int | None
+    """The number of elements of an array, or None."""
+
+    location: Location
+
+
+@dataclass(frozen=True, slots=True)
+class Enumerator:
+    name: str
+    value: int
+    deprecated: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class Enumeration:
+    """An enum definition."""
+
+    name: str
+    namespace: tuple[str, ...]
+    scope: tuple[str, ...]
+    """The class that the enum is nested in, or ()."""
+
+    usr: str
+    scoped: bool
+    """``enum class``."""
+
+    underlying: ScalarType
+    """The C type: the fixed underlying type, or ``int``."""
+
+    fixed: bool
+    """True if the underlying type is fixed: then every value of it is valid."""
+
+    enumerators: tuple[Enumerator, ...]
+    location: Location
+    unavailable: tuple[int, ...] = ()
+    """The values of the enumerators that cannot be used, which still count for
+    the valid values."""
+
+    @property
+    def qualified_name(self) -> str:
+        return "::".join((*self.namespace, *self.scope, self.name))
+
+    @property
+    def valid_range(self) -> tuple[int, int] | None:
+        """The values of an enum without a fixed underlying type ([dcl.enum]/8),
+        or None when the underlying type is fixed."""
+        if self.fixed:
+            return None
+        values = [enumerator.value for enumerator in self.enumerators] + list(self.unavailable)
+        low, high = min(values, default=0), max(values, default=0)
+        if low >= 0:
+            bits = max(high.bit_length(), 1)
+            return 0, (1 << bits) - 1
+        bits = max(max(high, 0).bit_length(), (-low - 1).bit_length())
+        return -(1 << bits), (1 << bits) - 1
+
+    @property
+    def description(self) -> str:
+        """The declaration, spelled the same on every platform."""
+        key = "enum class" if self.scoped else "enum"
+        base = f" : {self.underlying.c_name}" if self.fixed else ""
+        return f"{key} {self.qualified_name}{base}"
+
 
 @dataclass(frozen=True, slots=True)
 class Parameter:
     name: str
     """Name in the C++ declaration; empty when the parameter is unnamed."""
 
-    type: ScalarType
+    type: Type
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +282,7 @@ class Function:
     name: str
     namespace: tuple[str, ...]
     parameters: tuple[Parameter, ...]
-    result: ScalarType
+    result: Type
     location: Location
 
     @property
@@ -82,7 +302,7 @@ class Constructor:
 class Method:
     name: str
     parameters: tuple[Parameter, ...]
-    result: ScalarType
+    result: Type
     is_const: bool
     is_static: bool
     location: Location
@@ -98,13 +318,32 @@ class Class:
     constructors: tuple[Constructor, ...]
     methods: tuple[Method, ...]
     location: Location
+    enums: tuple[Enumeration, ...] = ()
+    """Public enums nested in the class."""
 
     @property
     def qualified_name(self) -> str:
         return "::".join((*self.namespace, self.name))
 
 
-Declaration = Class | Function
+@dataclass(frozen=True, slots=True)
+class Struct:
+    """A value struct: public data members only, copied across the boundary."""
+
+    name: str
+    namespace: tuple[str, ...]
+    usr: str
+    fields: tuple[Field, ...]
+    location: Location
+    enums: tuple[Enumeration, ...] = ()
+    """Public enums nested in the struct."""
+
+    @property
+    def qualified_name(self) -> str:
+        return "::".join((*self.namespace, self.name))
+
+
+Declaration = Class | Function | Enumeration | Struct
 
 
 @dataclass(frozen=True, slots=True)

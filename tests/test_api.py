@@ -63,8 +63,10 @@ def test_render_is_tidy_and_platform_independent() -> None:
         "c/mod_runtime.cpp",
         "c/mod_runtime.h",
         "c/mod_runtime_internal.hpp",
+        "c/mod_types.h",
         "python/mod/__init__.py",
         "python/mod/_runtime.py",
+        "python/mod/_types.py",
         "python/mod/a.py",
     ]
     for path, content in files.items():

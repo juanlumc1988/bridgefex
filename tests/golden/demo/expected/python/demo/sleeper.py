@@ -4,18 +4,11 @@ import builtins as _builtins
 import ctypes
 import threading
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "Sleeper",
 ]
-
-
-class _demo_Sleeper(ctypes.Structure):
-    """Opaque C handle of demo::Sleeper."""
-
-
-_demo_Sleeper_p = ctypes.POINTER(_demo_Sleeper)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -32,11 +25,11 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-            lib.demo_Sleeper_create.argtypes = [ctypes.POINTER(_demo_Sleeper_p), ctypes.c_uint32]
+            lib.demo_Sleeper_create.argtypes = [ctypes.POINTER(_types._demo_Sleeper__p), ctypes.c_uint32]
             lib.demo_Sleeper_create.restype = _runtime.Status
-            lib.demo_Sleeper_destroy.argtypes = [_demo_Sleeper_p]
+            lib.demo_Sleeper_destroy.argtypes = [_types._demo_Sleeper__p]
             lib.demo_Sleeper_destroy.restype = None
-            lib.demo_Sleeper_nap.argtypes = [_demo_Sleeper_p, ctypes.c_uint32]
+            lib.demo_Sleeper_nap.argtypes = [_types._demo_Sleeper__p, ctypes.c_uint32]
             lib.demo_Sleeper_nap.restype = _runtime.Status
             lib.demo_Sleeper_liveInstances.argtypes = [ctypes.POINTER(ctypes.c_size_t)]
             lib.demo_Sleeper_liveInstances.restype = _runtime.Status
@@ -70,7 +63,7 @@ class Sleeper:
         writes the handle, before any Python code runs again: a signal raised
         right after the call does not leak it.
         """
-        handle = _demo_Sleeper_p()
+        handle = _types._demo_Sleeper__p()
         self._handle = None
         self._owned = []
         self._finalizer = _runtime.watch(self, handle, _bind().demo_Sleeper_destroy)
@@ -83,7 +76,7 @@ class Sleeper:
             )
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
-        self._owned.append((_bind().demo_Sleeper_destroy, _demo_Sleeper_p()))
+        self._owned.append((_bind().demo_Sleeper_destroy, _types._demo_Sleeper__p()))
 
     def _ptr(self):
         if not self._owned or self._collected():

@@ -2,10 +2,7 @@
 #ifndef SCALARS_NUMBERS_C_H
 #define SCALARS_NUMBERS_C_H
 
-#include "scalars_runtime.h"
-
-/* Opaque handles. */
-typedef struct scalars_Accumulator scalars_Accumulator;
+#include "scalars_types.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -187,3 +187,74 @@ def is_inline_namespace(cursor: cindex.Cursor) -> bool:
     if _state.is_inline_namespace is None:
         raise LibclangError("libclang is not loaded")
     return bool(_state.is_inline_namespace(cursor))
+
+
+def _skip_linkage_specs(cursor: cindex.Cursor | None) -> cindex.Cursor | None:
+    while cursor is not None and cursor.kind == cindex.CursorKind.LINKAGE_SPEC:
+        cursor = cursor.semantic_parent
+    return cursor
+
+
+def std_declaration_name(cursor: cindex.Cursor) -> str | None:
+    """The name of a declaration of the standard library's namespace ``std``,
+    or None for any other declaration. Requires :func:`load`.
+
+    The declaration must be in a system header, and declared in ``::std``
+    itself or in one of its inline namespaces (``std::__cxx11`` of libstdc++,
+    ``std::__1`` of libc++). Linkage specifications are skipped: in C++20 the
+    MSVC STL declares ``std`` inside ``extern "C++" { ... }``.
+    """
+    if not cursor.location.is_in_system_header:
+        return None
+    parent = cursor.semantic_parent
+    while parent is not None and (
+        parent.kind == cindex.CursorKind.LINKAGE_SPEC
+        or (parent.kind == cindex.CursorKind.NAMESPACE and is_inline_namespace(parent))
+    ):
+        parent = parent.semantic_parent
+    if parent is None or parent.kind != cindex.CursorKind.NAMESPACE or parent.spelling != "std":
+        return None
+    outer = _skip_linkage_specs(parent.semantic_parent)
+    if outer is None or outer.kind != cindex.CursorKind.TRANSLATION_UNIT:
+        return None
+    return str(cursor.spelling)
+
+
+_UNSIGNED_KINDS = frozenset(
+    {
+        cindex.TypeKind.BOOL,
+        cindex.TypeKind.UCHAR,
+        cindex.TypeKind.CHAR_U,
+        cindex.TypeKind.USHORT,
+        cindex.TypeKind.UINT,
+        cindex.TypeKind.ULONG,
+        cindex.TypeKind.ULONGLONG,
+        cindex.TypeKind.UINT128,
+    }
+)
+
+
+def enumerator_value(constant: cindex.Cursor, underlying: cindex.Type) -> int:
+    """The value of an enumerator of an enum whose underlying type is ``underlying``.
+
+    Not ``Cursor.enum_value``: it decides the signedness from the uncanonical
+    type, so it reads 255 of 'enum class E : std::uint8_t' as -1.
+    """
+    if underlying.get_canonical().kind in _UNSIGNED_KINDS:
+        return int(cindex.conf.lib.clang_getEnumConstantDeclUnsignedValue(constant))
+    return int(cindex.conf.lib.clang_getEnumConstantDeclValue(constant))
+
+
+def has_fixed_underlying_type(enum: cindex.Cursor) -> bool:
+    """True if the underlying type of an enum is fixed ([dcl.enum]/5).
+
+    libclang has no function for it. Clang's declaration printer writes
+    ' : <type>' after the name exactly when the type is fixed; attributes,
+    whose arguments could contain ' : ', come before the name.
+    """
+    if enum.is_scoped_enum():
+        return True
+    policy = cindex.PrintingPolicy.create(enum)
+    policy.set_property(cindex.PrintingPolicyProperty.TerseOutput, 1)
+    text = str(enum.pretty_printed(policy)).removesuffix(" {\n}")
+    return text.endswith(" : " + str(enum.enum_type.pretty_printed(policy)))

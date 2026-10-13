@@ -7,6 +7,7 @@ load(path) before that.
 
 from ._runtime import (
     ERROR_EXCEPTION,
+    ERROR_INVALID_ARGUMENT,
     ERROR_NULL_ARGUMENT,
     ERROR_OUT_OF_MEMORY,
     ERROR_UNKNOWN_EXCEPTION,
@@ -17,6 +18,7 @@ from ._runtime import (
 
 __all__ = [
     "ERROR_EXCEPTION",
+    "ERROR_INVALID_ARGUMENT",
     "ERROR_NULL_ARGUMENT",
     "ERROR_OUT_OF_MEMORY",
     "ERROR_UNKNOWN_EXCEPTION",

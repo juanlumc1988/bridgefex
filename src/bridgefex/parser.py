@@ -9,9 +9,11 @@ collected before giving up, so that the user can fix them in one go.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,12 +31,25 @@ from .errors import ConfigurationError, Diagnostic, GenerationError, Location
 from .model import (
     Class,
     Constructor,
+    ContainerKind,
+    ContainerType,
     Declaration,
+    Enumeration,
+    Enumerator,
+    EnumRef,
+    Field,
+    FieldType,
     Function,
     Header,
     Method,
     Parameter,
     ScalarType,
+    StringKind,
+    StringType,
+    Struct,
+    StructRef,
+    Type,
+    TypeCategory,
     VisibleNames,
 )
 
@@ -51,7 +66,14 @@ class ParseOptions:
         args += [f"-I{directory}" for directory in self.include_dirs]
         args += [f"-D{definition}" for definition in self.defines]
         args += list(self.extra_args)
+        # MSVC gives an enum without a fixed underlying type the type int, and
+        # truncates larger enumerators: with its target, they are rejected in
+        # the parsed header (see parse_header), as on the other targets.
+        args.append(_MSVC_ENUM_WARNING)
         return args
+
+
+_MSVC_ENUM_WARNING = "-Wmicrosoft-enum-value"
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +380,305 @@ def macro_defined_after(header: Path, macro: str, options: ParseOptions) -> bool
     return any(f"{_CXX11_MARKER}_macro" in str(d.spelling) for d in unit.diagnostics)
 
 
+_INT_MIN = -(2**31)
+_INT_MAX = 2**31 - 1
+
+
+def _array_type(clang_type: cindex.Type) -> cindex.Type:
+    """The array type behind aliases (typedef std::uint8_t mac_t[6];), whose
+    element keeps its spelling."""
+    while clang_type.kind != TypeKind.CONSTANTARRAY:
+        if clang_type.kind == TypeKind.ELABORATED:
+            clang_type = clang_type.get_named_type()
+        elif clang_type.kind == TypeKind.TYPEDEF:
+            clang_type = clang_type.get_declaration().underlying_typedef_type
+        else:
+            return clang_type.get_canonical()
+    return clang_type
+
+
+def _may_throw(function: cindex.Cursor) -> bool:
+    """True unless the function cannot throw: no specification (a destructor's
+    default), noexcept, noexcept(true) or throw(). libclang does not evaluate
+    noexcept(expression): any other expression counts as one that may throw."""
+    kind = function.exception_specification_kind
+    if kind == cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
+        return "noexcept(true)" not in str(function.type.spelling).replace(" ", "")
+    return kind in (
+        cindex.ExceptionSpecificationKind.DYNAMIC,
+        cindex.ExceptionSpecificationKind.MS_ANY,
+    )
+
+
+def is_value_struct(definition: cindex.Cursor) -> bool:
+    """True for a class definition with a public non-static data member: its
+    values are copied across the boundary, member by member. Other classes are
+    handles to objects."""
+    return any(
+        field.access_specifier == AccessSpecifier.PUBLIC for field in definition.type.get_fields()
+    )
+
+
+_NOT_BY_VALUE = "classes passed by value are not supported yet"
+
+# Classes of the standard library that get their own message.
+_CONTAINERS = ("vector", "array", "span")
+
+_UNSUPPORTED_STD_CLASSES = frozenset(
+    """
+    deque list forward_list map multimap set multiset unordered_map
+    unordered_multimap unordered_set unordered_multiset optional variant any valarray
+    initializer_list pair tuple unique_ptr shared_ptr weak_ptr function bitset
+    """.split()
+)
+
+
+def _std_record_name(clang_type: cindex.Type) -> str | None:
+    """The name of the std class (template) of a type, such as 'vector', or None."""
+    canonical = clang_type.get_canonical()
+    if canonical.kind != TypeKind.RECORD:
+        return None
+    return libclang.std_declaration_name(canonical.get_declaration())
+
+
+def _alias_templates(cursor: cindex.Cursor) -> Iterator[cindex.Cursor]:
+    """The alias templates that the type written in a declaration names, also
+    through typedefs: ``Vec<long>`` or ``using Bytes = Vec<std::uint8_t>;``."""
+    seen: set[int] = set()
+    pending = [cursor]
+    while pending:
+        for child in pending.pop().get_children():
+            referenced = child.referenced if child.kind in _TYPE_REFERENCES else None
+            if referenced is None or referenced.hash in seen:
+                continue
+            seen.add(referenced.hash)
+            if referenced.kind == CursorKind.TYPE_ALIAS_TEMPLATE_DECL:
+                yield referenced
+            elif referenced.kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
+                pending.append(referenced)
+
+
+_TYPE_REFERENCES = (CursorKind.TYPE_REF, CursorKind.TEMPLATE_REF)
+
+
+def _forwards_to(alias: cindex.Cursor, name: str) -> bool:
+    """True if an alias template is ``std::<name><P1, P2...>`` with its own
+    parameters, in order: then its arguments are those of the std class.
+
+    Any other pattern could ignore or transform an argument
+    (``template <class T> using Fixed = std::vector<std::int64_t>;``), so the
+    element type could not be read from the arguments as written.
+    """
+    children = list(alias.get_children())
+    parameters = [
+        child
+        for child in children
+        if child.kind
+        in (CursorKind.TEMPLATE_TYPE_PARAMETER, CursorKind.TEMPLATE_NON_TYPE_PARAMETER)
+    ]
+    patterns = [child for child in children if child.kind == CursorKind.TYPE_ALIAS_DECL]
+    if len(patterns) != 1 or len(parameters) + len(patterns) != len(children):
+        return False
+    references = [
+        child for child in patterns[0].get_children() if child.kind != CursorKind.NAMESPACE_REF
+    ]
+    if len(references) != len(parameters) + 1:
+        return False
+    template, *arguments = references
+    if template.kind != CursorKind.TEMPLATE_REF or template.referenced is None:
+        return False
+    if libclang.std_declaration_name(template.referenced) != name:
+        return False
+    for argument, parameter in zip(arguments, parameters, strict=True):
+        kind = (
+            CursorKind.TYPE_REF
+            if parameter.kind == CursorKind.TEMPLATE_TYPE_PARAMETER
+            else CursorKind.DECL_REF_EXPR
+        )
+        if argument.kind != kind or argument.referenced is None:
+            return False
+        if argument.referenced != parameter:
+            return False
+    return True
+
+
+def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
+    """A use of a value struct (through any alias).
+
+    Raises:
+        typemap.UnsupportedTypeError: a class that cannot be passed by value.
+    """
+    spelling = str(clang_type.spelling)
+    if clang_type.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+    declaration = clang_type.get_canonical().get_declaration()
+    if declaration.kind == CursorKind.UNION_DECL:
+        raise typemap.UnsupportedTypeError(f"'{spelling}': unions are not supported")
+    if (
+        libclang.std_declaration_name(declaration) is not None
+        or declaration.is_anonymous()
+        or not declaration.spelling
+        or int(clang_type.get_canonical().get_num_template_arguments()) > 0
+    ):
+        raise typemap.UnsupportedTypeError(f"'{spelling}': {_NOT_BY_VALUE}")
+    definition = declaration.get_definition()
+    if definition is not None and not is_value_struct(definition):
+        raise typemap.UnsupportedTypeError(
+            f"'{spelling}': {_NOT_BY_VALUE} (only structs with public data members are)"
+        )
+    parts = [str(declaration.spelling)]
+    parent = declaration.semantic_parent
+    while parent is not None and parent.kind != CursorKind.TRANSLATION_UNIT:
+        if parent.kind not in (CursorKind.NAMESPACE, CursorKind.LINKAGE_SPEC):
+            raise typemap.UnsupportedTypeError(f"'{spelling}': nested classes are not supported")
+        if parent.kind == CursorKind.NAMESPACE:
+            parts.append(str(parent.spelling))
+        parent = parent.semantic_parent
+    return StructRef(
+        usr=str(declaration.get_usr()),
+        qualified_name="::".join(reversed(parts)),
+        definition=_location(definition.location) if definition is not None else None,
+        by_reference=by_reference,
+        system=bool(declaration.location.is_in_system_header),
+    )
+
+
+def _enum_ref(clang_type: cindex.Type) -> EnumRef:
+    """A use of an enum type (through any alias).
+
+    Raises:
+        typemap.UnsupportedTypeError: an enum that cannot cross the boundary.
+    """
+    if clang_type.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+    declaration = clang_type.get_canonical().get_declaration()
+    std_name = libclang.std_declaration_name(declaration)
+    if std_name == "byte":
+        raise typemap.UnsupportedTypeError("std::byte is not supported yet; use std::uint8_t")
+    if std_name is not None:
+        raise typemap.UnsupportedTypeError(
+            f"standard library enum 'std::{std_name}' is not supported"
+        )
+    if declaration.is_anonymous() or not declaration.spelling:
+        raise typemap.UnsupportedTypeError("anonymous enums are not supported yet")
+    parts = [str(declaration.spelling)]
+    parent = declaration.semantic_parent
+    while parent is not None and parent.kind != CursorKind.TRANSLATION_UNIT:
+        if parent.kind in (
+            CursorKind.CLASS_DECL,
+            CursorKind.STRUCT_DECL,
+        ) and declaration.access_specifier in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
+            raise typemap.UnsupportedTypeError(
+                f"enum '{declaration.spelling}' is not public in its class"
+            )
+        if parent.kind != CursorKind.LINKAGE_SPEC:
+            parts.append(str(parent.spelling))
+        parent = parent.semantic_parent
+    definition = declaration.get_definition()
+    return EnumRef(
+        usr=str(declaration.get_usr()),
+        qualified_name="::".join(reversed(parts)),
+        definition=_location(definition.location) if definition is not None else None,
+        system=bool(declaration.location.is_in_system_header),
+    )
+
+
+# Plain char: CHAR_U where it is unsigned (ARM, -funsigned-char).
+_CHAR_KINDS = frozenset({TypeKind.CHAR_S, TypeKind.CHAR_U})
+
+_ONLY_STD_STRINGS = (
+    "only std::string and std::string_view (of char, with the default traits and "
+    "allocator) are supported"
+)
+
+
+def _is_plain_char(clang_type: cindex.Type) -> bool:
+    return (
+        clang_type.kind in _CHAR_KINDS
+        and not clang_type.is_const_qualified()
+        and not clang_type.is_volatile_qualified()
+    )
+
+
+def _std_specialization(clang_type: cindex.Type, name: str) -> list[cindex.Type] | None:
+    """The canonical template arguments if ``clang_type`` is a specialization
+    of the class template ``std::<name>``, else None."""
+    canonical = clang_type.get_canonical()
+    if canonical.kind != TypeKind.RECORD:
+        return None
+    if libclang.std_declaration_name(canonical.get_declaration()) != name:
+        return None
+    count = int(canonical.get_num_template_arguments())
+    if count < 0:
+        return None
+    return [canonical.get_template_argument_type(i).get_canonical() for i in range(count)]
+
+
+def _is_std_of_char(clang_type: cindex.Type, name: str) -> bool:
+    arguments = _std_specialization(clang_type, name)
+    return arguments is not None and len(arguments) == 1 and _is_plain_char(arguments[0])
+
+
+def string_type(clang_type: cindex.Type) -> StringType | None:
+    """The string type that ``clang_type`` is, or None if it is not one.
+
+    Recognised by declaration, not by spelling, which differs between standard
+    libraries ('std::basic_string<char>' with libstdc++, 'std::string' with
+    libc++). Aliases are accepted. Requires :func:`bridgefex.libclang.load`.
+
+    Raises:
+        typemap.UnsupportedTypeError: a string form that is not supported.
+    """
+    spelling = str(clang_type.spelling)
+    canonical = clang_type.get_canonical()
+    if canonical.kind == TypeKind.POINTER:
+        pointee = canonical.get_pointee()
+        if pointee.kind not in _CHAR_KINDS:
+            return None
+        if pointee.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("pointers to volatile char are not supported")
+        if not pointee.is_const_qualified():
+            raise typemap.UnsupportedTypeError(
+                f"'{spelling}' is not supported: use 'const char*' or std::string"
+            )
+        if canonical.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        return StringType(StringKind.C_STRING)
+    reference = canonical.kind in (TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE)
+    value = canonical.get_pointee() if reference else canonical
+    arguments = _std_specialization(value, "basic_string")
+    if arguments is not None:
+        kind = StringKind.STRING
+        valid = (
+            len(arguments) == 3
+            and _is_plain_char(arguments[0])
+            and _is_std_of_char(arguments[1], "char_traits")
+            and _is_std_of_char(arguments[2], "allocator")
+        )
+    else:
+        arguments = _std_specialization(value, "basic_string_view")
+        if arguments is None:
+            return None
+        kind = StringKind.STRING_VIEW
+        valid = (
+            len(arguments) == 2
+            and _is_plain_char(arguments[0])
+            and _is_std_of_char(arguments[1], "char_traits")
+        )
+    if not valid:
+        raise typemap.UnsupportedTypeError(f"'{spelling}': {_ONLY_STD_STRINGS}")
+    name = f"std::{kind.value}"
+    if value.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError(f"volatile {name} is not supported")
+    if canonical.kind == TypeKind.RVALUEREFERENCE:
+        raise typemap.UnsupportedTypeError(f"rvalue references to {name} are not supported yet")
+    if reference and not value.is_const_qualified():
+        raise typemap.UnsupportedTypeError(
+            f"non-const references to {name} are not supported: they are output parameters"
+        )
+    return StringType(kind, by_reference=reference)
+
+
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:
     location = diagnostic.location
     if location is None:
@@ -401,9 +722,14 @@ def parse_header(path: Path, include: str, options: ParseOptions) -> ParseResult
 
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
+    target = _path_key(str(path))
     for diagnostic in unit.diagnostics:
         converted = Diagnostic(str(diagnostic.spelling), _location(diagnostic.location))
-        if diagnostic.severity >= cindex.Diagnostic.Error:
+        file = diagnostic.location.file
+        in_target = file is not None and _path_key(str(file.name)) == target
+        if diagnostic.severity >= cindex.Diagnostic.Error or (
+            in_target and str(diagnostic.option) == _MSVC_ENUM_WARNING
+        ):
             errors.append(converted)
         elif diagnostic.severity >= cindex.Diagnostic.Warning:
             warnings.append(converted)
@@ -494,9 +820,22 @@ class _Visitor:
 
     def _type(
         self, clang_type: cindex.Type, cursor: cindex.Cursor, context: str, *, allow_void: bool
-    ) -> ScalarType | None:
+    ) -> Type | None:
         spelling = str(clang_type.spelling)
         try:
+            # Before the scalars: they reject plain char and references.
+            string = string_type(clang_type)
+            if string is not None:
+                return string
+            by_reference = rvalue_reference = False
+            if (
+                clang_type.kind == TypeKind.RVALUEREFERENCE
+                and not allow_void  # a parameter, not a result
+                and _std_record_name(clang_type.get_pointee()) in _CONTAINERS
+            ):
+                # A sink parameter: the wrapper passes a temporary anyway.
+                clang_type = clang_type.get_pointee()
+                rvalue_reference = True
             if clang_type.kind == TypeKind.LVALUEREFERENCE:
                 # A const reference to a scalar is copied across the boundary.
                 pointee = clang_type.get_pointee()
@@ -506,6 +845,21 @@ class _Visitor:
                 clang_type = pointee
                 spelling = str(clang_type.spelling)
                 allow_void = False
+                by_reference = True
+            if clang_type.get_canonical().kind == TypeKind.ENUM:
+                return _enum_ref(clang_type)
+            if clang_type.get_canonical().kind == TypeKind.RECORD:
+                std_name = _std_record_name(clang_type)
+                if std_name in _CONTAINERS:
+                    container = self._container(
+                        clang_type, std_name, cursor, context, by_reference=by_reference
+                    )
+                    if container is not None and rvalue_reference:
+                        container = dataclasses.replace(container, rvalue_reference=True)
+                    return container
+                if std_name in _UNSUPPORTED_STD_CLASSES:
+                    raise typemap.UnsupportedTypeError(f"std::{std_name} is not supported yet")
+                return _struct_ref(clang_type, by_reference=by_reference)
             user_alias = False
             if clang_type.kind == TypeKind.ELABORATED:
                 # The named type is spelled with its real qualification
@@ -556,12 +910,106 @@ class _Visitor:
                 valid = False
                 continue
             label = f"parameter '{name}'" if name else f"parameter {position}"
-            scalar = self._type(argument.type, argument, f"{label} of {where}", allow_void=False)
-            if scalar is None:
+            type_ = self._type(argument.type, argument, f"{label} of {where}", allow_void=False)
+            if type_ is None:
                 valid = False
             else:
-                parameters.append(Parameter(name, scalar))
+                parameters.append(Parameter(name, type_))
         return tuple(parameters) if valid else None
+
+    def _container(
+        self,
+        written: cindex.Type,
+        name: str,
+        cursor: cindex.Cursor,
+        context: str,
+        *,
+        by_reference: bool,
+    ) -> ContainerType | None:
+        """A std::vector, std::array or std::span, whose element type is read
+        from the type as written (std::int64_t, not the platform's 'long')."""
+        kind = ContainerKind(name)
+        canonical = written.get_canonical()
+        if written.kind not in (TypeKind.ELABORATED, TypeKind.TYPEDEF, TypeKind.RECORD):
+            raise typemap.UnsupportedTypeError("deduced types (auto, decltype) are not supported")
+        if written.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        actual = [
+            canonical.get_template_argument_type(index).get_canonical()
+            for index in range(int(canonical.get_num_template_arguments()))
+        ]
+        count = int(written.get_num_template_arguments())
+        arguments = [written.get_template_argument_type(index) for index in range(max(count, 0))]
+        # An alias template may give its own arguments, in another order.
+        for index, argument in enumerate(arguments):
+            if argument.kind != TypeKind.INVALID and (
+                index >= len(actual) or argument.get_canonical() != actual[index]
+            ):
+                raise typemap.UnsupportedTypeError(
+                    f"cannot read the element type of '{written.spelling}' (alias templates are "
+                    f"not supported); write std::{name}<...>"
+                )
+        if not arguments or arguments[0].kind == TypeKind.INVALID:
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the element type of '{written.spelling}'"
+            )
+        for alias in _alias_templates(cursor):
+            if not _forwards_to(alias, name):
+                raise typemap.UnsupportedTypeError(
+                    f"cannot read the element type of '{written.spelling}': the alias template "
+                    f"'{alias.spelling}' must be std::{name}<...> of its own parameters, in order"
+                )
+        element_type = arguments[0]
+        if element_type.kind == TypeKind.UNEXPOSED:
+            # A template parameter substituted by its argument, as in
+            # Traits<std::uint16_t>::type: only the canonical type is left.
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the element type of '{written.spelling}' as written (a type of "
+                f"a class template); write std::{name}<...>"
+            )
+        length: int | None = None
+        declaration = canonical.get_declaration()
+        if kind is ContainerKind.VECTOR:
+            if len(actual) != 2 or _std_record_name(actual[1]) != "allocator":
+                raise typemap.UnsupportedTypeError(
+                    f"'{written.spelling}': only std::vector with std::allocator is supported"
+                )
+        elif kind is ContainerKind.ARRAY:
+            # Not a type: get_template_argument_type() cannot read it.
+            length = int(declaration.get_template_argument_unsigned_value(1))
+            if length < 1:
+                raise typemap.UnsupportedTypeError("std::array of size 0 is not supported")
+            if element_type.get_canonical().is_const_qualified():
+                raise typemap.UnsupportedTypeError("std::array of const elements is not supported")
+        else:
+            # std::dynamic_extent is size_t(-1): -1 whatever the size of size_t.
+            if int(declaration.get_template_argument_value(1)) != -1:
+                raise typemap.UnsupportedTypeError(
+                    "std::span with a fixed extent is not supported yet"
+                )
+            # Through a typedef too: 'using CI = const int; std::span<CI>'.
+            if not element_type.get_canonical().is_const_qualified():
+                raise typemap.UnsupportedTypeError(
+                    "std::span of non-const elements (an output buffer) is not supported yet"
+                )
+        if _std_record_name(element_type) in ("vector", *_UNSUPPORTED_STD_CLASSES):
+            raise typemap.UnsupportedTypeError(
+                f"std::{name} of '{element_type.spelling}' is not supported"
+            )
+        element = self._type(element_type, cursor, f"element of {context}", allow_void=False)
+        if element is None:
+            return None
+        if isinstance(element, ContainerType) or (
+            isinstance(element, StringType) and element.kind is not StringKind.STRING
+        ):
+            raise typemap.UnsupportedTypeError(
+                f"std::{name} of '{element_type.spelling}' is not supported"
+            )
+        if isinstance(element, StringType) and kind is ContainerKind.ARRAY:
+            raise typemap.UnsupportedTypeError("std::array of std::string is not supported")
+        if isinstance(element, StringType | StructRef) and element.by_reference:
+            raise typemap.UnsupportedTypeError(f"std::{name} of references is not supported")
+        return ContainerType(kind, element, length, by_reference=by_reference)
 
     # Namespace scope -----------------------------------------------------
 
@@ -598,9 +1046,13 @@ class _Visitor:
         elif kind in (CursorKind.CLASS_DECL, CursorKind.STRUCT_DECL):
             # Forward declarations are skipped; the definition is what counts.
             if cursor.is_definition() and self._first_time(cursor):
-                parsed_class = self._parse_class(cursor, kind)
-                if parsed_class is not None:
-                    self.declarations.append(parsed_class)
+                parsed: Class | Struct | None = (
+                    self._parse_struct(cursor)
+                    if is_value_struct(cursor)
+                    else self._parse_class(cursor, kind)
+                )
+                if parsed is not None:
+                    self.declarations.append(parsed)
         elif kind == CursorKind.FUNCTION_DECL:
             if self._first_time(cursor):
                 function = self._parse_function(cursor)
@@ -611,7 +1063,9 @@ class _Visitor:
         elif kind in _TEMPLATE_KINDS:
             self._error(cursor, f"template '{cursor.spelling}' is not supported")
         elif kind == CursorKind.ENUM_DECL:
-            self._error(cursor, f"enum '{cursor.spelling}' is not supported yet")
+            enum = self._parse_enum(cursor, (), None)
+            if enum is not None:
+                self.declarations.append(enum)
         elif kind == CursorKind.UNION_DECL:
             self._error(cursor, f"union '{cursor.spelling}' is not supported")
         elif kind == CursorKind.VAR_DECL:
@@ -648,6 +1102,331 @@ class _Visitor:
         assert location is not None  # cursors of the target header always have one
         return Function(name, namespace, parameters, result, location)
 
+    # Enums -------------------------------------------------------------------
+
+    def _parse_enum(
+        self, cursor: cindex.Cursor, scope: tuple[str, ...], namespace: tuple[str, ...] | None
+    ) -> Enumeration | None:
+        """An enum definition; ``scope`` is the class it is nested in, whose
+        ``namespace`` is given (None: the enum is at namespace scope)."""
+        if cursor.type.kind != TypeKind.ENUM:
+            return None  # C++20 'using enum E;', which libclang reports as an enum
+        if not cursor.is_definition() or not self._first_time(cursor):
+            return None  # an opaque declaration: the definition is what counts
+        name = str(cursor.spelling)
+        parent = cursor.semantic_parent
+        if (
+            namespace is None
+            and parent is not None
+            and parent.kind
+            in (
+                CursorKind.CLASS_DECL,
+                CursorKind.STRUCT_DECL,
+            )
+        ):
+            self._error(
+                cursor,
+                f"enum '{parent.spelling}::{name}' is defined outside its class; this is not "
+                "supported yet: define it in the class",
+            )
+            return None
+        if cursor.is_anonymous() or not name:
+            self._error(cursor, "anonymous enums are not supported yet; give the enum a name")
+            return None
+        if not self._check_name(cursor, name):
+            return None
+        if namespace is None:
+            namespace = self._namespace_of(cursor)
+            if namespace is None:
+                return None
+        qualified = "::".join((*namespace, *scope, name))
+        fixed = libclang.has_fixed_underlying_type(cursor)
+        underlying = cursor.enum_type
+        if fixed:
+            c_type = self._type(
+                underlying, cursor, f"underlying type of enum '{qualified}'", allow_void=False
+            )
+            if c_type is None:
+                return None
+            if not isinstance(c_type, ScalarType) or c_type.category not in (
+                TypeCategory.SIGNED_INTEGER,
+                TypeCategory.UNSIGNED_INTEGER,
+            ):
+                self._error(
+                    cursor,
+                    f"enum '{qualified}': underlying type '{underlying.spelling}' is not "
+                    "supported; use a fixed-width integer type",
+                )
+                return None
+            if c_type.c_name == "size_t":
+                self._error(
+                    cursor,
+                    f"enum '{qualified}': underlying type 'size_t' is not supported (C has no "
+                    "constants of that type); use a fixed-width integer type",
+                )
+                return None
+        else:
+            c_type = typemap.BUILTIN_TYPES["INT"]
+        enumerators: list[Enumerator] = []
+        unavailable: list[int] = []
+        for child in cursor.get_children():
+            if child.kind != CursorKind.ENUM_CONSTANT_DECL:
+                continue
+            if child.availability == AvailabilityKind.NOT_AVAILABLE:
+                unavailable.append(libclang.enumerator_value(child, underlying))
+                continue
+            constant = str(child.spelling)
+            if not self._check_name(child, constant):
+                return None
+            value = libclang.enumerator_value(child, underlying)
+            if not fixed and not _INT_MIN <= value <= _INT_MAX:
+                self._error(
+                    child,
+                    f"enumerator '{qualified}::{constant}' = {value} does not fit in int: the "
+                    f"underlying type of '{qualified}' then depends on the compiler (MSVC "
+                    "truncates it); give the enum a fixed underlying type, for example "
+                    "': std::uint32_t'",
+                )
+                return None
+            deprecated = child.availability == AvailabilityKind.DEPRECATED
+            enumerators.append(Enumerator(constant, value, deprecated))
+        location = _location(cursor.location)
+        assert location is not None
+        return Enumeration(
+            name=name,
+            namespace=namespace,
+            scope=scope,
+            usr=str(cursor.get_usr()),
+            scoped=bool(cursor.is_scoped_enum()),
+            underlying=c_type,
+            fixed=fixed,
+            enumerators=tuple(enumerators),
+            location=location,
+            unavailable=tuple(unavailable),
+        )
+
+    # Value structs -------------------------------------------------------------
+
+    def _parse_struct(self, cursor: cindex.Cursor) -> Struct | None:
+        """A class with public data members, which crosses the boundary by value."""
+        errors_before = len(self.errors)
+        name = str(cursor.spelling)
+        if not name or cursor.is_anonymous():
+            self._error(cursor, "anonymous structs are not supported")
+            return None
+        if not self._check_name(cursor, name):
+            return None
+        namespace = self._namespace_of(cursor)
+        if namespace is None:
+            return None
+        qualified = "::".join((*namespace, name))
+        if int(cursor.type.get_num_template_arguments()) > 0:
+            self._error(cursor, f"template specialization '{qualified}' is not supported")
+            return None
+        enums = self._check_struct_members(cursor, qualified, namespace)
+        fields = [self._parse_field(field, qualified) for field in cursor.type.get_fields()]
+        if len(self.errors) > errors_before:
+            return None
+        location = _location(cursor.location)
+        assert location is not None
+        return Struct(
+            name=name,
+            namespace=namespace,
+            usr=str(cursor.get_usr()),
+            fields=tuple(field for field in fields if field is not None),
+            location=location,
+            enums=tuple(enums),
+        )
+
+    def _check_struct_members(
+        self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
+    ) -> list[Enumeration]:
+        """Report the members that a value struct cannot have; return its public enums.
+
+        Its value is made by default construction and member assignments, so it
+        needs a public default constructor, and copies.
+        """
+        where = f"value struct '{qualified}'"
+        enums: list[Enumeration] = []
+        declares_constructor = has_default_constructor = False
+        declares_copy = declares_move = False
+        for member in cursor.get_children():
+            try:
+                kind = member.kind
+            except ValueError:
+                self._error(member, f"member of '{qualified}' of a kind unknown to the bindings")
+                continue
+            if (
+                kind.is_attribute()
+                or kind in _IGNORED_MEMBER_KINDS
+                or kind
+                in (
+                    CursorKind.FIELD_DECL,
+                    CursorKind.VAR_DECL,  # static data members are not part of the value
+                )
+            ):
+                continue
+            public = member.access_specifier == AccessSpecifier.PUBLIC
+            member_name = f"'{qualified}::{member.spelling}'"
+            if kind == CursorKind.CXX_BASE_SPECIFIER:
+                self._error(member, f"{where}: inheritance is not supported yet")
+            elif kind == CursorKind.CONSTRUCTOR:
+                declares_constructor = True
+                role = self._struct_constructor(member, where)
+                declares_copy |= role == "copy"
+                declares_move |= role == "move"
+                has_default_constructor |= role == "default"
+            elif kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
+                declares_constructor = True
+                self._error(member, f"{where}: constructor templates are not supported")
+            elif kind == CursorKind.DESTRUCTOR:
+                self._check_struct_destructor(member, where)
+            elif kind == CursorKind.CXX_METHOD and (
+                member.is_copy_assignment_operator_method()
+                or member.is_move_assignment_operator_method()
+            ):
+                declares_move |= bool(member.is_move_assignment_operator_method())
+            elif kind == CursorKind.CXX_METHOD:
+                self._error(member, f"{where}: methods are not supported yet ({member_name})")
+            elif kind == CursorKind.CONVERSION_FUNCTION:
+                self._error(member, f"{where}: conversion operators are not supported yet")
+            elif kind == CursorKind.ENUM_DECL:
+                if public:
+                    enum = self._parse_enum(member, (str(cursor.spelling),), namespace)
+                    if enum is not None:
+                        enums.append(enum)
+            elif kind in _NESTED_TYPE_KINDS:
+                if not member.is_anonymous():  # anonymous members are reported as fields
+                    self._error(member, f"nested type {member_name} is not supported yet")
+            else:
+                self._error(member, f"{where}: unsupported member {member_name} ({kind.name})")
+        if declares_constructor and not has_default_constructor:
+            self._error(cursor, f"{where} has no public default constructor")
+        if declares_move and not declares_copy:
+            self._error(cursor, f"{where} cannot be copied: it declares a move operation only")
+        return enums
+
+    def _check_struct_destructor(self, member: cindex.Cursor, where: str) -> None:
+        if (
+            member.access_specifier != AccessSpecifier.PUBLIC
+            or self._unavailable(member)
+            or member.is_virtual_method()
+        ):
+            self._error(member, f"{where} needs a public, non-virtual destructor")
+        elif _may_throw(member):
+            # The generated code destroys temporaries after it writes the
+            # result, which must stay unchanged on failure.
+            self._error(member, f"{where}: destructors that may throw are not supported")
+
+    def _struct_constructor(self, member: cindex.Cursor, where: str) -> str:
+        """What a constructor of a value struct is: "copy", "move", "default" (a
+        usable default constructor) or "" (reported if it is not allowed)."""
+        usable = member.access_specifier == AccessSpecifier.PUBLIC and not self._unavailable(member)
+        if member.is_copy_constructor():
+            arguments = list(member.get_arguments())
+            from_const = bool(arguments) and arguments[0].type.get_pointee().is_const_qualified()
+            if not usable or member.is_explicit_method() or not from_const:
+                self._error(
+                    member,
+                    f"{where} cannot be copied: its copy constructor is deleted, not public, "
+                    "explicit or takes a non-const reference",
+                )
+            return "copy"
+        if member.is_move_constructor():
+            if not usable or member.is_explicit_method():
+                # Returning a local by value needs it (it is not ignored like a
+                # missing one).
+                self._error(
+                    member,
+                    f"{where} cannot be moved: its move constructor is deleted, not public or "
+                    "explicit",
+                )
+            return "move"
+        if not list(member.get_arguments()):
+            return "default" if usable else ""
+        self._error(
+            member,
+            f"{where}: constructors with parameters are not supported yet "
+            "(a value struct is built member by member)",
+        )
+        return ""
+
+    def _parse_field(self, field: cindex.Cursor, qualified: str) -> Field | None:
+        name = str(field.spelling)
+        where = f"member '{qualified}::{name}'"
+        if field.access_specifier != AccessSpecifier.PUBLIC:
+            self._error(
+                field,
+                f"{where} is not public: every data member of a value struct must be public",
+            )
+            return None
+        declaration = field.type.get_declaration()
+        if (
+            not name
+            or field.is_anonymous_record_decl()
+            or (
+                declaration.kind
+                in (CursorKind.STRUCT_DECL, CursorKind.UNION_DECL, CursorKind.CLASS_DECL)
+                and declaration.is_anonymous()
+            )
+        ):
+            self._error(field, f"anonymous unions and structs in '{qualified}' are not supported")
+            return None
+        if self._unavailable(field):
+            self._error(field, f"{where} is unavailable: the value cannot be copied")
+            return None
+        if not self._check_name(field, name):
+            return None
+        if (name.startswith("_") and (len(name) == 1 or name[1].isupper())) or "__" in name:
+            self._error(field, f"{where}: the name is reserved in C and C++")
+            return None
+        if field.is_bitfield():
+            self._error(field, f"{where}: bit-fields are not supported yet")
+            return None
+        clang_type = field.type
+        length: int | None = None
+        canonical = clang_type.get_canonical()
+        if canonical.kind == TypeKind.INCOMPLETEARRAY:
+            self._error(field, f"{where}: arrays without a size are not supported")
+            return None
+        if canonical.kind == TypeKind.CONSTANTARRAY:
+            clang_type = _array_type(clang_type)
+            length = int(clang_type.get_array_size())
+            if length < 1:
+                self._error(field, f"{where}: arrays of size 0 are not supported")
+                return None
+            clang_type = clang_type.get_array_element_type()
+            canonical = clang_type.get_canonical()
+            if canonical.kind in (TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY):
+                self._error(field, f"{where}: arrays of arrays are not supported yet")
+                return None
+            if canonical.kind in _CHAR_KINDS:
+                self._error(
+                    field, f"{where}: char arrays (fixed-size strings) are not supported yet"
+                )
+                return None
+        if canonical.kind in (TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE):
+            self._error(field, f"{where}: reference members are not supported")
+            return None
+        if canonical.is_const_qualified():
+            self._error(
+                field, f"{where}: const members are not supported (bridgefex assigns every member)"
+            )
+            return None
+        type_ = self._type(clang_type, field, where, allow_void=False)
+        if type_ is None:
+            return None
+        if isinstance(type_, StringType):
+            self._error(field, f"{where}: strings in value structs are not supported yet")
+            return None
+        if isinstance(type_, ContainerType):
+            self._error(field, f"{where}: containers in value structs are not supported yet")
+            return None
+        location = _location(field.location)
+        assert location is not None
+        field_type: FieldType = type_
+        return Field(name, field_type, length, location)
+
     # Classes ---------------------------------------------------------------
 
     def _parse_class(self, cursor: cindex.Cursor, kind: CursorKind) -> Class | None:
@@ -668,7 +1447,9 @@ class _Visitor:
         if cursor.is_abstract_record():
             self._error(cursor, f"class '{qualified}' is abstract and cannot be instantiated")
 
-        constructors, methods, declares_constructor = self._parse_members(cursor, qualified)
+        constructors, methods, enums, declares_constructor = self._parse_members(
+            cursor, qualified, namespace
+        )
 
         location = _location(cursor.location)
         assert location is not None  # cursors of the target header always have one
@@ -683,14 +1464,23 @@ class _Visitor:
         if len(self.errors) > errors_before:
             return None
         class_key = "struct" if kind == CursorKind.STRUCT_DECL else "class"
-        return Class(name, namespace, class_key, tuple(constructors), tuple(methods), location)
+        return Class(
+            name,
+            namespace,
+            class_key,
+            tuple(constructors),
+            tuple(methods),
+            location,
+            tuple(enums),
+        )
 
     def _parse_members(
-        self, cursor: cindex.Cursor, qualified: str
-    ) -> tuple[list[Constructor], list[Method], bool]:
-        """Public constructors and methods, and whether any constructor is declared."""
+        self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
+    ) -> tuple[list[Constructor], list[Method], list[Enumeration], bool]:
+        """Public constructors, methods and enums, and whether any constructor is declared."""
         constructors: list[Constructor] = []
         methods: list[Method] = []
+        enums: list[Enumeration] = []
         declares_constructor = False
         has_virtual_method = False
         virtual_destructor = False
@@ -705,6 +1495,14 @@ class _Visitor:
                 is_final = True
                 continue
             if member_kind.is_attribute() or member_kind in _IGNORED_MEMBER_KINDS:
+                continue
+            if member_kind == CursorKind.ENUM_DECL:
+                # Private and protected enums are not part of the API; a public
+                # signature that uses one is reported there.
+                if member.access_specifier == AccessSpecifier.PUBLIC:
+                    enum = self._parse_enum(member, (str(cursor.spelling),), namespace)
+                    if enum is not None:
+                        enums.append(enum)
                 continue
             if member_kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
                 # A constructor template, whatever its access, suppresses the
@@ -753,7 +1551,7 @@ class _Visitor:
                 f"class '{qualified}' has virtual methods but no virtual destructor and is "
                 "not final; this is not supported",
             )
-        return constructors, methods, declares_constructor
+        return constructors, methods, enums, declares_constructor
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
         """Report a public member that bridgefex cannot expose."""

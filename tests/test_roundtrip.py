@@ -10,6 +10,7 @@ against it, each in its own process.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -32,6 +33,12 @@ pytestmark = pytest.mark.usefixtures("libclang_loaded")
 CXX_STANDARD = "c++17"
 
 
+def cxx_standard(case: Case) -> str:
+    """CXX_STANDARD, or the newer standard that a case needs (std::span)."""
+    order = ("c++11", "c++14", "c++17", "c++20", "c++23")
+    return max(CXX_STANDARD, case.min_cxx, key=order.index)
+
+
 def build(
     case: Case, toolchain: Toolchain, directory: Path, extra_flags: Sequence[str] = ()
 ) -> tuple[Path, Path]:
@@ -42,21 +49,26 @@ def build(
     library = directory / toolchain.shared_library_name(case.module)
     sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)
     toolchain.build_shared_library(
-        sources, [output / "c", case.input_dir], library, CXX_STANDARD, extra_flags
+        sources, [output / "c", case.input_dir], library, cxx_standard(case), extra_flags
     ).check()
     return library, output
 
 
+# A function declaration of a generated C header ('DEMO_API void demo_free(void* memory);').
+_DECLARATION = re.compile(r"(?:[A-Z0-9_]+_NODISCARD )?[A-Z0-9_]+_API [^(]*?(\w+)\(")
+
+
 def expected_exports(case: Case) -> set[str]:
+    """The functions declared by the generated C headers, the runtime one included."""
     result = bridgefex.generate(case.headers, case.options())
-    plan_header = result.files[f"c/{case.module}_runtime.h"]
-    names = {f"{case.module}_last_error", f"{case.module}_api_fingerprint"}
-    assert f"{case.module}_api_fingerprint" in plan_header
+    names: set[str] = set()
     for path, content in result.files.items():
-        if path.startswith("c/") and path.endswith("_c.h"):
+        if path.startswith("c/") and path.endswith(".h"):
             for line in content.splitlines():
-                if "_API " in line and "(" in line:
-                    names.add(line.split("(", 1)[0].split()[-1])
+                match = _DECLARATION.match(line)
+                if match:
+                    names.add(match.group(1))
+    assert {f"{case.module}_{name}" for name in ("last_error", "api_fingerprint", "free")} <= names
     return names
 
 
@@ -169,6 +181,35 @@ def test_c_round_trip(
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
+    check_layouts(case, output, completed.stdout)
+
+
+def check_layouts(case: Case, output: Path, c_output: str) -> None:
+    """The ctypes mirrors have the layouts that check_c.c printed: lines
+    'layout <C type> <size> <member>=<offset>...'."""
+    layouts = [line.split()[1:] for line in c_output.splitlines() if line.startswith("layout ")]
+    if not layouts:
+        return
+    code = (
+        "import ctypes, sys\n"
+        f"from {case.module} import _types\n"
+        "for name, size, *members in (line.split() for line in sys.stdin):\n"
+        "    mirror = getattr(_types, '_' + name)\n"
+        "    actual = [str(ctypes.sizeof(mirror))]\n"
+        "    actual += [m.split('=')[0] + '=' + str(getattr(mirror, m.split('=')[0]).offset)"
+        " for m in members]\n"
+        "    assert actual == [size, *members], (name, actual, [size, *members])\n"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(output / "python")}
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        input="\n".join(" ".join(layout) for layout in layouts),
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 # Symbols that the linker defines in every shared library.

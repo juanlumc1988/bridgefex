@@ -27,6 +27,20 @@
 #include "geometry_c.h"
 #include "demo_runtime_internal.hpp"
 
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here. Nor is a member that a default
+// constructor of the user leaves uninitialized: it is copied as it is.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#if !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
 #if !defined(__cpp_aligned_new)
 // Before C++17, new ignores alignments larger than the default one.
 static_assert(alignof(::demo::geometry::Circle) <= demo_detail::new_alignment,
@@ -105,3 +119,9 @@ demo_status demo_geometry_distance(double x1, double y1, double x2, double y2, d
 }
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

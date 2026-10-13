@@ -28,6 +28,8 @@ class Case:
     module: str
     headers: tuple[Path, ...]
     std: str
+    min_cxx: str
+    """Oldest C++ standard that the generated sources compile with."""
 
     @property
     def input_dir(self) -> Path:
@@ -62,6 +64,7 @@ def load_case(directory: Path) -> Case:
         module=config["module"],
         headers=tuple(directory / "input" / name for name in config["headers"]),
         std=config.get("std", "c++17"),
+        min_cxx=config.get("min_cxx", "c++11"),
     )
 
 

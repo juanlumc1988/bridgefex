@@ -57,8 +57,8 @@ def test_overload_suffix() -> None:
     int32 = STANDARD_TYPEDEFS["int32_t"].type
     double = BUILTIN_TYPES["DOUBLE"]
     assert naming.overload_suffix([]) == "_void"
-    assert naming.overload_suffix([int32]) == "_int32"
-    assert naming.overload_suffix([int32, double]) == "_int32_double"
+    assert naming.overload_suffix([int32.token]) == "_int32"
+    assert naming.overload_suffix([int32.token, double.token]) == "_int32_double"
 
 
 def test_parameter_names() -> None:
@@ -73,7 +73,9 @@ def test_parameter_names() -> None:
         "out_result_",
     )
     # Renaming never creates duplicates.
-    assert naming.parameter_names(["self", "self_"]) == ("self_", "self__")
+    # ... nor '__', which C and C++ reserve.
+    assert naming.parameter_names(["self", "self_"]) == ("self2", "self_")
+    assert naming.parameter_names(["x_", "x_"]) == ("x_", "x_2")
     assert naming.parameter_names(["", "arg1"]) == ("arg1", "arg1_")
     assert naming.parameter_names(["handle"], reserved={"handle"}) == ("handle_",)
 
@@ -151,3 +153,40 @@ def test_module_level_names() -> None:
     assert naming.module_level_name("lambda") == "lambda_"
     assert naming.module_level_name("Box", reserved={"Box"}) == "Box_"
     assert naming.module_level_name("getattr") == "getattr"
+
+
+def test_derived_names() -> None:
+    cpp = ["from", "x_", "errno", "", "s", "s_size", "out_result_size"]
+    final = naming.parameter_names(cpp)
+    assert final == ("from_", "x_", "errno_", "arg4", "s", "s_size", "out_result_size_")
+    wants = [True, True, True, True, True, False, False]
+    sizes = naming.derived_names(cpp, final, wants, "_size")
+    assert sizes == ("from_size", "x_size", "errno_size", "arg4_size", "s_size_", None, None)
+    for name in sizes:
+        assert name is None or naming.c_identifier_problem(name) is None
+
+
+def test_derived_names_avoid_reserved_names_and_each_other() -> None:
+    # A macro of the header; then two parameters whose bases are the same.
+    sizes = naming.derived_names(
+        ["values", "a", "a_"], ["values", "a", "a_"], [True] * 3, "_size", {"values_size"}
+    )
+    assert sizes == ("values_size_", "a_size", "a_size_")
+    # A chain of taken names never gives '__'.
+    cpp = ["s", "s_size", "s_size_"]
+    assert naming.derived_names(cpp, cpp, [True, False, False], "_size") == ("s_size2", None, None)
+    # The C++ name, not the final one: '_' alone is the unnamed case.
+    assert naming.derived_names(["_"], ["_"], [True], "_size") == ("arg1_size",)
+
+
+@pytest.mark.parametrize(
+    "name", ["_types", "_out_size", "_out_data", "out_result_size", "_item", "_scope", "_status"]
+)
+def test_names_of_generated_locals_are_reserved_for_parameters(name: str) -> None:
+    assert naming.parameter_names([name]) == (f"{name}_",)
+
+
+def test_runtime_names_of_step_two_are_reserved() -> None:
+    assert {"DEMO_ERROR_INVALID_ARGUMENT", "DEMO_TYPES_H"} <= naming.generated_macros("demo")
+    assert "ERROR_INVALID_ARGUMENT" in naming.PACKAGE_NAMES
+    assert "_types" in naming.MODULE_GLOBALS

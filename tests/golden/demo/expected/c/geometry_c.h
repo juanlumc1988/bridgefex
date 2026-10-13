@@ -2,10 +2,7 @@
 #ifndef DEMO_GEOMETRY_C_H
 #define DEMO_GEOMETRY_C_H
 
-#include "demo_runtime.h"
-
-/* Opaque handles. */
-typedef struct demo_geometry_Circle demo_geometry_Circle;
+#include "demo_types.h"
 
 #ifdef __cplusplus
 extern "C" {

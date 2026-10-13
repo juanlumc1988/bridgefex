@@ -2,10 +2,7 @@
 #ifndef DEMO_COUNTER_C_H
 #define DEMO_COUNTER_C_H
 
-#include "demo_runtime.h"
-
-/* Opaque handles. */
-typedef struct demo_Counter demo_Counter;
+#include "demo_types.h"
 
 #ifdef __cplusplus
 extern "C" {

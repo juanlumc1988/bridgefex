@@ -1,0 +1,6 @@
+# Options passed to bridgefex for this case.
+module = "spn"
+headers = ["views.h"]
+std = "c++20"
+# std::span is C++20.
+min_cxx = "c++20"

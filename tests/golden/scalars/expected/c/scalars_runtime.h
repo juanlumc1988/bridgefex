@@ -50,6 +50,16 @@
 /* Result of every function that can fail. */
 typedef int32_t scalars_status;
 
+/*
+ * One string of an array of strings: 'size' bytes at 'data', which may contain
+ * NUL bytes. In arrays that the C API returns, data is never NULL and data[size]
+ * is a NUL byte. In arrays passed to the C API, data may be NULL when size is 0.
+ */
+typedef struct scalars_string {
+    const char* data;
+    size_t size;
+} scalars_string;
+
 /* Success. */
 #define SCALARS_OK 0
 /* The C++ code threw a std::exception; scalars_last_error() has its what(). */
@@ -60,6 +70,8 @@ typedef int32_t scalars_status;
 #define SCALARS_ERROR_NULL_ARGUMENT 3
 /* Memory allocation failed (std::bad_alloc). */
 #define SCALARS_ERROR_OUT_OF_MEMORY 4
+/* An argument has a value that the C++ type cannot hold. */
+#define SCALARS_ERROR_INVALID_ARGUMENT 5
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +90,13 @@ SCALARS_API const char* scalars_last_error(void);
  * changes. Bindings compare it to detect a stale library.
  */
 SCALARS_API const char* scalars_api_fingerprint(void);
+
+/*
+ * Releases the memory of a result that a function of this API allocated
+ * (char** out_result...). NULL is accepted. Use this function, never free():
+ * the library may use another C runtime than its caller (Windows).
+ */
+SCALARS_API void scalars_free(void* memory);
 
 #ifdef __cplusplus
 }

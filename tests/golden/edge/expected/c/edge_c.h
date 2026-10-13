@@ -2,10 +2,7 @@
 #ifndef EDGE_EDGE_C_H
 #define EDGE_EDGE_C_H
 
-#include "edge_runtime.h"
-
-/* Opaque handles. */
-typedef struct edge_Registry edge_Registry;
+#include "edge_types.h"
 
 #ifdef __cplusplus
 extern "C" {

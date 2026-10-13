@@ -48,7 +48,9 @@ class GenerationError(BridgefexError):
     """The input cannot be translated. Carries every problem that was found."""
 
     def __init__(self, diagnostics: Iterable[Diagnostic]) -> None:
-        self.diagnostics = tuple(diagnostics)
+        # The same problem found twice (a type in a parameter and in the
+        # result) is reported once.
+        self.diagnostics = tuple(dict.fromkeys(diagnostics))
         if not self.diagnostics:
             raise ValueError("GenerationError needs at least one diagnostic")
         super().__init__("\n".join(str(diagnostic) for diagnostic in self.diagnostics))

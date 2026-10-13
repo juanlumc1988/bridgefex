@@ -9,7 +9,6 @@ import sys
 from collections.abc import Iterable, Sequence
 
 from .errors import ConfigurationError
-from .model import ScalarType
 from .typemap import STANDARD_TYPEDEFS
 
 # Lowercase; no trailing '_' and no '__', which would make every generated
@@ -58,8 +57,8 @@ _COMMON_MACROS = frozenset(
 # Names that the generated code uses for its own parameters, locals and globals.
 _GENERATED_PARAMETER_NAMES = frozenset(
     """
-    self cls out_self out_result ctypes weakref threading _builtins _runtime _lib _bind
-    _bind_lock _out _handle _self
+    self cls out_self out_result out_result_size ctypes weakref threading _builtins _runtime
+    _types _lib _bind _bind_lock _out _out_size _out_data _handle _self _item _scope _status
     """.split()
 )
 
@@ -86,7 +85,8 @@ RESERVED_MEMBER_NAMES = frozenset(
 # that the names already given to C++ declarations do not change.
 MODULE_GLOBALS = frozenset(
     """
-    ctypes weakref threading _builtins _sys _runtime _lib _bind _bind_lock _watch _watchers
+    ctypes weakref threading _builtins _sys _runtime _types _lib _bind _bind_lock _watch
+    _watchers
     __all__ AttributeError IndexError
     """.split()
 )
@@ -96,7 +96,7 @@ MODULE_GLOBALS = frozenset(
 PACKAGE_NAMES = frozenset(
     """
     load Error OK ERROR_EXCEPTION ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT
-    ERROR_OUT_OF_MEMORY
+    ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
     """.split()
 )
 
@@ -126,8 +126,8 @@ def generated_macros(module: str) -> frozenset[str]:
     prefix = module.upper()
     suffixes = """
         API C_API_BUILD C_API_STATIC C_API_AFTER_GLIBC NODISCARD OK ERROR_EXCEPTION
-        ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY RUNTIME_H
-        RUNTIME_INTERNAL_HPP
+        ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
+        RUNTIME_H RUNTIME_INTERNAL_HPP TYPES_H
     """.split()
     return frozenset(f"{prefix}_{suffix}" for suffix in suffixes)
 
@@ -182,16 +182,30 @@ def c_prefix(namespace: Sequence[str], module: str) -> str:
     return "_".join(namespace) if namespace else module
 
 
-def overload_suffix(parameter_types: Sequence[ScalarType]) -> str:
-    """Suffix that tells overloads apart, for example ``_int32_double`` or ``_void``."""
-    if not parameter_types:
+def overload_suffix(tokens: Sequence[str]) -> str:
+    """Suffix that tells overloads apart from the tokens of their parameter types,
+    for example ``_int32_double``, or ``_void`` without parameters."""
+    if not tokens:
         return "_void"
-    return "_" + "_".join(scalar.token for scalar in parameter_types)
+    return "_" + "_".join(tokens)
 
 
 def python_name(name: str) -> str:
     """Make a C++ name usable as a Python name (``lambda`` becomes ``lambda_``)."""
     return f"{name}_" if keyword.iskeyword(name) else name
+
+
+def unique_name(candidate: str, taken: Iterable[str]) -> str:
+    """``candidate``, else with a trailing ``_``, else with a number (``x2``,
+    ``x3``...): never ``__``, which C and C++ reserve."""
+    if candidate not in taken:
+        return candidate
+    if not candidate.endswith("_") and candidate + "_" not in taken:
+        return candidate + "_"
+    number = 2
+    while f"{candidate}{number}" in taken:
+        number += 1
+    return f"{candidate}{number}"
 
 
 def _avoid(candidate: str, taken: frozenset[str]) -> str:
@@ -215,14 +229,100 @@ def parameter_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple
 
     Unnamed parameters become ``arg1``, ``arg2``...; names that clash with a
     keyword of C, C++ or Python, a common macro, a type name or a name used
-    by the generated code get a trailing ``_``, as do the names in
-    ``reserved``. The result has no duplicates.
+    by the generated code, or with the names in ``reserved``, are made unique
+    with :func:`unique_name` (a trailing ``_`` first). The result has no
+    duplicates.
     """
-    taken = RESERVED_PARAMETER_NAMES | frozenset(reserved)
+    return _unique_names(
+        [name or f"arg{position}" for position, name in enumerate(names, start=1)],
+        RESERVED_PARAMETER_NAMES | frozenset(reserved),
+    )
+
+
+def _unique_names(names: Sequence[str], taken: frozenset[str]) -> tuple[str, ...]:
+    """``names`` without those in ``taken`` or repeated: a name that must change
+    avoids every other given name too, so that it never takes the name of a
+    later one."""
     result: list[str] = []
-    for position, name in enumerate(names, start=1):
-        candidate = name or f"arg{position}"
-        while candidate in taken or candidate in result:
-            candidate += "_"
+    for position, name in enumerate(names):
+        if name not in taken and name not in result:
+            result.append(name)
+            continue
+        others = frozenset(names[position + 1 :])
+        result.append(unique_name(name, taken | others | frozenset(result)))
+    return tuple(result)
+
+
+def derived_names(
+    cpp_names: Sequence[str],
+    final_names: Sequence[str],
+    wants: Sequence[bool],
+    suffix: str,
+    reserved: Iterable[str] = (),
+) -> tuple[str | None, ...]:
+    """Names of the C parameters derived from other parameters, such as the
+    ``_size`` of a string: one per parameter, None where ``wants`` is False.
+
+    The name is the C++ name without trailing ``_`` (``argN`` when unnamed)
+    plus ``suffix``, never the final name plus ``suffix``, which could contain
+    ``__`` (``from`` becomes ``from_``). When it clashes with a reserved name,
+    a name in ``reserved``, a final name or an earlier derived name, it is made
+    unique with :func:`unique_name`. Call it once the final names are known.
+    """
+    taken = RESERVED_PARAMETER_NAMES | frozenset(reserved) | frozenset(final_names)
+    used: set[str] = set()
+    result: list[str | None] = []
+    for position, (cpp_name, wanted) in enumerate(zip(cpp_names, wants, strict=True), start=1):
+        if not wanted:
+            result.append(None)
+            continue
+        candidate = unique_name(
+            (cpp_name.rstrip("_") or f"arg{position}") + suffix, taken | frozenset(used)
+        )
+        used.add(candidate)
+        result.append(candidate)
+    return tuple(result)
+
+
+# Names that an IntEnum member cannot take: 'mro' makes the class creation
+# fail, the others would hide the int method of every member. Fixed, not
+# computed from the running Python, so that the output does not depend on it.
+_ENUM_MEMBER_RESERVED = frozenset(
+    "mro as_integer_ratio bit_count bit_length conjugate from_bytes is_integer to_bytes".split()
+)
+
+
+def enum_member_name(name: str) -> str:
+    """Python name of an enumerator in an IntEnum (``None`` becomes ``None_``)."""
+    if keyword.iskeyword(name) or name in _ENUM_MEMBER_RESERVED:
+        return f"{name}_"
+    return name
+
+
+# Names that ctypes gives a meaning to in a Structure subclass.
+_CTYPES_STRUCTURE_NAMES = frozenset(
+    "_fields_ _anonymous_ _pack_ _align_ _layout_ _swappedbytes_".split()
+)
+
+_FIELD_RESERVED = (
+    frozenset(keyword.kwlist) | KEYWORDS | _COMMON_MACROS | frozenset(STANDARD_TYPEDEFS)
+)
+
+
+def field_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple[str, ...]:
+    """Names of the members of a value struct in its C mirror and its Python
+    dataclass: like :func:`parameter_names`, without the names that only
+    parameters avoid (``self``, ``out_result``...)."""
+    return _unique_names(names, _FIELD_RESERVED | frozenset(reserved))
+
+
+def ctypes_field_names(names: Sequence[str]) -> tuple[str, ...]:
+    """Names of the members in the ctypes mirror: ``_fields_`` and the other names
+    that ctypes reads from the class get a trailing ``_``."""
+    result: list[str] = []
+    for name in names:
+        candidate = name
+        if candidate in _CTYPES_STRUCTURE_NAMES:
+            candidate = unique_name(candidate + "_", frozenset(names) | frozenset(result))
         result.append(candidate)
     return tuple(result)

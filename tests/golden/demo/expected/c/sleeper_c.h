@@ -2,10 +2,7 @@
 #ifndef DEMO_SLEEPER_C_H
 #define DEMO_SLEEPER_C_H
 
-#include "demo_runtime.h"
-
-/* Opaque handles. */
-typedef struct demo_Sleeper demo_Sleeper;
+#include "demo_types.h"
 
 #ifdef __cplusplus
 extern "C" {

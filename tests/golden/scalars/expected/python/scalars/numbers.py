@@ -4,7 +4,7 @@ import builtins as _builtins
 import ctypes
 import threading
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "Accumulator",
@@ -39,13 +39,6 @@ __all__ = [
     "do_nothing",
 ]
 
-
-class _scalars_Accumulator(ctypes.Structure):
-    """Opaque C handle of Accumulator."""
-
-
-_scalars_Accumulator_p = ctypes.POINTER(_scalars_Accumulator)
-
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
 # while _bind() declares the signatures, in the same thread.
@@ -61,17 +54,17 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-            lib.scalars_Accumulator_create.argtypes = [ctypes.POINTER(_scalars_Accumulator_p)]
+            lib.scalars_Accumulator_create.argtypes = [ctypes.POINTER(_types._scalars_Accumulator__p)]
             lib.scalars_Accumulator_create.restype = _runtime.Status
-            lib.scalars_Accumulator_destroy.argtypes = [_scalars_Accumulator_p]
+            lib.scalars_Accumulator_destroy.argtypes = [_types._scalars_Accumulator__p]
             lib.scalars_Accumulator_destroy.restype = None
-            lib.scalars_Accumulator_push.argtypes = [_scalars_Accumulator_p, ctypes.c_double]
+            lib.scalars_Accumulator_push.argtypes = [_types._scalars_Accumulator__p, ctypes.c_double]
             lib.scalars_Accumulator_push.restype = _runtime.Status
-            lib.scalars_Accumulator_total.argtypes = [_scalars_Accumulator_p, ctypes.POINTER(ctypes.c_double)]
+            lib.scalars_Accumulator_total.argtypes = [_types._scalars_Accumulator__p, ctypes.POINTER(ctypes.c_double)]
             lib.scalars_Accumulator_total.restype = _runtime.Status
-            lib.scalars_Accumulator_count.argtypes = [_scalars_Accumulator_p, ctypes.POINTER(ctypes.c_size_t)]
+            lib.scalars_Accumulator_count.argtypes = [_types._scalars_Accumulator__p, ctypes.POINTER(ctypes.c_size_t)]
             lib.scalars_Accumulator_count.restype = _runtime.Status
-            lib.scalars_Accumulator_reset.argtypes = [_scalars_Accumulator_p]
+            lib.scalars_Accumulator_reset.argtypes = [_types._scalars_Accumulator__p]
             lib.scalars_Accumulator_reset.restype = _runtime.Status
             lib.scalars_Accumulator_version.argtypes = [ctypes.POINTER(ctypes.c_int)]
             lib.scalars_Accumulator_version.restype = _runtime.Status
@@ -162,7 +155,7 @@ class Accumulator:
         writes the handle, before any Python code runs again: a signal raised
         right after the call does not leak it.
         """
-        handle = _scalars_Accumulator_p()
+        handle = _types._scalars_Accumulator__p()
         self._handle = None
         self._owned = []
         self._finalizer = _runtime.watch(self, handle, _bind().scalars_Accumulator_destroy)
@@ -175,7 +168,7 @@ class Accumulator:
             )
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
-        self._owned.append((_bind().scalars_Accumulator_destroy, _scalars_Accumulator_p()))
+        self._owned.append((_bind().scalars_Accumulator_destroy, _types._scalars_Accumulator__p()))
 
     def _ptr(self):
         if not self._owned or self._collected():

@@ -4,20 +4,13 @@ import builtins as _builtins
 import ctypes
 import threading
 
-from . import _runtime
+from . import _runtime, _types
 
 __all__ = [
     "multiply_double_double",
     "Circle",
     "distance",
 ]
-
-
-class _demo_geometry_Circle(ctypes.Structure):
-    """Opaque C handle of demo::geometry::Circle."""
-
-
-_demo_geometry_Circle_p = ctypes.POINTER(_demo_geometry_Circle)
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -36,15 +29,15 @@ def _bind():
         if _lib is None:
             lib.demo_multiply_double_double.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.demo_multiply_double_double.restype = _runtime.Status
-            lib.demo_geometry_Circle_create.argtypes = [ctypes.POINTER(_demo_geometry_Circle_p), ctypes.c_double]
+            lib.demo_geometry_Circle_create.argtypes = [ctypes.POINTER(_types._demo_geometry_Circle__p), ctypes.c_double]
             lib.demo_geometry_Circle_create.restype = _runtime.Status
-            lib.demo_geometry_Circle_destroy.argtypes = [_demo_geometry_Circle_p]
+            lib.demo_geometry_Circle_destroy.argtypes = [_types._demo_geometry_Circle__p]
             lib.demo_geometry_Circle_destroy.restype = None
-            lib.demo_geometry_Circle_radius.argtypes = [_demo_geometry_Circle_p, ctypes.POINTER(ctypes.c_double)]
+            lib.demo_geometry_Circle_radius.argtypes = [_types._demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_Circle_radius.restype = _runtime.Status
-            lib.demo_geometry_Circle_area.argtypes = [_demo_geometry_Circle_p, ctypes.POINTER(ctypes.c_double)]
+            lib.demo_geometry_Circle_area.argtypes = [_types._demo_geometry_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_Circle_area.restype = _runtime.Status
-            lib.demo_geometry_Circle_scale.argtypes = [_demo_geometry_Circle_p, ctypes.c_double]
+            lib.demo_geometry_Circle_scale.argtypes = [_types._demo_geometry_Circle__p, ctypes.c_double]
             lib.demo_geometry_Circle_scale.restype = _runtime.Status
             lib.demo_geometry_distance.argtypes = [ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.demo_geometry_distance.restype = _runtime.Status
@@ -87,7 +80,7 @@ class Circle:
         writes the handle, before any Python code runs again: a signal raised
         right after the call does not leak it.
         """
-        handle = _demo_geometry_Circle_p()
+        handle = _types._demo_geometry_Circle__p()
         self._handle = None
         self._owned = []
         self._finalizer = _runtime.watch(self, handle, _bind().demo_geometry_Circle_destroy)
@@ -100,7 +93,7 @@ class Circle:
             )
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
-        self._owned.append((_bind().demo_geometry_Circle_destroy, _demo_geometry_Circle_p()))
+        self._owned.append((_bind().demo_geometry_Circle_destroy, _types._demo_geometry_Circle__p()))
 
     def _ptr(self):
         if not self._owned or self._collected():

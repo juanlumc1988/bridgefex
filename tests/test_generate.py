@@ -156,9 +156,12 @@ def test_verification_can_be_disabled(tmp_path: Path) -> None:
 
 
 def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
-    result = generate(tmp_path, "namespace o { [[deprecated]] int old(); }")
+    result = generate(
+        tmp_path,
+        'namespace o { int old() __attribute__((diagnose_if(true, "do not call", "warning"))); }',
+    )
     assert any(
-        "the generated wrapper o_old()" in str(warning) and "deprecated" in str(warning)
+        "the generated wrapper o_old()" in str(warning) and "do not call" in str(warning)
         for warning in result.warnings
     ), result.warnings
 
@@ -205,7 +208,8 @@ def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
     ],
 )
 def test_accepted(tmp_path: Path, code: str, expected: str) -> None:
-    assert expected in generate(tmp_path, code).files["c/api_c.h"]
+    files = generate(tmp_path, code).files
+    assert expected in files["c/api_c.h"] + files["c/mod_types.h"]
 
 
 def test_header_names_that_replace_package_names(tmp_path: Path) -> None:
@@ -565,3 +569,252 @@ def test_enumerators_nested_in_system_structs_are_reserved(tmp_path: Path) -> No
     header = write_header(tmp_path, "namespace RT { int ADD(); }", name="rt.h")
     with pytest.raises(GenerationError, match="'RT_ADD'"):
         bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="the <iosfwd> of the MSVC STL does not declare std::string"
+)
+def test_strings_of_a_header_that_only_declares_them(tmp_path: Path) -> None:
+    """With only <iosfwd>, std::string is incomplete: the generated source
+    includes <string> itself."""
+    header = tmp_path / "fwd.h"
+    header.write_text(
+        "#pragma once\n#include <iosfwd>\nnamespace fw { std::string up(const std::string& s); }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    assert "#include <string>\n" in result.files["c/fwd_c.cpp"]
+    assert "<string_view>" not in result.files["c/fwd_c.cpp"]
+
+
+def test_a_deleted_rvalue_overload_is_reported(tmp_path: Path) -> None:
+    """'keep(std::string&&) = delete' says that keep() keeps a reference to its
+    argument: the wrapper, which passes a temporary, must not compile."""
+    error = error_of(
+        tmp_path,
+        "#include <string>\n"
+        "namespace k { void keep(const std::string& s); void keep(std::string&&) = delete; }",
+    )
+    assert "the generated wrapper k_keep()" in error
+    assert "deleted" in error
+
+
+def test_string_overloads_reach_their_own_function(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "#include <string>\n#include <string_view>\n"
+        "namespace o { int f(const std::string& s); int f(const char* s);"
+        " int f(std::string_view s); }",
+    )
+    source = result.files["c/api_c.cpp"]
+    assert "o_f_string(const char* s, size_t s_size, int* out_result)" in source
+    assert "o_f_cstr(const char* s, int* out_result)" in source
+    assert "o_f_string_view(const char* s, size_t s_size, int* out_result)" in source
+
+
+def test_strings_by_value_and_by_reference_clash(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "#include <string>\nnamespace o { int f(const std::string& s); int f(std::string s); }",
+    )
+    assert "the C name 'o_f_string'" in error
+
+
+def _render_then(monkeypatch: pytest.MonkeyPatch, change: object) -> None:
+    original = bridgefex.api.render
+
+    def render(*args: object, **kwargs: object) -> dict[str, str]:
+        files = original(*args, **kwargs)  # type: ignore[arg-type]
+        change(files)  # type: ignore[operator]
+        return files
+
+    monkeypatch.setattr(bridgefex.api, "render", render)
+
+
+def test_c_headers_are_verified_as_c99(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def add_an_anonymous_union(files: dict[str, str]) -> None:
+        # C11, not C99. (Not a repeated typedef, which MSVC targets accept, nor
+        # _Static_assert, which glibc defines as a macro before C11.)
+        files["c/api_c.h"] += "struct mod_anonymous { union { int a; float b; }; };\n"
+
+    _render_then(monkeypatch, add_an_anonymous_union)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated C headers do not compile as C" in error
+    assert "-std=c99" in error
+
+
+def test_python_syntax_errors_are_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def break_python(files: dict[str, str]) -> None:
+        files["python/mod/api.py"] += "def broken(:\n"
+
+    _render_then(monkeypatch, break_python)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated Python code does not compile: python/mod/api.py" in error
+
+
+def test_python_import_errors_are_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def break_import(files: dict[str, str]) -> None:
+        if "python/mod/api.py" in files:
+            files["python/mod/api.py"] += "raise ImportError('broken on purpose')\n"
+
+    _render_then(monkeypatch, break_import)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated Python code cannot be imported: ImportError: broken on purpose" in error
+    # Without Python bindings, nothing is imported.
+    header = write_header(tmp_path, "namespace v { int f(); }")
+    bridgefex.generate([header], bridgefex.Options("mod", languages=()))
+
+
+def test_enums_of_headers_that_are_not_wrapped(tmp_path: Path) -> None:
+    (tmp_path / "other.h").write_text(
+        "#pragma once\nnamespace o { enum class Color { red }; }\n", encoding="utf-8"
+    )
+    error = error_of(tmp_path, '#include "other.h"\nnamespace u { void f(o::Color c); }')
+    assert "enum 'o::Color' is defined in" in error
+    assert "other.h, which is not one of the wrapped headers" in error
+
+
+def test_opaque_enums_need_a_definition(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "namespace u { enum class Id : int; void f(Id id); }")
+    assert "enum 'u::Id' has no definition in the wrapped headers" in error
+
+
+def test_enums_across_headers(tmp_path: Path) -> None:
+    """Each header uses the other's enum through an opaque declaration."""
+    first = write_header(
+        tmp_path,
+        "namespace x { enum class B : short; enum class A : int { a }; A f(B b); }",
+        name="first.h",
+    )
+    second = write_header(
+        tmp_path,
+        "namespace x { enum class A : int; enum class B : short { b }; B g(A a); }",
+        name="second.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    assert "is_same<std::underlying_type<::x::B>::type, short>" in result.files["c/first_c.cpp"]
+    assert "is_same<std::underlying_type<::x::A>::type, int>" in result.files["c/second_c.cpp"]
+    types = result.files["c/mod_types.h"]
+    assert types.index("typedef int x_A;") < types.index("typedef short x_B;")
+
+
+def test_deprecated_types_do_not_warn_in_the_generated_checks(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { enum [[deprecated]] Legacy : int { a, b };\n"
+        "struct [[deprecated]] Old { int x; };\n"
+        "class [[deprecated]] Gone { public: int f(); }; }",
+    )
+    assert result.warnings == ()
+
+
+def test_msvc_enum_values_of_headers_that_are_not_wrapped(tmp_path: Path) -> None:
+    """Only the wrapped header's enums must fit in int for the MSVC target."""
+    (tmp_path / "third.h").write_text(
+        "#pragma once\nenum ThirdPartyFlags { TP_HIGH = 0x80000000 };\n", encoding="utf-8"
+    )
+    header = tmp_path / "api.h"
+    header.write_text('#pragma once\n#include "third.h"\nint f(int x);\n', encoding="utf-8")
+    options = bridgefex.Options(
+        "mod", clang_args=("--target=x86_64-pc-windows-msvc",), verify=False
+    )
+    assert "c/api_c.h" in bridgefex.generate([header], options).files
+
+
+def test_unavailable_enumerators_count_for_the_valid_values(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace u { enum Mode { a, b, c __attribute__((unavailable)) = 100 }; int f(Mode m); }",
+    )
+    assert "(0..127)" in result.files["c/api_c.cpp"]
+    assert "u_Mode_c" not in result.files["c/mod_types.h"]
+
+
+def test_types_named_like_output_parameters(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "namespace out { enum class result : int { ok }; result get(); }")
+    assert "'out_result'" in error
+    assert "an output parameter of the generated functions" in error
+
+
+def test_wrapped_headers_reached_as_system_headers(tmp_path: Path) -> None:
+    include = tmp_path / "inc"
+    include.mkdir()
+    first = include / "a.h"
+    first.write_text(
+        "#pragma once\nnamespace ns { enum class Color : int { red }; struct P { int x; }; }\n",
+        encoding="utf-8",
+    )
+    second = tmp_path / "b.h"
+    second.write_text(
+        "#pragma once\n#include <a.h>\nnamespace ns { Color pick(); P point(); }\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options("mod", clang_args=("-isystem", str(include)))
+    result = bridgefex.generate([first, second], options)
+    assert "ns_pick(ns_Color* out_result)" in result.files["c/b_c.h"]
+    assert "ns_point(ns_P* out_result)" in result.files["c/b_c.h"]
+
+
+def test_enums_and_structs_of_system_headers(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "#include <ctime>\nnamespace s { void f(std::timespec t); }")
+    assert "of a system header" in error
+
+
+def test_nested_enum_defined_outside_its_class(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace n { struct S { enum class E : int; int x; }; enum class S::E : int { a }; }",
+    )
+    assert "enum 'S::E' is defined outside its class" in error
+
+
+@pytest.mark.parametrize(
+    "include", ['#include "a.h"', "namespace a { struct P; enum class F : short; }"]
+)
+def test_containers_of_the_structs_and_enums_of_another_header(
+    tmp_path: Path, include: str
+) -> None:
+    """The source of b.h needs the conversions of a.h, and checks a.h's enums,
+    when they are only container elements (the verification compiles it)."""
+    first = write_header(
+        tmp_path,
+        "#pragma once\nnamespace a { struct P { int x; }; enum class F : short { u }; }\n",
+        "a.h",
+    )
+    second = write_header(
+        tmp_path,
+        f"#pragma once\n#include <array>\n#include <vector>\n{include}\nnamespace b {{\n"
+        "std::vector<a::P> f(const std::vector<a::P>& v);\n"
+        "std::array<a::P, 2> g(std::array<a::F, 3> e);\n}\n",
+        "b.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    source = result.files["c/b_c.cpp"]
+    assert '#include "a.h"' in source
+    assert '#include "a_c_internal.hpp"' in source
+    assert "std::underlying_type<::a::F>::type, short>" in source
+
+
+def test_spans_that_convert_their_elements_call_the_span_overload(tmp_path: Path) -> None:
+    """The converted copy is passed as a span: as a std::vector, it would go to
+    the vector overloads (deleted here, so the verification would fail). The
+    header does not include <vector>, which the copy needs."""
+    header = write_header(
+        tmp_path,
+        "#pragma once\n#include <span>\n#include <string>\n#include <cstdint>\n"
+        "namespace t {\nenum class E : std::uint8_t { a };\nstruct P { int x; };\n"
+        "int f(std::span<const E> v);\nint g(std::span<const std::string> v);\n"
+        "int h(std::span<const P> v);\n}\n",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod", std="c++20"))
+    assert "#include <vector>" in result.files["c/api_c.cpp"]
+    overloads = write_header(
+        tmp_path,
+        "#pragma once\n#include <span>\n#include <string>\n#include <vector>\n#include <cstdint>\n"
+        "namespace t {\nenum class E : std::uint8_t { a };\nstruct P { int x; };\n"
+        "int f(std::span<const E> v);\nint f(const std::vector<E>& v) = delete;\n"
+        "int g(std::span<const std::string> v);\nint g(std::vector<std::string> v) = delete;\n"
+        "int h(std::span<const P> v);\nint h(std::vector<P>&& v) = delete;\n}\n",
+        "overloads.h",
+    )
+    bridgefex.generate([overloads], bridgefex.Options("mod", std="c++20"))

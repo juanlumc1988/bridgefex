@@ -1,0 +1,6 @@
+# Options passed to bridgefex for this case.
+module = "txt"
+headers = ["text.h", "views.h"]
+std = "c++17"
+# views.h needs std::string_view.
+min_cxx = "c++17"
