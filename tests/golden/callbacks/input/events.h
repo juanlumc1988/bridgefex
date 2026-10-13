@@ -6,6 +6,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace ev {
 
@@ -35,6 +36,15 @@ void strings(std::function<void(const std::string&, std::string, std::string_vie
 // Calls f n times from 'threads' C++ threads, and joins them before returning.
 void parallel(std::int32_t threads, std::int32_t n, std::function<void(std::int32_t)> f);
 
+// Callbacks beside by-reference parameters: f(prefix + "!").
+std::int32_t prefixed(const std::string& prefix,
+                      const std::function<std::int32_t(const std::string&)>& f);
+
+// Stores handler (see fire), then sleeps for ms milliseconds.
+void store_and_sleep(std::function<std::int32_t(std::int32_t)> handler, std::int32_t ms);
+// The stored handler's result for value, or -1 if there is none.
+std::int32_t fire(std::int32_t value);
+
 // Stored in a global, replaced by the next call; called right away with
 // (Info, "set"). The global is destroyed at exit.
 void set_log_handler(std::function<void(Level, const std::string&)> handler);
@@ -52,11 +62,26 @@ public:
     // Calls on_tick with 0 .. times - 1.
     void tick(std::int32_t times);
     std::int32_t ticks() const;
+    // Calls f with each value; the number of values.
+    std::int32_t each(const std::vector<std::int32_t>& values, std::function<void(std::int32_t)> f);
     static std::int32_t apply(std::int32_t value, std::function<std::int32_t(std::int32_t)> f);
 
 private:
     std::function<void(std::int32_t)> on_tick_;
     std::int32_t ticks_ = 0;
+};
+
+// Keeps its callback, called by notify with the name and the point.
+class Watcher {
+public:
+    Watcher(const std::string& name, const Point& at,
+            std::function<void(const std::string&, Point)> on_notify);
+    void notify() const;
+
+private:
+    std::string name_;
+    Point at_;
+    std::function<void(const std::string&, Point)> on_notify_;
 };
 
 }  // namespace ev

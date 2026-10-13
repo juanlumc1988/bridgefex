@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "events.h"
 
+#include <chrono>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -23,6 +24,8 @@ struct AtExit {
 };
 
 AtExit g_at_exit;
+
+std::function<std::int32_t(std::int32_t)> g_stored;
 
 }  // namespace
 
@@ -104,6 +107,23 @@ void parallel(std::int32_t threads, std::int32_t n, std::function<void(std::int3
     }
 }
 
+std::int32_t prefixed(const std::string& prefix,
+                      const std::function<std::int32_t(const std::string&)>& f)
+{
+    return f(prefix + "!");
+}
+
+void store_and_sleep(std::function<std::int32_t(std::int32_t)> handler, std::int32_t ms)
+{
+    g_stored = std::move(handler);
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+}
+
+std::int32_t fire(std::int32_t value)
+{
+    return g_stored ? g_stored(value) : -1;
+}
+
 void set_log_handler(std::function<void(Level, const std::string&)> handler)
 {
     g_handler = std::move(handler);
@@ -148,9 +168,30 @@ std::int32_t Timer::ticks() const
     return ticks_;
 }
 
+std::int32_t Timer::each(const std::vector<std::int32_t>& values, std::function<void(std::int32_t)> f)
+{
+    for (std::int32_t value : values) {
+        f(value);
+    }
+    return static_cast<std::int32_t>(values.size());
+}
+
 std::int32_t Timer::apply(std::int32_t value, std::function<std::int32_t(std::int32_t)> f)
 {
     return f(value);
+}
+
+Watcher::Watcher(const std::string& name, const Point& at,
+                 std::function<void(const std::string&, Point)> on_notify)
+    : name_(name), at_(at), on_notify_(std::move(on_notify))
+{
+}
+
+void Watcher::notify() const
+{
+    if (on_notify_) {
+        on_notify_(name_, at_);
+    }
 }
 
 }  // namespace ev

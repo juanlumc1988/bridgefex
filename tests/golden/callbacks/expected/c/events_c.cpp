@@ -28,6 +28,7 @@
 #include "cbx_runtime_internal.hpp"
 #include <string>
 #include <string_view>
+#include <vector>
 #include <functional>
 
 // The code below names the wrapped declarations to expose them, deprecated
@@ -67,6 +68,8 @@ static_assert(static_cast<long long>(::ev::Mode::Auto) == ev_Mode_Auto,
 // Before C++17, new ignores alignments larger than the default one.
 static_assert(alignof(::ev::Timer) <= cbx_detail::new_alignment,
               "ev::Timer is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::ev::Watcher) <= cbx_detail::new_alignment,
+              "ev::Watcher is over-aligned: compile this file as C++17 or later");
 #endif
 
 extern "C" {
@@ -171,6 +174,37 @@ cbx_status ev_parallel(int32_t threads, int32_t n, void (*f)(void*, int32_t), vo
     return cbx_detail::guard([&]() { ::ev::parallel(threads, n, cbx_detail::make_callback<::std::function<void (int32_t)>, void>(f, _owner1, [](decltype(f) _callback, void* _user_data, int32_t _arg1) -> void { _callback(_user_data, _arg1); })); });
 }
 
+// int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f)
+cbx_status ev_prefixed(const char* prefix, size_t prefix_size, void (*f)(void*, const char*, size_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result)
+{
+    cbx_detail::callback_owner _owner1(f_release, f_user_data);
+    static_assert(sizeof(decltype(static_cast<void>(::ev::prefixed(std::string(), ::std::function<int32_t (const ::std::string&)>())))*) != 0,
+                  "'int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f)' must accept temporaries: it would keep a dangling reference");
+    if (prefix == nullptr && prefix_size != 0) {
+        return cbx_detail::null_argument("ev_prefixed: 'prefix' is NULL and 'prefix_size' is not 0");
+    }
+    if (out_result == nullptr) {
+        return cbx_detail::null_argument("ev_prefixed: 'out_result' is NULL");
+    }
+    return cbx_detail::guard([&]() { *out_result = ::ev::prefixed(static_cast<const std::string&>(std::string(cbx_detail::string_data(prefix), prefix_size)), cbx_detail::make_callback<::std::function<int32_t (const ::std::string&)>, int32_t>(f, _owner1, [](decltype(f) _callback, void* _user_data, const ::std::string& _arg1) -> int32_t { int32_t _result{}; _callback(_user_data, _arg1.data(), _arg1.size(), &_result); return _result; })); });
+}
+
+// void ev::store_and_sleep(std::function<int32_t (int32_t)> handler, int32_t ms)
+cbx_status ev_store_and_sleep(void (*handler)(void*, int32_t, int32_t*), void* handler_user_data, void (*handler_release)(void*), int32_t ms)
+{
+    cbx_detail::callback_owner _owner1(handler_release, handler_user_data);
+    return cbx_detail::guard([&]() { ::ev::store_and_sleep(cbx_detail::make_callback<::std::function<int32_t (int32_t)>, int32_t>(handler, _owner1, [](decltype(handler) _callback, void* _user_data, int32_t _arg1) -> int32_t { int32_t _result{}; _callback(_user_data, _arg1, &_result); return _result; }), ms); });
+}
+
+// int32_t ev::fire(int32_t value)
+cbx_status ev_fire(int32_t value, int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return cbx_detail::null_argument("ev_fire: 'out_result' is NULL");
+    }
+    return cbx_detail::guard([&]() { *out_result = ::ev::fire(value); });
+}
+
 // void ev::set_log_handler(std::function<void (ev::Level, const std::string&)> handler)
 cbx_status ev_set_log_handler(void (*handler)(void*, ev_Level, const char*, size_t), void* handler_user_data, void (*handler_release)(void*))
 {
@@ -248,6 +282,24 @@ cbx_status ev_Timer_ticks(const ev_Timer* self, int32_t* out_result)
     return cbx_detail::guard([&]() { *out_result = reinterpret_cast<const ::ev::Timer*>(self)->ticks(); });
 }
 
+// int32_t ev::Timer::each(const std::vector<int32_t>& values, std::function<void (int32_t)> f)
+cbx_status ev_Timer_each(ev_Timer* self, const int32_t* values, size_t values_size, void (*f)(void*, int32_t), void* f_user_data, void (*f_release)(void*), int32_t* out_result)
+{
+    cbx_detail::callback_owner _owner1(f_release, f_user_data);
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<::ev::Timer*>(self)->each(std::vector<int32_t>(), ::std::function<void (int32_t)>())))*) != 0,
+                  "'int32_t ev::Timer::each(const std::vector<int32_t>& values, std::function<void (int32_t)> f)' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return cbx_detail::null_argument("ev_Timer_each: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return cbx_detail::null_argument("ev_Timer_each: 'values' is NULL and 'values_size' is not 0");
+    }
+    if (out_result == nullptr) {
+        return cbx_detail::null_argument("ev_Timer_each: 'out_result' is NULL");
+    }
+    return cbx_detail::guard([&]() { *out_result = reinterpret_cast<::ev::Timer*>(self)->each(static_cast<const std::vector<int32_t>&>(cbx_detail::vector_in<std::vector<int32_t>>(values, values_size)), cbx_detail::make_callback<::std::function<void (int32_t)>, void>(f, _owner1, [](decltype(f) _callback, void* _user_data, int32_t _arg1) -> void { _callback(_user_data, _arg1); })); });
+}
+
 // static int32_t ev::Timer::apply(int32_t value, std::function<int32_t (int32_t)> f)
 cbx_status ev_Timer_apply(int32_t value, void (*f)(void*, int32_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result)
 {
@@ -256,6 +308,42 @@ cbx_status ev_Timer_apply(int32_t value, void (*f)(void*, int32_t, int32_t*), vo
         return cbx_detail::null_argument("ev_Timer_apply: 'out_result' is NULL");
     }
     return cbx_detail::guard([&]() { *out_result = ::ev::Timer::apply(value, cbx_detail::make_callback<::std::function<int32_t (int32_t)>, int32_t>(f, _owner1, [](decltype(f) _callback, void* _user_data, int32_t _arg1) -> int32_t { int32_t _result{}; _callback(_user_data, _arg1, &_result); return _result; })); });
+}
+
+// ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)
+cbx_status ev_Watcher_create(ev_Watcher** out_self, const char* name, size_t name_size, const ev_Point* at, void (*on_notify)(void*, const char*, size_t, const ev_Point*), void* on_notify_user_data, void (*on_notify_release)(void*))
+{
+    cbx_detail::callback_owner _owner1(on_notify_release, on_notify_user_data);
+    static_assert(sizeof(decltype(static_cast<void>(::ev::Watcher(std::string(), ::ev::Point(), ::std::function<void (const ::std::string&, ::ev::Point)>())))*) != 0,
+                  "'ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)' must accept temporaries: it would keep a dangling reference");
+    if (out_self == nullptr) {
+        return cbx_detail::null_argument("ev_Watcher_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (name == nullptr && name_size != 0) {
+        return cbx_detail::null_argument("ev_Watcher_create: 'name' is NULL and 'name_size' is not 0");
+    }
+    if (at == nullptr) {
+        return cbx_detail::null_argument("ev_Watcher_create: 'at' is NULL");
+    }
+    return cbx_detail::guard([&]() { *out_self = reinterpret_cast<ev_Watcher*>(new ::ev::Watcher(static_cast<const std::string&>(std::string(cbx_detail::string_data(name), name_size)), static_cast<const ::ev::Point&>(cbx_detail::from_c(*at)), cbx_detail::make_callback<::std::function<void (const ::std::string&, ::ev::Point)>, void>(on_notify, _owner1, [](decltype(on_notify) _callback, void* _user_data, const ::std::string& _arg1, const ::ev::Point& _arg2) -> void { _callback(_user_data, _arg1.data(), _arg1.size(), cbx_detail::address_of(cbx_detail::to_c(_arg2))); }))); });
+}
+
+// ev::Watcher::~Watcher()
+void ev_Watcher_destroy(ev_Watcher* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    cbx_detail::guard_silently([&]() { delete reinterpret_cast<::ev::Watcher*>(self); });
+}
+
+// void ev::Watcher::notify() const
+cbx_status ev_Watcher_notify(const ev_Watcher* self)
+{
+    if (self == nullptr) {
+        return cbx_detail::null_argument("ev_Watcher_notify: 'self' is NULL");
+    }
+    return cbx_detail::guard([&]() { reinterpret_cast<const ::ev::Watcher*>(self)->notify(); });
 }
 
 }  // extern "C"

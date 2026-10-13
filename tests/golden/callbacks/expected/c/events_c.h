@@ -41,6 +41,15 @@ CBX_NODISCARD CBX_API cbx_status ev_strings(void (*f)(void*, const char*, size_t
 /* void ev::parallel(int32_t threads, int32_t n, std::function<void (int32_t)> f) */
 CBX_NODISCARD CBX_API cbx_status ev_parallel(int32_t threads, int32_t n, void (*f)(void*, int32_t), void* f_user_data, void (*f_release)(void*));
 
+/* int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f) */
+CBX_NODISCARD CBX_API cbx_status ev_prefixed(const char* prefix, size_t prefix_size, void (*f)(void*, const char*, size_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
+
+/* void ev::store_and_sleep(std::function<int32_t (int32_t)> handler, int32_t ms) */
+CBX_NODISCARD CBX_API cbx_status ev_store_and_sleep(void (*handler)(void*, int32_t, int32_t*), void* handler_user_data, void (*handler_release)(void*), int32_t ms);
+
+/* int32_t ev::fire(int32_t value) */
+CBX_NODISCARD CBX_API cbx_status ev_fire(int32_t value, int32_t* out_result);
+
 /* void ev::set_log_handler(std::function<void (ev::Level, const std::string&)> handler) */
 CBX_NODISCARD CBX_API cbx_status ev_set_log_handler(void (*handler)(void*, ev_Level, const char*, size_t), void* handler_user_data, void (*handler_release)(void*));
 
@@ -65,8 +74,20 @@ CBX_NODISCARD CBX_API cbx_status ev_Timer_tick(ev_Timer* self, int32_t times);
 /* int32_t ev::Timer::ticks() const */
 CBX_NODISCARD CBX_API cbx_status ev_Timer_ticks(const ev_Timer* self, int32_t* out_result);
 
+/* int32_t ev::Timer::each(const std::vector<int32_t>& values, std::function<void (int32_t)> f) */
+CBX_NODISCARD CBX_API cbx_status ev_Timer_each(ev_Timer* self, const int32_t* values, size_t values_size, void (*f)(void*, int32_t), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
+
 /* static int32_t ev::Timer::apply(int32_t value, std::function<int32_t (int32_t)> f) */
 CBX_NODISCARD CBX_API cbx_status ev_Timer_apply(int32_t value, void (*f)(void*, int32_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
+
+/* ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify) */
+CBX_NODISCARD CBX_API cbx_status ev_Watcher_create(ev_Watcher** out_self, const char* name, size_t name_size, const ev_Point* at, void (*on_notify)(void*, const char*, size_t, const ev_Point*), void* on_notify_user_data, void (*on_notify_release)(void*));
+
+/* ev::Watcher::~Watcher() */
+CBX_API void ev_Watcher_destroy(ev_Watcher* self);
+
+/* void ev::Watcher::notify() const */
+CBX_NODISCARD CBX_API cbx_status ev_Watcher_notify(const ev_Watcher* self);
 
 #ifdef __cplusplus
 }

@@ -14,7 +14,8 @@ import os
 import pickle
 import re
 import sys
-from collections.abc import Iterator
+import threading
+from collections.abc import Callable, Iterator
 from fractions import Fraction
 from pathlib import Path
 from types import ModuleType
@@ -35,8 +36,10 @@ def runtime() -> Iterator[ModuleType]:
     module = importlib.util.module_from_spec(spec)
     # Registered so that pickle can find the Error class.
     sys.modules[name] = module
+    previous = sys.unraisablehook
     spec.loader.exec_module(module)
     yield module
+    sys.unraisablehook = previous
     del sys.modules[name]
 
 
@@ -388,6 +391,7 @@ def test_call_scope(runtime: ModuleType) -> None:
     assert runtime.callback_target(key) == (len, scope, "f")
     assert scope.fail(ValueError("first"))
     assert scope.fail(KeyError("second"))
+    scope.call(lambda: None)  # C++ got it
     scope.close()
     assert not scope.fail(ValueError("late"))  # returned: unraisable instead
     # C++ releases it exactly once.
@@ -404,7 +408,7 @@ def test_call_scope_drops_what_cxx_never_got(runtime: ModuleType) -> None:
     thunk = ctypes.CFUNCTYPE(None)(lambda: None)
     scope = runtime.CallScope()
     _, key, _ = scope.callback(len, thunk, "f")
-    scope.close(dropped=True)
+    scope.close()  # never called
     assert key not in runtime._callbacks
     # None is an empty std::function: nothing is registered.
     scope = runtime.CallScope()
@@ -415,28 +419,146 @@ def test_call_scope_drops_what_cxx_never_got(runtime: ModuleType) -> None:
     scope.close()
 
 
-def test_interrupts_go_to_the_innermost_call(runtime: ModuleType) -> None:
-    seen = []
+def test_call_scope_keeps_what_cxx_got(runtime: ModuleType) -> None:
+    thunk = ctypes.CFUNCTYPE(None)(lambda: None)
+
+    def rejected(*args: object) -> int:
+        raise ctypes.ArgumentError("raised by ctypes before the C call")
+
+    def interrupted(*args: object) -> int:
+        raise KeyboardInterrupt  # a signal that was pending when C++ returned
+
+    scope = runtime.CallScope()
+    _, key, _ = scope.callback(len, thunk, "f")
+    with pytest.raises(ctypes.ArgumentError):
+        scope.call(rejected, key)
+    scope.close()
+    assert key not in runtime._callbacks
+    scope = runtime.CallScope()
+    _, key, _ = scope.callback(len, thunk, "f")
+    with pytest.raises(KeyboardInterrupt):
+        scope.call(interrupted, key)
+    scope.close()
+    # C++ holds it, and releases it.
+    assert runtime.callback_target(key) == (len, scope, "f")
+    runtime.release(key)
+    assert key not in runtime._callbacks
+    scope = runtime.CallScope()
+    assert scope.call(lambda *args: args, 1, 2) == (1, 2)
+    scope.close()
+
+
+@pytest.fixture
+def fresh_runtime() -> Iterator[Callable[[], ModuleType]]:
+    """Loads the runtime again, as the bindings of one more package; restores
+    sys.unraisablehook afterwards."""
     previous = sys.unraisablehook
+    names: list[str] = []
+
+    def load() -> ModuleType:
+        name = f"bridgefex_test_runtime_{len(names)}"
+        spec = importlib.util.spec_from_file_location(name, RUNTIME)
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        names.append(name)
+        spec.loader.exec_module(module)
+        return module
+
+    yield load
+    sys.unraisablehook = previous
+    for name in names:
+        del sys.modules[name]
+
+
+def _unraisable(error: BaseException) -> object:
+    return type("U", (), {"exc_type": type(error), "exc_value": error})()
+
+
+def test_interrupts_go_to_the_innermost_call(fresh_runtime: Callable[[], ModuleType]) -> None:
+    seen: list[object] = []
     sys.unraisablehook = seen.append
-    try:
-        outer = runtime.CallScope()
-        inner = runtime.CallScope()
-        hook = sys.unraisablehook
-        assert isinstance(hook, runtime._InterruptForwarder)
-        assert hook.previous == seen.append
-        interrupt = KeyboardInterrupt()
-        hook(type("U", (), {"exc_type": KeyboardInterrupt, "exc_value": interrupt})())
-        assert inner.error is interrupt
-        assert outer.error is None
-        inner.close()
-        outer.close()
-        # No call on this thread any more: to the previous hook.
-        other = type("U", (), {"exc_type": KeyboardInterrupt, "exc_value": KeyboardInterrupt()})()
-        hook(other)
-        assert seen == [other]
-    finally:
-        sys.unraisablehook = previous
+    runtime = fresh_runtime()
+    hook = sys.unraisablehook
+    assert isinstance(hook, runtime._InterruptForwarder)
+    assert hook.previous == seen.append
+    outer = runtime.CallScope()
+    inner = runtime.CallScope()
+    interrupt = KeyboardInterrupt()
+    hook(_unraisable(interrupt))
+    assert inner.error is interrupt
+    assert outer.error is None
+    inner.close()
+    outer.close()
+    # Other exceptions go to the previous hook.
+    other = _unraisable(ZeroDivisionError())
+    hook(other)
+    assert seen == [other]
+
+
+def test_interrupts_without_a_call_go_to_the_next_check(
+    fresh_runtime: Callable[[], ModuleType],
+) -> None:
+    seen: list[object] = []
+    sys.unraisablehook = seen.append
+    runtime = fresh_runtime()
+    hook = sys.unraisablehook
+    # As a stored callback that a call without callbacks runs: that call
+    # raises it when it returns.
+    interrupt = KeyboardInterrupt()
+    hook(_unraisable(interrupt))
+    with pytest.raises(KeyboardInterrupt) as raised:
+        runtime.check(runtime.OK)
+    assert raised.value is interrupt
+    runtime.check(runtime.OK)  # once
+    assert seen == []
+    # On another thread, nothing raises it.
+    other = _unraisable(KeyboardInterrupt())
+    thread = threading.Thread(target=hook, args=(other,))
+    thread.start()
+    thread.join()
+    assert seen == [other]
+    runtime.check(runtime.OK)
+
+
+def test_packages_share_one_hook(fresh_runtime: Callable[[], ModuleType]) -> None:
+    seen: list[object] = []
+    sys.unraisablehook = seen.append
+    first, second = fresh_runtime(), fresh_runtime()
+    for _ in range(100):
+        first.CallScope().close()
+        second.CallScope().close()
+    hook = sys.unraisablehook
+    assert isinstance(hook, first._InterruptForwarder)
+    assert hook.previous == seen.append  # one hook for both
+    assert first._scopes is second._scopes
+    # The innermost call of the thread gets it, whatever its package.
+    outer = first.CallScope()
+    inner = second.CallScope()
+    interrupt = KeyboardInterrupt()
+    hook(_unraisable(interrupt))
+    assert inner.error is interrupt
+    assert outer.error is None
+    inner.close()
+    outer.close()
+    # Either package raises one that no call got.
+    hook(_unraisable(interrupt))
+    with pytest.raises(KeyboardInterrupt):
+        second.check(second.OK)
+    first.check(first.OK)
+
+
+def test_no_callbacks_after_exit(fresh_runtime: Callable[[], ModuleType]) -> None:
+    runtime = fresh_runtime()
+    thunk = ctypes.CFUNCTYPE(None)(lambda: None)
+    runtime._disable_callbacks()
+    scope = runtime.CallScope()
+    with pytest.raises(RuntimeError, match="argument 'f': callbacks are disabled at exit"):
+        scope.callback(len, thunk, "f")
+    assert scope.callback(None, thunk, "f")[1] is None  # an empty one is fine
+    scope.close()
+    assert runtime._callbacks == {}
 
 
 def test_to_callback(runtime: ModuleType) -> None:

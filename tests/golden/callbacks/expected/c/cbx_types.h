@@ -28,6 +28,9 @@ typedef int ev_Mode;
 /* Opaque handle of ev::Timer. */
 typedef struct ev_Timer ev_Timer;
 
+/* Opaque handle of ev::Watcher. */
+typedef struct ev_Watcher ev_Watcher;
+
 /* Value structs, each after the structs it contains. */
 
 /* ev::Point */

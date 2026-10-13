@@ -97,6 +97,17 @@ static void texts(void* user_data, const char* a, size_t a_size, const char* b, 
     check(c_size == 3 && memcmp(c, "a\0b", 3) == 0, "string_view argument");
 }
 
+static void length(void* user_data, const char* text, size_t size, int32_t* out_result)
+{
+    ((counter*)user_data)->calls++;
+    *out_result = memcmp(text, "ab!", 3) == 0 ? (int32_t)size : -1;
+}
+
+static void notified(void* user_data, const char* name, size_t size, const ev_Point* at)
+{
+    ((counter*)user_data)->last = size == 1 && name[0] == 'w' && at->x == 1 ? 1 : -1;
+}
+
 static void tick(void* user_data, int32_t value)
 {
     counter* seen = (counter*)user_data;
@@ -153,6 +164,23 @@ int main(void)
     check(ev_strings(texts, &a, release) == CBX_OK, "string arguments");
     b.releases = 0;
     check(ev_parallel(4, 10, ignore, &b, release) == CBX_OK && b.releases == 1, "parallel");
+
+    /* Beside by-reference parameters. */
+    a.releases = 0;
+    check(ev_prefixed("ab", 2, length, &a, release, &count) == CBX_OK && count == 3, "prefixed");
+    const int32_t values[] = {4, 5, 6};
+    check(ev_Timer_create(&timer, NULL, NULL, NULL) == CBX_OK, "Timer without callback");
+    check(ev_Timer_each(timer, values, 3, tick, &a, release, &count) == CBX_OK && count == 3
+              && a.last == 6,
+          "each");
+    ev_Timer_destroy(timer);
+    ev_Point at = {1, 2};
+    ev_Watcher* watcher = NULL;
+    check(ev_Watcher_create(&watcher, "w", 1, &at, notified, &a, release) == CBX_OK, "Watcher");
+    check(ev_Watcher_notify(watcher) == CBX_OK && a.last == 1, "notify");
+    check(a.releases == 2, "kept by the watcher");
+    ev_Watcher_destroy(watcher);
+    check(a.releases == 3, "released with the watcher");
 
     /* Every failure releases too. */
     a.releases = 0;

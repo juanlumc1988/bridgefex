@@ -295,7 +295,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 5
-PINNED_RUNTIME_SHA256 = "6f000591c0f6067aa144dbdc9a3284970f9bd77639570fc6e68652189ccd6b40"
+PINNED_RUNTIME_SHA256 = "bf0ef7c6c788001e7f7524c014b0b868d8a9fdf24d556bb3d17c89bd53b38548"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -1072,8 +1072,8 @@ def test_callback_parameters() -> None:
     )
     body = item.py.body(4)
     # Registered last, right before the call; the scope is closed in any case.
-    assert body.index("_scope.callback(") < body.index("_status = _bind().ns_sum(")
-    assert "    finally:\n        _scope.close(_status is None)" in body
+    assert body.index("_scope.callback(") < body.index("_status = _scope.call(_bind().ns_sum,")
+    assert "    finally:\n        _scope.close()" in body
 
 
 def test_callback_arguments_and_thunks() -> None:

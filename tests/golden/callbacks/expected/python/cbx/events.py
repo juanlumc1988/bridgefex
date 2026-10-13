@@ -20,10 +20,14 @@ __all__ = [
     "shift",
     "strings",
     "parallel",
+    "prefixed",
+    "store_and_sleep",
+    "fire",
     "set_log_handler",
     "log",
     "log_at_exit",
     "Timer",
+    "Watcher",
 ]
 
 Level = _types.ev_Level
@@ -65,6 +69,12 @@ def _bind():
             lib.ev_strings.restype = _runtime.Status
             lib.ev_parallel.argtypes = [ctypes.c_int32, ctypes.c_int32, _types._callback__void__int32__type, ctypes.c_void_p, _runtime.Release]
             lib.ev_parallel.restype = _runtime.Status
+            lib.ev_prefixed.argtypes = [ctypes.c_char_p, ctypes.c_size_t, _types._callback__int32__string__type, ctypes.c_void_p, _runtime.Release, ctypes.POINTER(ctypes.c_int32)]
+            lib.ev_prefixed.restype = _runtime.Status
+            lib.ev_store_and_sleep.argtypes = [_types._callback__int32__int32__type, ctypes.c_void_p, _runtime.Release, ctypes.c_int32]
+            lib.ev_store_and_sleep.restype = _runtime.Status
+            lib.ev_fire.argtypes = [ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
+            lib.ev_fire.restype = _runtime.Status
             lib.ev_set_log_handler.argtypes = [_types._callback__void__ev_Level__string__type, ctypes.c_void_p, _runtime.Release]
             lib.ev_set_log_handler.restype = _runtime.Status
             lib.ev_log.argtypes = [ctypes.c_uint8, ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_bool)]
@@ -81,8 +91,16 @@ def _bind():
             lib.ev_Timer_tick.restype = _runtime.Status
             lib.ev_Timer_ticks.argtypes = [_types._ev_Timer__p, ctypes.POINTER(ctypes.c_int32)]
             lib.ev_Timer_ticks.restype = _runtime.Status
+            lib.ev_Timer_each.argtypes = [_types._ev_Timer__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, _types._callback__void__int32__type, ctypes.c_void_p, _runtime.Release, ctypes.POINTER(ctypes.c_int32)]
+            lib.ev_Timer_each.restype = _runtime.Status
             lib.ev_Timer_apply.argtypes = [ctypes.c_int32, _types._callback__int32__int32__type, ctypes.c_void_p, _runtime.Release, ctypes.POINTER(ctypes.c_int32)]
             lib.ev_Timer_apply.restype = _runtime.Status
+            lib.ev_Watcher_create.argtypes = [ctypes.POINTER(_types._ev_Watcher__p), ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(_types._ev_Point), _types._callback__void__string__ev_Point__type, ctypes.c_void_p, _runtime.Release]
+            lib.ev_Watcher_create.restype = _runtime.Status
+            lib.ev_Watcher_destroy.argtypes = [_types._ev_Watcher__p]
+            lib.ev_Watcher_destroy.restype = None
+            lib.ev_Watcher_notify.argtypes = [_types._ev_Watcher__p]
+            lib.ev_Watcher_notify.restype = _runtime.Status
             _lib = lib
     return _lib
 
@@ -93,14 +111,13 @@ def sum(n, f):
     n = _runtime.to_int(n, ctypes.c_int32, "n")
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__int32, "f")
-        _status = _bind().ev_sum(n, f, f_user_data, f_release, _out)
+        _status = _scope.call(_bind().ev_sum, n, f, f_user_data, f_release, _out)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _out.value
 
 
@@ -110,16 +127,17 @@ def count_if(n, predicate):
     n = _runtime.to_int(n, ctypes.c_int32, "n")
     predicate = _runtime.to_callback(predicate, "predicate")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         predicate, predicate_user_data, predicate_release = _scope.callback(
             predicate, _types._callback__bool__int64, "predicate"
         )
-        _status = _bind().ev_count_if(n, predicate, predicate_user_data, predicate_release, _out)
+        _status = _scope.call(
+            _bind().ev_count_if, n, predicate, predicate_user_data, predicate_release, _out
+        )
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _out.value
 
 
@@ -128,14 +146,13 @@ def is_empty(f):
     _out = ctypes.c_bool()
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         f, f_user_data, f_release = _scope.callback(f, _types._callback__void, "f")
-        _status = _bind().ev_is_empty(f, f_user_data, f_release, _out)
+        _status = _scope.call(_bind().ev_is_empty, f, f_user_data, f_release, _out)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _out.value
 
 
@@ -145,22 +162,17 @@ def classify(value, classifier):
     value = _runtime.to_int(value, ctypes.c_int32, "value")
     classifier = _runtime.to_callback(classifier, "classifier")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         classifier, classifier_user_data, classifier_release = _scope.callback(
             classifier, _types._callback__ev_Level__int32, "classifier"
         )
-        _status = _bind().ev_classify(
-            value,
-            classifier,
-            classifier_user_data,
-            classifier_release,
-            _out,
+        _status = _scope.call(
+            _bind().ev_classify, value, classifier, classifier_user_data, classifier_release, _out
         )
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _runtime.enum_result(_types.ev_Level, _out.value)
 
 
@@ -169,16 +181,15 @@ def pick(chooser):
     _out = ctypes.c_int()
     chooser = _runtime.to_callback(chooser, "chooser")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         chooser, chooser_user_data, chooser_release = _scope.callback(
             chooser, _types._callback__ev_Mode, "chooser"
         )
-        _status = _bind().ev_pick(chooser, chooser_user_data, chooser_release, _out)
+        _status = _scope.call(_bind().ev_pick, chooser, chooser_user_data, chooser_release, _out)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _runtime.enum_result(_types.ev_Mode, _out.value)
 
 
@@ -190,14 +201,13 @@ def integrate(f, a, b, steps):
     b = _runtime.to_float(b, ctypes.c_double, "b")
     steps = _runtime.to_int(steps, ctypes.c_int32, "steps")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         f, f_user_data, f_release = _scope.callback(f, _types._callback__double__double, "f")
-        _status = _bind().ev_integrate(f, f_user_data, f_release, a, b, steps, _out)
+        _status = _scope.call(_bind().ev_integrate, f, f_user_data, f_release, a, b, steps, _out)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _out.value
 
 
@@ -206,16 +216,15 @@ def walk(visit):
     _out = ctypes.c_double()
     visit = _runtime.to_callback(visit, "visit")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         visit, visit_user_data, visit_release = _scope.callback(
             visit, _types._callback__double__ev_Point__cstr, "visit"
         )
-        _status = _bind().ev_walk(visit, visit_user_data, visit_release, _out)
+        _status = _scope.call(_bind().ev_walk, visit, visit_user_data, visit_release, _out)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
     return _out.value
 
 
@@ -223,32 +232,30 @@ def shift(sink):
     """Wraps ``void ev::shift(std::function<void (ev::Point, ev::Mode)> sink)``."""
     sink = _runtime.to_callback(sink, "sink")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         sink, sink_user_data, sink_release = _scope.callback(
             sink, _types._callback__void__ev_Point__ev_Mode, "sink"
         )
-        _status = _bind().ev_shift(sink, sink_user_data, sink_release)
+        _status = _scope.call(_bind().ev_shift, sink, sink_user_data, sink_release)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
 
 
 def strings(f):
     """Wraps ``void ev::strings(std::function<void (const std::string&, std::string, std::string_view)> f)``."""
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         f, f_user_data, f_release = _scope.callback(
             f, _types._callback__void__string__string__string, "f"
         )
-        _status = _bind().ev_strings(f, f_user_data, f_release)
+        _status = _scope.call(_bind().ev_strings, f, f_user_data, f_release)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
 
 
 def parallel(threads, n, f):
@@ -257,30 +264,75 @@ def parallel(threads, n, f):
     n = _runtime.to_int(n, ctypes.c_int32, "n")
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         f, f_user_data, f_release = _scope.callback(f, _types._callback__void__int32, "f")
-        _status = _bind().ev_parallel(threads, n, f, f_user_data, f_release)
+        _status = _scope.call(_bind().ev_parallel, threads, n, f, f_user_data, f_release)
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
+
+
+def prefixed(prefix, f):
+    """Wraps ``int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f)``."""
+    _out = ctypes.c_int32()
+    prefix = _runtime.to_bytes(prefix, "prefix")
+    prefix_size = _builtins.len(prefix)
+    f = _runtime.to_callback(f, "f")
+    _scope = _runtime.CallScope()
+    try:
+        f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__string, "f")
+        _status = _scope.call(
+            _bind().ev_prefixed, prefix, prefix_size, f, f_user_data, f_release, _out
+        )
+        _scope.close()
+        _scope.check(_status)
+    finally:
+        _scope.close()
+    return _out.value
+
+
+def store_and_sleep(handler, ms):
+    """Wraps ``void ev::store_and_sleep(std::function<int32_t (int32_t)> handler, int32_t ms)``."""
+    handler = _runtime.to_callback(handler, "handler")
+    ms = _runtime.to_int(ms, ctypes.c_int32, "ms")
+    _scope = _runtime.CallScope()
+    try:
+        handler, handler_user_data, handler_release = _scope.callback(
+            handler, _types._callback__int32__int32, "handler"
+        )
+        _status = _scope.call(
+            _bind().ev_store_and_sleep, handler, handler_user_data, handler_release, ms
+        )
+        _scope.close()
+        _scope.check(_status)
+    finally:
+        _scope.close()
+
+
+def fire(value):
+    """Wraps ``int32_t ev::fire(int32_t value)``."""
+    _out = ctypes.c_int32()
+    value = _runtime.to_int(value, ctypes.c_int32, "value")
+    _runtime.check(_bind().ev_fire(value, _out))
+    return _out.value
 
 
 def set_log_handler(handler):
     """Wraps ``void ev::set_log_handler(std::function<void (ev::Level, const std::string&)> handler)``."""
     handler = _runtime.to_callback(handler, "handler")
     _scope = _runtime.CallScope()
-    _status = None
     try:
         handler, handler_user_data, handler_release = _scope.callback(
             handler, _types._callback__void__ev_Level__string, "handler"
         )
-        _status = _bind().ev_set_log_handler(handler, handler_user_data, handler_release)
+        _status = _scope.call(
+            _bind().ev_set_log_handler, handler, handler_user_data, handler_release
+        )
         _scope.close()
         _scope.check(_status)
     finally:
-        _scope.close(_status is None)
+        _scope.close()
 
 
 def log(level, message):
@@ -315,17 +367,18 @@ class Timer:
             raise _builtins.TypeError("Timer object is already initialized")
         on_tick = _runtime.to_callback(on_tick, "on_tick")
         _scope = _runtime.CallScope()
-        _status = None
         try:
             on_tick, on_tick_user_data, on_tick_release = _scope.callback(
                 on_tick, _types._callback__void__int32, "on_tick"
             )
             _handle = self._watch()
-            _status = _bind().ev_Timer_create(_handle, on_tick, on_tick_user_data, on_tick_release)
+            _status = _scope.call(
+                _bind().ev_Timer_create, _handle, on_tick, on_tick_user_data, on_tick_release
+            )
             _scope.close()
             _scope.check(_status)
         finally:
-            _scope.close(_status is None)
+            _scope.close()
         self._adopt(_handle)
 
     def _watch(self):
@@ -399,12 +452,12 @@ class Timer:
         """Wraps ``void ev::Timer::set_on_tick(std::function<void (int32_t)> on_tick)``."""
         on_tick = _runtime.to_callback(on_tick, "on_tick")
         _scope = _runtime.CallScope()
-        _status = None
         try:
             on_tick, on_tick_user_data, on_tick_release = _scope.callback(
                 on_tick, _types._callback__void__int32, "on_tick"
             )
-            _status = _bind().ev_Timer_set_on_tick(
+            _status = _scope.call(
+                _bind().ev_Timer_set_on_tick,
                 self._ptr(),
                 on_tick,
                 on_tick_user_data,
@@ -413,7 +466,7 @@ class Timer:
             _scope.close()
             _scope.check(_status)
         finally:
-            _scope.close(_status is None)
+            _scope.close()
 
     def tick(self, times):
         """Wraps ``void ev::Timer::tick(int32_t times)``."""
@@ -426,6 +479,31 @@ class Timer:
         _runtime.check(_bind().ev_Timer_ticks(self._ptr(), _out))
         return _out.value
 
+    def each(self, values, f):
+        """Wraps ``int32_t ev::Timer::each(const std::vector<int32_t>& values, std::function<void (int32_t)> f)``."""
+        _out = ctypes.c_int32()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        f = _runtime.to_callback(f, "f")
+        _scope = _runtime.CallScope()
+        try:
+            f, f_user_data, f_release = _scope.callback(f, _types._callback__void__int32, "f")
+            _status = _scope.call(
+                _bind().ev_Timer_each,
+                self._ptr(),
+                values,
+                values_size,
+                f,
+                f_user_data,
+                f_release,
+                _out,
+            )
+            _scope.close()
+            _scope.check(_status)
+        finally:
+            _scope.close()
+        return _out.value
+
     @_builtins.staticmethod
     def apply(value, f):
         """Wraps ``static int32_t ev::Timer::apply(int32_t value, std::function<int32_t (int32_t)> f)``."""
@@ -433,12 +511,123 @@ class Timer:
         value = _runtime.to_int(value, ctypes.c_int32, "value")
         f = _runtime.to_callback(f, "f")
         _scope = _runtime.CallScope()
-        _status = None
         try:
             f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__int32, "f")
-            _status = _bind().ev_Timer_apply(value, f, f_user_data, f_release, _out)
+            _status = _scope.call(_bind().ev_Timer_apply, value, f, f_user_data, f_release, _out)
             _scope.close()
             _scope.check(_status)
         finally:
-            _scope.close(_status is None)
+            _scope.close()
         return _out.value
+
+
+class Watcher:
+    """Wraps ``ev::Watcher``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed.
+    """
+
+    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+
+    def __init__(self, name, at, on_notify):
+        """Wraps ``ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)``."""
+        if _builtins.getattr(self, "_finalizer", None) is not None:
+            raise _builtins.TypeError("Watcher object is already initialized")
+        name = _runtime.to_bytes(name, "name")
+        name_size = _builtins.len(name)
+        at = _types._ev_Point__to_c(at, "at")
+        on_notify = _runtime.to_callback(on_notify, "on_notify")
+        _scope = _runtime.CallScope()
+        try:
+            on_notify, on_notify_user_data, on_notify_release = _scope.callback(
+                on_notify, _types._callback__void__string__ev_Point, "on_notify"
+            )
+            _handle = self._watch()
+            _status = _scope.call(
+                _bind().ev_Watcher_create,
+                _handle,
+                name,
+                name_size,
+                at,
+                on_notify,
+                on_notify_user_data,
+                on_notify_release,
+            )
+            _scope.close()
+            _scope.check(_status)
+        finally:
+            _scope.close()
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._ev_Watcher__p()
+        self._handle = None
+        self._owned = []
+        self._finalizer = _runtime.watch(self, handle, _bind().ev_Watcher_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "ev::Watcher: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().ev_Watcher_destroy, _types._ev_Watcher__p()))
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Watcher object is closed")
+        return self._handle
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit.
+        armed = self._finalizer
+        return armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now. Calling it again does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Watcher objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Watcher objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Watcher objects cannot be pickled")
+
+    def notify(self):
+        """Wraps ``void ev::Watcher::notify() const``."""
+        _runtime.check(_bind().ev_Watcher_notify(self._ptr()))

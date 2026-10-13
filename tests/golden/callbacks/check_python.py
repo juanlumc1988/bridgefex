@@ -5,14 +5,30 @@ tests/test_roundtrip.py runs this file in a fresh interpreter, with the
 generated package on PYTHONPATH and CBX_LIBRARY pointing at the built library.
 """
 
+import atexit
 import gc
 import os
 import signal
 import sys
 import threading
 
-import cbx
-from cbx import _runtime, events
+
+def after_disable():
+    # Registered before the bindings: runs after they disable the callbacks at
+    # exit. A call that passes one then fails instead of returning a default.
+    try:
+        events.sum(1, int)
+    except RuntimeError as error:
+        if "callbacks are disabled at exit" in str(error):
+            return
+    print("FAILED: a callback passed after exit", file=sys.stderr, flush=True)
+    os._exit(1)
+
+
+atexit.register(after_disable)
+
+import cbx  # noqa: E402
+from cbx import _runtime, events  # noqa: E402
 
 
 def expect(exception_type, function, *args, message=None):
@@ -161,6 +177,46 @@ for _ in range(5):
     assert 0 < len(interrupted) < 10**6, len(interrupted)
 assert registered() == 0
 assert isinstance(sys.unraisablehook, _runtime._InterruptForwarder)
+
+# Beside by-reference parameters.
+assert events.prefixed("ab", lambda text: len(text) if text == "ab!" else -1) == 3
+each = []
+timer = events.Timer(None)
+assert timer.each([4, 5, 6], each.append) == 3 and each == [4, 5, 6]
+timer.close()
+notified = []
+watcher = events.Watcher("w", events.Point(1.0, 2.0), lambda *args: notified.append(args))
+watcher.notify()
+assert notified == [("w", events.Point(1.0, 2.0))], notified
+assert registered() == 1
+watcher.close()
+assert registered() == 0
+
+# A signal raised as the call returns: C++ keeps the callback, so the registry
+# keeps it too.
+timer_thread = threading.Timer(0.05, os.kill, (os.getpid(), signal.SIGINT))
+timer_thread.start()
+expect(KeyboardInterrupt, events.store_and_sleep, lambda value: value * 2, 500)
+timer_thread.join()
+assert registered() == 1
+assert events.fire(21) == 42
+events.store_and_sleep(None, 0)
+assert registered() == 0
+assert events.fire(21) == -1
+
+
+# Ctrl-C in a stored callback that a call without callbacks runs: raised once
+# C++ returns.
+def stop(level, text):
+    if text == "stop":
+        raise KeyboardInterrupt
+
+
+events.set_log_handler(stop)
+expect(KeyboardInterrupt, events.log, events.Level.Info, "stop")
+assert events.log(events.Level.Info, "go") is True
+events.set_log_handler(None)
+assert registered() == 0
 
 # At exit, a C++ global still holds a callback and a static destructor calls
 # it: the bindings disable the callbacks first, so neither happens.

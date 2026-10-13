@@ -181,7 +181,16 @@ def library():
 
 
 def check(status):
-    """Raise Error if a call did not return OK."""
+    """Raise Error if a call did not return OK; first, a KeyboardInterrupt that
+    a callback of no call with callbacks got during it (see _InterruptForwarder)."""
+    interrupt = getattr(_scopes, "interrupt", None)
+    if interrupt is not None:
+        _scopes.interrupt = None
+        if status != OK:
+            interrupt.add_note(
+                f"(the C++ call then failed too: {_STATUS_NAMES.get(status, status)})"
+            )
+        raise interrupt
     if status != OK:
         message = _library.txt_last_error()
         raise Error(status, message.decode("utf-8", "replace") if message else "")
@@ -605,8 +614,8 @@ release = Release(_callbacks.pop)
 _no_release = Release()
 """NULL: ctypes does not accept None for a function pointer argument."""
 
-_scopes = threading.local()
-"""The calls with callbacks that run on each thread, innermost last."""
+_disabled = False
+"""Set at exit, once C++ no longer calls the callbacks (see _disable_callbacks)."""
 
 
 class CallScope:
@@ -619,16 +628,17 @@ class CallScope:
     as for any ctypes callback.
     """
 
-    __slots__ = ("_active", "_keys", "error")
+    __slots__ = ("_active", "_called", "_keys", "_stack", "error")
 
     def __init__(self):
         self._active = True
+        self._called = False
         self._keys = []
         self.error = None
-        _forward_interrupts()
         stack = getattr(_scopes, "stack", None)
         if stack is None:
             stack = _scopes.stack = []
+        self._stack = stack
         stack.append(self)
 
     def callback(self, function, thunk, name):
@@ -637,6 +647,10 @@ class CallScope:
         if function is None:
             # A NULL callback: C++ gets an empty std::function.
             return type(thunk)(), None, _no_release
+        if _disabled:
+            raise RuntimeError(
+                f"argument {name!r}: callbacks are disabled at exit, C++ would not call it"
+            )
         with _callback_lock:
             # On 32-bit platforms the keys wrap around after 2**32 - 1 callbacks.
             key = _next_key
@@ -647,20 +661,35 @@ class CallScope:
             self._keys.append(key)
         return thunk, key, release
 
-    def close(self, dropped=False):
-        """End the call. ``dropped``: the C function was not called, so C++ will
-        never release the callbacks registered for it."""
+    def call(self, function, *args):
+        """Call the C function, which from then on owns the callbacks: C++
+        releases each of them. An exception raised after the C call, such as a
+        KeyboardInterrupt that was pending, does not change that."""
+        self._called = True
+        try:
+            return function(*args)
+        except ctypes.ArgumentError:
+            # Raised by ctypes before the call.
+            self._called = False
+            raise
+
+    def close(self):
+        """End the call. If the C function was not called, C++ will never
+        release the callbacks registered for it: they are dropped."""
+        dropped = []
         with _callback_lock:
             self._active = False
-            if dropped:
+            if not self._called:
                 for key in self._keys:
                     entry = _callbacks.get(key)
                     if entry is not None and entry[1] is self:
-                        del _callbacks[key]
+                        dropped.append(_callbacks.pop(key))
             self._keys = []
-        stack = getattr(_scopes, "stack", None)
-        if stack and self in stack:
-            stack.remove(self)
+        if self in self._stack:
+            self._stack.remove(self)
+        # The functions are destroyed here, out of the lock: a finalizer that
+        # waits for a thread whose callback fails (see fail) cannot deadlock.
+        del dropped
 
     def fail(self, error):
         """Keep the first error of the call; False if the call has returned."""
@@ -686,30 +715,48 @@ class CallScope:
 
 class _InterruptForwarder:
     """sys.unraisablehook that gives a KeyboardInterrupt to the innermost call
-    with callbacks of the thread that raised it, then chains to the previous hook.
+    with callbacks of the thread that raised it, else chains to the previous hook.
 
     A signal handler that raises runs when a Python function starts: for a
     callback, before the thunk's ``try``, so ctypes reports the exception as
     unraisable and C++ would go on calling. Through this hook, the call skips
-    its remaining callbacks and raises it.
+    its remaining callbacks and raises it. Without such a call, as for a stored
+    callback that a call without callbacks runs on the main thread, the call
+    raises it when it returns (see check).
     """
 
-    __slots__ = ("previous",)
+    __slots__ = ("_bridgefex_scopes_v1", "previous")
 
-    def __init__(self, previous):
+    def __init__(self, previous, scopes):
         self.previous = previous
+        # The other packages of bindings find the stacks here, instead of
+        # chaining one more hook (the name is the protocol: CallScope.fail).
+        self._bridgefex_scopes_v1 = scopes
 
     def __call__(self, unraisable):
         if issubclass(unraisable.exc_type, KeyboardInterrupt):
-            stack = getattr(_scopes, "stack", None)
+            stack = getattr(self._bridgefex_scopes_v1, "stack", None)
             if stack and stack[-1].fail(unraisable.exc_value):
+                return
+            if threading.current_thread() is threading.main_thread():
+                self._bridgefex_scopes_v1.interrupt = unraisable.exc_value
                 return
         self.previous(unraisable)
 
 
 def _forward_interrupts():
-    if not isinstance(sys.unraisablehook, _InterruptForwarder):
-        sys.unraisablehook = _InterruptForwarder(sys.unraisablehook)
+    """The hook of the bindings of every package: installed by the first one."""
+    scopes = getattr(sys.unraisablehook, "_bridgefex_scopes_v1", None)
+    if isinstance(scopes, threading.local):
+        return scopes
+    scopes = threading.local()
+    sys.unraisablehook = _InterruptForwarder(sys.unraisablehook, scopes)
+    return scopes
+
+
+_scopes = _forward_interrupts()
+"""Per thread: ``stack``, the calls with callbacks that run, innermost last;
+``interrupt``, for check. Shared by the bindings of every package."""
 
 
 def callback_target(user_data):
@@ -742,7 +789,10 @@ def callback_c_string(data):
 def _disable_callbacks():
     """At exit: C++ must neither call nor release the callbacks any more (a
     std::function in a C++ global is destroyed after Python, and a C++ thread
-    may still call one). C++ then gets their default results."""
+    may still call one). C++ then gets their default results, and a call that
+    passes a callback raises RuntimeError."""
+    global _disabled
+    _disabled = True
     if _library is not None:
         _library.txt_disable_callbacks(release)
 

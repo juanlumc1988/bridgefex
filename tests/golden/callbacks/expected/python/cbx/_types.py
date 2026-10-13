@@ -37,6 +37,13 @@ class _ev_Timer(ctypes.Structure):
 _ev_Timer__p = ctypes.POINTER(_ev_Timer)
 
 
+class _ev_Watcher(ctypes.Structure):
+    """Opaque C handle of ev::Watcher."""
+
+
+_ev_Watcher__p = ctypes.POINTER(_ev_Watcher)
+
+
 class _ev_Point(ctypes.Structure):
     """C mirror of ev::Point (ev_Point)."""
 
@@ -255,6 +262,30 @@ def _callback__int32__int32(_user_data, _arg1, _out_result):
 _callback__int32__int32 = _callback__int32__int32__type(_callback__int32__int32)
 
 
+_callback__int32__string__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32))
+
+
+def _callback__int32__string(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++. An exception goes to the call that passed the callback,
+    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    _scope = None
+    try:
+        _function, _scope, _name = _runtime.callback_target(_user_data)
+        if _scope.error is not None:
+            return
+        _value = _function(_runtime.callback_string(_arg1, _arg1_size))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, _name, what="the result of callback"
+        )
+    except BaseException as _error:
+        if _scope is None or not _scope.fail(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_callback__int32__string = _callback__int32__string__type(_callback__int32__string)
+
+
 _callback__void__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
@@ -339,6 +370,27 @@ def _callback__void__int32(_user_data, _arg1):
 
 # The thunk itself is never freed: C++ may call it at any time.
 _callback__void__int32 = _callback__void__int32__type(_callback__void__int32)
+
+
+_callback__void__string__ev_Point__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(_ev_Point))
+
+
+def _callback__void__string__ev_Point(_user_data, _arg1, _arg1_size, _arg2):
+    # Called by C++. An exception goes to the call that passed the callback,
+    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    _scope = None
+    try:
+        _function, _scope, _name = _runtime.callback_target(_user_data)
+        if _scope.error is not None:
+            return
+        _function(_runtime.callback_string(_arg1, _arg1_size), _ev_Point__from_c(_arg2.contents))
+    except BaseException as _error:
+        if _scope is None or not _scope.fail(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_callback__void__string__ev_Point = _callback__void__string__ev_Point__type(_callback__void__string__ev_Point)
 
 
 _callback__void__string__string__string__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_size_t)

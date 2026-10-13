@@ -236,25 +236,31 @@ class PyCallable:
 
         The callbacks are registered last, right before the call: if anything
         before the call fails, the scope drops them, since C++ will never
-        release them. The release of allocated outputs comes first in the
-        ``finally``, inline (see PyResult.cleanup).
+        release them (_scope.call marks the call). The release of allocated
+        outputs comes first in the ``finally``, inline (see PyResult.cleanup).
         """
         pad = " " * indent
         inner = " " * (indent + 4)
-        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}_status = None", f"{pad}try:"]
+        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:"]
         lines += [
             _python_call(f"{targets} = _scope.callback", arguments, indent + 4)
             for targets, arguments in self.registrations
         ]
         lines += [inner + statement for statement in before_call]
-        lines.append(self._call(indent + 4, "_status = _bind()", ""))
+        lines.append(
+            _python_call(
+                "_status = _scope.call",
+                (f"_bind().{self.function.name}", *self.call_args),
+                indent + 4,
+            )
+        )
         lines.append(f"{inner}_scope.close()")
         lines.append(f"{inner}_scope.check(_status)")
         if read is not None:
             lines.append(inner + read)
         lines.append(f"{pad}finally:")
         lines += [inner + line for line in cleanup]
-        lines.append(f"{inner}_scope.close(_status is None)")
+        lines.append(f"{inner}_scope.close()")
         return "\n".join(lines)
 
     def _call(self, indent: int, head: str = "_runtime.check(_bind()", tail: str = ")") -> str:
@@ -313,6 +319,10 @@ class LoweredParam:
     prologue: tuple[str, ...] = ()
     """Declarations at the start of the C function (CFunction.prologue)."""
 
+    probe: str | None = None
+    """An expression of the argument's type and value category, for unevaluated
+    operands, when ``argument`` cannot appear there: a lambda before C++20."""
+
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
     """A static_assert that fails to compile if the wrapped function cannot take
@@ -326,7 +336,7 @@ def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> 
     """
     if all(param.temporary is None for param in params):
         return ()
-    arguments = ", ".join(param.temporary or param.argument for param in params)
+    arguments = ", ".join(param.temporary or param.probe or param.argument for param in params)
     probe = call.replace("{arguments}", arguments)
     return (
         f"static_assert(sizeof(decltype(static_cast<void>({probe}))*) != 0,\n"
@@ -1551,6 +1561,7 @@ class _Builder:
             ),
             call_args=(name, user_data, release),
             prologue=(f"{detail}::callback_owner {owner}({release}, {user_data});",),
+            probe=f"::std::function<{signature}>()",
         )
 
     def _callback_argument(
