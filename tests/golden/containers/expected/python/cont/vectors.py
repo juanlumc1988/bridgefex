@@ -26,6 +26,10 @@ __all__ = [
     "too_big",
     "empty_strings",
     "sum",
+    "twice",
+    "swap",
+    "colors",
+    "sum_levels",
     "Bag",
 ]
 
@@ -76,6 +80,14 @@ def _bind():
             lib.vec_empty_strings.restype = _runtime.Status
             lib.vec_sum.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_size_t, ctypes.c_int, ctypes.POINTER(ctypes.c_size_t)]
             lib.vec_sum.restype = _runtime.Status
+            lib.vec_twice.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_float)]
+            lib.vec_twice.restype = _runtime.Status
+            lib.vec_swap.argtypes = [ctypes.POINTER(_types._vec_Point), ctypes.POINTER(_types._vec_Point)]
+            lib.vec_swap.restype = _runtime.Status
+            lib.vec_colors.argtypes = [ctypes.POINTER(ctypes.c_uint8)]
+            lib.vec_colors.restype = _runtime.Status
+            lib.vec_sum_levels.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
+            lib.vec_sum_levels.restype = _runtime.Status
             lib.vec_Bag_create.argtypes = [ctypes.POINTER(_types._vec_Bag__p), ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t]
             lib.vec_Bag_create.restype = _runtime.Status
             lib.vec_Bag_destroy.argtypes = [_types._vec_Bag__p]
@@ -303,6 +315,37 @@ def sum(data, data_size):
     data_size_ = _builtins.len(data)
     data_size = _runtime.to_int(data_size, ctypes.c_int, "data_size")
     _runtime.check(_bind().vec_sum(data, data_size_, data_size, _out))
+    return _out.value
+
+
+def twice(m):
+    """Wraps ``std::array<float, 4> vec::twice(const std::array<float, 4>& m)``."""
+    _out = (ctypes.c_float * 4)()
+    m = _runtime.fixed(_runtime.to_array(m, ctypes.c_float, "m", _runtime.check_float), 4, "m")
+    _runtime.check(_bind().vec_twice(m, _out))
+    return _runtime.array_items(_out, 4)
+
+
+def swap(points):
+    """Wraps ``std::array<vec::Point, 2> vec::swap(std::array<vec::Point, 2> points)``."""
+    _out = (_types._vec_Point * 2)()
+    points = _runtime.fixed(_runtime.to_struct_array(points, _types._vec_Point, _types._vec_Point__fill, "points"), 2, "points")
+    _runtime.check(_bind().vec_swap(points, _out))
+    return _runtime.struct_items(_out, 2, _types._vec_Point__from_c)
+
+
+def colors():
+    """Wraps ``std::array<vec::Color, 3> vec::colors()``."""
+    _out = (ctypes.c_uint8 * 3)()
+    _runtime.check(_bind().vec_colors(_out))
+    return _runtime.enum_results(_types.vec_Color, _runtime.array_items(_out, 3))
+
+
+def sum_levels(levels):
+    """Wraps ``int vec::sum_levels(const std::array<vec::Level, 2>& levels)``."""
+    _out = ctypes.c_int()
+    levels = _runtime.fixed(_runtime.to_enum_array(levels, _types.vec_Level, ctypes.c_int, "levels", (0, 1)), 2, "levels")
+    _runtime.check(_bind().vec_sum_levels(levels, _out))
     return _out.value
 
 

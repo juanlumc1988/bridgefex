@@ -139,7 +139,10 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
             "containers in value structs are not supported yet",
         ),
         ("#include <deque>\nvoid f(std::deque<int> d);", "std::deque is not supported yet"),
-        ("#include <array>\nvoid f(std::array<int, 3> a);", "std::array is not supported yet"),
+        ("#include <array>\nvoid f(std::array<int, 0> a);", "std::array of size 0"),
+        ("#include <array>\nvoid f(std::array<std::string, 2> a);", "std::array of std::string"),
+        ("#include <array>\nvoid f(std::array<int, 2>& a);", "non-const references"),
+        ("#include <array>\nstd::array<int, 2>&& f();", "references are not supported yet"),
         ("#include <utility>\nvoid f(std::pair<int, int> p);", "std::pair is not supported yet"),
         ("class A { public: static int shared; };", "public data member 'A::shared'"),
         ("class A { public: struct Inner {}; };", "nested type 'A::Inner'"),
@@ -244,3 +247,19 @@ def test_a_rejected_member_rejects_its_class_only(tmp_path: Path) -> None:
     )
     assert len(errors) == 1
     assert "Bad::x" in errors[0]
+
+
+@pytest.mark.parametrize(
+    ("code", "message"),
+    [
+        ("#include <span>\nvoid f(std::span<int> s);", "non-const elements"),
+        ("#include <span>\nvoid f(std::span<const int, 3> s);", "fixed extent"),
+    ],
+)
+def test_rejected_spans(tmp_path: Path, code: str, message: str) -> None:
+    path = tmp_path / "input.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    with pytest.raises(GenerationError) as raised:
+        parse_header(path, "input.h", ParseOptions(std="c++20"))
+    errors = [str(diagnostic) for diagnostic in raised.value.diagnostics]
+    assert any(message in error for error in errors), errors

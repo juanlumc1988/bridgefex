@@ -13,7 +13,7 @@ import threading
 
 LIBRARY_ENV_VAR = "CONT_LIBRARY"
 
-API_FINGERPRINT = "36a8a1f3de1183aedba78aa62985b98f"
+API_FINGERPRINT = "f080fc6985435252593bed5ecabe45f6"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -493,3 +493,10 @@ def decode_all(items):
 
 def enum_results(cls, items):
     return [enum_result(cls, item) for item in items]
+
+
+def fixed(array, length, name):
+    """``array`` if it has ``length`` elements (std::array)."""
+    if len(array) != length:
+        raise ValueError(f"argument {name!r} must have {length} elements, got {len(array)}")
+    return array

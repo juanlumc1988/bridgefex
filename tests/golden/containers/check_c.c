@@ -103,6 +103,27 @@ int main(void)
     cont_free(out_ints);
     check(vec_sum(counts, 2, 7, &total) == CONT_OK && total == 9007, "renamed size");
 
+    {
+        const float m[4] = {1.0f, 2.0f, 3.0f, 4.0f};
+        float doubled[4] = {0.0f, 0.0f, 0.0f, -1.0f};
+        vec_Point swapped[2] = {{1.0, 2.0}, {3.0, 4.0}};
+        vec_Color three[3];
+        const vec_Level two[2] = {vec_Level_High, vec_Level_High};
+        const vec_Level bad_two[2] = {vec_Level_High, 7};
+        int levels_sum = 0;
+        check(vec_twice(m, doubled) == CONT_OK && doubled[0] == 2.0f && doubled[3] == 8.0f,
+              "std::array");
+        check(vec_twice(NULL, doubled) == CONT_ERROR_NULL_ARGUMENT && doubled[3] == 8.0f,
+              "NULL std::array");
+        /* The output may be the input. */
+        check(vec_swap(swapped, swapped) == CONT_OK && swapped[0].x == 3.0 && swapped[1].x == 1.0,
+              "aliased std::array");
+        check(vec_colors(three) == CONT_OK && three[0] == vec_Color_Blue, "std::array of enums");
+        check(vec_sum_levels(two, &levels_sum) == CONT_OK && levels_sum == 2, "sum_levels");
+        check(vec_sum_levels(bad_two, &levels_sum) == CONT_ERROR_INVALID_ARGUMENT,
+              "invalid element of std::array");
+    }
+
     check(vec_Bag_create(&bag, words, 3) == CONT_OK, "constructor");
     check(vec_Bag_add(bag, counts, 2) == CONT_OK, "add");
     check(vec_Bag_counts(bag, &out_ints, &n) == CONT_OK && n == 2 && out_ints[1] == 5, "counts");

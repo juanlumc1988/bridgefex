@@ -14,6 +14,8 @@ from bridgefex.generator import render
 from bridgefex.model import (
     Class,
     Constructor,
+    ContainerKind,
+    ContainerType,
     Enumeration,
     Enumerator,
     EnumRef,
@@ -27,7 +29,6 @@ from bridgefex.model import (
     StringType,
     Struct,
     StructRef,
-    VectorType,
     VisibleNames,
 )
 from bridgefex.plan import (
@@ -293,7 +294,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 4
-PINNED_RUNTIME_SHA256 = "89be4968a52de5f11b0920612d9f352ac6d6348574ffe2500330e79e20e33dd2"
+PINNED_RUNTIME_SHA256 = "009a128fac37fbca36695a1d91b6662232a97685751c72b628b966d0dec71b63"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -918,8 +919,8 @@ def test_sources_include_the_headers_of_the_structs_they_use() -> None:
     assert b.internal_includes == ("b_c_internal.hpp",)
 
 
-def vector(element: object, by_reference: bool = False) -> VectorType:
-    return VectorType(element, by_reference)  # type: ignore[arg-type]
+def vector(element: object, by_reference: bool = False) -> ContainerType:
+    return ContainerType(ContainerKind.VECTOR, element, by_reference=by_reference)  # type: ignore[arg-type]
 
 
 def test_vector_parameters_and_results() -> None:
@@ -989,6 +990,50 @@ def test_vector_overload_tokens() -> None:
         plan_for(
             header(
                 function("f", Parameter("v", vector(INT32, True))),
-                function("f", Parameter("v", VectorType(INT32, rvalue_reference=True))),
+                function(
+                    "f",
+                    Parameter(
+                        "v", ContainerType(ContainerKind.VECTOR, INT32, rvalue_reference=True)
+                    ),
+                ),
             )
         )
+
+
+def test_array_and_span_parameters_and_results() -> None:
+    array = ContainerType(ContainerKind.ARRAY, DOUBLE, length=4, by_reference=True)
+    span = ContainerType(ContainerKind.SPAN, INT32)
+    model = Function(
+        "f",
+        ("ns",),
+        (Parameter("a", array), Parameter("s", span)),
+        dataclasses.replace(array, by_reference=False),
+        HERE,
+    )
+    function = only_function(plan_for(header(model))).c_function
+    assert function.signature == (
+        "ns_f(const double a[4], const int32_t* s, size_t s_size, double out_result[4])"
+    )
+    # The span of a scalar is a view of the caller's memory, not a copy.
+    assert "std::span<const int32_t>(s, s_size)" in function.statement
+    assert [c.condition for c in function.owned_checks] == []
+    assert [c.condition for c in function.checks] == [
+        "a == nullptr",
+        "s == nullptr && s_size != 0",
+        "out_result == nullptr",
+    ]
+
+
+def test_array_and_span_overload_tokens() -> None:
+    plan = plan_for(
+        header(
+            function("f", Parameter("a", ContainerType(ContainerKind.ARRAY, INT32, length=3))),
+            function("f", Parameter("s", ContainerType(ContainerKind.SPAN, INT32))),
+            function("f", Parameter("v", vector(INT32))),
+        )
+    )
+    assert [f.name for f in plan.headers[0].c_functions] == [
+        "ns_f_array3_int32",
+        "ns_f_span_int32",
+        "ns_f_vector_int32",
+    ]

@@ -10,6 +10,7 @@ import pytest
 from bridgefex.errors import ConfigurationError, GenerationError
 from bridgefex.model import (
     Class,
+    ContainerType,
     Enumeration,
     EnumRef,
     Function,
@@ -18,7 +19,6 @@ from bridgefex.model import (
     StringType,
     Struct,
     StructRef,
-    VectorType,
 )
 from bridgefex.parser import ParseOptions, parse_header
 
@@ -605,7 +605,7 @@ def test_vector_forms(tmp_path: Path) -> None:
         "std::vector<c::P>",
         "std::vector<size_t>",
     ]
-    assert isinstance(function.result, VectorType)
+    assert isinstance(function.result, ContainerType)
     assert function.result.cpp_spelling == "std::vector<int64_t>"
 
 
@@ -667,3 +667,28 @@ def test_anonymous_enum_members_get_one_message(tmp_path: Path) -> None:
         parse_header(path, "input.h", ParseOptions())
     messages = [d.message for d in raised.value.diagnostics]
     assert all("anonymous enums" in message for message in messages), messages
+
+
+def test_array_and_span_forms(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <array>
+        #include <span>
+        #define C_N 4
+        namespace c {
+        std::array<float, 2 * C_N> f(const std::array<std::int16_t, 3>& a,
+                                    std::span<const std::int64_t> s,
+                                    std::span<const std::int64_t, std::dynamic_extent> t);
+        }
+        """,
+        std="c++20",
+    )
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    spellings = [parameter.type.cpp_spelling for parameter in function.parameters]
+    assert spellings == [
+        "const std::array<int16_t, 3>&",
+        "std::span<const int64_t>",
+        "std::span<const int64_t>",
+    ]
+    assert function.result.cpp_spelling == "std::array<float, 8>"

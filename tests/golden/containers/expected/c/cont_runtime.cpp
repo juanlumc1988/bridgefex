@@ -49,7 +49,7 @@ extern "C" const char* cont_last_error(void)
 
 extern "C" const char* cont_api_fingerprint(void)
 {
-    return "36a8a1f3de1183aedba78aa62985b98f";
+    return "f080fc6985435252593bed5ecabe45f6";
 }
 
 extern "C" void cont_free(void* memory)

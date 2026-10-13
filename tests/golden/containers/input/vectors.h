@@ -2,6 +2,7 @@
 // std::vector across the C boundary.
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -35,6 +36,12 @@ std::vector<int> too_big();
 std::vector<std::string> empty_strings();
 // The size parameter of 'data' gets another name.
 std::size_t sum(const std::vector<int>& data, int data_size);
+
+// std::array: a caller's buffer for results.
+std::array<float, 4> twice(const std::array<float, 4>& m);
+std::array<Point, 2> swap(std::array<Point, 2> points);
+std::array<Color, 3> colors();
+int sum_levels(const std::array<Level, 2>& levels);
 
 class Bag {
 public:

@@ -414,6 +414,45 @@ def test_array_lengths_are_checked_where_the_sources_are_built(
     assert "arr::S::a does not have 4 elements here" in completed.output
 
 
+@pytest.mark.parametrize("length", [2, 8])
+@pytest.mark.parametrize(
+    ("declaration", "message"),
+    [
+        # Longer, it would be written past the end of the caller's array.
+        ("std::array<int, ARR_N> f();", "does not have the type (or the length) in the C header"),
+        ("int f(std::array<int, ARR_N> a);", "array<int, 4>"),
+        ("int f(const std::array<int, ARR_N>& a);", "array<int, 4>"),
+    ],
+)
+def test_std_array_lengths_are_checked_where_the_sources_are_built(
+    toolchain: Toolchain,
+    tmp_path: Path,
+    probe_dir: Path,
+    length: int,
+    declaration: str,
+    message: str,
+) -> None:
+    """The same for std::array (std::array<int, sizeof(long)>)."""
+    header = tmp_path / "sarr.h"
+    header.write_text(
+        "#pragma once\n#include <array>\n#ifndef ARR_N\n#define ARR_N 4\n#endif\n"
+        f"namespace sarr {{ {declaration} }}\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("sarr"))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    good = tmp_path / "good.cpp"
+    good.write_text('#include "sarr_c.cpp"\n', encoding="utf-8")
+    toolchain.syntax_check(good, "c++", flag, [output / "c", tmp_path]).check()
+    bad = tmp_path / "bad.cpp"
+    bad.write_text(f'#define ARR_N {length}\n#include "sarr_c.cpp"\n', encoding="utf-8")
+    completed = toolchain.syntax_check(bad, "c++", flag, [output / "c", tmp_path])
+    assert completed.returncode != 0
+    assert message in completed.output, completed.output
+
+
 @pytest.mark.parametrize(
     ("modules", "reverse"),
     [

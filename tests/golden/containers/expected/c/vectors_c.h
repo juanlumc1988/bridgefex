@@ -53,6 +53,18 @@ CONT_NODISCARD CONT_API cont_status vec_empty_strings(cont_string** out_result, 
 /* size_t vec::sum(const std::vector<int>& data, int data_size) */
 CONT_NODISCARD CONT_API cont_status vec_sum(const int* data, size_t data_size_, int data_size, size_t* out_result);
 
+/* std::array<float, 4> vec::twice(const std::array<float, 4>& m) */
+CONT_NODISCARD CONT_API cont_status vec_twice(const float m[4], float out_result[4]);
+
+/* std::array<vec::Point, 2> vec::swap(std::array<vec::Point, 2> points) */
+CONT_NODISCARD CONT_API cont_status vec_swap(const vec_Point points[2], vec_Point out_result[2]);
+
+/* std::array<vec::Color, 3> vec::colors() */
+CONT_NODISCARD CONT_API cont_status vec_colors(vec_Color out_result[3]);
+
+/* int vec::sum_levels(const std::array<vec::Level, 2>& levels) */
+CONT_NODISCARD CONT_API cont_status vec_sum_levels(const vec_Level levels[2], int* out_result);
+
 /* vec::Bag::Bag(const std::vector<std::string>& items) */
 CONT_NODISCARD CONT_API cont_status vec_Bag_create(vec_Bag** out_self, const cont_string* items, size_t items_size);
 

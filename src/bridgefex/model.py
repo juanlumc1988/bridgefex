@@ -145,30 +145,54 @@ ElementType = ScalarType | EnumRef | StructRef | StringType
 """Every type that a container can hold."""
 
 
-@dataclass(frozen=True, slots=True)
-class VectorType:
+class ContainerKind(Enum):
+    VECTOR = "vector"
     """``std::vector<T>``, with the default allocator."""
 
+    ARRAY = "array"
+    """``std::array<T, N>``."""
+
+    SPAN = "span"
+    """``std::span<const T>``, with a dynamic extent."""
+
+
+@dataclass(frozen=True, slots=True)
+class ContainerType:
+    kind: ContainerKind
     element: ElementType
+    length: int | None = None
+    """N of std::array."""
+
     by_reference: bool = False
-    """True for ``const std::vector<T>&``."""
+    """True for ``const C&``."""
 
     rvalue_reference: bool = False
-    """True for ``std::vector<T>&&``, which is passed like a value."""
+    """True for ``C&&``, which is passed like a value."""
 
     @property
     def is_void(self) -> bool:
         return False
 
     @property
+    def sized(self) -> bool:
+        """True if it crosses as a pointer and a size (not std::array)."""
+        return self.kind is not ContainerKind.ARRAY
+
+    @property
     def cpp_spelling(self) -> str:
-        name = f"std::vector<{self.element.cpp_spelling}>"
+        element = self.element.cpp_spelling
+        if self.kind is ContainerKind.ARRAY:
+            name = f"std::array<{element}, {self.length}>"
+        elif self.kind is ContainerKind.SPAN:
+            name = f"std::span<const {element}>"
+        else:
+            name = f"std::vector<{element}>"
         if self.rvalue_reference:
             return f"{name}&&"
         return f"const {name}&" if self.by_reference else name
 
 
-Type = ScalarType | StringType | EnumRef | StructRef | VectorType
+Type = ScalarType | StringType | EnumRef | StructRef | ContainerType
 """Every type that can cross the C boundary."""
 
 FieldType = ScalarType | EnumRef | StructRef

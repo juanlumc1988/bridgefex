@@ -31,6 +31,12 @@ pytestmark = pytest.mark.usefixtures("libclang_loaded")
 CXX_STANDARD = "c++17"
 
 
+def cxx_standard(case: Case) -> str:
+    """CXX_STANDARD, or the newer standard that a case needs (std::span)."""
+    order = ("c++11", "c++14", "c++17", "c++20", "c++23")
+    return max(CXX_STANDARD, case.min_cxx, key=order.index)
+
+
 def build(case: Case, toolchain: Toolchain, directory: Path) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir)."""
     output = directory / "out"
@@ -39,7 +45,7 @@ def build(case: Case, toolchain: Toolchain, directory: Path) -> tuple[Path, Path
     library = directory / toolchain.shared_library_name(case.module)
     sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)
     toolchain.build_shared_library(
-        sources, [output / "c", case.input_dir], library, CXX_STANDARD
+        sources, [output / "c", case.input_dir], library, cxx_standard(case)
     ).check()
     return library, output
 

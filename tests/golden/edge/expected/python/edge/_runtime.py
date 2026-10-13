@@ -493,3 +493,10 @@ def decode_all(items):
 
 def enum_results(cls, items):
     return [enum_result(cls, item) for item in items]
+
+
+def fixed(array, length, name):
+    """``array`` if it has ``length`` elements (std::array)."""
+    if len(array) != length:
+        raise ValueError(f"argument {name!r} must have {length} elements, got {len(array)}")
+    return array

@@ -92,6 +92,14 @@ def check_results():
     expect(TypeError, vectors.shift, [(1, 2)], 0.5, message="'points[0]'")
     assert vectors.primes() == [2, 3, 5, 7]
     expect(cont.Error, vectors.too_big, message="max_size")
+    assert vectors.twice([1, 2, 3.5, 4]) == [2, 4, 7, 8]
+    assert vectors.twice((1, 2, 3, 4)) == [2, 4, 6, 8]
+    expect(ValueError, vectors.twice, [1, 2], message="must have 4 elements, got 2")
+    expect(TypeError, vectors.twice, None)
+    assert vectors.swap([Point(1, 2), Point(3, 4)]) == [Point(3, 4), Point(1, 2)]
+    assert vectors.colors() == [Color.Blue, Color.Green, Color.Red]
+    assert vectors.sum_levels([1, 1]) == 2
+    expect(ValueError, vectors.sum_levels, [1, 7])
     with vectors.Bag(["a", "b"]) as bag:
         bag.add([1, 2])
         bag.add((3,))

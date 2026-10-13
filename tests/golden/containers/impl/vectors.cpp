@@ -115,6 +115,30 @@ std::size_t sum(const std::vector<int>& data, int data_size)
     return total * 1000 + static_cast<std::size_t>(data_size);
 }
 
+std::array<float, 4> twice(const std::array<float, 4>& m)
+{
+    std::array<float, 4> result = m;
+    for (float& value : result) {
+        value *= 2;
+    }
+    return result;
+}
+
+std::array<Point, 2> swap(std::array<Point, 2> points)
+{
+    return {{points[1], points[0]}};
+}
+
+std::array<Color, 3> colors()
+{
+    return {{Color::Blue, Color::Green, Color::Red}};
+}
+
+int sum_levels(const std::array<Level, 2>& levels)
+{
+    return static_cast<int>(levels[0]) + static_cast<int>(levels[1]);
+}
+
 Bag::Bag(const std::vector<std::string>& items) : items_(items) {}
 
 std::vector<std::string> Bag::items() const

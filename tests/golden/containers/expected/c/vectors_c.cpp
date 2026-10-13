@@ -28,6 +28,7 @@
 #include "cont_runtime_internal.hpp"
 #include <string>
 #include <vector>
+#include <array>
 
 // The code below names the wrapped declarations to expose them, deprecated
 // ones too: that is no reason to warn here. Nor is a member that a default
@@ -308,6 +309,55 @@ cont_status vec_sum(const int* data, size_t data_size_, int data_size, size_t* o
         return cont_detail::null_argument("vec_sum: 'out_result' is NULL");
     }
     return cont_detail::guard([&]() { *out_result = ::vec::sum(static_cast<const std::vector<int>&>(cont_detail::vector_in<std::vector<int>>(data, data_size_)), data_size); });
+}
+
+// std::array<float, 4> vec::twice(const std::array<float, 4>& m)
+cont_status vec_twice(const float m[4], float out_result[4])
+{
+    static_assert(sizeof(decltype(static_cast<void>(::vec::twice(std::array<float, 4>())))*) != 0,
+                  "'std::array<float, 4> vec::twice(const std::array<float, 4>& m)' must accept temporaries: it would keep a dangling reference");
+    if (m == nullptr) {
+        return cont_detail::null_argument("vec_twice: 'm' is NULL");
+    }
+    if (out_result == nullptr) {
+        return cont_detail::null_argument("vec_twice: 'out_result' is NULL");
+    }
+    return cont_detail::guard([&]() { cont_detail::copy_to<std::array<float, 4>>(::vec::twice(static_cast<const std::array<float, 4>&>(cont_detail::array_in<std::array<float, 4>>(m))), out_result); });
+}
+
+// std::array<vec::Point, 2> vec::swap(std::array<vec::Point, 2> points)
+cont_status vec_swap(const vec_Point points[2], vec_Point out_result[2])
+{
+    if (points == nullptr) {
+        return cont_detail::null_argument("vec_swap: 'points' is NULL");
+    }
+    if (out_result == nullptr) {
+        return cont_detail::null_argument("vec_swap: 'out_result' is NULL");
+    }
+    return cont_detail::guard([&]() { cont_detail::copy_to<std::array<::vec::Point, 2>>(::vec::swap(cont_detail::array_in<std::array<::vec::Point, 2>>(points, [](const vec_Point& _item) { return cont_detail::from_c(_item); })), out_result, [](const ::vec::Point& _item) noexcept { return cont_detail::to_c(_item); }); });
+}
+
+// std::array<vec::Color, 3> vec::colors()
+cont_status vec_colors(vec_Color out_result[3])
+{
+    if (out_result == nullptr) {
+        return cont_detail::null_argument("vec_colors: 'out_result' is NULL");
+    }
+    return cont_detail::guard([&]() { cont_detail::copy_to<std::array<::vec::Color, 3>>(::vec::colors(), out_result, cont_detail::cast_to<vec_Color>()); });
+}
+
+// int vec::sum_levels(const std::array<vec::Level, 2>& levels)
+cont_status vec_sum_levels(const vec_Level levels[2], int* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(::vec::sum_levels(std::array<::vec::Level, 2>())))*) != 0,
+                  "'int vec::sum_levels(const std::array<vec::Level, 2>& levels)' must accept temporaries: it would keep a dangling reference");
+    if (levels == nullptr) {
+        return cont_detail::null_argument("vec_sum_levels: 'levels' is NULL");
+    }
+    if (out_result == nullptr) {
+        return cont_detail::null_argument("vec_sum_levels: 'out_result' is NULL");
+    }
+    return cont_detail::guard([&]() { *out_result = ::vec::sum_levels(static_cast<const std::array<::vec::Level, 2>&>(cont_detail::array_in<std::array<::vec::Level, 2>>(levels, cont_detail::enum_in<::vec::Level>{0, 1, "an element of 'levels' is not a value of vec::Level (0..1)"}))); });
 }
 
 // vec::Bag::Bag(const std::vector<std::string>& items)

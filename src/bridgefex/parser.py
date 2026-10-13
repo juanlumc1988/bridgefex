@@ -30,6 +30,8 @@ from .errors import ConfigurationError, Diagnostic, GenerationError, Location
 from .model import (
     Class,
     Constructor,
+    ContainerKind,
+    ContainerType,
     Declaration,
     Enumeration,
     Enumerator,
@@ -47,7 +49,6 @@ from .model import (
     StructRef,
     Type,
     TypeCategory,
-    VectorType,
     VisibleNames,
 )
 
@@ -420,9 +421,11 @@ def is_value_struct(definition: cindex.Cursor) -> bool:
 _NOT_BY_VALUE = "classes passed by value are not supported yet"
 
 # Classes of the standard library that get their own message.
+_CONTAINERS = ("vector", "array", "span")
+
 _UNSUPPORTED_STD_CLASSES = frozenset(
     """
-    array span deque list forward_list map multimap set multiset unordered_map
+    deque list forward_list map multimap set multiset unordered_map
     unordered_multimap unordered_set unordered_multiset optional variant any valarray
     initializer_list pair tuple unique_ptr shared_ptr weak_ptr function bitset
     """.split()
@@ -766,7 +769,7 @@ class _Visitor:
             if (
                 clang_type.kind == TypeKind.RVALUEREFERENCE
                 and not allow_void  # a parameter, not a result
-                and _std_record_name(clang_type.get_pointee()) == "vector"
+                and _std_record_name(clang_type.get_pointee()) in _CONTAINERS
             ):
                 # A sink parameter: the wrapper passes a temporary anyway.
                 clang_type = clang_type.get_pointee()
@@ -785,11 +788,13 @@ class _Visitor:
                 return _enum_ref(clang_type)
             if clang_type.get_canonical().kind == TypeKind.RECORD:
                 std_name = _std_record_name(clang_type)
-                if std_name == "vector":
-                    vector = self._vector(clang_type, cursor, context, by_reference=by_reference)
-                    if vector is not None and rvalue_reference:
-                        vector = dataclasses.replace(vector, rvalue_reference=True)
-                    return vector
+                if std_name in _CONTAINERS:
+                    container = self._container(
+                        clang_type, std_name, cursor, context, by_reference=by_reference
+                    )
+                    if container is not None and rvalue_reference:
+                        container = dataclasses.replace(container, rvalue_reference=True)
+                    return container
                 if std_name in _UNSUPPORTED_STD_CLASSES:
                     raise typemap.UnsupportedTypeError(f"std::{std_name} is not supported yet")
                 return _struct_ref(clang_type, by_reference=by_reference)
@@ -850,11 +855,18 @@ class _Visitor:
                 parameters.append(Parameter(name, type_))
         return tuple(parameters) if valid else None
 
-    def _vector(
-        self, written: cindex.Type, cursor: cindex.Cursor, context: str, *, by_reference: bool
-    ) -> VectorType | None:
-        """A std::vector, whose element type is read from the type as written
-        (std::int64_t, not the platform's 'long')."""
+    def _container(
+        self,
+        written: cindex.Type,
+        name: str,
+        cursor: cindex.Cursor,
+        context: str,
+        *,
+        by_reference: bool,
+    ) -> ContainerType | None:
+        """A std::vector, std::array or std::span, whose element type is read
+        from the type as written (std::int64_t, not the platform's 'long')."""
+        kind = ContainerKind(name)
         canonical = written.get_canonical()
         if written.kind not in (TypeKind.ELABORATED, TypeKind.TYPEDEF, TypeKind.RECORD):
             raise typemap.UnsupportedTypeError("deduced types (auto, decltype) are not supported")
@@ -873,33 +885,53 @@ class _Visitor:
             ):
                 raise typemap.UnsupportedTypeError(
                     f"cannot read the element type of '{written.spelling}' (alias templates are "
-                    "not supported); write std::vector<...>"
+                    f"not supported); write std::{name}<...>"
                 )
         if not arguments or arguments[0].kind == TypeKind.INVALID:
             raise typemap.UnsupportedTypeError(
                 f"cannot read the element type of '{written.spelling}'"
             )
-        if len(actual) != 2 or _std_record_name(actual[1]) != "allocator":
-            raise typemap.UnsupportedTypeError(
-                f"'{written.spelling}': only std::vector with std::allocator is supported"
-            )
         element_type = arguments[0]
+        length: int | None = None
+        declaration = canonical.get_declaration()
+        if kind is ContainerKind.VECTOR:
+            if len(actual) != 2 or _std_record_name(actual[1]) != "allocator":
+                raise typemap.UnsupportedTypeError(
+                    f"'{written.spelling}': only std::vector with std::allocator is supported"
+                )
+        elif kind is ContainerKind.ARRAY:
+            # Not a type: get_template_argument_type() cannot read it.
+            length = int(declaration.get_template_argument_unsigned_value(1))
+            if length < 1:
+                raise typemap.UnsupportedTypeError("std::array of size 0 is not supported")
+        else:
+            # std::dynamic_extent is size_t(-1): -1 whatever the size of size_t.
+            if int(declaration.get_template_argument_value(1)) != -1:
+                raise typemap.UnsupportedTypeError(
+                    "std::span with a fixed extent is not supported yet"
+                )
+            if not element_type.is_const_qualified():
+                raise typemap.UnsupportedTypeError(
+                    "std::span of non-const elements (an output buffer) is not supported yet"
+                )
         if _std_record_name(element_type) in ("vector", *_UNSUPPORTED_STD_CLASSES):
             raise typemap.UnsupportedTypeError(
-                f"std::vector of '{element_type.spelling}' is not supported"
+                f"std::{name} of '{element_type.spelling}' is not supported"
             )
         element = self._type(element_type, cursor, f"element of {context}", allow_void=False)
         if element is None:
             return None
-        if isinstance(element, VectorType) or (
+        if isinstance(element, ContainerType) or (
             isinstance(element, StringType) and element.kind is not StringKind.STRING
         ):
             raise typemap.UnsupportedTypeError(
-                f"std::vector of '{element_type.spelling}' is not supported"
+                f"std::{name} of '{element_type.spelling}' is not supported"
             )
+        if isinstance(element, StringType) and kind is ContainerKind.ARRAY:
+            raise typemap.UnsupportedTypeError("std::array of std::string is not supported")
         if isinstance(element, StringType | StructRef) and element.by_reference:
-            raise typemap.UnsupportedTypeError("std::vector of references is not supported")
-        return VectorType(element, by_reference=by_reference)
+            raise typemap.UnsupportedTypeError(f"std::{name} of references is not supported")
+        return ContainerType(kind, element, length, by_reference=by_reference)
 
     # Namespace scope -----------------------------------------------------
 
@@ -1309,7 +1341,7 @@ class _Visitor:
         if isinstance(type_, StringType):
             self._error(field, f"{where}: strings in value structs are not supported yet")
             return None
-        if isinstance(type_, VectorType):
+        if isinstance(type_, ContainerType):
             self._error(field, f"{where}: containers in value structs are not supported yet")
             return None
         location = _location(field.location)

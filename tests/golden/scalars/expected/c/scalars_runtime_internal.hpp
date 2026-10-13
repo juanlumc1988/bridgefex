@@ -250,6 +250,48 @@ Vector vector_in(const CType* items, size_t count, Convert convert)
     return result;
 }
 
+// A std::array argument from its elements at items (never NULL).
+template <typename Array, typename CType>
+Array array_in(const CType* items)
+{
+    Array result{};
+    for (size_t index = 0; index != result.size(); ++index) {
+        result[index] = items[index];
+    }
+    return result;
+}
+
+template <typename Array, typename CType, typename Convert>
+Array array_in(const CType* items, Convert convert)
+{
+    Array result{};
+    for (size_t index = 0; index != result.size(); ++index) {
+        result[index] = convert(items[index]);
+    }
+    return result;
+}
+
+// A std::array result, into the caller's array of the length in the C header.
+template <typename Expected, typename CType, typename Array>
+void copy_to(const Array& items, CType* out) noexcept
+{
+    static_assert(std::is_same<Array, Expected>::value,
+                  "the result does not have the type (or the length) in the C header");
+    for (auto item = items.begin(); item != items.end(); ++item) {
+        *out++ = *item;
+    }
+}
+
+template <typename Expected, typename CType, typename Array, typename Convert>
+void copy_to(const Array& items, CType* out, Convert convert) noexcept
+{
+    static_assert(std::is_same<Array, Expected>::value,
+                  "the result does not have the type (or the length) in the C header");
+    for (auto item = items.begin(); item != items.end(); ++item) {
+        *out++ = convert(*item);
+    }
+}
+
 // True if an element has a NULL data pointer and a size that is not 0.
 inline bool has_null_string(const scalars_string* items, size_t count) noexcept
 {

@@ -18,6 +18,8 @@ from . import naming
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
     Class,
+    ContainerKind,
+    ContainerType,
     ElementType,
     Enumeration,
     EnumRef,
@@ -33,7 +35,6 @@ from .model import (
     StructRef,
     Type,
     TypeCategory,
-    VectorType,
 )
 
 
@@ -54,9 +55,13 @@ class CParam:
     c_type: str
     role: Role
     ctypes_type: str
+    length: int | None = None
+    """The bound of an array parameter (``const float m[4]``)."""
 
     @property
     def declaration(self) -> str:
+        if self.length is not None:
+            return f"{self.c_type} {self.name}[{self.length}]"
         return f"{self.c_type} {self.name}"
 
 
@@ -566,7 +571,7 @@ class HeaderPlan:
         source: the wrapped header may only declare them (<iosfwd>)."""
         kinds: set[StringKind] = set()
         for type_ in _header_types(self.header):
-            element = type_.element if isinstance(type_, VectorType) else type_
+            element = type_.element if isinstance(type_, ContainerType) else type_
             if isinstance(element, StringType):
                 kinds.add(element.kind)
         includes = []
@@ -574,8 +579,10 @@ class HeaderPlan:
             includes.append("string")
         if StringKind.STRING_VIEW in kinds:
             includes.append("string_view")
-        if any(isinstance(type_, VectorType) for type_ in _header_types(self.header)):
-            includes.append("vector")
+        containers = {
+            type_.kind for type_ in _header_types(self.header) if isinstance(type_, ContainerType)
+        }
+        includes += [kind.value for kind in ContainerKind if kind in containers]
         return tuple(includes)
 
 
@@ -722,8 +729,11 @@ def _token(type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str]) -> 
         return enum.c_type if enum is not None else "enum"
     if isinstance(type_, StructRef):
         return structs.get(type_.usr, "struct")
-    if isinstance(type_, VectorType):
-        return f"vector_{_token(type_.element, enums, structs)}"
+    if isinstance(type_, ContainerType):
+        element = _token(type_.element, enums, structs)
+        if type_.kind is ContainerKind.ARRAY:
+            return f"array{type_.length}_{element}"
+        return f"{type_.kind.value}_{element}"
     return type_.token
 
 
@@ -1243,8 +1253,7 @@ class _Builder:
             cpp_names,
             names,
             [
-                isinstance(parameter.type, VectorType)
-                or (isinstance(parameter.type, StringType) and parameter.type.sized)
+                isinstance(parameter.type, ContainerType | StringType) and parameter.type.sized
                 for parameter in parameters
             ],
             "_size",
@@ -1264,7 +1273,9 @@ class _Builder:
             return self._lower_enum_param(name, self._enum(type_, location))
         if isinstance(type_, StructRef):
             return self._lower_struct_param(name, type_, self._struct(type_, location))
-        if isinstance(type_, VectorType):
+        if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
+            return self._lower_array_param(name, type_, location)
+        if isinstance(type_, ContainerType):
             assert size is not None
             return self._lower_vector_param(name, size, type_, location)
         return LoweredParam(
@@ -1460,7 +1471,7 @@ class _Builder:
         )
 
     def _lower_vector_param(
-        self, name: str, size: str, type_: VectorType, location: Location
+        self, name: str, size: str, type_: ContainerType, location: Location
     ) -> LoweredParam:
         element = self._element(type_.element, location)
         if element is None:  # reported
@@ -1468,6 +1479,7 @@ class _Builder:
         detail = f"{self.module.name}_detail"
         vector = f"std::vector<{element.cpp}>"
         checks = [_sized_null_check(name, size)]
+        span = type_.kind is ContainerKind.SPAN
         if isinstance(type_.element, StringType):
             temporary = f"{detail}::strings_in<{vector}>({name}, {size})"
             checks.append(
@@ -1482,7 +1494,11 @@ class _Builder:
                 "" if element.to_cpp is None else ", " + element.to_cpp.replace("{name}", name)
             )
             temporary = f"{detail}::vector_in<{vector}>({name}, {size}{converter})"
-        argument = f"static_cast<const {vector}&>({temporary})" if type_.by_reference else temporary
+        if span and element.to_cpp is None and not isinstance(type_.element, StringType):
+            # The same type on both sides: a view of the caller's elements.
+            temporary = f"std::span<const {element.cpp}>({name}, {size})"
+        by_reference = type_.by_reference and not span  # a span is a view anyway
+        argument = f"static_cast<const {vector}&>({temporary})" if by_reference else temporary
         pointer = f"ctypes.POINTER({element.ctypes_in})"
         return LoweredParam(
             c_params=(
@@ -1502,10 +1518,70 @@ class _Builder:
                 ),
             ),
             call_args=(name, size),
-            temporary=f"{vector}()" if type_.by_reference else None,
+            temporary=f"{vector}()" if by_reference else None,
         )
 
-    def _lower_vector_result(self, type_: VectorType, location: Location) -> LoweredResult:
+    def _lower_array_param(
+        self, name: str, type_: ContainerType, location: Location
+    ) -> LoweredParam:
+        element = self._element(type_.element, location)
+        if element is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        detail = f"{self.module.name}_detail"
+        array = f"std::array<{element.cpp}, {type_.length}>"
+        converter = "" if element.to_cpp is None else ", " + element.to_cpp.replace("{name}", name)
+        temporary = f"{detail}::array_in<{array}>({name}{converter})"
+        argument = f"static_cast<const {array}&>({temporary})" if type_.by_reference else temporary
+        conversion = element.py_in.replace("{name}", name)
+        return LoweredParam(
+            c_params=(
+                CParam(
+                    name,
+                    f"const {element.c_type}",
+                    Role.INPUT,
+                    f"ctypes.POINTER({element.ctypes_in})",
+                    type_.length,
+                ),
+            ),
+            argument=argument,
+            null_checks=(_null_check(name),),
+            value_checks=(),
+            py=PyArg(name, (f'{name} = _runtime.fixed({conversion}, {type_.length}, "{name}")',)),
+            call_args=(name,),
+            temporary=f"{array}()" if type_.by_reference else None,
+        )
+
+    def _lower_array_result(self, type_: ContainerType, location: Location) -> LoweredResult:
+        element = self._element(type_.element, location)
+        if element is None:  # reported
+            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+        detail = f"{self.module.name}_detail"
+        converter = "" if element.to_c is None else f", {element.to_c}"
+        array = f"std::array<{element.cpp}, {type_.length}>"
+        items = f"{element.py_read}(_out, {type_.length}{element.read_extra})"
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    element.c_type,
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER({element.ctypes_out})",
+                    type_.length,
+                ),
+            ),
+            # The caller's array, which may be an input: written on success only.
+            # N may differ on the target (std::array<T, sizeof(long)>): copy_to
+            # checks the type, so that it cannot write past the caller's array.
+            statement=f"{detail}::copy_to<{array}>({{call}}, out_result{converter});",
+            null_checks=(_null_check("out_result"),),
+            py=PyResult(
+                setup=(f"_out = ({element.ctypes_out} * {type_.length})()",),
+                value=element.py_value.replace("{data}", items),
+            ),
+            call_args=("_out",),
+        )
+
+    def _lower_vector_result(self, type_: ContainerType, location: Location) -> LoweredResult:
         element = self._element(type_.element, location)
         if element is None:  # reported
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
@@ -1601,7 +1677,9 @@ class _Builder:
             return self._lower_enum_result(self._enum(type_, location))
         if isinstance(type_, StructRef):
             return self._lower_struct_result(self._struct(type_, location))
-        if isinstance(type_, VectorType):
+        if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
+            return self._lower_array_result(type_, location)
+        if isinstance(type_, ContainerType):
             return self._lower_vector_result(type_, location)
         return LoweredResult(
             c_params=(
