@@ -575,6 +575,31 @@ def test_struct_references_without_a_definition(tmp_path: Path) -> None:
     assert ref.definition is None
 
 
+def test_alias_templates_that_forward_their_arguments(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <array>
+        #include <vector>
+        using std::vector;
+        namespace c {
+        template <class T, class A = std::allocator<T>> using Vec = ::std::vector<T, A>;
+        template <class T> using Vec2 = vector<T>;
+        template <class T, std::size_t N> using Arr = std::array<T, N>;
+        using Arr2 = Arr<std::int16_t, 2>;
+        Vec<std::int64_t> f(Vec2<std::int64_t> a, const Arr<std::uint8_t, 4>& b, Arr2 c);
+        }
+        """,
+    )
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    assert function.result.cpp_spelling == "std::vector<int64_t>"
+    assert [parameter.type.cpp_spelling for parameter in function.parameters] == [
+        "std::vector<int64_t>",
+        "const std::array<uint8_t, 4>&",
+        "std::array<int16_t, 2>",
+    ]
+
+
 def test_vector_forms(tmp_path: Path) -> None:
     header = parse(
         tmp_path,

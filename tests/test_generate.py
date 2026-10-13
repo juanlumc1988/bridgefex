@@ -761,3 +761,30 @@ def test_nested_enum_defined_outside_its_class(tmp_path: Path) -> None:
         "namespace n { struct S { enum class E : int; int x; }; enum class S::E : int { a }; }",
     )
     assert "enum 'S::E' is defined outside its class" in error
+
+
+@pytest.mark.parametrize(
+    "include", ['#include "a.h"', "namespace a { struct P; enum class F : short; }"]
+)
+def test_containers_of_the_structs_and_enums_of_another_header(
+    tmp_path: Path, include: str
+) -> None:
+    """The source of b.h needs the conversions of a.h, and checks a.h's enums,
+    when they are only container elements (the verification compiles it)."""
+    first = write_header(
+        tmp_path,
+        "#pragma once\nnamespace a { struct P { int x; }; enum class F : short { u }; }\n",
+        "a.h",
+    )
+    second = write_header(
+        tmp_path,
+        f"#pragma once\n#include <array>\n#include <vector>\n{include}\nnamespace b {{\n"
+        "std::vector<a::P> f(const std::vector<a::P>& v);\n"
+        "std::array<a::P, 2> g(std::array<a::F, 3> e);\n}\n",
+        "b.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    source = result.files["c/b_c.cpp"]
+    assert '#include "a.h"' in source
+    assert '#include "a_c_internal.hpp"' in source
+    assert "std::underlying_type<::a::F>::type, short>" in source

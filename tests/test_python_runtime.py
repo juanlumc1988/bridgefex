@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import array
 import copy
 import ctypes
 import dataclasses
@@ -326,3 +327,52 @@ def test_struct_defaults(runtime: ModuleType) -> None:
     assert runtime.check_struct(Point(1, 2), Point, "p") == Point(1, 2)
     with pytest.raises(TypeError, match=r"argument 'p' must be .*Point, not tuple"):
         runtime.check_struct((1, 2), Point, "p")
+
+
+def test_to_array_of_bytes(runtime: ModuleType) -> None:
+    def to_bytes(value: object) -> list[int]:
+        return list(runtime.to_array(value, ctypes.c_uint8, "a", runtime.check_int, True))
+
+    assert to_bytes(b"\x01\xff") == [1, 255]
+    assert to_bytes(bytearray(b"ab")) == [97, 98]
+    # Non-contiguous views are copied too.
+    assert to_bytes(memoryview(b"abcdef")[::2]) == [97, 99, 101]
+    assert to_bytes(memoryview(b"")) == []
+    # Signed bytes are integers, -1 is not 255.
+    assert to_bytes(memoryview(array.array("b", [1, 2]))) == [1, 2]
+    with pytest.raises(OverflowError, match=r"'a\[0\]'"):
+        to_bytes(memoryview(array.array("b", [-1])))
+    with pytest.raises(OverflowError, match=r"'a\[0\]'"):
+        to_bytes(array.array("b", [-1]))
+    with pytest.raises(TypeError, match="one-dimensional"):
+        to_bytes(memoryview(b"abcd").cast("B", (2, 2)))
+    with pytest.raises(TypeError, match="one-dimensional"):
+        to_bytes(memoryview(array.array("h", [1])))
+
+
+def test_messages_name_the_module_of_the_type(runtime: ModuleType) -> None:
+    class Flag:
+        def __bool__(self) -> bool:
+            return True
+
+    with pytest.raises(TypeError, match=r"must be a bool, not tests\.test_python_runtime\..*Flag"):
+        runtime.to_bool(Flag(), "a")
+    with pytest.raises(TypeError, match=r"must be a bool, not int$"):
+        runtime.to_bool(1, "a")
+
+
+def test_sequences_that_cannot_be_iterated(runtime: ModuleType) -> None:
+    class Scalar:
+        """Like a 0-d numpy array: len() and indexing, but iteration fails."""
+
+        def __len__(self) -> int:
+            raise TypeError("len() of unsized object")
+
+        def __getitem__(self, index: int) -> int:
+            raise IndexError(index)
+
+        def __iter__(self) -> Iterator[int]:
+            raise TypeError("iteration over a 0-d array")
+
+    with pytest.raises(TypeError, match="argument 'a' must be a sequence"):
+        runtime.to_array(Scalar(), ctypes.c_int32, "a", runtime.check_int)

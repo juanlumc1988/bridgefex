@@ -126,6 +126,28 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
             "alias templates are not supported",
         ),
         (
+            "#include <vector>\ntemplate <class T> struct Traits { using type = std::vector<T>; };"
+            " Traits<std::uint16_t>::type f();",
+            "(a type of a class template); write std::vector<...>",
+        ),
+        # Alias templates that do not forward their arguments: the element
+        # type would be read from an argument that is not the element.
+        (
+            "#include <vector>\ntemplate <class T> using Fixed = std::vector<std::int64_t>;"
+            " Fixed<long> f();",
+            "the alias template 'Fixed' must be std::vector<...> of its own parameters",
+        ),
+        (
+            "#include <vector>\ntemplate <class T> using Fixed = std::vector<std::int64_t>;"
+            " using Longs = Fixed<long>; void f(const Longs& v);",
+            "the alias template 'Fixed' must be std::vector<...> of its own parameters",
+        ),
+        (
+            "#include <array>\ntemplate <class T> using Three = std::array<T, 3>;"
+            " void f(Three<int> a);",
+            "the alias template 'Three' must be std::array<...> of its own parameters",
+        ),
+        (
             "#include <vector>\ntemplate <class T> struct MyAlloc : std::allocator<T> {};"
             " void f(std::vector<int, MyAlloc<int>> v);",
             "only std::vector with std::allocator is supported",

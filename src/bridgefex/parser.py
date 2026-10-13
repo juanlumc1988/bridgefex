@@ -13,6 +13,7 @@ import dataclasses
 import functools
 import os
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -438,6 +439,67 @@ def _std_record_name(clang_type: cindex.Type) -> str | None:
     if canonical.kind != TypeKind.RECORD:
         return None
     return libclang.std_declaration_name(canonical.get_declaration())
+
+
+def _alias_templates(cursor: cindex.Cursor) -> Iterator[cindex.Cursor]:
+    """The alias templates that the type written in a declaration names, also
+    through typedefs: ``Vec<long>`` or ``using Bytes = Vec<std::uint8_t>;``."""
+    seen: set[int] = set()
+    pending = [cursor]
+    while pending:
+        for child in pending.pop().get_children():
+            referenced = child.referenced if child.kind in _TYPE_REFERENCES else None
+            if referenced is None or referenced.hash in seen:
+                continue
+            seen.add(referenced.hash)
+            if referenced.kind == CursorKind.TYPE_ALIAS_TEMPLATE_DECL:
+                yield referenced
+            elif referenced.kind in (CursorKind.TYPEDEF_DECL, CursorKind.TYPE_ALIAS_DECL):
+                pending.append(referenced)
+
+
+_TYPE_REFERENCES = (CursorKind.TYPE_REF, CursorKind.TEMPLATE_REF)
+
+
+def _forwards_to(alias: cindex.Cursor, name: str) -> bool:
+    """True if an alias template is ``std::<name><P1, P2...>`` with its own
+    parameters, in order: then its arguments are those of the std class.
+
+    Any other pattern could ignore or transform an argument
+    (``template <class T> using Fixed = std::vector<std::int64_t>;``), so the
+    element type could not be read from the arguments as written.
+    """
+    children = list(alias.get_children())
+    parameters = [
+        child
+        for child in children
+        if child.kind
+        in (CursorKind.TEMPLATE_TYPE_PARAMETER, CursorKind.TEMPLATE_NON_TYPE_PARAMETER)
+    ]
+    patterns = [child for child in children if child.kind == CursorKind.TYPE_ALIAS_DECL]
+    if len(patterns) != 1 or len(parameters) + len(patterns) != len(children):
+        return False
+    references = [
+        child for child in patterns[0].get_children() if child.kind != CursorKind.NAMESPACE_REF
+    ]
+    if len(references) != len(parameters) + 1:
+        return False
+    template, *arguments = references
+    if template.kind != CursorKind.TEMPLATE_REF or template.referenced is None:
+        return False
+    if libclang.std_declaration_name(template.referenced) != name:
+        return False
+    for argument, parameter in zip(arguments, parameters, strict=True):
+        kind = (
+            CursorKind.TYPE_REF
+            if parameter.kind == CursorKind.TEMPLATE_TYPE_PARAMETER
+            else CursorKind.DECL_REF_EXPR
+        )
+        if argument.kind != kind or argument.referenced is None:
+            return False
+        if argument.referenced != parameter:
+            return False
+    return True
 
 
 def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
@@ -891,7 +953,20 @@ class _Visitor:
             raise typemap.UnsupportedTypeError(
                 f"cannot read the element type of '{written.spelling}'"
             )
+        for alias in _alias_templates(cursor):
+            if not _forwards_to(alias, name):
+                raise typemap.UnsupportedTypeError(
+                    f"cannot read the element type of '{written.spelling}': the alias template "
+                    f"'{alias.spelling}' must be std::{name}<...> of its own parameters, in order"
+                )
         element_type = arguments[0]
+        if element_type.kind == TypeKind.UNEXPOSED:
+            # A template parameter substituted by its argument, as in
+            # Traits<std::uint16_t>::type: only the canonical type is left.
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the element type of '{written.spelling}' as written (a type of "
+                f"a class template); write std::{name}<...>"
+            )
         length: int | None = None
         declaration = canonical.get_declaration()
         if kind is ContainerKind.VECTOR:

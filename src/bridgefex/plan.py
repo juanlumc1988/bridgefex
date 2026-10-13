@@ -571,8 +571,7 @@ class HeaderPlan:
         """Standard headers of the types that cross the boundary in the generated
         source: the wrapped header may only declare them (<iosfwd>)."""
         kinds: set[StringKind] = set()
-        for type_ in _header_types(self.header):
-            element = type_.element if isinstance(type_, ContainerType) else type_
+        for element in map(_element_or_self, _header_types(self.header)):
             if isinstance(element, StringType):
                 kinds.add(element.kind)
         includes = []
@@ -585,6 +584,11 @@ class HeaderPlan:
         }
         includes += [kind.value for kind in ContainerKind if kind in containers]
         return tuple(includes)
+
+
+def _element_or_self(type_: Type) -> Type:
+    """The element of a container, or the type itself."""
+    return type_.element if isinstance(type_, ContainerType) else type_
 
 
 def _header_types(header: Header, *, fields: bool = True) -> Iterable[Type]:
@@ -828,7 +832,7 @@ class _Builder:
             enumerator.macro for enum in self._enums.values() for enumerator in enum.enumerators
         }
         self._parameter_macros |= {enum.c_type for enum in self._enums.values()}
-        self._parameter_macros |= {f"{module.name}_status"}
+        self._parameter_macros |= {f"{module.name}_status", f"{module.name}_string"}
         self._parameter_macros |= {
             f"{naming.c_prefix(declaration.namespace, module.name)}_{declaration.name}"
             for header in module.headers
@@ -1985,14 +1989,14 @@ class _Builder:
             else:
                 items.append(self._enums[declaration.usr])
         owners: dict[str, Header] = {}
-        for type_ in _header_types(header, fields=False):
+        for type_ in map(_element_or_self, _header_types(header, fields=False)):
             if isinstance(type_, StructRef) and type_.usr in self._structs:
                 owner = self._struct_headers[type_.usr]
                 if owner is not header:
                     owners.setdefault(owner.stem, owner)
         self.foreign_struct_headers[header.stem] = tuple(owners.values())
         foreign: dict[str, EnumPlan] = {}
-        for type_ in _header_types(header):
+        for type_ in map(_element_or_self, _header_types(header)):
             if isinstance(type_, EnumRef) and type_.usr in self._enums:
                 owner = self._enum_headers[type_.usr]
                 enum = self._enums[type_.usr]

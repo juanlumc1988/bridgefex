@@ -294,7 +294,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 4
-PINNED_RUNTIME_SHA256 = "5576d4653158e12df1dc225e567d11b62bee57bd712b906cbc6d903763083f7a"
+PINNED_RUNTIME_SHA256 = "03729d6cddfa524c1dbb13f56f924bee738f21fc983e5fe0c7eca2b6d95d3666"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -559,10 +559,11 @@ def test_parameters_named_like_generated_types_are_renamed() -> None:
         Parameter("ns_Color", COLOR),
         Parameter("ns_K", INT32),
         Parameter("mod_status", INT32),
+        Parameter("mod_string", INT32),
     )
     plan = plan_for(enum_header(color(), klass("K"), model))
     names = [p.name for p in plan.headers[0].c_functions[-1].params]
-    assert names == ["ns_Color_", "ns_K_", "mod_status_", "out_result"]
+    assert names == ["ns_Color_", "ns_K_", "mod_status_", "mod_string_", "out_result"]
 
 
 def test_header_std_includes() -> None:

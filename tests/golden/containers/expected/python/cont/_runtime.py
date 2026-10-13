@@ -253,7 +253,7 @@ def to_int(value, ctype, name):
         number = operator.index(value)
     except TypeError:
         raise TypeError(
-            f"argument {name!r} must be an integer, not {type(value).__name__}"
+            f"argument {name!r} must be an integer, not {_type_name(value)}"
         ) from None
     low, high = _integer_range(ctype)
     if not low <= number <= high:
@@ -261,17 +261,25 @@ def to_int(value, ctype, name):
     return number
 
 
+def _type_name(value):
+    """The name of the type of value for messages, with its module unless it is
+    a builtin: 'numpy.bool', not a confusing 'bool'."""
+    cls = type(value)
+    module = getattr(cls, "__module__", "builtins")
+    return cls.__qualname__ if module == "builtins" else f"{module}.{cls.__qualname__}"
+
+
 def to_bool(value, name):
     """Accept only True and False, so that mistakes such as passing 2 are caught."""
     if not isinstance(value, bool):
-        raise TypeError(f"argument {name!r} must be a bool, not {type(value).__name__}")
+        raise TypeError(f"argument {name!r} must be a bool, not {_type_name(value)}")
     return value
 
 
 def to_float(value, ctype, name):
     """Check that value is a real number that fits in the C floating type."""
     if isinstance(value, bool) or not isinstance(value, numbers.Real):
-        raise TypeError(f"argument {name!r} must be a real number, not {type(value).__name__}")
+        raise TypeError(f"argument {name!r} must be a real number, not {_type_name(value)}")
     number = float(value)
     limit = _FLOAT_MAX.get(ctype)
     if limit is not None and math.isfinite(number) and abs(number) > limit:
@@ -295,7 +303,7 @@ def to_bytes(value, name):
         view = memoryview(value)
     except TypeError:
         raise TypeError(
-            f"argument {name!r} must be str or a bytes-like object, not {type(value).__name__}"
+            f"argument {name!r} must be str or a bytes-like object, not {_type_name(value)}"
         ) from None
     with view:
         if view.itemsize != 1:
@@ -341,13 +349,13 @@ def to_enum(value, cls, ctype, name, valid=None):
     without a fixed underlying type; otherwise the C type's range applies."""
     if isinstance(value, bool) or (isinstance(value, enum.Enum) and not isinstance(value, cls)):
         raise TypeError(
-            f"argument {name!r} must be {cls.__qualname__} or int, not {type(value).__qualname__}"
+            f"argument {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
         )
     try:
         number = operator.index(value)
     except TypeError:
         raise TypeError(
-            f"argument {name!r} must be {cls.__qualname__} or int, not {type(value).__qualname__}"
+            f"argument {name!r} must be {cls.__qualname__} or int, not {_type_name(value)}"
         ) from None
     if valid is not None:
         low, high = valid
@@ -409,7 +417,7 @@ def fill_defaults(value, default):
 def check_struct(value, cls, name):
     if not isinstance(value, cls):
         raise TypeError(
-            f"argument {name!r} must be {cls.__qualname__}, not {type(value).__qualname__}"
+            f"argument {name!r} must be {cls.__qualname__}, not {_type_name(value)}"
         )
     return value
 
@@ -435,7 +443,7 @@ def to_items(value, length, name, allow_bytes=False):
     ):
         raise TypeError(
             f"argument {name!r} must be a sequence of {length} elements, "
-            f"not {type(value).__qualname__}"
+            f"not {_type_name(value)}"
         )
     else:
         items = list(value)
@@ -468,9 +476,15 @@ def _sequence(value, name):
         or not hasattr(type(value), "__getitem__")
     ):
         raise TypeError(
-            f"argument {name!r} must be a sequence (list, tuple...), not {type(value).__qualname__}"
+            f"argument {name!r} must be a sequence (list, tuple...), not {_type_name(value)}"
         )
-    return list(value)
+    try:
+        return list(value)
+    except TypeError:
+        # A sequence that cannot be iterated (a 0-d numpy array).
+        raise TypeError(
+            f"argument {name!r} must be a sequence (list, tuple...), not {_type_name(value)}"
+        ) from None
 
 
 def to_array(value, ctype, name, check, allow_bytes=False):
@@ -478,10 +492,18 @@ def to_array(value, ctype, name, check, allow_bytes=False):
     check(item, ctype, item_name). bytes-like objects only for arrays of bytes."""
     if allow_bytes and isinstance(value, (bytes, bytearray, memoryview)):
         with memoryview(value) as view:
-            if view.itemsize != 1:
-                raise TypeError(f"argument {name!r} must be a bytes-like object of bytes")
-            return (ctype * view.nbytes).from_buffer_copy(view)
-    items = _sequence(value, name)
+            if view.itemsize != 1 or view.ndim != 1:
+                raise TypeError(
+                    f"argument {name!r} must be a one-dimensional bytes-like object of bytes"
+                )
+            if view.format.lstrip("@=<>!") in ("B", "c"):
+                # tobytes() copies non-contiguous views too.
+                data = view.tobytes()
+                return (ctype * len(data)).from_buffer_copy(data)
+            # Signed bytes are checked like integers: -1 is not 255.
+            items = view.tolist()
+    else:
+        items = _sequence(value, name)
     for index, item in enumerate(items):
         items[index] = check(item, ctype, f"{name}[{index}]")
     return (ctype * len(items))(*items)
