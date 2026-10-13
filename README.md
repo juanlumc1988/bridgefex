@@ -141,6 +141,7 @@ Generation is all-or-nothing. If any header contains something unsupported, ever
 | Free functions | Including overloads, also across headers of the same module, and functions declared through a function type (`typedef int Op(int); Op f;`). |
 | Namespaces | Nested namespaces too. |
 | Scalar types by value | `bool`; `signed char`, `short`, `int`, `long`, `long long` and their unsigned versions; `float`, `double`; `int8_t` … `uint64_t`, `size_t` (with or without `std::`). `const` values and `const T&` of these are passed by value. |
+| Strings | `std::string`, `std::string_view` (C++17) and `const char*`, as parameters and results, also through aliases. `const` values and `const T&` of `std::string` and `std::string_view` are passed by value. Not `std::string&` (an output parameter), `std::string&&`, `char*`, other character types (`std::wstring`, `std::u8string`...) or custom traits and allocators. |
 
 Rejected with an error, for now:
 
@@ -150,13 +151,13 @@ Rejected with an error, for now:
 - Public data members, nested types.
 - Enums, unions, global variables, `extern "C"` blocks.
 - Anonymous and inline namespaces.
-- Pointers and non-const references.
-- Classes by value (`std::string`, `std::vector`...), plain `char`, `wchar_t`, `long double`.
+- Pointers (except `const char*`) and non-const references.
+- Classes by value (`std::vector`...), plain `char`, `wchar_t`, `long double`.
 - Type aliases other than the standard fixed-width ones. A type is only taken as `int64_t`, `size_t`... if it is the standard one: an alias with that name declared by your code (`typedef unsigned size_t;` in your namespace) is rejected.
 - Classes with virtual methods but no virtual destructor (unless `final`).
 - Non-ASCII names, and names that would make a generated C name a keyword or a reserved identifier (`co::yield` gives `co_yield`; a namespace `_impl` gives `_impl_f`; a leading or trailing `_` elsewhere gives `__`).
 - Generated C names that clash with each other, with a declaration at global scope or a macro seen by the header, with the generated macros, or with a function, variable, type or macro of the system headers. The system headers are a fixed list of C, POSIX and glibc headers, plus `<windows.h>` on Windows; only the ones that exist on the platform are read, whether the header includes them or not. `sched::yield` would give `sched_yield`, which a C program that links the library would call instead of the system's. A header can therefore be accepted on one platform and rejected on another (module `s` defines `S_OK`, which `<windows.h>` defines too). A `struct`, `union` or `enum` tag of the system headers only clashes with a handle type, which declares a tag too: `link::map` is rejected (`struct link_map`), `tcp::info()` is fine, although C++ code that uses both must then write `struct tcp_info`, as with POSIX `struct stat`.
-- Headers named like a generated file (`<module>_runtime.h`, or `x_c.h` when `x.h` is wrapped too), unless `--include-root` puts them in a directory: the generated sources would include the generated file instead.
+- Headers named like a generated file (`<module>_runtime.h`, `<module>_types.h`, or `x_c.h` and `x_c_internal.hpp` when `x.h` is wrapped too), unless `--include-root` puts them in a directory: the generated sources would include the generated file instead.
 
 Copy and move constructors, deleted functions, and private or protected members are not part of the API and are skipped.
 
@@ -175,10 +176,13 @@ Copy and move constructors, deleted functions, and private or protected members 
   | `ERROR_UNKNOWN_EXCEPTION` | Anything else was thrown. |
   | `ERROR_NULL_ARGUMENT` | A pointer argument was NULL. |
   | `ERROR_OUT_OF_MEMORY` | `std::bad_alloc` was thrown. |
+  | `ERROR_INVALID_ARGUMENT` | An argument has a value that the C++ type cannot hold. |
 
   Results come back through an `out_result` pointer. `<module>_last_error()` returns the message (`what()`) of the last failure on the calling thread. It is a thread-local buffer, truncated to 1 KiB at a UTF-8 boundary, and never NULL; successful calls and destroy functions leave it alone. No exception ever crosses the C boundary, except glibc's thread cancellation (`pthread_exit`, `pthread_cancel`), which must unwind its thread. That works with libstdc++ only: with libc++, a cancellation inside a wrapped call aborts the process, because libc++abi cannot let it through a `catch (...)`.
 - **Warnings.** `<MODULE>_NODISCARD` makes compilers warn when a status is ignored. It uses `[[nodiscard]]` in C++17 and C23, and `warn_unused_result` on GCC and Clang otherwise (which GCC does not let a `(void)` cast silence; use `if (f(...)) {}`).
-- **API fingerprint.** `<module>_api_fingerprint()` returns a hash of all generated declarations. The Python bindings refuse to load a library built from a different version of the API.
+- **Strings.** A `std::string` or `std::string_view` parameter becomes two: `const char* s, size_t s_size`, which may contain NULs. NULL is accepted with a size of 0 (the empty string). The size parameter is named after the C++ parameter (`s_size`), with a trailing `_` if that name is taken. A `const char*` parameter stays one NUL-terminated pointer, which must not be NULL. String results come back through `char** out_result, size_t* out_result_size`: a copy in memory that the caller releases with `<module>_free()`, never with `free()` (the library may use another C runtime, on Windows). The copy also ends with a NUL. A `const char*` result that is NULL gives NULL and 0.
+- **Outputs.** Outputs that the function allocates (`out_self`, string results) are checked for NULL and set to NULL (and 0) first, so they are NULL after every failure, whatever the cause. Other results are only written on success. The checks come in this order: those outputs, then `self` and the other pointers in parameter order.
+- **API fingerprint.** `<module>_api_fingerprint()` returns a hash of the generated public C headers and of the conventions they do not show, such as how memory is returned. The Python bindings refuse to load a library built from a different version of the API.
 
 Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. The C++ sources compile as C++11 through C++23. MSVC is tested with C11/C17/latest and C++14 through latest, since it has no older modes. Tests build all of them with warnings as errors.
 
@@ -188,6 +192,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 - A class with one constructor is created with `Counter(args)`. With several, use the factories named after the C functions: `Counter.create_void()`, `Counter.create_int32(5)`.
 - The C++ object is destroyed by `close()`, at the end of a `with` block, or by the garbage collector, whichever comes first. Objects still alive after the exit handlers (`atexit`) are not destroyed, because other threads may still be using them: close them, or use `with`. Objects that an exit handler releases are destroyed. Using a closed object raises `ValueError`. Copying, pickling or calling `__init__` again raises `TypeError`, because the handle cannot be shared.
 - Arguments are checked before the call. Integers must fit the C type (`OverflowError` instead of ctypes' silent wrap-around). `bool` parameters only accept `True` and `False`. Floating-point parameters accept real numbers.
+- String parameters accept `str`, encoded as UTF-8 (strictly: lone surrogates raise `UnicodeEncodeError`), and bytes-like objects with 1-byte items (`bytes`, `bytearray`, `memoryview`...), which are copied first. A `const char*` parameter refuses NUL characters (`ValueError`), which C++ would not see. String results are decoded as strict UTF-8: on invalid data the `UnicodeDecodeError` keeps the bytes in `.object`. A NULL `const char*` result is `None`. The memory of a result is released even when Ctrl-C interrupts the call.
 - C++ exceptions raise `<module>.Error`, with `.status`, `.status_name` and the message. Errors can be pickled, for example to come back from a worker process.
 - The library is loaded from, in order:
   1. `<module>.load(path)`;
@@ -212,11 +217,15 @@ Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runne
 ## Known limitations
 
 - The wrapper sources must be compiled with the same compiler, standard library and options as the wrapped code. They call it directly.
-- Each generated source includes its wrapped header first, as your own sources do, so that macros the header defines for the standard library (`_FILE_OFFSET_BITS`, `_GLIBCXX_USE_CXX11_ABI`...) give the same class layouts as in your library. A header whose macros break a standard header included after it (`#define uint32_t ...`) breaks the generated source too. For example, `#define byte unsigned char` breaks `<new>` and `<exception>` with libc++ and MSVC in C++17 and later, where they declare `std::byte`; bridgefex warns about that one, because the verification with libstdc++ cannot see it.
+- Each generated source includes its wrapped header first, as your own sources do, so that macros the header defines for the standard library (`_FILE_OFFSET_BITS`, `_GLIBCXX_USE_CXX11_ABI`...) give the same class layouts as in your library. A header whose macros break a standard header included after it (`#define uint32_t ...`) breaks the generated source too. For example, `#define byte unsigned char` breaks `<new>` and `<exception>` with libc++ and MSVC in C++17 and later, where they declare `std::byte`; bridgefex warns about that one, because the verification with libstdc++ cannot see it. A generated source that includes `<string>` or `<string_view>` (when strings cross the boundary) breaks with libstdc++ too; the verification reports that.
 - Unity builds and precompiled headers are not supported for the sources of a wrapped header that configures the standard library or the C library (`_FILE_OFFSET_BITS`, `_TIME_BITS`, `_GLIBCXX_USE_CXX11_ABI`, `_GLIBCXX_DEBUG`...): these macros are read in the first standard header of a translation unit only, and they also apply to every later source of it, other modules' included. Compile those sources as their own translation units, without a precompiled header (CMake: `SKIP_UNITY_BUILD_INCLUSION`, `SKIP_PRECOMPILE_HEADERS`). On glibc, the generated source stops with an `#error` when `_FILE_OFFSET_BITS` or `_TIME_BITS` came too late, which is only a partial safety net: it does not cover the other macros, the reverse case, `_TIME_BITS` on 64-bit targets or MinGW. Other sources compile as one translation unit in any order, as long as the wrapped headers do not use the names of the generated macros (`<MODULE>_OK`, `<MODULE>_API`...) or define `byte`.
 - Over-aligned classes (more than the alignment of the platform's `operator new`, usually 16 bytes on 64-bit targets and 8 on 32-bit ones) need C++17 (aligned `new`) when the wrapper is compiled; a `static_assert` in the generated source enforces it.
 - Calling a `[[deprecated]]` function from the wrapper triggers the compiler's deprecation warning (bridgefex reports it).
 - Adding an overload renames the C functions of the existing ones (see Overloads).
+- Strings cross the boundary as copies. A function that keeps a `const char*`, `std::string_view` or `const std::string&` argument after it returns keeps a dangling pointer. A deleted `f(std::string&&)` overload, the usual sign of that, makes the generation fail.
+- A `const char*` result must be NUL-terminated: it is copied with `strlen`. A `const char*` result that the caller must free (`strdup`, `new[]`) leaks. A `(const char* data, size_t size)` pair is two separate parameters, and Python cannot pass NULs through `data`.
+- A string result exists briefly up to four times: as the C++ string, the C copy, Python bytes and `str`.
+- `<module>_free` is an exported C symbol: the module name must not give a name that another library of the program exports (`g_free` of GLib, `curl_free` of libcurl).
 
 ## Development
 
@@ -231,6 +240,7 @@ ruff check . && ruff format --check . && mypy
 - **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported.
 - **Standard tests** compile the generated code in every supported language standard.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
+- **Verification**: before writing anything, bridgefex compiles the generated C++ sources against your headers and the C headers as C23 and as strict C99, with libclang, and compiles and imports the generated Python package.
 - **Native tests** check the thread-local last error, thread cancellation, the alignment check, unity builds and their glibc check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
 - Set `BRIDGEFEX_SKIP_NATIVE_TESTS=1` to skip the tests that need a compiler.
 

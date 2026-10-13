@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from bridgefex.errors import ConfigurationError, GenerationError
-from bridgefex.model import Class, Function, Header
+from bridgefex.model import Class, Function, Header, StringKind, StringType
 from bridgefex.parser import ParseOptions, parse_header
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -264,3 +264,122 @@ def test_std_size_t_declared_like_libcxx(tmp_path: Path) -> None:
     (function,) = parse_header(path, "input.h", options).header.declarations
     assert isinstance(function, Function)
     assert function.result.c_name == "size_t"
+
+
+def parameter_types(header: Header) -> list[object]:
+    (function,) = header.declarations
+    assert isinstance(function, Function)
+    return [parameter.type for parameter in function.parameters] + [function.result]
+
+
+STRING = StringType(StringKind.STRING)
+STRING_REF = StringType(StringKind.STRING, by_reference=True)
+VIEW = StringType(StringKind.STRING_VIEW)
+VIEW_REF = StringType(StringKind.STRING_VIEW, by_reference=True)
+C_STRING = StringType(StringKind.C_STRING)
+
+
+@pytest.mark.parametrize("unsigned_char", [False, True])
+def test_string_forms(tmp_path: Path, unsigned_char: bool) -> None:
+    """Every accepted spelling, also where plain char is unsigned (ARM)."""
+    code = """
+        #include <string>
+        #include <string_view>
+        namespace s {
+        using Text = std::string;
+        typedef const char* cstr_t;
+        const std::string& f(std::string a, const std::string b, const std::string& c,
+                             std::string const& d, Text e, const Text& g,
+                             std::basic_string<char> h, std::string_view i,
+                             const std::string_view j, const std::string_view& k,
+                             const char* l, char const* const m, cstr_t n);
+        }
+        """
+    path = tmp_path / "input.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = ParseOptions(extra_args=("-funsigned-char",) if unsigned_char else ())
+    header = parse_header(path, "input.h", options).header
+    assert parameter_types(header) == [
+        STRING,
+        STRING,
+        STRING_REF,
+        STRING_REF,
+        STRING,
+        STRING_REF,
+        STRING,
+        VIEW,
+        VIEW,
+        VIEW_REF,
+        C_STRING,
+        C_STRING,
+        C_STRING,
+        STRING_REF,
+    ]
+
+
+def test_string_results(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <string>
+        #include <string_view>
+        namespace s { std::string a(); const std::string& b(); std::string_view c();
+                      const char* d(); const std::string e(); }
+        """,
+    )
+    results = [declaration.result for declaration in header.declarations]  # type: ignore[union-attr]
+    assert results == [STRING, STRING_REF, VIEW, C_STRING, STRING]
+
+
+def test_strings_of_a_std_inside_extern_cxx(tmp_path: Path) -> None:
+    """The MSVC STL declares namespace std inside 'extern "C++"' in C++20."""
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "fake_string").write_text(
+        """
+        #pragma once
+        extern "C++" {
+        namespace std {
+        template <class C> struct char_traits {};
+        template <class T> struct allocator {};
+        inline namespace __1 {
+        template <class C, class T = char_traits<C>, class A = allocator<C>>
+        class basic_string {};
+        typedef basic_string<char> string;
+        }
+        template <class C, class T = char_traits<C>> class basic_string_view {};
+        typedef basic_string_view<char> string_view;
+        }
+        }
+        """,
+        encoding="utf-8",
+    )
+    path = tmp_path / "input.h"
+    path.write_text(
+        "#pragma once\n#include <fake_string>\n"
+        "namespace s { void f(std::string a, std::string_view b); }\n",
+        encoding="utf-8",
+    )
+    header = parse_header(
+        path, "input.h", ParseOptions(extra_args=("-nostdinc++", "-isystem", str(system)))
+    ).header
+    assert parameter_types(header)[:2] == [STRING, VIEW]
+    # The same declarations outside a system header are not the standard library's.
+    with pytest.raises(GenerationError, match="classes passed by value"):
+        parse_header(path, "input.h", ParseOptions(extra_args=("-nostdinc++", "-I", str(system))))
+
+
+def test_a_namespace_std_that_is_not_the_global_one(tmp_path: Path) -> None:
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "other.h").write_text(
+        "#pragma once\nnamespace lib { namespace std { class basic_string {}; } }\n",
+        encoding="utf-8",
+    )
+    path = tmp_path / "input.h"
+    path.write_text(
+        "#pragma once\n#include <other.h>\nnamespace s { void f(lib::std::basic_string a); }\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(GenerationError, match="classes passed by value"):
+        parse_header(path, "input.h", ParseOptions(extra_args=("-isystem", str(system))))

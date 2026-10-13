@@ -8,6 +8,7 @@
 #include "{{ m.runtime_internal_header }}"
 
 #include <stddef.h>
+#include <cstdlib>
 #include <cstring>
 
 namespace {{ m.detail_namespace }} {
@@ -49,5 +50,10 @@ extern "C" const char* {{ m.last_error }}(void)
 
 extern "C" const char* {{ m.api_fingerprint_function }}(void)
 {
-    return "{{ m.api_fingerprint }}";
+    return "{{ fingerprint }}";
+}
+
+extern "C" void {{ m.free_function }}(void* memory)
+{
+    std::free(memory);
 }

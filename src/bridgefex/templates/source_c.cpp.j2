@@ -27,6 +27,9 @@
 
 #include "{{ h.c_header }}"
 #include "{{ m.runtime_internal_header }}"
+{% for name in h.std_includes %}
+#include <{{ name }}>
+{% endfor %}
 {% if h.classes %}
 
 #if !defined(__cpp_aligned_new)

@@ -187,3 +187,34 @@ def is_inline_namespace(cursor: cindex.Cursor) -> bool:
     if _state.is_inline_namespace is None:
         raise LibclangError("libclang is not loaded")
     return bool(_state.is_inline_namespace(cursor))
+
+
+def _skip_linkage_specs(cursor: cindex.Cursor | None) -> cindex.Cursor | None:
+    while cursor is not None and cursor.kind == cindex.CursorKind.LINKAGE_SPEC:
+        cursor = cursor.semantic_parent
+    return cursor
+
+
+def std_declaration_name(cursor: cindex.Cursor) -> str | None:
+    """The name of a declaration of the standard library's namespace ``std``,
+    or None for any other declaration. Requires :func:`load`.
+
+    The declaration must be in a system header, and declared in ``::std``
+    itself or in one of its inline namespaces (``std::__cxx11`` of libstdc++,
+    ``std::__1`` of libc++). Linkage specifications are skipped: in C++20 the
+    MSVC STL declares ``std`` inside ``extern "C++" { ... }``.
+    """
+    if not cursor.location.is_in_system_header:
+        return None
+    parent = cursor.semantic_parent
+    while parent is not None and (
+        parent.kind == cindex.CursorKind.LINKAGE_SPEC
+        or (parent.kind == cindex.CursorKind.NAMESPACE and is_inline_namespace(parent))
+    ):
+        parent = parent.semantic_parent
+    if parent is None or parent.kind != cindex.CursorKind.NAMESPACE or parent.spelling != "std":
+        return None
+    outer = _skip_linkage_specs(parent.semantic_parent)
+    if outer is None or outer.kind != cindex.CursorKind.TRANSLATION_UNIT:
+        return None
+    return str(cursor.spelling)

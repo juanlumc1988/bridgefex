@@ -7,6 +7,7 @@
 #include "edge_runtime_internal.hpp"
 
 #include <stddef.h>
+#include <cstdlib>
 #include <cstring>
 
 namespace edge_detail {
@@ -48,5 +49,10 @@ extern "C" const char* edge_last_error(void)
 
 extern "C" const char* edge_api_fingerprint(void)
 {
-    return "5c8b9f4c48ca7691c2f163a922126717";
+    return "b2e991c96ad3ee246f1116a1f677e4a8";
+}
+
+extern "C" void edge_free(void* memory)
+{
+    std::free(memory);
 }

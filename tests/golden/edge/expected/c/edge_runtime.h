@@ -60,6 +60,8 @@ typedef int32_t edge_status;
 #define EDGE_ERROR_NULL_ARGUMENT 3
 /* Memory allocation failed (std::bad_alloc). */
 #define EDGE_ERROR_OUT_OF_MEMORY 4
+/* An argument has a value that the C++ type cannot hold. */
+#define EDGE_ERROR_INVALID_ARGUMENT 5
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +80,13 @@ EDGE_API const char* edge_last_error(void);
  * changes. Bindings compare it to detect a stale library.
  */
 EDGE_API const char* edge_api_fingerprint(void);
+
+/*
+ * Releases the memory of a result that a function of this API allocated
+ * (char** out_result...). NULL is accepted. Use this function, never free():
+ * the library may use another C runtime than its caller (Windows).
+ */
+EDGE_API void edge_free(void* memory);
 
 #ifdef __cplusplus
 }

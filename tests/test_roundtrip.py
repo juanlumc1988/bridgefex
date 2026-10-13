@@ -10,6 +10,7 @@ against it, each in its own process.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -43,16 +44,21 @@ def build(case: Case, toolchain: Toolchain, directory: Path) -> tuple[Path, Path
     return library, output
 
 
+# A function declaration of a generated C header ('DEMO_API void demo_free(void* memory);').
+_DECLARATION = re.compile(r"(?:[A-Z0-9_]+_NODISCARD )?[A-Z0-9_]+_API [^(]*?(\w+)\(")
+
+
 def expected_exports(case: Case) -> set[str]:
+    """The functions declared by the generated C headers, the runtime one included."""
     result = bridgefex.generate(case.headers, case.options())
-    plan_header = result.files[f"c/{case.module}_runtime.h"]
-    names = {f"{case.module}_last_error", f"{case.module}_api_fingerprint"}
-    assert f"{case.module}_api_fingerprint" in plan_header
+    names: set[str] = set()
     for path, content in result.files.items():
-        if path.startswith("c/") and path.endswith("_c.h"):
+        if path.startswith("c/") and path.endswith(".h"):
             for line in content.splitlines():
-                if "_API " in line and "(" in line:
-                    names.add(line.split("(", 1)[0].split()[-1])
+                match = _DECLARATION.match(line)
+                if match:
+                    names.add(match.group(1))
+    assert {f"{case.module}_{name}" for name in ("last_error", "api_fingerprint", "free")} <= names
     return names
 
 

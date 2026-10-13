@@ -57,8 +57,8 @@ _COMMON_MACROS = frozenset(
 # Names that the generated code uses for its own parameters, locals and globals.
 _GENERATED_PARAMETER_NAMES = frozenset(
     """
-    self cls out_self out_result ctypes weakref threading _builtins _runtime _lib _bind
-    _bind_lock _out _handle _self
+    self cls out_self out_result out_result_size ctypes weakref threading _builtins _runtime
+    _types _lib _bind _bind_lock _out _out_size _out_data _handle _self _item _scope _status
     """.split()
 )
 
@@ -83,7 +83,8 @@ RESERVED_MEMBER_NAMES = frozenset(
 # close() names directly (it cannot use _builtins at interpreter exit).
 MODULE_GLOBALS = frozenset(
     """
-    ctypes weakref threading _builtins _sys _runtime _lib _bind _bind_lock _watch _watchers
+    ctypes weakref threading _builtins _sys _runtime _types _lib _bind _bind_lock _watch
+    _watchers
     __all__ AttributeError IndexError
     """.split()
 )
@@ -93,7 +94,7 @@ MODULE_GLOBALS = frozenset(
 PACKAGE_NAMES = frozenset(
     """
     load Error OK ERROR_EXCEPTION ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT
-    ERROR_OUT_OF_MEMORY
+    ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
     """.split()
 )
 
@@ -123,8 +124,8 @@ def generated_macros(module: str) -> frozenset[str]:
     prefix = module.upper()
     suffixes = """
         API C_API_BUILD C_API_STATIC C_API_AFTER_GLIBC NODISCARD OK ERROR_EXCEPTION
-        ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY RUNTIME_H
-        RUNTIME_INTERNAL_HPP
+        ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
+        RUNTIME_H RUNTIME_INTERNAL_HPP TYPES_H
     """.split()
     return frozenset(f"{prefix}_{suffix}" for suffix in suffixes)
 
@@ -222,5 +223,36 @@ def parameter_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple
         candidate = name or f"arg{position}"
         while candidate in taken or candidate in result:
             candidate += "_"
+        result.append(candidate)
+    return tuple(result)
+
+
+def derived_names(
+    cpp_names: Sequence[str],
+    final_names: Sequence[str],
+    wants: Sequence[bool],
+    suffix: str,
+    reserved: Iterable[str] = (),
+) -> tuple[str | None, ...]:
+    """Names of the C parameters derived from other parameters, such as the
+    ``_size`` of a string: one per parameter, None where ``wants`` is False.
+
+    The name is the C++ name without trailing ``_`` (``argN`` when unnamed)
+    plus ``suffix``, never the final name plus ``suffix``, which could contain
+    ``__`` (``from`` becomes ``from_``). It gets a trailing ``_`` while it
+    clashes with a reserved name, a name in ``reserved``, a final name or an
+    earlier derived name. Call it once the final names are known.
+    """
+    taken = RESERVED_PARAMETER_NAMES | frozenset(reserved) | frozenset(final_names)
+    used: set[str] = set()
+    result: list[str | None] = []
+    for position, (cpp_name, wanted) in enumerate(zip(cpp_names, wants, strict=True), start=1):
+        if not wanted:
+            result.append(None)
+            continue
+        candidate = (cpp_name.rstrip("_") or f"arg{position}") + suffix
+        while candidate in taken or candidate in used:
+            candidate += "_"
+        used.add(candidate)
         result.append(candidate)
     return tuple(result)

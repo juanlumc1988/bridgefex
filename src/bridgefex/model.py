@@ -46,8 +46,55 @@ class ScalarType:
     def is_void(self) -> bool:
         return self.category is TypeCategory.VOID
 
+    @property
+    def cpp_spelling(self) -> str:
+        return self.c_name
 
-Type = ScalarType
+
+class StringKind(Enum):
+    """The string types that cross the C boundary as UTF-8 bytes."""
+
+    STRING = "string"
+    """``std::string``."""
+
+    STRING_VIEW = "string_view"
+    """``std::string_view``."""
+
+    C_STRING = "cstr"
+    """``const char*``, NUL-terminated."""
+
+
+@dataclass(frozen=True, slots=True)
+class StringType:
+    kind: StringKind
+    by_reference: bool = False
+    """True for ``const std::string&`` and ``const std::string_view&``."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def token(self) -> str:
+        """Overload token: the value, ``const`` and ``const&`` forms share it."""
+        return self.kind.value
+
+    @property
+    def sized(self) -> bool:
+        """True if it crosses as a pointer and a size, False if NUL-terminated."""
+        return self.kind is not StringKind.C_STRING
+
+    @property
+    def cpp_spelling(self) -> str:
+        # Fixed, never a libclang spelling: that one depends on the standard
+        # library ('std::basic_string<char>' with libstdc++).
+        if self.kind is StringKind.C_STRING:
+            return "const char*"
+        name = f"std::{self.kind.value}"
+        return f"const {name}&" if self.by_reference else name
+
+
+Type = ScalarType | StringType
 """Every type that can cross the C boundary."""
 
 

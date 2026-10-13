@@ -315,6 +315,8 @@ def test_classes_named_like_generated_python_names(
         # Not edge in this order: edge.h names a parameter EDGE_OK, a macro of
         # edge_runtime.h, which would come first (a limitation in the README).
         (("demo", "scalars"), True),
+        (("strings", "demo"), False),
+        (("strings", "demo"), True),
     ],
 )
 def test_unity_build(
@@ -331,7 +333,8 @@ def test_unity_build(
     unity = tmp_path / "unity.cpp"
     unity.write_text("".join(f'#include "{source.name}"\n' for source in sources), encoding="utf-8")
     include_dirs = [*directories, *(GOLDEN_DIR / module / "input" for module in modules)]
-    for wanted in ("c++14", "c++17"):
+    # The strings case needs C++17 (std::string_view).
+    for wanted in ("c++17",) if "strings" in modules else ("c++14", "c++17"):
         flag = standard(toolchain, "c++", wanted, probe_dir)
         toolchain.syntax_check(unity, "c++", flag, include_dirs).check()
 

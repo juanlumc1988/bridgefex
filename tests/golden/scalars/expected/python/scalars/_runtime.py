@@ -11,7 +11,7 @@ import threading
 
 LIBRARY_ENV_VAR = "SCALARS_LIBRARY"
 
-API_FINGERPRINT = "3d692733d6bd514aacdf76be479829b4"
+API_FINGERPRINT = "114a414d93941e181be5b83962c2f861"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -21,6 +21,7 @@ ERROR_EXCEPTION = 1
 ERROR_UNKNOWN_EXCEPTION = 2
 ERROR_NULL_ARGUMENT = 3
 ERROR_OUT_OF_MEMORY = 4
+ERROR_INVALID_ARGUMENT = 5
 
 _STATUS_NAMES = {
     OK: "OK",
@@ -28,6 +29,7 @@ _STATUS_NAMES = {
     ERROR_UNKNOWN_EXCEPTION: "ERROR_UNKNOWN_EXCEPTION",
     ERROR_NULL_ARGUMENT: "ERROR_NULL_ARGUMENT",
     ERROR_OUT_OF_MEMORY: "ERROR_OUT_OF_MEMORY",
+    ERROR_INVALID_ARGUMENT: "ERROR_INVALID_ARGUMENT",
 }
 
 _FLOAT_MAX = {ctypes.c_float: 3.4028234663852886e38}
@@ -135,6 +137,8 @@ def load(path=None):
         _check_fingerprint(library, path)
         library.scalars_last_error.argtypes = []
         library.scalars_last_error.restype = ctypes.c_char_p
+        library.scalars_free.argtypes = [ctypes.c_void_p]
+        library.scalars_free.restype = None
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path
@@ -217,3 +221,59 @@ def to_float(value, ctype, name):
     if limit is not None and math.isfinite(number) and abs(number) > limit:
         raise OverflowError(f"argument {name!r} must be in [{-limit}, {limit}], got {number}")
     return number
+
+
+def to_bytes(value, name):
+    """A str (encoded as UTF-8) or bytes-like argument, as an exact bytes object.
+
+    The result is never a subclass, so its len() is the real size, and it is
+    immutable while the C++ code reads it without the GIL.
+    """
+    if isinstance(value, str):
+        # Unbound, so that a subclass cannot override it; strict, so that lone
+        # surrogates raise UnicodeEncodeError.
+        return str.encode(value, "utf-8")
+    if type(value) is bytes:
+        return value
+    try:
+        view = memoryview(value)
+    except TypeError:
+        raise TypeError(
+            f"argument {name!r} must be str or a bytes-like object, not {type(value).__name__}"
+        ) from None
+    with view:
+        if view.itemsize != 1:
+            raise TypeError(f"argument {name!r} must be str or a bytes-like object of bytes")
+        return view.tobytes()
+
+
+def to_c_string(value, name):
+    """Like to_bytes(), for a NUL-terminated string, which cannot contain NUL."""
+    data = to_bytes(value, name)
+    if 0 in data:
+        raise ValueError(f"argument {name!r} must not contain NUL characters")
+    return data
+
+
+# ctypes.string_at() takes its size as a C int: larger sizes would wrap around.
+_STRING_AT_CHUNK = 1 << 30
+
+
+def string_at(pointer, size):
+    """A copy of the ``size`` bytes at ``pointer`` (a ctypes.c_void_p)."""
+    if not pointer:
+        if size:
+            raise RuntimeError("the C layer returned NULL with a size that is not 0")
+        return b""
+    if size <= _STRING_AT_CHUNK:
+        return ctypes.string_at(pointer, size)
+    address = pointer.value
+    return b"".join(
+        ctypes.string_at(address + offset, min(_STRING_AT_CHUNK, size - offset))
+        for offset in range(0, size, _STRING_AT_CHUNK)
+    )
+
+
+def decode(data):
+    """Strict UTF-8: on invalid data, the UnicodeDecodeError keeps the bytes in .object."""
+    return data.decode("utf-8")

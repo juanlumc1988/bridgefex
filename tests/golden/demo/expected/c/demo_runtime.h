@@ -60,6 +60,8 @@ typedef int32_t demo_status;
 #define DEMO_ERROR_NULL_ARGUMENT 3
 /* Memory allocation failed (std::bad_alloc). */
 #define DEMO_ERROR_OUT_OF_MEMORY 4
+/* An argument has a value that the C++ type cannot hold. */
+#define DEMO_ERROR_INVALID_ARGUMENT 5
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +80,13 @@ DEMO_API const char* demo_last_error(void);
  * changes. Bindings compare it to detect a stale library.
  */
 DEMO_API const char* demo_api_fingerprint(void);
+
+/*
+ * Releases the memory of a result that a function of this API allocated
+ * (char** out_result...). NULL is accepted. Use this function, never free():
+ * the library may use another C runtime than its caller (Windows).
+ */
+DEMO_API void demo_free(void* memory);
 
 #ifdef __cplusplus
 }

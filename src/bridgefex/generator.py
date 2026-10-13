@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 
 import jinja2
 
-from .plan import ClassPlan, ModulePlan
+from .plan import ClassPlan, ModulePlan, api_fingerprint
 
 LANGUAGES = ("python",)
 """Languages that bindings can be generated for, on top of the C layer."""
@@ -56,17 +56,21 @@ def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, 
     def put(path: str, template: str, **context: object) -> None:
         files[path] = _tidy(environment.get_template(template).render(m=plan, **context))
 
+    # The public headers first: the fingerprint is their hash.
     put(f"c/{plan.runtime_header}", "runtime.h.j2")
-    put(f"c/{plan.runtime_internal_header}", "runtime_internal.hpp.j2")
-    put(f"c/{plan.runtime_source}", "runtime.cpp.j2")
     for header in plan.headers:
         put(f"c/{header.c_header}", "header_c.h.j2", h=header)
+    fingerprint = api_fingerprint(files[f"c/{name}"] for name in plan.public_headers)
+
+    put(f"c/{plan.runtime_internal_header}", "runtime_internal.hpp.j2")
+    put(f"c/{plan.runtime_source}", "runtime.cpp.j2", fingerprint=fingerprint)
+    for header in plan.headers:
         put(f"c/{header.c_source}", "source_c.cpp.j2", h=header)
 
     if "python" in languages:
         package = f"python/{plan.name}"
         put(f"{package}/__init__.py", "python_init.py.j2")
-        put(f"{package}/_runtime.py", "python_runtime.py.j2")
+        put(f"{package}/_runtime.py", "python_runtime.py.j2", fingerprint=fingerprint)
         for header in plan.headers:
             put(f"{package}/{header.stem}.py", "python_module.py.j2", h=header)
     return files

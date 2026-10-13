@@ -28,6 +28,7 @@ pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
 C_STANDARDS = sorted(set(GNU_C_STANDARDS) | set(MSVC_C_STANDARDS))
 CXX_STANDARDS = sorted(set(GNU_CXX_STANDARDS) | set(MSVC_CXX_STANDARDS))
+CXX_STANDARDS_IN_ORDER = ("c++11", "c++14", "c++17", "c++20", "c++23", "c++latest")
 
 
 @pytest.fixture(scope="module")
@@ -90,6 +91,8 @@ def test_cxx_sources_compile(
     probe_dir: Path,
     tmp_path: Path,
 ) -> None:
+    if CXX_STANDARDS_IN_ORDER.index(standard) < CXX_STANDARDS_IN_ORDER.index(case.min_cxx):
+        pytest.skip(f"the {case.name} case needs {case.min_cxx}")
     flag = resolve(toolchain, "c++", standard, probe_dir)
     include = generated[case.name] / "c"
     # The C headers included from C++ code.

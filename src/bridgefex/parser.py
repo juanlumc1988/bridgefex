@@ -34,7 +34,9 @@ from .model import (
     Header,
     Method,
     Parameter,
-    ScalarType,
+    StringKind,
+    StringType,
+    Type,
     VisibleNames,
 )
 
@@ -358,6 +360,102 @@ def macro_defined_after(header: Path, macro: str, options: ParseOptions) -> bool
     return any(f"{_CXX11_MARKER}_macro" in str(d.spelling) for d in unit.diagnostics)
 
 
+# Plain char: CHAR_U where it is unsigned (ARM, -funsigned-char).
+_CHAR_KINDS = frozenset({TypeKind.CHAR_S, TypeKind.CHAR_U})
+
+_ONLY_STD_STRINGS = (
+    "only std::string and std::string_view (of char, with the default traits and "
+    "allocator) are supported"
+)
+
+
+def _is_plain_char(clang_type: cindex.Type) -> bool:
+    return (
+        clang_type.kind in _CHAR_KINDS
+        and not clang_type.is_const_qualified()
+        and not clang_type.is_volatile_qualified()
+    )
+
+
+def _std_specialization(clang_type: cindex.Type, name: str) -> list[cindex.Type] | None:
+    """The canonical template arguments if ``clang_type`` is a specialization
+    of the class template ``std::<name>``, else None."""
+    canonical = clang_type.get_canonical()
+    if canonical.kind != TypeKind.RECORD:
+        return None
+    if libclang.std_declaration_name(canonical.get_declaration()) != name:
+        return None
+    count = int(canonical.get_num_template_arguments())
+    if count < 0:
+        return None
+    return [canonical.get_template_argument_type(i).get_canonical() for i in range(count)]
+
+
+def _is_std_of_char(clang_type: cindex.Type, name: str) -> bool:
+    arguments = _std_specialization(clang_type, name)
+    return arguments is not None and len(arguments) == 1 and _is_plain_char(arguments[0])
+
+
+def string_type(clang_type: cindex.Type) -> StringType | None:
+    """The string type that ``clang_type`` is, or None if it is not one.
+
+    Recognised by declaration, not by spelling, which differs between standard
+    libraries ('std::basic_string<char>' with libstdc++, 'std::string' with
+    libc++). Aliases are accepted. Requires :func:`bridgefex.libclang.load`.
+
+    Raises:
+        typemap.UnsupportedTypeError: a string form that is not supported.
+    """
+    spelling = str(clang_type.spelling)
+    canonical = clang_type.get_canonical()
+    if canonical.kind == TypeKind.POINTER:
+        pointee = canonical.get_pointee()
+        if pointee.kind not in _CHAR_KINDS:
+            return None
+        if pointee.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("pointers to volatile char are not supported")
+        if not pointee.is_const_qualified():
+            raise typemap.UnsupportedTypeError(
+                f"'{spelling}' is not supported: use 'const char*' or std::string"
+            )
+        if canonical.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        return StringType(StringKind.C_STRING)
+    reference = canonical.kind in (TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE)
+    value = canonical.get_pointee() if reference else canonical
+    arguments = _std_specialization(value, "basic_string")
+    if arguments is not None:
+        kind = StringKind.STRING
+        valid = (
+            len(arguments) == 3
+            and _is_plain_char(arguments[0])
+            and _is_std_of_char(arguments[1], "char_traits")
+            and _is_std_of_char(arguments[2], "allocator")
+        )
+    else:
+        arguments = _std_specialization(value, "basic_string_view")
+        if arguments is None:
+            return None
+        kind = StringKind.STRING_VIEW
+        valid = (
+            len(arguments) == 2
+            and _is_plain_char(arguments[0])
+            and _is_std_of_char(arguments[1], "char_traits")
+        )
+    if not valid:
+        raise typemap.UnsupportedTypeError(f"'{spelling}': {_ONLY_STD_STRINGS}")
+    name = f"std::{kind.value}"
+    if value.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError(f"volatile {name} is not supported")
+    if canonical.kind == TypeKind.RVALUEREFERENCE:
+        raise typemap.UnsupportedTypeError(f"rvalue references to {name} are not supported yet")
+    if reference and not value.is_const_qualified():
+        raise typemap.UnsupportedTypeError(
+            f"non-const references to {name} are not supported: they are output parameters"
+        )
+    return StringType(kind, by_reference=reference)
+
+
 def _diagnostic_order(diagnostic: Diagnostic) -> tuple[str, int, int, str]:
     location = diagnostic.location
     if location is None:
@@ -494,9 +592,13 @@ class _Visitor:
 
     def _type(
         self, clang_type: cindex.Type, cursor: cindex.Cursor, context: str, *, allow_void: bool
-    ) -> ScalarType | None:
+    ) -> Type | None:
         spelling = str(clang_type.spelling)
         try:
+            # Before the scalars: they reject plain char and references.
+            string = string_type(clang_type)
+            if string is not None:
+                return string
             if clang_type.kind == TypeKind.LVALUEREFERENCE:
                 # A const reference to a scalar is copied across the boundary.
                 pointee = clang_type.get_pointee()
@@ -556,11 +658,11 @@ class _Visitor:
                 valid = False
                 continue
             label = f"parameter '{name}'" if name else f"parameter {position}"
-            scalar = self._type(argument.type, argument, f"{label} of {where}", allow_void=False)
-            if scalar is None:
+            type_ = self._type(argument.type, argument, f"{label} of {where}", allow_void=False)
+            if type_ is None:
                 valid = False
             else:
-                parameters.append(Parameter(name, scalar))
+                parameters.append(Parameter(name, type_))
         return tuple(parameters) if valid else None
 
     # Namespace scope -----------------------------------------------------

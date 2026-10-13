@@ -6,6 +6,8 @@
 
 #include "demo_runtime.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <new>
 #if defined(__GLIBCXX__)
@@ -38,6 +40,58 @@ inline demo_status null_argument(const char* message) noexcept
 {
     set_last_error(message);
     return DEMO_ERROR_NULL_ARGUMENT;
+}
+
+inline demo_status invalid_argument(const char* message) noexcept
+{
+    set_last_error(message);
+    return DEMO_ERROR_INVALID_ARGUMENT;
+}
+
+// The data of a sized string argument, never NULL: NULL (with size 0) is the
+// empty string. Some standard libraries copy from the pointer even when the
+// size is 0, which is undefined behaviour for NULL.
+inline const char* string_data(const char* data) noexcept
+{
+    return data != nullptr ? data : "";
+}
+
+// Copies the size bytes at data, and a terminating NUL, into a new std::malloc
+// block, which the caller releases with demo_free(). data may be
+// NULL when size is 0. Throws std::bad_alloc.
+inline void copy_string(const char* data, size_t size, char** out, size_t* out_size)
+{
+    if (size == static_cast<size_t>(-1)) {
+        throw std::bad_alloc();  // size + 1 would wrap around
+    }
+    char* block = static_cast<char*>(std::malloc(size + 1));
+    if (block == nullptr) {
+        throw std::bad_alloc();
+    }
+    if (size != 0) {
+        std::memcpy(block, data, size);
+    }
+    block[size] = '\0';
+    *out = block;
+    *out_size = size;
+}
+
+// Results of type std::string and std::string_view. The generated code calls
+// it in the same full-expression as the wrapped function, while value and the
+// temporaries that it may point into are alive.
+template <typename String>
+void return_string(const String& value, char** out, size_t* out_size)
+{
+    copy_string(value.data(), value.size(), out, out_size);
+}
+
+// Results of type const char*: NULL stays NULL (the outputs were reset to NULL
+// and 0 before the call).
+inline void return_c_string(const char* value, char** out, size_t* out_size)
+{
+    if (value != nullptr) {
+        copy_string(value, std::strlen(value), out, out_size);
+    }
 }
 
 // Runs function and turns any exception into a status code, so that no

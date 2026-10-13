@@ -565,3 +565,92 @@ def test_enumerators_nested_in_system_structs_are_reserved(tmp_path: Path) -> No
     header = write_header(tmp_path, "namespace RT { int ADD(); }", name="rt.h")
     with pytest.raises(GenerationError, match="'RT_ADD'"):
         bridgefex.generate([header], bridgefex.Options("mod"))
+
+
+def test_strings_of_a_header_that_only_declares_them(tmp_path: Path) -> None:
+    """With only <iosfwd>, std::string is incomplete: the generated source
+    includes <string> itself."""
+    header = tmp_path / "fwd.h"
+    header.write_text(
+        "#pragma once\n#include <iosfwd>\nnamespace fw { std::string up(const std::string& s); }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    assert "#include <string>\n" in result.files["c/fwd_c.cpp"]
+    assert "<string_view>" not in result.files["c/fwd_c.cpp"]
+
+
+def test_a_deleted_rvalue_overload_is_reported(tmp_path: Path) -> None:
+    """'keep(std::string&&) = delete' says that keep() keeps a reference to its
+    argument: the wrapper, which passes a temporary, must not compile."""
+    error = error_of(
+        tmp_path,
+        "#include <string>\n"
+        "namespace k { void keep(const std::string& s); void keep(std::string&&) = delete; }",
+    )
+    assert "the generated wrapper k_keep()" in error
+    assert "deleted" in error
+
+
+def test_string_overloads_reach_their_own_function(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "#include <string>\n#include <string_view>\n"
+        "namespace o { int f(const std::string& s); int f(const char* s);"
+        " int f(std::string_view s); }",
+    )
+    source = result.files["c/api_c.cpp"]
+    assert "o_f_string(const char* s, size_t s_size, int* out_result)" in source
+    assert "o_f_cstr(const char* s, int* out_result)" in source
+    assert "o_f_string_view(const char* s, size_t s_size, int* out_result)" in source
+
+
+def test_strings_by_value_and_by_reference_clash(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "#include <string>\nnamespace o { int f(const std::string& s); int f(std::string s); }",
+    )
+    assert "the C name 'o_f_string'" in error
+
+
+def _render_then(monkeypatch: pytest.MonkeyPatch, change: object) -> None:
+    original = bridgefex.api.render
+
+    def render(*args: object, **kwargs: object) -> dict[str, str]:
+        files = original(*args, **kwargs)  # type: ignore[arg-type]
+        change(files)  # type: ignore[operator]
+        return files
+
+    monkeypatch.setattr(bridgefex.api, "render", render)
+
+
+def test_c_headers_are_verified_as_c99(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def repeat_a_typedef(files: dict[str, str]) -> None:
+        files["c/api_c.h"] += "typedef int mod_twice;\ntypedef int mod_twice;\n"
+
+    _render_then(monkeypatch, repeat_a_typedef)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated C headers do not compile as C" in error
+    assert "-std=c99" in error
+
+
+def test_python_syntax_errors_are_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def break_python(files: dict[str, str]) -> None:
+        files["python/mod/api.py"] += "def broken(:\n"
+
+    _render_then(monkeypatch, break_python)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated Python code does not compile: python/mod/api.py" in error
+
+
+def test_python_import_errors_are_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def break_import(files: dict[str, str]) -> None:
+        if "python/mod/api.py" in files:
+            files["python/mod/api.py"] += "raise ImportError('broken on purpose')\n"
+
+    _render_then(monkeypatch, break_import)
+    error = error_of(tmp_path, "namespace v { int f(); }")
+    assert "the generated Python code cannot be imported: ImportError: broken on purpose" in error
+    # Without Python bindings, nothing is imported.
+    header = write_header(tmp_path, "namespace v { int f(); }")
+    bridgefex.generate([header], bridgefex.Options("mod", languages=()))

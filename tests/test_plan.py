@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 from pathlib import Path
 
 import pytest
 
 from bridgefex.errors import ConfigurationError, GenerationError, Location
+from bridgefex.generator import render
 from bridgefex.model import (
     Class,
     Constructor,
@@ -16,9 +19,19 @@ from bridgefex.model import (
     Method,
     Module,
     Parameter,
+    StringKind,
+    StringType,
     VisibleNames,
 )
-from bridgefex.plan import ClassPlan, FunctionPlan, Role, build_plan
+from bridgefex.plan import (
+    C_API_CONVENTIONS,
+    ClassPlan,
+    FunctionPlan,
+    ModulePlan,
+    Role,
+    api_fingerprint,
+    build_plan,
+)
 from bridgefex.typemap import BUILTIN_TYPES, STANDARD_TYPEDEFS, VOID
 
 INT32 = STANDARD_TYPEDEFS["int32_t"].type
@@ -235,16 +248,53 @@ def test_python_conversions() -> None:
     )
 
 
+def fingerprint(plan: ModulePlan) -> str:
+    files = render(plan, ())
+    return api_fingerprint(files[f"c/{name}"] for name in plan.public_headers)
+
+
 def test_fingerprint_is_stable_and_tracks_declarations() -> None:
-    base = plan_for(header(function("f", Parameter("a", INT32))))
-    again = plan_for(header(function("f", Parameter("a", INT32))))
-    changed = plan_for(header(function("f", Parameter("a", DOUBLE))))
-    renamed = plan_for(header(function("f", Parameter("b", INT32))))
-    assert len(base.api_fingerprint) == 32
-    assert base.api_fingerprint == again.api_fingerprint
-    assert base.api_fingerprint != changed.api_fingerprint
+    base = fingerprint(plan_for(header(function("f", Parameter("a", INT32)))))
+    again = fingerprint(plan_for(header(function("f", Parameter("a", INT32)))))
+    changed = fingerprint(plan_for(header(function("f", Parameter("a", DOUBLE)))))
+    renamed = fingerprint(plan_for(header(function("f", Parameter("b", INT32)))))
+    assert len(base) == 32
+    assert base == again
+    assert base != changed
     # Parameter names are part of the declarations too.
-    assert base.api_fingerprint != renamed.api_fingerprint
+    assert base != renamed
+
+
+def test_fingerprint_is_in_the_runtime_files() -> None:
+    plan = plan_for(header(function("f", Parameter("a", INT32))), module="m")
+    files = render(plan)
+    expected = fingerprint(plan)
+    assert f'return "{expected}";' in files["c/m_runtime.cpp"]
+    assert f'API_FINGERPRINT = "{expected}"' in files["python/m/_runtime.py"]
+
+
+def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None:
+    assert api_fingerprint(["ab", "c"]) != api_fingerprint(["a", "bc"])
+    assert api_fingerprint([]) == api_fingerprint([])
+    assert len(api_fingerprint(["x"])) == 32
+
+
+# Conventions that the generated headers do not show (C_API_CONVENTIONS), and a
+# hash of the runtime files that implement them. A change to the runtime
+# templates fails this test: if it changes a convention (the out-parameter
+# contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
+# hash here.
+PINNED_CONVENTIONS = 2
+PINNED_RUNTIME_SHA256 = "92ced832f885fdbfb0e92efb696ce12ea87e98cb9f281e97e89707ca919bfd83"
+
+
+def test_runtime_changes_are_pinned_to_the_conventions() -> None:
+    files = render(build_plan(Module("m", ())))
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        if "_runtime" in path:
+            digest.update(path.encode() + b"\0" + files[path].encode() + b"\0")
+    assert (C_API_CONVENTIONS, digest.hexdigest()) == (PINNED_CONVENTIONS, PINNED_RUNTIME_SHA256)
 
 
 def test_long_python_calls_are_wrapped() -> None:
@@ -324,3 +374,169 @@ def test_headers_named_like_generated_files(names: tuple[str, ...]) -> None:
 def test_headers_in_a_directory_do_not_hide_generated_files() -> None:
     model = Header(Path("lib/mod_runtime.h"), "lib/mod_runtime.h", (function("f"),))
     assert plan_for(model).headers[0].stem == "mod_runtime"
+
+
+STRING = StringType(StringKind.STRING)
+STRING_REF = StringType(StringKind.STRING, by_reference=True)
+VIEW = StringType(StringKind.STRING_VIEW)
+C_STRING = StringType(StringKind.C_STRING)
+
+
+def only_function(plan: ModulePlan) -> FunctionPlan:
+    (item,) = plan.headers[0].items
+    assert isinstance(item, FunctionPlan)
+    return item
+
+
+def test_string_parameters() -> None:
+    model = Function(
+        "f",
+        ("ns",),
+        (Parameter("a", STRING_REF), Parameter("b", VIEW), Parameter("c", C_STRING)),
+        VOID,
+        HERE,
+    )
+    item = only_function(plan_for(header(model)))
+    function = item.c_function
+    assert function.signature == (
+        "ns_f(const char* a, size_t a_size, const char* b, size_t b_size, const char* c)"
+    )
+    assert [p.role for p in function.params] == [
+        Role.INPUT,
+        Role.SIZE,
+        Role.INPUT,
+        Role.SIZE,
+        Role.INPUT,
+    ]
+    assert function.ctypes_argtypes == (
+        "[ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p]"
+    )
+    assert function.statement == (
+        "::ns::f(std::string(mod_detail::string_data(a), a_size), "
+        "std::string_view(mod_detail::string_data(b), b_size), c);"
+    )
+    assert [(c.condition, c.message) for c in function.checks] == [
+        ("a == nullptr && a_size != 0", "'a' is NULL and 'a_size' is not 0"),
+        ("b == nullptr && b_size != 0", "'b' is NULL and 'b_size' is not 0"),
+        ("c == nullptr", "'c' is NULL"),
+    ]
+    assert function.owned_checks == ()
+    assert function.resets == ()
+    assert function.description == (
+        "void ns::f(const std::string& a, std::string_view b, const char* c)"
+    )
+    # The sizes are computed with the conversions, before the call.
+    assert [arg.conversions for arg in item.py.args] == [
+        ('a = _runtime.to_bytes(a, "a")', "a_size = _builtins.len(a)"),
+        ('b = _runtime.to_bytes(b, "b")', "b_size = _builtins.len(b)"),
+        ('c = _runtime.to_c_string(c, "c")',),
+    ]
+    assert item.py.call_args == ("a", "a_size", "b", "b_size", "c")
+
+
+@pytest.mark.parametrize(
+    ("result", "helper"), [(STRING, "return_string"), (C_STRING, "return_c_string")]
+)
+def test_string_results(result: StringType, helper: str) -> None:
+    get = dataclasses.replace(method("get", Parameter("s", STRING), is_const=True), result=result)
+    model = klass("Text", methods=(get,))
+    (item,) = plan_for(header(model)).headers[0].items
+    assert isinstance(item, ClassPlan)
+    py = item.members[0]
+    function = py.function
+    assert function.signature == (
+        "ns_Text_get(const ns_Text* self, const char* s, size_t s_size, "
+        "char** out_result, size_t* out_result_size)"
+    )
+    # The outputs that the function allocates are checked and reset first, so
+    # they are NULL on every failure.
+    assert [c.condition for c in function.owned_checks] == [
+        "out_result == nullptr",
+        "out_result_size == nullptr",
+    ]
+    assert function.resets == ("*out_result = nullptr;", "*out_result_size = 0;")
+    assert [c.condition for c in function.checks] == [
+        "self == nullptr",
+        "s == nullptr && s_size != 0",
+    ]
+    # The result is copied in the same full-expression as the call.
+    assert function.statement == (
+        f"mod_detail::{helper}(reinterpret_cast<const ::ns::Text*>(self)->get("
+        "std::string(mod_detail::string_data(s), s_size)), out_result, out_result_size);"
+    )
+    assert function.ctypes_argtypes.endswith(
+        "ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]"
+    )
+    body = py.body(8).splitlines()
+    assert body[:4] == [
+        "        _out = ctypes.c_void_p()",
+        "        _out_size = ctypes.c_size_t()",
+        '        s = _runtime.to_bytes(s, "s")',
+        "        s_size = _builtins.len(s)",
+    ]
+    assert body[4:10] == [
+        "        try:",
+        "            _runtime.check(_bind().ns_Text_get(self._ptr(), s, s_size, _out, _out_size))",
+        body[6],
+        "        finally:",
+        "            if _out:",
+        "                _lib.mod_free(_out)",
+    ]
+    if result is C_STRING:
+        assert body[6].endswith("_runtime.string_at(_out, _out_size.value) if _out else None")
+        assert (
+            body[10] == "        return None if _out_data is None else _runtime.decode(_out_data)"
+        )
+    else:
+        assert body[6] == "            _out_data = _runtime.string_at(_out, _out_size.value)"
+        assert body[10] == "        return _runtime.decode(_out_data)"
+    assert len(body) == 11
+
+
+def test_string_overload_tokens() -> None:
+    plan = plan_for(
+        header(
+            function("f", Parameter("s", STRING_REF)),
+            function("f", Parameter("s", C_STRING)),
+            function("f", Parameter("s", VIEW)),
+        )
+    )
+    names = [f.name for f in plan.headers[0].c_functions]
+    assert names == ["ns_f_string", "ns_f_cstr", "ns_f_string_view"]
+    # By value and by reference are the same in C: a clash, not a silent choice.
+    with pytest.raises(GenerationError, match=r"'ns_f_string'.*clashes"):
+        plan_for(
+            header(function("f", Parameter("s", STRING)), function("f", Parameter("s", STRING_REF)))
+        )
+
+
+def test_size_parameters_avoid_other_names() -> None:
+    names = VisibleNames(object_macro_names=frozenset({"s_size"}))
+    model = function(
+        "f", Parameter("s", STRING), Parameter("t_", STRING), Parameter("t_size", INT32)
+    )
+    plan = plan_for(Header(Path("a.h"), "a.h", (model,), names))
+    params = [p.name for p in plan.headers[0].c_functions[0].params]
+    assert params == ["s", "s_size_", "t_", "t_size_", "t_size", "out_result"]
+
+
+@pytest.mark.parametrize("name", ["free", "string"])
+def test_runtime_names_of_strings_are_reserved(name: str) -> None:
+    with pytest.raises(GenerationError, match=f"'mod_{name}'"):
+        plan_for(header(function(name, namespace=("mod",))))
+
+
+def test_header_std_includes() -> None:
+    plan = plan_for(
+        header(function("f", Parameter("s", STRING_REF)), name="a.h"),
+        header(function("g", Parameter("s", C_STRING)), name="b.h"),
+        header(klass("K", methods=(method("v", Parameter("s", VIEW)),)), name="c.h"),
+    )
+    assert [h.std_includes for h in plan.headers] == [("string",), (), ("string_view",)]
+
+
+@pytest.mark.parametrize("names", [("mod_types.h",), ("a.h", "a_c_internal.hpp")])
+def test_headers_named_like_future_generated_files(names: tuple[str, ...]) -> None:
+    headers = [header(function(f"f{i}"), name=name) for i, name in enumerate(names)]
+    with pytest.raises(GenerationError, match="has the name of a generated file"):
+        plan_for(*headers)

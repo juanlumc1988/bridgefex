@@ -212,5 +212,51 @@ def test_status_codes_match_the_c_header(case: object) -> None:
     spec.loader.exec_module(python_runtime)
     python_codes = {name: getattr(python_runtime, name) for name in c_codes}
     assert c_codes == python_codes
-    assert len(c_codes) == 5
+    assert len(c_codes) == 6
     assert {value: name for name, value in c_codes.items()} == python_runtime._STATUS_NAMES
+
+
+class LyingBytes(bytes):
+    def __len__(self) -> int:
+        return 100000
+
+
+def test_to_bytes(runtime: ModuleType) -> None:
+    assert runtime.to_bytes("é", "s") == b"\xc3\xa9"
+    data = b"abc"
+    assert runtime.to_bytes(data, "s") is data  # no copy
+    lying = runtime.to_bytes(LyingBytes(b"abc"), "s")
+    assert type(lying) is bytes
+    assert len(lying) == 3
+    assert runtime.to_bytes(bytearray(b"xy"), "s") == b"xy"
+    assert runtime.to_bytes(memoryview(b"abcdef")[1::2], "s") == b"bdf"
+    with pytest.raises(TypeError, match="'s' must be str or a bytes-like object, not NoneType"):
+        runtime.to_bytes(None, "s")
+    with pytest.raises(TypeError, match="bytes-like object of bytes"):
+        runtime.to_bytes(memoryview(b"abcd").cast("i"), "s")
+    with pytest.raises(UnicodeEncodeError):
+        runtime.to_bytes("\udcff", "s")
+
+
+def test_to_c_string(runtime: ModuleType) -> None:
+    assert runtime.to_c_string("abc", "s") == b"abc"
+    with pytest.raises(ValueError, match="'s' must not contain NUL characters"):
+        runtime.to_c_string(b"a\x00", "s")
+
+
+def test_string_at_in_chunks(runtime: ModuleType, monkeypatch: pytest.MonkeyPatch) -> None:
+    buffer = ctypes.create_string_buffer(bytes(range(1, 14)), 13)
+    pointer = ctypes.c_void_p(ctypes.addressof(buffer))
+    monkeypatch.setattr(runtime, "_STRING_AT_CHUNK", 4)
+    for size in range(14):
+        assert runtime.string_at(pointer, size) == buffer.raw[:size]
+    assert runtime.string_at(ctypes.c_void_p(), 0) == b""
+    with pytest.raises(RuntimeError, match="NULL with a size"):
+        runtime.string_at(ctypes.c_void_p(), 1)
+
+
+def test_decode_is_strict(runtime: ModuleType) -> None:
+    assert runtime.decode(b"a\x00\xc3\xa9") == "a\x00é"
+    with pytest.raises(UnicodeDecodeError) as raised:
+        runtime.decode(b"\x00\xffx")
+    assert raised.value.object == b"\x00\xffx"
