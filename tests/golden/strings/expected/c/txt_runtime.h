@@ -50,6 +50,16 @@
 /* Result of every function that can fail. */
 typedef int32_t txt_status;
 
+/*
+ * One string of an array of strings: 'size' bytes at 'data', which may contain
+ * NUL bytes. In arrays that the C API returns, data is never NULL and data[size]
+ * is a NUL byte. In arrays passed to the C API, data may be NULL when size is 0.
+ */
+typedef struct txt_string {
+    const char* data;
+    size_t size;
+} txt_string;
+
 /* Success. */
 #define TXT_OK 0
 /* The C++ code threw a std::exception; txt_last_error() has its what(). */

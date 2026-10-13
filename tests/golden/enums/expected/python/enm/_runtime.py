@@ -13,7 +13,7 @@ import threading
 
 LIBRARY_ENV_VAR = "ENM_LIBRARY"
 
-API_FINGERPRINT = "4febde080e7750d4ffc5a534e9f78d8d"
+API_FINGERPRINT = "3fc59d4845534c919a57b07a667bda15"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -388,3 +388,108 @@ def to_items(value, length, name, allow_bytes=False):
     if len(items) != length:
         raise ValueError(f"argument {name!r} must have {length} elements, got {len(items)}")
     return items
+
+
+class StringIn(ctypes.Structure):
+    """enm_string, passed to the C API: keeps its bytes alive."""
+
+    _fields_ = [("data", ctypes.c_char_p), ("size", ctypes.c_size_t)]
+
+
+class String(ctypes.Structure):
+    """enm_string, returned by the C API."""
+
+    _fields_ = [("data", ctypes.c_void_p), ("size", ctypes.c_size_t)]
+
+
+def _sequence(value, name):
+    """The elements of a sequence argument (with len() and indexing), as a list.
+
+    Sets, mappings, iterators and strings are refused: they have no order, or
+    are consumed, or would be split into characters.
+    """
+    if (
+        isinstance(value, (str, bytes, bytearray, memoryview, collections.abc.Mapping))
+        or not hasattr(type(value), "__len__")
+        or not hasattr(type(value), "__getitem__")
+    ):
+        raise TypeError(
+            f"argument {name!r} must be a sequence (list, tuple...), not {type(value).__qualname__}"
+        )
+    return list(value)
+
+
+def to_array(value, ctype, name, check, allow_bytes=False):
+    """A ctypes array of the elements of a sequence, each checked with
+    check(item, ctype, item_name). bytes-like objects only for arrays of bytes."""
+    if allow_bytes and isinstance(value, (bytes, bytearray, memoryview)):
+        with memoryview(value) as view:
+            if view.itemsize != 1:
+                raise TypeError(f"argument {name!r} must be a bytes-like object of bytes")
+            return (ctype * view.nbytes).from_buffer_copy(view)
+    items = _sequence(value, name)
+    for index, item in enumerate(items):
+        items[index] = check(item, ctype, f"{name}[{index}]")
+    return (ctype * len(items))(*items)
+
+
+def check_int(value, ctype, name):
+    return to_int(value, ctype, name)
+
+
+def check_float(value, ctype, name):
+    return to_float(value, ctype, name)
+
+
+def check_bool(value, ctype, name):
+    return to_bool(value, name)
+
+
+def to_enum_array(value, cls, ctype, name, valid=None):
+    items = _sequence(value, name)
+    for index, item in enumerate(items):
+        items[index] = to_enum(item, cls, ctype, f"{name}[{index}]", valid)
+    return (ctype * len(items))(*items)
+
+
+def to_struct_array(value, mirror, fill, name):
+    items = _sequence(value, name)
+    array = (mirror * len(items))()
+    for index, item in enumerate(items):
+        fill(array[index], item, f"{name}[{index}]")
+    return array
+
+
+def to_string_array(value, name):
+    items = _sequence(value, name)
+    for index, item in enumerate(items):
+        items[index] = to_bytes(item, f"{name}[{index}]")
+    return (StringIn * len(items))(*[(item, len(item)) for item in items])
+
+
+def array_items(pointer, size):
+    """A copy of the size elements at pointer (numbers or bools)."""
+    if not pointer:
+        if size:
+            raise RuntimeError("the C layer returned NULL with a size that is not 0")
+        return []
+    return pointer[:size]
+
+
+def struct_items(pointer, size, from_c):
+    """The size structs at pointer, converted before the block is released:
+    ctypes structures there would point into it."""
+    return [from_c(item) for item in array_items(pointer, size)]
+
+
+def string_items(pointer, size):
+    """The bytes of the size strings at pointer."""
+    return [string_at(ctypes.c_void_p(item.data), item.size) for item in array_items(pointer, size)]
+
+
+def decode_all(items):
+    return [decode(item) for item in items]
+
+
+def enum_results(cls, items):
+    return [enum_result(cls, item) for item in items]

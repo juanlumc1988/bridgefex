@@ -61,7 +61,7 @@ vals_status route_Leg_init(route_Leg* out_result)
 // double route::length(const route::Leg& leg)
 vals_status route_length(const route_Leg* leg, double* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::route::length(vals_detail::from_c(*leg))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::route::length(::route::Leg())))*) != 0,
                   "'double route::length(const route::Leg& leg)' must accept temporaries: it would keep a dangling reference");
     if (leg == nullptr) {
         return vals_detail::null_argument("route_length: 'leg' is NULL");
@@ -75,7 +75,7 @@ vals_status route_length(const route_Leg* leg, double* out_result)
 // route::Leg route::reverse(const route::Leg& leg)
 vals_status route_reverse(const route_Leg* leg, route_Leg* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::route::reverse(vals_detail::from_c(*leg))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::route::reverse(::route::Leg())))*) != 0,
                   "'route::Leg route::reverse(const route::Leg& leg)' must accept temporaries: it would keep a dangling reference");
     if (leg == nullptr) {
         return vals_detail::null_argument("route_reverse: 'leg' is NULL");
@@ -89,7 +89,7 @@ vals_status route_reverse(const route_Leg* leg, route_Leg* out_result)
 // geo::Point route::start(const route::Leg& leg)
 vals_status route_start(const route_Leg* leg, geo_Point* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::route::start(vals_detail::from_c(*leg))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::route::start(::route::Leg())))*) != 0,
                   "'geo::Point route::start(const route::Leg& leg)' must accept temporaries: it would keep a dangling reference");
     if (leg == nullptr) {
         return vals_detail::null_argument("route_start: 'leg' is NULL");

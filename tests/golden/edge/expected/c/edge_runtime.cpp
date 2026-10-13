@@ -49,7 +49,7 @@ extern "C" const char* edge_last_error(void)
 
 extern "C" const char* edge_api_fingerprint(void)
 {
-    return "83dcdfceb3e25109fef66d6e11905a29";
+    return "d7ccd91592db2766be5be796b289f159";
 }
 
 extern "C" void edge_free(void* memory)

@@ -60,7 +60,7 @@ txt_status views_first_word(const char* s, size_t s_size, char** out_result, siz
 // size_t views::size_of(const std::string_view& s)
 txt_status views_size_of(const char* s, size_t s_size, size_t* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::views::size_of(std::string_view(txt_detail::string_data(s), s_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::views::size_of(std::string_view())))*) != 0,
                   "'size_t views::size_of(const std::string_view& s)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("views_size_of: 's' is NULL and 's_size' is not 0");

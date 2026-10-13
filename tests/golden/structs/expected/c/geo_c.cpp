@@ -125,7 +125,7 @@ vals_status geo_Tagged_init(geo_Tagged* out_result)
 // geo::Point geo::mid(const geo::Point& a, geo::Point b)
 vals_status geo_mid(const geo_Point* a, const geo_Point* b, geo_Point* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::mid(vals_detail::from_c(*a), vals_detail::from_c(*b))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::mid(::geo::Point(), vals_detail::from_c(*b))))*) != 0,
                   "'geo::Point geo::mid(const geo::Point& a, geo::Point b)' must accept temporaries: it would keep a dangling reference");
     if (a == nullptr) {
         return vals_detail::null_argument("geo_mid: 'a' is NULL");
@@ -142,7 +142,7 @@ vals_status geo_mid(const geo_Point* a, const geo_Point* b, geo_Point* out_resul
 // geo::Msg geo::echo(const geo::Msg& m)
 vals_status geo_echo(const geo_Msg* m, geo_Msg* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::echo(vals_detail::from_c(*m))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::echo(::geo::Msg())))*) != 0,
                   "'geo::Msg geo::echo(const geo::Msg& m)' must accept temporaries: it would keep a dangling reference");
     if (m == nullptr) {
         return vals_detail::null_argument("geo_echo: 'm' is NULL");
@@ -168,7 +168,7 @@ vals_status geo_shift(const geo_Msg* m, int16_t delta, geo_Msg* out_result)
 // geo::Config geo::configure(const geo::Config& c)
 vals_status geo_configure(const geo_Config* c, geo_Config* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::configure(vals_detail::from_c(*c))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::configure(::geo::Config())))*) != 0,
                   "'geo::Config geo::configure(const geo::Config& c)' must accept temporaries: it would keep a dangling reference");
     if (c == nullptr) {
         return vals_detail::null_argument("geo_configure: 'c' is NULL");
@@ -218,7 +218,7 @@ vals_status geo_toggle(const geo_Tagged* t, geo_Tagged* out_result)
 // geo::Point geo::scale(const geo::Point& p, double factor)
 vals_status geo_scale(const geo_Point* p, double factor, geo_Point* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::scale(vals_detail::from_c(*p), factor)))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::scale(::geo::Point(), factor)))*) != 0,
                   "'geo::Point geo::scale(const geo::Point& p, double factor)' must accept temporaries: it would keep a dangling reference");
     if (p == nullptr) {
         return vals_detail::null_argument("geo_scale: 'p' is NULL");
@@ -232,7 +232,7 @@ vals_status geo_scale(const geo_Point* p, double factor, geo_Point* out_result)
 // int geo::area(const geo::Point& a)
 vals_status geo_area_geo_Point(const geo_Point* a, int* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::area(vals_detail::from_c(*a))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::area(::geo::Point())))*) != 0,
                   "'int geo::area(const geo::Point& a)' must accept temporaries: it would keep a dangling reference");
     if (a == nullptr) {
         return vals_detail::null_argument("geo_area_geo_Point: 'a' is NULL");
@@ -246,7 +246,7 @@ vals_status geo_area_geo_Point(const geo_Point* a, int* out_result)
 // int geo::area(const geo::Wide& w)
 vals_status geo_area_geo_Wide(const geo_Wide* w, int* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::area(vals_detail::from_c(*w))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::area(::geo::Wide())))*) != 0,
                   "'int geo::area(const geo::Wide& w)' must accept temporaries: it would keep a dangling reference");
     if (w == nullptr) {
         return vals_detail::null_argument("geo_area_geo_Wide: 'w' is NULL");
@@ -260,7 +260,7 @@ vals_status geo_area_geo_Wide(const geo_Wide* w, int* out_result)
 // geo::Path::Path(const geo::Point& start)
 vals_status geo_Path_create(geo_Path** out_self, const geo_Point* start)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::geo::Path(vals_detail::from_c(*start))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::geo::Path(::geo::Point())))*) != 0,
                   "'geo::Path::Path(const geo::Point& start)' must accept temporaries: it would keep a dangling reference");
     if (out_self == nullptr) {
         return vals_detail::null_argument("geo_Path_create: 'out_self' is NULL");
@@ -283,7 +283,7 @@ void geo_Path_destroy(geo_Path* self)
 // void geo::Path::add(const geo::Point& p)
 vals_status geo_Path_add(geo_Path* self, const geo_Point* p)
 {
-    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<::geo::Path*>(self)->add(vals_detail::from_c(*p))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<::geo::Path*>(self)->add(::geo::Point())))*) != 0,
                   "'void geo::Path::add(const geo::Point& p)' must accept temporaries: it would keep a dangling reference");
     if (self == nullptr) {
         return vals_detail::null_argument("geo_Path_add: 'self' is NULL");

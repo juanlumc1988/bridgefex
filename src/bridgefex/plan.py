@@ -18,6 +18,7 @@ from . import naming
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
     Class,
+    ElementType,
     Enumeration,
     EnumRef,
     Field,
@@ -32,6 +33,7 @@ from .model import (
     StructRef,
     Type,
     TypeCategory,
+    VectorType,
 )
 
 
@@ -240,8 +242,8 @@ class LoweredParam:
     """Arguments of the C call, in Python."""
 
     temporary: str | None = None
-    """The argument as a temporary (prvalue), when ``argument`` passes it as an
-    lvalue: see :func:`_temporaries_check`."""
+    """A temporary (prvalue) of the parameter's type, when ``argument`` passes
+    an lvalue: see :func:`_temporaries_check`."""
 
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
@@ -564,13 +566,16 @@ class HeaderPlan:
         source: the wrapped header may only declare them (<iosfwd>)."""
         kinds: set[StringKind] = set()
         for type_ in _header_types(self.header):
-            if isinstance(type_, StringType):
-                kinds.add(type_.kind)
+            element = type_.element if isinstance(type_, VectorType) else type_
+            if isinstance(element, StringType):
+                kinds.add(element.kind)
         includes = []
         if StringKind.STRING in kinds:
             includes.append("string")
         if StringKind.STRING_VIEW in kinds:
             includes.append("string_view")
+        if any(isinstance(type_, VectorType) for type_ in _header_types(self.header)):
+            includes.append("vector")
         return tuple(includes)
 
 
@@ -623,6 +628,10 @@ class ModulePlan:
         return f"{self.name}_free"
 
     @property
+    def string_type(self) -> str:
+        return f"{self.name}_string"
+
+    @property
     def public_headers(self) -> tuple[str, ...]:
         """The generated C headers, in the order the API fingerprint hashes them."""
         return (
@@ -656,6 +665,37 @@ _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 
 
+@dataclass(frozen=True, slots=True)
+class _Element:
+    """How the elements of a container cross the boundary."""
+
+    c_type: str
+    cpp: str
+    """The C++ element type, in the C++ container type."""
+
+    token: str
+    ctypes_in: str
+    ctypes_out: str
+    py_in: str
+    """Python expression that converts the argument ``{name}`` to a ctypes array."""
+
+    py_read: str
+    """Python function that copies the elements of a result out of the C block."""
+
+    py_value: str
+    """Python expression of the result from the copy ``{data}``."""
+
+    to_cpp: str | None = None
+    """C++ converter of a C element to C++, or None if they are the same type
+    (``{name}``: the parameter, for messages)."""
+
+    to_c: str | None = None
+    """C++ converter of a C++ element to C, or None if they are the same type."""
+
+    read_extra: str = ""
+    """More arguments of ``py_read``."""
+
+
 @dataclass(slots=True)
 class _Copies:
     """The bodies of the C++ conversions of a struct, while they are built."""
@@ -682,6 +722,8 @@ def _token(type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str]) -> 
         return enum.c_type if enum is not None else "enum"
     if isinstance(type_, StructRef):
         return structs.get(type_.usr, "struct")
+    if isinstance(type_, VectorType):
+        return f"vector_{_token(type_.element, enums, structs)}"
     return type_.token
 
 
@@ -740,6 +782,9 @@ class _Builder:
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
+        self._reserve_c_name(
+            f"{module.name}_string", "the string type of the runtime", None, tag=True
+        )
         # A generated type with the name of an output parameter would be hidden
         # by it. (Only generated names: these do not clash with the headers.)
         for name in ("out_self", "out_result", "out_result_size"):
@@ -1198,7 +1243,8 @@ class _Builder:
             cpp_names,
             names,
             [
-                isinstance(parameter.type, StringType) and parameter.type.sized
+                isinstance(parameter.type, VectorType)
+                or (isinstance(parameter.type, StringType) and parameter.type.sized)
                 for parameter in parameters
             ],
             "_size",
@@ -1218,6 +1264,9 @@ class _Builder:
             return self._lower_enum_param(name, self._enum(type_, location))
         if isinstance(type_, StructRef):
             return self._lower_struct_param(name, type_, self._struct(type_, location))
+        if isinstance(type_, VectorType):
+            assert size is not None
+            return self._lower_vector_param(name, size, type_, location)
         return LoweredParam(
             c_params=(CParam(name, type_.c_name, Role.INPUT, f"ctypes.{type_.ctypes_name}"),),
             argument=name,
@@ -1250,7 +1299,7 @@ class _Builder:
         return LoweredParam(
             c_params=(data, CParam(size, "size_t", Role.SIZE, "ctypes.c_size_t")),
             argument=argument,
-            temporary=temporary if type_.by_reference else None,
+            temporary=f"{constructor}()" if type_.by_reference else None,
             null_checks=(_sized_null_check(name, size),),
             value_checks=(),
             # The size of the exact bytes object: before self._ptr(), so that
@@ -1322,7 +1371,180 @@ class _Builder:
             value_checks=(),
             py=PyArg(name, (f'{name} = _types.{struct.mirror}__to_c({name}, "{name}")',)),
             call_args=(name,),
-            temporary=temporary if ref.by_reference else None,
+            temporary=f"{struct.cpp_name}()" if ref.by_reference else None,
+        )
+
+    def _element(self, type_: ElementType, location: Location) -> _Element | None:
+        """How the elements of a container cross the boundary."""
+        detail = f"{self.module.name}_detail"
+        if isinstance(type_, StringType):
+            return _Element(
+                c_type=self.module.name + "_string",
+                cpp="std::string",
+                token="string",
+                ctypes_in="_runtime.StringIn",
+                ctypes_out="_runtime.String",
+                py_in='_runtime.to_string_array({name}, "{name}")',
+                py_read="_runtime.string_items",
+                py_value="_runtime.decode_all({data})",
+            )
+        if isinstance(type_, EnumRef):
+            enum = self._enum(type_, location)
+            if enum is None:
+                return None
+            valid = enum.model.valid_range
+            extra = ""
+            to_cpp = f"{detail}::cast_to<{enum.cpp_name}>()"
+            if valid is not None:
+                message = (
+                    f"an element of '{{name}}' is not a value of {enum.model.qualified_name} "
+                    f"({valid[0]}..{valid[1]})"
+                )
+                to_cpp = (
+                    f'{detail}::enum_in<{enum.cpp_name}>{{{valid[0]}, {valid[1]}, "{message}"}}'
+                )
+                extra = f", ({valid[0]}, {valid[1]})"
+            return _Element(
+                c_type=enum.c_type,
+                cpp=enum.cpp_name,
+                token=enum.c_type,
+                ctypes_in=enum.ctypes_type,
+                ctypes_out=enum.ctypes_type,
+                py_in=(
+                    f"_runtime.to_enum_array({{name}}, {enum.py_type}, {enum.ctypes_type}, "
+                    f'"{{name}}"{extra})'
+                ),
+                py_read="_runtime.array_items",
+                py_value=f"_runtime.enum_results({enum.py_type}, {{data}})",
+                to_cpp=to_cpp,
+                to_c=f"{detail}::cast_to<{enum.c_type}>()",
+            )
+        if isinstance(type_, StructRef):
+            struct = self._struct(type_, location)
+            if struct is None:
+                return None
+            mirror = f"_types.{struct.mirror}"
+            return _Element(
+                c_type=struct.c_type,
+                cpp=struct.cpp_name,
+                token=struct.c_type,
+                ctypes_in=mirror,
+                ctypes_out=mirror,
+                py_in=f'_runtime.to_struct_array({{name}}, {mirror}, {mirror}__fill, "{{name}}")',
+                py_read="_runtime.struct_items",
+                py_value="{data}",
+                # Not noexcept: building the C++ struct may throw.
+                to_cpp=f"[](const {struct.c_type}& _item) {{ return {detail}::from_c(_item); }}",
+                to_c=(
+                    f"[](const {struct.cpp_name}& _item) noexcept "
+                    f"{{ return {detail}::to_c(_item); }}"
+                ),
+                read_extra=f", {mirror}__from_c",
+            )
+        check = {TypeCategory.BOOL: "check_bool", TypeCategory.FLOATING: "check_float"}.get(
+            type_.category, "check_int"
+        )
+        is_bytes = type_.c_name in ("uint8_t", "unsigned char")
+        return _Element(
+            c_type=type_.c_name,
+            cpp=type_.c_name,
+            token=type_.token,
+            ctypes_in=f"ctypes.{type_.ctypes_name}",
+            ctypes_out=f"ctypes.{type_.ctypes_name}",
+            py_in=(
+                f'_runtime.to_array({{name}}, ctypes.{type_.ctypes_name}, "{{name}}", '
+                f"_runtime.{check}{', True' if is_bytes else ''})"
+            ),
+            py_read="_runtime.array_items",
+            py_value="{data}",
+        )
+
+    def _lower_vector_param(
+        self, name: str, size: str, type_: VectorType, location: Location
+    ) -> LoweredParam:
+        element = self._element(type_.element, location)
+        if element is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        detail = f"{self.module.name}_detail"
+        vector = f"std::vector<{element.cpp}>"
+        checks = [_sized_null_check(name, size)]
+        if isinstance(type_.element, StringType):
+            temporary = f"{detail}::strings_in<{vector}>({name}, {size})"
+            checks.append(
+                Precondition(
+                    f"{detail}::has_null_string({name}, {size})",
+                    "null_argument",
+                    f"an element of '{name}' is NULL with a size that is not 0",
+                )
+            )
+        else:
+            converter = (
+                "" if element.to_cpp is None else ", " + element.to_cpp.replace("{name}", name)
+            )
+            temporary = f"{detail}::vector_in<{vector}>({name}, {size}{converter})"
+        argument = f"static_cast<const {vector}&>({temporary})" if type_.by_reference else temporary
+        pointer = f"ctypes.POINTER({element.ctypes_in})"
+        return LoweredParam(
+            c_params=(
+                CParam(name, f"const {element.c_type}*", Role.INPUT, pointer),
+                CParam(size, "size_t", Role.SIZE, "ctypes.c_size_t"),
+            ),
+            argument=argument,
+            null_checks=tuple(checks),
+            value_checks=(),
+            # The size of the ctypes array: before self._ptr(), so that nothing
+            # runs between it and the call.
+            py=PyArg(
+                name,
+                (
+                    f"{name} = {element.py_in.replace('{name}', name)}",
+                    f"{size} = _builtins.len({name})",
+                ),
+            ),
+            call_args=(name, size),
+            temporary=f"{vector}()" if type_.by_reference else None,
+        )
+
+    def _lower_vector_result(self, type_: VectorType, location: Location) -> LoweredResult:
+        element = self._element(type_.element, location)
+        if element is None:  # reported
+            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+        detail = f"{self.module.name}_detail"
+        if isinstance(type_.element, StringType):
+            statement = f"{detail}::copy_out_strings({{call}}, out_result, out_result_size);"
+        else:
+            converter = "" if element.to_c is None else f", {element.to_c}"
+            statement = f"{detail}::copy_out({{call}}, out_result, out_result_size{converter});"
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    f"{element.c_type}**",
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER(ctypes.POINTER({element.ctypes_out}))",
+                ),
+                CParam(
+                    "out_result_size",
+                    "size_t*",
+                    Role.OUT_RESULT_SIZE,
+                    "ctypes.POINTER(ctypes.c_size_t)",
+                ),
+            ),
+            statement=statement,
+            null_checks=(),
+            py=PyResult(
+                setup=(
+                    f"_out = ctypes.POINTER({element.ctypes_out})()",
+                    "_out_size = ctypes.c_size_t()",
+                ),
+                # The elements are copied out of the block before it is released.
+                read=(f"_out_data = {element.py_read}(_out, _out_size.value{element.read_extra})"),
+                value=element.py_value.replace("{data}", "_out_data"),
+                cleanup=("if _out:", f"    _lib.{self.module.name}_free(_out)"),
+            ),
+            call_args=("_out", "_out_size"),
+            owned_checks=(_null_check("out_result"), _null_check("out_result_size")),
+            resets=("*out_result = nullptr;", "*out_result_size = 0;"),
         )
 
     def _lower_struct_result(self, struct: StructPlan | None) -> LoweredResult:
@@ -1379,6 +1601,8 @@ class _Builder:
             return self._lower_enum_result(self._enum(type_, location))
         if isinstance(type_, StructRef):
             return self._lower_struct_result(self._struct(type_, location))
+        if isinstance(type_, VectorType):
+            return self._lower_vector_result(type_, location)
         return LoweredResult(
             c_params=(
                 CParam(
@@ -1775,7 +1999,9 @@ class _Builder:
 #      every failure.
 #   3  value structs: by pointer, in pack(8) mirrors, results written on
 #      success only; ERROR_INVALID_ARGUMENT for invalid members.
-C_API_CONVENTIONS = 3
+#   4  std::vector: elements in one block that <module>_free releases, never
+#      NULL on success (1 byte when empty); <module>_string elements.
+C_API_CONVENTIONS = 4
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:

@@ -50,6 +50,16 @@
 /* Result of every function that can fail. */
 typedef int32_t edge_status;
 
+/*
+ * One string of an array of strings: 'size' bytes at 'data', which may contain
+ * NUL bytes. In arrays that the C API returns, data is never NULL and data[size]
+ * is a NUL byte. In arrays passed to the C API, data may be NULL when size is 0.
+ */
+typedef struct edge_string {
+    const char* data;
+    size_t size;
+} edge_string;
+
 /* Success. */
 #define EDGE_OK 0
 /* The C++ code threw a std::exception; edge_last_error() has its what(). */

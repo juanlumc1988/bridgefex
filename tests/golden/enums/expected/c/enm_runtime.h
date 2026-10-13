@@ -50,6 +50,16 @@
 /* Result of every function that can fail. */
 typedef int32_t enm_status;
 
+/*
+ * One string of an array of strings: 'size' bytes at 'data', which may contain
+ * NUL bytes. In arrays that the C API returns, data is never NULL and data[size]
+ * is a NUL byte. In arrays passed to the C API, data may be NULL when size is 0.
+ */
+typedef struct enm_string {
+    const char* data;
+    size_t size;
+} enm_string;
+
 /* Success. */
 #define ENM_OK 0
 /* The C++ code threw a std::exception; enm_last_error() has its what(). */

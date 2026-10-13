@@ -102,6 +102,176 @@ inline void return_c_string(const char* value, char** out, size_t* out_size)
     }
 }
 
+// Sizes that throw std::bad_alloc instead of wrapping around (32-bit size_t).
+template <typename Size>
+Size checked_add(Size a, Size b)
+{
+    if (b > static_cast<Size>(-1) - a) {
+        throw std::bad_alloc();
+    }
+    return a + b;
+}
+
+template <typename Size>
+Size checked_mul(Size a, Size b)
+{
+    if (a != 0 && b > static_cast<Size>(-1) / a) {
+        throw std::bad_alloc();
+    }
+    return a * b;
+}
+
+// A std::malloc block, released unless release() hands it over. Never NULL,
+// even for 0 bytes.
+class malloc_block {
+public:
+    explicit malloc_block(size_t bytes) : memory_(std::malloc(bytes == 0 ? 1 : bytes))
+    {
+        if (memory_ == nullptr) {
+            throw std::bad_alloc();
+        }
+    }
+    ~malloc_block() { std::free(memory_); }
+    malloc_block(const malloc_block&) = delete;
+    malloc_block& operator=(const malloc_block&) = delete;
+    void* get() const noexcept { return memory_; }
+    void* release() noexcept
+    {
+        void* memory = memory_;
+        memory_ = nullptr;
+        return memory;
+    }
+
+private:
+    void* memory_;
+};
+
+// Converts an element with static_cast (scalars, enums with a fixed type).
+template <typename To>
+struct cast_to {
+    template <typename From>
+    To operator()(const From& value) const noexcept
+    {
+        return static_cast<To>(value);
+    }
+};
+
+// Converts an element of an enum without a fixed underlying type, whose other
+// values are undefined behaviour.
+template <typename Enum>
+struct enum_in {
+    long long low;
+    long long high;
+    const char* message;
+
+    Enum operator()(int value) const
+    {
+        if (value < low || value > high) {
+            throw argument_error{message};
+        }
+        return static_cast<Enum>(value);
+    }
+};
+
+// The elements of a container result, in a new block that the caller releases
+// with vals_free(): never NULL (1 byte when empty). The outputs are
+// written last, so they stay NULL and 0 if anything throws. Iterators only:
+// std::vector<bool> has no data().
+template <typename CType, typename Range, typename Convert>
+void copy_out(const Range& items, CType** out, size_t* out_size, Convert convert)
+{
+    static_assert(alignof(CType) <= 8, "the elements must not need more alignment than malloc gives");
+    const size_t count = items.size();
+    malloc_block block(checked_mul(count, sizeof(CType)));
+    CType* cursor = static_cast<CType*>(block.get());
+    for (auto item = items.begin(); item != items.end(); ++item) {
+        *cursor++ = convert(*item);
+    }
+    *out = static_cast<CType*>(block.release());
+    *out_size = count;
+}
+
+template <typename CType, typename Range>
+void copy_out(const Range& items, CType** out, size_t* out_size)
+{
+    static_assert(alignof(CType) <= 8, "the elements must not need more alignment than malloc gives");
+    const size_t count = items.size();
+    malloc_block block(checked_mul(count, sizeof(CType)));
+    CType* cursor = static_cast<CType*>(block.get());
+    for (auto item = items.begin(); item != items.end(); ++item) {
+        *cursor++ = *item;
+    }
+    *out = static_cast<CType*>(block.release());
+    *out_size = count;
+}
+
+// The strings of a container result: the entries, then the bytes of each
+// string with a NUL after it, in one block.
+template <typename Range>
+void copy_out_strings(const Range& items, vals_string** out, size_t* out_size)
+{
+    const size_t count = items.size();
+    size_t bytes = checked_mul(count, sizeof(vals_string));
+    for (auto item = items.begin(); item != items.end(); ++item) {
+        bytes = checked_add(bytes, checked_add(static_cast<size_t>(item->size()), static_cast<size_t>(1)));
+    }
+    malloc_block block(bytes);
+    vals_string* entry = static_cast<vals_string*>(block.get());
+    char* chars = static_cast<char*>(block.get()) + count * sizeof(vals_string);
+    for (auto item = items.begin(); item != items.end(); ++item, ++entry) {
+        const size_t size = item->size();
+        if (size != 0) {
+            std::memcpy(chars, item->data(), size);
+        }
+        chars[size] = '\0';
+        entry->data = chars;
+        entry->size = size;
+        chars += size + 1;
+    }
+    *out = static_cast<vals_string*>(block.release());
+    *out_size = count;
+}
+
+// A container argument from count elements at items (NULL when count is 0).
+template <typename Vector, typename CType>
+Vector vector_in(const CType* items, size_t count)
+{
+    return count == 0 ? Vector() : Vector(items, items + count);
+}
+
+template <typename Vector, typename CType, typename Convert>
+Vector vector_in(const CType* items, size_t count, Convert convert)
+{
+    Vector result;
+    result.reserve(count);
+    for (size_t index = 0; index != count; ++index) {
+        result.push_back(convert(items[index]));
+    }
+    return result;
+}
+
+// True if an element has a NULL data pointer and a size that is not 0.
+inline bool has_null_string(const vals_string* items, size_t count) noexcept
+{
+    for (size_t index = 0; index != count; ++index) {
+        if (items[index].data == nullptr && items[index].size != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <typename Vector>
+Vector strings_in(const vals_string* items, size_t count)
+{
+    Vector result;
+    result.reserve(count);
+    for (size_t index = 0; index != count; ++index) {
+        result.push_back(typename Vector::value_type(string_data(items[index].data), items[index].size));
+    }
+    return result;
+}
+
 // Runs function and turns any exception into a status code, so that no
 // exception crosses the C boundary. The only exception let through is glibc's
 // thread cancellation (pthread_cancel, pthread_exit), which must unwind its

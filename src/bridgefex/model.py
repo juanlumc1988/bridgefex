@@ -141,7 +141,34 @@ class StructRef:
         return f"const {self.qualified_name}&" if self.by_reference else self.qualified_name
 
 
-Type = ScalarType | StringType | EnumRef | StructRef
+ElementType = ScalarType | EnumRef | StructRef | StringType
+"""Every type that a container can hold."""
+
+
+@dataclass(frozen=True, slots=True)
+class VectorType:
+    """``std::vector<T>``, with the default allocator."""
+
+    element: ElementType
+    by_reference: bool = False
+    """True for ``const std::vector<T>&``."""
+
+    rvalue_reference: bool = False
+    """True for ``std::vector<T>&&``, which is passed like a value."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def cpp_spelling(self) -> str:
+        name = f"std::vector<{self.element.cpp_spelling}>"
+        if self.rvalue_reference:
+            return f"{name}&&"
+        return f"const {name}&" if self.by_reference else name
+
+
+Type = ScalarType | StringType | EnumRef | StructRef | VectorType
 """Every type that can cross the C boundary."""
 
 FieldType = ScalarType | EnumRef | StructRef

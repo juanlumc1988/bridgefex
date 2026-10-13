@@ -54,6 +54,19 @@ def test_last_error_is_thread_local_truncated_and_utf8_safe(
     assert "last_error OK" in completed.stdout
 
 
+def test_container_helpers_check_their_sizes(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    containers = GOLDEN_DIR / "containers" / "expected" / "c"
+    program = tmp_path / executable_name("container_helpers_check", toolchain)
+    sources = [NATIVE_DIR / "container_helpers_check.cpp", containers / "cont_runtime.cpp"]
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    toolchain.build_cxx_executable(sources, [containers], program, flag).check()
+    completed = subprocess.run([str(program)], capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "container helpers OK" in completed.stdout
+
+
 @pytest.mark.skipif(
     not sys.platform.startswith("linux") or platform.libc_ver()[0] != "glibc",
     reason="thread cancellation by forced unwinding is specific to glibc",
@@ -416,6 +429,8 @@ def test_array_lengths_are_checked_where_the_sources_are_built(
         (("enums", "strings"), True),
         (("structs", "enums"), False),
         (("structs", "enums"), True),
+        (("containers", "structs"), False),
+        (("containers", "structs"), True),
     ],
 )
 def test_unity_build(
@@ -433,7 +448,7 @@ def test_unity_build(
     unity.write_text("".join(f'#include "{source.name}"\n' for source in sources), encoding="utf-8")
     include_dirs = [*directories, *(GOLDEN_DIR / module / "input" for module in modules)]
     # The strings case needs C++17 (std::string_view).
-    needs_cxx17 = {"strings", "enums", "structs"} & set(modules)
+    needs_cxx17 = {"strings", "enums", "structs", "containers"} & set(modules)
     for wanted in ("c++17",) if needs_cxx17 else ("c++14", "c++17"):
         flag = standard(toolchain, "c++", wanted, probe_dir)
         toolchain.syntax_check(unity, "c++", flag, include_dirs).check()

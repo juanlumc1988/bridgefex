@@ -1,0 +1,4 @@
+# Options passed to bridgefex for this case.
+module = "cont"
+headers = ["vectors.h"]
+std = "c++17"

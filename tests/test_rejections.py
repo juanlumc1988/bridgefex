@@ -85,6 +85,46 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("struct S { int x; }; void f(S* s);", "pointers are not supported yet"),
         ("struct S { int x; }; void f(S&& s);", "references are not supported yet"),
         ("struct S { int x; }; S& f();", "non-const references are not supported yet"),
+        # Containers.
+        (
+            "#include <vector>\nvoid f(std::vector<int>& v);",
+            "non-const references are not supported yet",
+        ),
+        ("#include <vector>\nvoid f(const std::vector<int>* v);", "pointers are not supported yet"),
+        ("#include <vector>\nstd::vector<int>&& f();", "references are not supported yet"),
+        (
+            "#include <vector>\nvoid f(std::vector<std::vector<int>> v);",
+            "std::vector of 'std::vector<int>'",
+        ),
+        ("#include <vector>\nvoid f(std::vector<char> v);", "plain 'char' is not supported"),
+        ("#include <vector>\nvoid f(std::vector<const char*> v);", "std::vector of 'const char *'"),
+        ("#include <vector>\nvoid f(std::vector<std::byte> v);", "std::byte is not supported yet"),
+        (
+            "#include <vector>\nvoid f(std::vector<std::pair<int, int>> v);",
+            "std::vector of 'std::pair<int, int>'",
+        ),
+        ("#include <vector>\nvoid f(std::vector<int*> v);", "pointers are not supported yet"),
+        (
+            "#include <vector>\ntemplate <class A, class T> using Second = std::vector<T>;"
+            " void f(Second<long, std::int64_t> v);",
+            "alias templates are not supported",
+        ),
+        (
+            "#include <vector>\ntemplate <class T> struct MyAlloc : std::allocator<T> {};"
+            " void f(std::vector<int, MyAlloc<int>> v);",
+            "only std::vector with std::allocator is supported",
+        ),
+        (
+            "#include <vector>\nusing MyInt = int; void f(std::vector<MyInt> v);",
+            "type alias 'MyInt'",
+        ),
+        (
+            "#include <vector>\nstruct S { std::vector<int> v; };",
+            "containers in value structs are not supported yet",
+        ),
+        ("#include <deque>\nvoid f(std::deque<int> d);", "std::deque is not supported yet"),
+        ("#include <array>\nvoid f(std::array<int, 3> a);", "std::array is not supported yet"),
+        ("#include <utility>\nvoid f(std::pair<int, int> p);", "std::pair is not supported yet"),
         ("class A { public: static int shared; };", "public data member 'A::shared'"),
         ("class A { public: struct Inner {}; };", "nested type 'A::Inner'"),
         ("class A { public: struct N {}; };", "nested type 'A::N'"),

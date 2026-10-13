@@ -9,6 +9,7 @@ collected before giving up, so that the user can fix them in one go.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import os
 import re
@@ -46,6 +47,7 @@ from .model import (
     StructRef,
     Type,
     TypeCategory,
+    VectorType,
     VisibleNames,
 )
 
@@ -391,6 +393,23 @@ def is_value_struct(definition: cindex.Cursor) -> bool:
 
 _NOT_BY_VALUE = "classes passed by value are not supported yet"
 
+# Classes of the standard library that get their own message.
+_UNSUPPORTED_STD_CLASSES = frozenset(
+    """
+    array span deque list forward_list map multimap set multiset unordered_map
+    unordered_multimap unordered_set unordered_multiset optional variant any valarray
+    initializer_list pair tuple unique_ptr shared_ptr weak_ptr function bitset
+    """.split()
+)
+
+
+def _std_record_name(clang_type: cindex.Type) -> str | None:
+    """The name of the std class (template) of a type, such as 'vector', or None."""
+    canonical = clang_type.get_canonical()
+    if canonical.kind != TypeKind.RECORD:
+        return None
+    return libclang.std_declaration_name(canonical.get_declaration())
+
 
 def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
     """A use of a value struct (through any alias).
@@ -715,7 +734,15 @@ class _Visitor:
             string = string_type(clang_type)
             if string is not None:
                 return string
-            by_reference = False
+            by_reference = rvalue_reference = False
+            if (
+                clang_type.kind == TypeKind.RVALUEREFERENCE
+                and not allow_void  # a parameter, not a result
+                and _std_record_name(clang_type.get_pointee()) == "vector"
+            ):
+                # A sink parameter: the wrapper passes a temporary anyway.
+                clang_type = clang_type.get_pointee()
+                rvalue_reference = True
             if clang_type.kind == TypeKind.LVALUEREFERENCE:
                 # A const reference to a scalar is copied across the boundary.
                 pointee = clang_type.get_pointee()
@@ -729,6 +756,14 @@ class _Visitor:
             if clang_type.get_canonical().kind == TypeKind.ENUM:
                 return _enum_ref(clang_type)
             if clang_type.get_canonical().kind == TypeKind.RECORD:
+                std_name = _std_record_name(clang_type)
+                if std_name == "vector":
+                    vector = self._vector(clang_type, cursor, context, by_reference=by_reference)
+                    if vector is not None and rvalue_reference:
+                        vector = dataclasses.replace(vector, rvalue_reference=True)
+                    return vector
+                if std_name in _UNSUPPORTED_STD_CLASSES:
+                    raise typemap.UnsupportedTypeError(f"std::{std_name} is not supported yet")
                 return _struct_ref(clang_type, by_reference=by_reference)
             user_alias = False
             if clang_type.kind == TypeKind.ELABORATED:
@@ -786,6 +821,57 @@ class _Visitor:
             else:
                 parameters.append(Parameter(name, type_))
         return tuple(parameters) if valid else None
+
+    def _vector(
+        self, written: cindex.Type, cursor: cindex.Cursor, context: str, *, by_reference: bool
+    ) -> VectorType | None:
+        """A std::vector, whose element type is read from the type as written
+        (std::int64_t, not the platform's 'long')."""
+        canonical = written.get_canonical()
+        if written.kind not in (TypeKind.ELABORATED, TypeKind.TYPEDEF, TypeKind.RECORD):
+            raise typemap.UnsupportedTypeError("deduced types (auto, decltype) are not supported")
+        if written.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        actual = [
+            canonical.get_template_argument_type(index).get_canonical()
+            for index in range(int(canonical.get_num_template_arguments()))
+        ]
+        count = int(written.get_num_template_arguments())
+        arguments = [written.get_template_argument_type(index) for index in range(max(count, 0))]
+        # An alias template may give its own arguments, in another order.
+        for index, argument in enumerate(arguments):
+            if argument.kind != TypeKind.INVALID and (
+                index >= len(actual) or argument.get_canonical() != actual[index]
+            ):
+                raise typemap.UnsupportedTypeError(
+                    f"cannot read the element type of '{written.spelling}' (alias templates are "
+                    "not supported); write std::vector<...>"
+                )
+        if not arguments or arguments[0].kind == TypeKind.INVALID:
+            raise typemap.UnsupportedTypeError(
+                f"cannot read the element type of '{written.spelling}'"
+            )
+        if len(actual) != 2 or _std_record_name(actual[1]) != "allocator":
+            raise typemap.UnsupportedTypeError(
+                f"'{written.spelling}': only std::vector with std::allocator is supported"
+            )
+        element_type = arguments[0]
+        if _std_record_name(element_type) in ("vector", *_UNSUPPORTED_STD_CLASSES):
+            raise typemap.UnsupportedTypeError(
+                f"std::vector of '{element_type.spelling}' is not supported"
+            )
+        element = self._type(element_type, cursor, f"element of {context}", allow_void=False)
+        if element is None:
+            return None
+        if isinstance(element, VectorType) or (
+            isinstance(element, StringType) and element.kind is not StringKind.STRING
+        ):
+            raise typemap.UnsupportedTypeError(
+                f"std::vector of '{element_type.spelling}' is not supported"
+            )
+        if isinstance(element, StringType | StructRef) and element.by_reference:
+            raise typemap.UnsupportedTypeError("std::vector of references is not supported")
+        return VectorType(element, by_reference=by_reference)
 
     # Namespace scope -----------------------------------------------------
 
@@ -1159,6 +1245,9 @@ class _Visitor:
             return None
         if isinstance(type_, StringType):
             self._error(field, f"{where}: strings in value structs are not supported yet")
+            return None
+        if isinstance(type_, VectorType):
+            self._error(field, f"{where}: containers in value structs are not supported yet")
             return None
         location = _location(field.location)
         assert location is not None

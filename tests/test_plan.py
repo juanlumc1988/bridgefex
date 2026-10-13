@@ -27,6 +27,7 @@ from bridgefex.model import (
     StringType,
     Struct,
     StructRef,
+    VectorType,
     VisibleNames,
 )
 from bridgefex.plan import (
@@ -291,8 +292,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 3
-PINNED_RUNTIME_SHA256 = "a7263195b722c07edea4ebfddc71d7cf01390925bd4579ab82fb5d572532882d"
+PINNED_CONVENTIONS = 4
+PINNED_RUNTIME_SHA256 = "89be4968a52de5f11b0920612d9f352ac6d6348574ffe2500330e79e20e33dd2"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -427,8 +428,8 @@ def test_string_parameters() -> None:
     # ... and a deleted overload for temporaries is still a compile error.
     (check,) = function.compile_checks
     assert check.startswith(
-        "static_assert(sizeof(decltype(static_cast<void>(::ns::f(std::string("
-        "mod_detail::string_data(a), a_size), std::string_view("
+        "static_assert(sizeof(decltype(static_cast<void>(::ns::f(std::string(), "
+        "std::string_view(mod_detail::string_data(b), b_size), c)))*) != 0,"
     )
     assert [(c.condition, c.message) for c in function.checks] == [
         ("a == nullptr && a_size != 0", "'a' is NULL and 'a_size' is not 0"),
@@ -915,3 +916,79 @@ def test_sources_include_the_headers_of_the_structs_they_use() -> None:
     assert [h.stem for h in a.foreign_headers] == ["b"]
     assert a.internal_includes == ("b_c_internal.hpp",)
     assert b.internal_includes == ("b_c_internal.hpp",)
+
+
+def vector(element: object, by_reference: bool = False) -> VectorType:
+    return VectorType(element, by_reference)  # type: ignore[arg-type]
+
+
+def test_vector_parameters_and_results() -> None:
+    model = Function("scale", ("ns",), (Parameter("v", vector(INT32, True)),), vector(INT32), HERE)
+    item = only_function(plan_for(header(model)))
+    function = item.c_function
+    assert function.signature == (
+        "ns_scale(const int32_t* v, size_t v_size, int32_t** out_result, size_t* out_result_size)"
+    )
+    assert function.statement == (
+        "mod_detail::copy_out(::ns::scale(static_cast<const std::vector<int32_t>&>("
+        "mod_detail::vector_in<std::vector<int32_t>>(v, v_size))), out_result, out_result_size);"
+    )
+    assert [c.condition for c in function.owned_checks] == [
+        "out_result == nullptr",
+        "out_result_size == nullptr",
+    ]
+    assert [c.condition for c in function.checks] == ["v == nullptr && v_size != 0"]
+    assert item.py.args[0].conversions == (
+        'v = _runtime.to_array(v, ctypes.c_int32, "v", _runtime.check_int)',
+        "v_size = _builtins.len(v)",
+    )
+    assert item.py.result.read == "_out_data = _runtime.array_items(_out, _out_size.value)"
+    assert item.py.result.cleanup == ("if _out:", "    _lib.mod_free(_out)")
+
+
+def test_vector_elements() -> None:
+    strings = only_function(
+        plan_for(header(Function("f", ("ns",), (Parameter("w", vector(STRING)),), VOID, HERE)))
+    ).c_function
+    assert strings.signature == "ns_f(const mod_string* w, size_t w_size)"
+    assert strings.checks[1].condition == "mod_detail::has_null_string(w, w_size)"
+    assert "strings_in<std::vector<std::string>>(w, w_size)" in strings.statement
+    unfixed = dataclasses.replace(
+        color(fixed=False), underlying=BUILTIN_TYPES["INT"], enumerators=(Enumerator("A", 0),)
+    )
+    model = Function("g", ("ns",), (Parameter("c", vector(COLOR)),), vector(COLOR), HERE)
+    item = plan_for(enum_header(unfixed, model)).headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    assert (
+        """mod_detail::enum_in<::ns::Color>{0, 1, "an element of 'c' is not a value of """
+        """ns::Color (0..1)"}""" in item.c_function.statement
+    )
+    assert "mod_detail::cast_to<ns_Color>()" in item.c_function.statement
+    assert item.py.result.value == "_runtime.enum_results(_types.ns_Color, _out_data)"
+    model = Function("h", ("ns",), (Parameter("p", vector(ref("Point"))),), VOID, HERE)
+    item = plan_for(enum_header(POINT, model)).headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    assert "[](const ns_Point& _item) { return mod_detail::from_c(_item); }" in (
+        item.c_function.statement
+    )
+
+
+def test_vector_overload_tokens() -> None:
+    plan = plan_for(
+        header(
+            function("f", Parameter("v", vector(INT32))),
+            function("f", Parameter("v", vector(STRING))),
+        )
+    )
+    assert [f.name for f in plan.headers[0].c_functions] == [
+        "ns_f_vector_int32",
+        "ns_f_vector_string",
+    ]
+    # const& and && (a value) are the same in C: a clash, not a silent choice.
+    with pytest.raises(GenerationError, match="'ns_f_vector_int32'"):
+        plan_for(
+            header(
+                function("f", Parameter("v", vector(INT32, True))),
+                function("f", Parameter("v", VectorType(INT32, rvalue_reference=True))),
+            )
+        )

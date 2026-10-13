@@ -18,6 +18,7 @@ from bridgefex.model import (
     StringType,
     Struct,
     StructRef,
+    VectorType,
 )
 from bridgefex.parser import ParseOptions, parse_header
 
@@ -572,3 +573,71 @@ def test_struct_references_without_a_definition(tmp_path: Path) -> None:
     ref = function.parameters[0].type
     assert isinstance(ref, StructRef)
     assert ref.definition is None
+
+
+def test_vector_forms(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <string>
+        #include <vector>
+        namespace c {
+        using Bytes = std::vector<std::uint8_t>;
+        template <class T> using Vec = std::vector<T>;
+        enum class E : int { a };
+        struct P { int x; };
+        std::vector<std::int64_t> f(const std::vector<std::int64_t>& a, std::vector<bool> b,
+                                    Bytes c, Vec<std::int32_t> d, std::vector<std::string>&& e,
+                                    const std::vector<E>& g, std::vector<P> h,
+                                    std::vector<std::size_t, std::allocator<std::size_t>> i);
+        }
+        """,
+    )
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    spellings = [parameter.type.cpp_spelling for parameter in function.parameters]
+    assert spellings == [
+        "const std::vector<int64_t>&",
+        "std::vector<bool>",
+        "std::vector<uint8_t>",
+        "std::vector<int32_t>",
+        "std::vector<std::string>&&",
+        "const std::vector<c::E>&",
+        "std::vector<c::P>",
+        "std::vector<size_t>",
+    ]
+    assert isinstance(function.result, VectorType)
+    assert function.result.cpp_spelling == "std::vector<int64_t>"
+
+
+def test_vector_element_types_keep_their_spelling_on_every_target(tmp_path: Path) -> None:
+    """int64_t is 'long' on Linux and 'long long' on Windows and 32-bit ARM."""
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "vector").write_text(
+        "#pragma once\nnamespace std { template <class T> struct allocator {};\n"
+        "inline namespace __1 { template <class T, class A = allocator<T>> class vector {}; } }\n",
+        encoding="utf-8",
+    )
+    path = tmp_path / "input.h"
+    # The compiler's own type: 'long' or 'long long' depending on the target.
+    (system / "fake_stdint.h").write_text(
+        "#pragma once\ntypedef __INT64_TYPE__ int64_t;\n", encoding="utf-8"
+    )
+    path.write_text(
+        "#pragma once\n#include <fake_stdint.h>\n#include <vector>\n"
+        "namespace c { void f(std::vector<int64_t> v); }\n",
+        encoding="utf-8",
+    )
+    for target in ("x86_64-linux-gnu", "armv7a-linux-gnueabihf", "x86_64-pc-windows-msvc"):
+        options = ParseOptions(
+            extra_args=(
+                f"--target={target}",
+                "-nostdinc",
+                "-nostdinc++",
+                "-isystem",
+                str(system),
+            )
+        )
+        (function,) = parse_header(path, "input.h", options).header.declarations
+        assert isinstance(function, Function)
+        assert function.parameters[0].type.cpp_spelling == "std::vector<int64_t>", target

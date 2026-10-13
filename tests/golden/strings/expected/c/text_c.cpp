@@ -49,7 +49,7 @@ extern "C" {
 // text::Person::Person(const std::string& name)
 txt_status text_Person_create_string(text_Person** out_self, const char* name, size_t name_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::Person(std::string(txt_detail::string_data(name), name_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::Person(std::string())))*) != 0,
                   "'text::Person::Person(const std::string& name)' must accept temporaries: it would keep a dangling reference");
     if (out_self == nullptr) {
         return txt_detail::null_argument("text_Person_create_string: 'out_self' is NULL");
@@ -160,7 +160,7 @@ txt_status text_Person_age(const text_Person* self, int* out_result)
 // std::string text::Person::greet(const std::string& who, const char* tag) const
 txt_status text_Person_greet(const text_Person* self, const char* who, size_t who_size, const char* tag, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::text::Person*>(self)->greet(std::string(txt_detail::string_data(who), who_size), tag)))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::text::Person*>(self)->greet(std::string(), tag)))*) != 0,
                   "'std::string text::Person::greet(const std::string& who, const char* tag) const' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_Person_greet: 'out_result' is NULL");
@@ -199,7 +199,7 @@ txt_status text_Person_species(char** out_result, size_t* out_result_size)
 // size_t text::count(const std::string& s)
 txt_status text_count_string(const char* s, size_t s_size, size_t* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::count(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::count(std::string())))*) != 0,
                   "'size_t text::count(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size != 0) {
         return txt_detail::null_argument("text_count_string: 's' is NULL and 's_size' is not 0");
@@ -225,7 +225,7 @@ txt_status text_count_cstr(const char* s, size_t* out_result)
 // std::string text::concat(const std::string& a, std::string b)
 txt_status text_concat(const char* a, size_t a_size, const char* b, size_t b_size, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::concat(std::string(txt_detail::string_data(a), a_size), std::string(txt_detail::string_data(b), b_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::concat(std::string(), std::string(txt_detail::string_data(b), b_size))))*) != 0,
                   "'std::string text::concat(const std::string& a, std::string b)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_concat: 'out_result' is NULL");
@@ -247,7 +247,7 @@ txt_status text_concat(const char* a, size_t a_size, const char* b, size_t b_siz
 // std::string text::echo(const std::string& s)
 txt_status text_echo(const char* s, size_t s_size, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::echo(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::echo(std::string())))*) != 0,
                   "'std::string text::echo(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_echo: 'out_result' is NULL");
@@ -280,7 +280,7 @@ txt_status text_maybe_null(bool null, char** out_result, size_t* out_result_size
 // std::string text::fail(const std::string& message)
 txt_status text_fail(const char* message, size_t message_size, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::fail(std::string(txt_detail::string_data(message), message_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::fail(std::string())))*) != 0,
                   "'std::string text::fail(const std::string& message)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_fail: 'out_result' is NULL");
@@ -313,7 +313,7 @@ txt_status text_binary(char** out_result, size_t* out_result_size)
 // const char* text::first_char(const std::string& s)
 txt_status text_first_char(const char* s, size_t s_size, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::first_char(std::string(txt_detail::string_data(s), s_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::first_char(std::string())))*) != 0,
                   "'const char* text::first_char(const std::string& s)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_first_char: 'out_result' is NULL");
@@ -332,7 +332,7 @@ txt_status text_first_char(const char* s, size_t s_size, char** out_result, size
 // size_t text::length(const std::string& s, size_t s_size)
 txt_status text_length(const char* s, size_t s_size_, size_t s_size, size_t* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::length(std::string(txt_detail::string_data(s), s_size_), s_size)))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::length(std::string(), s_size)))*) != 0,
                   "'size_t text::length(const std::string& s, size_t s_size)' must accept temporaries: it would keep a dangling reference");
     if (s == nullptr && s_size_ != 0) {
         return txt_detail::null_argument("text_length: 's' is NULL and 's_size_' is not 0");
@@ -346,7 +346,7 @@ txt_status text_length(const char* s, size_t s_size_, size_t s_size, size_t* out
 // size_t text::total(const std::string& from, const std::string& x_, const std::string&)
 txt_status text_total(const char* from_, size_t from_size, const char* x_, size_t x_size, const char* arg3, size_t arg3_size, size_t* out_result)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::total(std::string(txt_detail::string_data(from_), from_size), std::string(txt_detail::string_data(x_), x_size), std::string(txt_detail::string_data(arg3), arg3_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::total(std::string(), std::string(), std::string())))*) != 0,
                   "'size_t text::total(const std::string& from, const std::string& x_, const std::string&)' must accept temporaries: it would keep a dangling reference");
     if (from_ == nullptr && from_size != 0) {
         return txt_detail::null_argument("text_total: 'from_' is NULL and 'from_size' is not 0");
@@ -366,7 +366,7 @@ txt_status text_total(const char* from_, size_t from_size, const char* x_, size_
 // std::string text::alias(const std::string& name)
 txt_status text_alias(const char* name, size_t name_size, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(::text::alias(std::string(txt_detail::string_data(name), name_size))))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(::text::alias(std::string())))*) != 0,
                   "'std::string text::alias(const std::string& name)' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return txt_detail::null_argument("text_alias: 'out_result' is NULL");

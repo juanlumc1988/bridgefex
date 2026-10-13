@@ -49,7 +49,7 @@ extern "C" const char* vals_last_error(void)
 
 extern "C" const char* vals_api_fingerprint(void)
 {
-    return "6f09d02273b4245e77787eb9aa20608d";
+    return "54aa5c39822687b0a81a4718543f5d76";
 }
 
 extern "C" void vals_free(void* memory)
