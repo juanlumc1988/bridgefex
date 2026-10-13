@@ -27,6 +27,16 @@
 #include "colors_c.h"
 #include "enm_runtime_internal.hpp"
 
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
 // The C types and constants of the enums must be the C++ ones, with this
 // compiler and these options.
 static_assert(std::is_same<std::underlying_type<::colors::Color>::type, uint8_t>::value,
@@ -87,24 +97,12 @@ static_assert(std::is_same<std::underlying_type<::colors::Id>::type, uint32_t>::
               "colors::Id: the underlying type is not uint32_t");
 static_assert(std::is_same<std::underlying_type<::colors::Old>::type, int>::value,
               "colors::Old: the underlying type is not int");
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#endif
 static_assert(static_cast<int>(::colors::Old::Current) == colors_Old_Current,
               "colors::Old::Current is not colors_Old_Current");
 static_assert(static_cast<int>(::colors::Old::Legacy) == colors_Old_Legacy,
               "colors::Old::Legacy is not colors_Old_Legacy");
 static_assert(static_cast<int>(::colors::Old::Alias) == colors_Old_Alias,
               "colors::Old::Alias is not colors_Old_Alias");
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
 static_assert(std::is_same<std::underlying_type<::colors::Lamp::State>::type, uint8_t>::value,
               "colors::Lamp::State: the underlying type is not uint8_t");
 static_assert(static_cast<uint8_t>(::colors::Lamp::State::Dark) == colors_Lamp_State_Dark,
@@ -318,3 +316,9 @@ enm_status colors_Lamp_level(const colors_Lamp* self, colors_Lamp_Level* out_res
 }
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

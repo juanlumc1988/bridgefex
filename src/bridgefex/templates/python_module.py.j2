@@ -17,7 +17,7 @@ __all__ = [
     "{{ name }}",
 {% endfor %}
 ]
-{% for item in h.items if item is enum_plan %}
+{% for item in h.items if item is enum_plan or item is struct_plan %}
 {% if loop.first %}
 
 {% endif %}
@@ -39,7 +39,7 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-{% for f in h.c_functions %}
+{% for f in h.c_functions if f not in h.struct_inits %}
             lib.{{ f.name }}.argtypes = {{ f.ctypes_argtypes }}
             lib.{{ f.name }}.restype = {{ f.ctypes_restype }}
 {% endfor %}
@@ -176,7 +176,7 @@ class {{ c.py_name }}:
         """Wraps ``{{ py.function.description }}``."""
 {{ py.body(8) }}
 {% endfor %}
-{% elif item is not enum_plan %}
+{% elif item is not enum_plan and item is not struct_plan %}
 {% set py = item.py %}
 
 

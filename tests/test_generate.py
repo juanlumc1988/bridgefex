@@ -156,9 +156,12 @@ def test_verification_can_be_disabled(tmp_path: Path) -> None:
 
 
 def test_warnings_of_generated_code_are_reported(tmp_path: Path) -> None:
-    result = generate(tmp_path, "namespace o { [[deprecated]] int old(); }")
+    result = generate(
+        tmp_path,
+        'namespace o { int old() __attribute__((diagnose_if(true, "do not call", "warning"))); }',
+    )
     assert any(
-        "the generated wrapper o_old()" in str(warning) and "deprecated" in str(warning)
+        "the generated wrapper o_old()" in str(warning) and "do not call" in str(warning)
         for warning in result.warnings
     ), result.warnings
 
@@ -688,3 +691,73 @@ def test_enums_across_headers(tmp_path: Path) -> None:
     assert "is_same<std::underlying_type<::x::A>::type, int>" in result.files["c/second_c.cpp"]
     types = result.files["c/mod_types.h"]
     assert types.index("typedef int x_A;") < types.index("typedef short x_B;")
+
+
+def test_deprecated_types_do_not_warn_in_the_generated_checks(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { enum [[deprecated]] Legacy : int { a, b };\n"
+        "struct [[deprecated]] Old { int x; };\n"
+        "class [[deprecated]] Gone { public: int f(); }; }",
+    )
+    assert result.warnings == ()
+
+
+def test_msvc_enum_values_of_headers_that_are_not_wrapped(tmp_path: Path) -> None:
+    """Only the wrapped header's enums must fit in int for the MSVC target."""
+    (tmp_path / "third.h").write_text(
+        "#pragma once\nenum ThirdPartyFlags { TP_HIGH = 0x80000000 };\n", encoding="utf-8"
+    )
+    header = tmp_path / "api.h"
+    header.write_text('#pragma once\n#include "third.h"\nint f(int x);\n', encoding="utf-8")
+    options = bridgefex.Options(
+        "mod", clang_args=("--target=x86_64-pc-windows-msvc",), verify=False
+    )
+    assert "c/api_c.h" in bridgefex.generate([header], options).files
+
+
+def test_unavailable_enumerators_count_for_the_valid_values(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace u { enum Mode { a, b, c __attribute__((unavailable)) = 100 }; int f(Mode m); }",
+    )
+    assert "(0..127)" in result.files["c/api_c.cpp"]
+    assert "u_Mode_c" not in result.files["c/mod_types.h"]
+
+
+def test_types_named_like_output_parameters(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "namespace out { enum class result : int { ok }; result get(); }")
+    assert "'out_result'" in error
+    assert "an output parameter of the generated functions" in error
+
+
+def test_wrapped_headers_reached_as_system_headers(tmp_path: Path) -> None:
+    include = tmp_path / "inc"
+    include.mkdir()
+    first = include / "a.h"
+    first.write_text(
+        "#pragma once\nnamespace ns { enum class Color : int { red }; struct P { int x; }; }\n",
+        encoding="utf-8",
+    )
+    second = tmp_path / "b.h"
+    second.write_text(
+        "#pragma once\n#include <a.h>\nnamespace ns { Color pick(); P point(); }\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options("mod", clang_args=("-isystem", str(include)))
+    result = bridgefex.generate([first, second], options)
+    assert "ns_pick(ns_Color* out_result)" in result.files["c/b_c.h"]
+    assert "ns_point(ns_P* out_result)" in result.files["c/b_c.h"]
+
+
+def test_enums_and_structs_of_system_headers(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "#include <ctime>\nnamespace s { void f(std::timespec t); }")
+    assert "of a system header" in error
+
+
+def test_nested_enum_defined_outside_its_class(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace n { struct S { enum class E : int; int x; }; enum class S::E : int { a }; }",
+    )
+    assert "enum 'S::E' is defined outside its class" in error

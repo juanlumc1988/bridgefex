@@ -27,6 +27,16 @@
 #include "shapes_c.h"
 #include "enm_runtime_internal.hpp"
 
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
 // The C types and constants of the enums must be the C++ ones, with this
 // compiler and these options.
 static_assert(std::is_same<std::underlying_type<::colors::Shape>::type, int16_t>::value,
@@ -61,3 +71,9 @@ enm_status colors_shape_of(colors_Color color, colors_Shape* out_result)
 }
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

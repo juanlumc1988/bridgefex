@@ -231,10 +231,23 @@ def parameter_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple
     with :func:`unique_name` (a trailing ``_`` first). The result has no
     duplicates.
     """
-    taken = RESERVED_PARAMETER_NAMES | frozenset(reserved)
+    return _unique_names(
+        [name or f"arg{position}" for position, name in enumerate(names, start=1)],
+        RESERVED_PARAMETER_NAMES | frozenset(reserved),
+    )
+
+
+def _unique_names(names: Sequence[str], taken: frozenset[str]) -> tuple[str, ...]:
+    """``names`` without those in ``taken`` or repeated: a name that must change
+    avoids every other given name too, so that it never takes the name of a
+    later one."""
     result: list[str] = []
-    for position, name in enumerate(names, start=1):
-        result.append(unique_name(name or f"arg{position}", taken | frozenset(result)))
+    for position, name in enumerate(names):
+        if name not in taken and name not in result:
+            result.append(name)
+            continue
+        others = frozenset(names[position + 1 :])
+        result.append(unique_name(name, taken | others | frozenset(result)))
     return tuple(result)
 
 
@@ -282,3 +295,32 @@ def enum_member_name(name: str) -> str:
     if keyword.iskeyword(name) or name in _ENUM_MEMBER_RESERVED:
         return f"{name}_"
     return name
+
+
+# Names that ctypes gives a meaning to in a Structure subclass.
+_CTYPES_STRUCTURE_NAMES = frozenset(
+    "_fields_ _anonymous_ _pack_ _align_ _layout_ _swappedbytes_".split()
+)
+
+_FIELD_RESERVED = (
+    frozenset(keyword.kwlist) | KEYWORDS | _COMMON_MACROS | frozenset(STANDARD_TYPEDEFS)
+)
+
+
+def field_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple[str, ...]:
+    """Names of the members of a value struct in its C mirror and its Python
+    dataclass: like :func:`parameter_names`, without the names that only
+    parameters avoid (``self``, ``out_result``...)."""
+    return _unique_names(names, _FIELD_RESERVED | frozenset(reserved))
+
+
+def ctypes_field_names(names: Sequence[str]) -> tuple[str, ...]:
+    """Names of the members in the ctypes mirror: ``_fields_`` and the other names
+    that ctypes reads from the class get a trailing ``_``."""
+    result: list[str] = []
+    for name in names:
+        candidate = name
+        if candidate in _CTYPES_STRUCTURE_NAMES:
+            candidate = unique_name(candidate + "_", frozenset(names) | frozenset(result))
+        result.append(candidate)
+    return tuple(result)

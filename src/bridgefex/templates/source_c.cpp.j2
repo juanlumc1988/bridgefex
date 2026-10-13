@@ -24,11 +24,34 @@
 #endif
 #undef {{ P }}_C_API_AFTER_GLIBC
 #endif
+{% for other in h.foreign_headers %}
+{% if loop.first %}
+
+// The headers of the value structs of other headers that this one uses.
+{% endif %}
+#include "{{ other.header.include }}"
+{% endfor %}
 
 #include "{{ h.c_header }}"
 #include "{{ m.runtime_internal_header }}"
 {% for name in h.std_includes %}
 #include <{{ name }}>
+{% endfor %}
+
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+{% for name in h.internal_includes %}
+{% if loop.first %}
+
+{% endif %}
+#include "{{ name }}"
 {% endfor %}
 {% for e in h.enums %}
 {% if loop.first %}
@@ -40,26 +63,10 @@
 static_assert(std::is_same<std::underlying_type<{{ e.cpp_name }}>::type, {{ e.model.underlying.c_name }}>::value,
               "{{ e.model.qualified_name }}: the underlying type is not {{ e.model.underlying.c_name }}");
 {% endif %}
-{% if e.has_deprecated %}
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#endif
-{% endif %}
 {% for x in e.enumerators %}
 static_assert(static_cast<{{ e.model.underlying.c_name if e.model.fixed else "long long" }}>({{ e.cpp_name }}::{{ x.model_name }}) == {{ x.macro }},
               "{{ e.model.qualified_name }}::{{ x.model_name }} is not {{ x.macro }}");
 {% endfor %}
-{% if e.has_deprecated %}
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#elif defined(_MSC_VER)
-#pragma warning(pop)
-#endif
-{% endif %}
 {% endfor %}
 {% for e in h.foreign_enums %}
 {% if loop.first %}
@@ -114,3 +121,9 @@ void {{ f.signature }}
 {% endfor %}
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

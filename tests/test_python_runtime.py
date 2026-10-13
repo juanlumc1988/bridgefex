@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import copy
 import ctypes
+import dataclasses
+import enum
 import importlib.util
 import math
 import os
@@ -260,3 +262,67 @@ def test_decode_is_strict(runtime: ModuleType) -> None:
     with pytest.raises(UnicodeDecodeError) as raised:
         runtime.decode(b"\x00\xffx")
     assert raised.value.object == b"\x00\xffx"
+
+
+def test_to_enum(runtime: ModuleType) -> None:
+    Color = enum.IntEnum("Color", [("red", 0), ("green", 200)])
+    Other = enum.IntEnum("Other", [("x", 1)])
+
+    class Index:
+        def __index__(self) -> int:
+            return 3
+
+    assert runtime.to_enum(Color.green, Color, ctypes.c_uint8, "c") == 200
+    assert runtime.to_enum(5, Color, ctypes.c_uint8, "c") == 5
+    assert runtime.to_enum(Index(), Color, ctypes.c_uint8, "c") == 3
+    for value in (True, Other.x, 1.0, "1", None):
+        with pytest.raises(TypeError, match="must be Color or int"):
+            runtime.to_enum(value, Color, ctypes.c_uint8, "c")
+    with pytest.raises(OverflowError, match=r"\[0, 255\]"):
+        runtime.to_enum(256, Color, ctypes.c_uint8, "c")
+    with pytest.raises(ValueError, match=r"must be a value of Color in \[0, 7\]"):
+        runtime.to_enum(8, Color, ctypes.c_int, "c", (0, 7))
+
+
+def test_enum_result(runtime: ModuleType) -> None:
+    Color = enum.IntEnum("Color", [("red", 0), ("green", 1), ("alias", 1)])
+    Empty = enum.IntEnum("Empty", [])
+    assert runtime.enum_result(Color, 1) is Color.green
+    assert runtime.enum_result(Color, 7) == 7
+    assert type(runtime.enum_result(Color, 7)) is int
+    assert runtime.enum_result(Empty, 3) == 3
+
+
+def test_to_items(runtime: ModuleType) -> None:
+    assert runtime.to_items([1, 2], 2, "a") == [1, 2]
+    assert runtime.to_items((1, 2), 2, "a") == [1, 2]
+    assert runtime.to_items(range(2), 2, "a") == [0, 1]
+    assert runtime.to_items(b"\x01\xff", 2, "a", True) == [1, 255]
+    assert runtime.to_items(bytearray(b"ab"), 2, "a", True) == [97, 98]
+    with pytest.raises(ValueError, match="must have 3 elements, got 2"):
+        runtime.to_items([1, 2], 3, "a")
+    for value in ({1, 2}, iter([1, 2]), "ab", {1: 2, 3: 4}, 5, None):
+        with pytest.raises(TypeError, match="'a'"):
+            runtime.to_items(value, 2, "a")
+    with pytest.raises(TypeError, match="not bytes"):
+        runtime.to_items(b"ab", 2, "a")
+
+
+def test_struct_defaults(runtime: ModuleType) -> None:
+    calls = []
+
+    @dataclasses.dataclass
+    class Point:
+        x: int = runtime.DEFAULT
+        y: int = runtime.DEFAULT
+
+        def __post_init__(self) -> None:
+            runtime.fill_defaults(self, lambda: calls.append(1) or Point(7, 8))
+
+    assert Point(1, 2) == Point(1, 2)
+    assert calls == []  # nothing omitted: no call
+    assert Point(y=5) == Point(7, 5)
+    assert repr(runtime.DEFAULT) == "<C++ default>"
+    assert runtime.check_struct(Point(1, 2), Point, "p") == Point(1, 2)
+    with pytest.raises(TypeError, match=r"argument 'p' must be .*Point, not tuple"):
+        runtime.check_struct((1, 2), Point, "p")

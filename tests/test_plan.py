@@ -17,6 +17,7 @@ from bridgefex.model import (
     Enumeration,
     Enumerator,
     EnumRef,
+    Field,
     Function,
     Header,
     Method,
@@ -24,6 +25,8 @@ from bridgefex.model import (
     Parameter,
     StringKind,
     StringType,
+    Struct,
+    StructRef,
     VisibleNames,
 )
 from bridgefex.plan import (
@@ -288,8 +291,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 2
-PINNED_RUNTIME_SHA256 = "b3d70dad1a90cff8ac1eedc4f572bed64fa0f5d348f61edf90454d5ccec1cdf5"
+PINNED_CONVENTIONS = 3
+PINNED_RUNTIME_SHA256 = "a7263195b722c07edea4ebfddc71d7cf01390925bd4579ab82fb5d572532882d"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -775,3 +778,140 @@ def test_nested_enums() -> None:
     assert enum.c_type == "ns_Lamp_Mode"
     assert enum.py_qualname == "Lamp.Mode"
     assert [t.c_type for t in plan.headers[0].types] == ["ns_Lamp", "ns_Lamp_Mode"]
+
+
+DOUBLE_T = BUILTIN_TYPES["DOUBLE"]
+
+
+def struct(name: str, *fields: Field, namespace: tuple[str, ...] = ("ns",)) -> Struct:
+    return Struct(name, namespace, f"c:@N@ns@S@{name}", tuple(fields), HERE)
+
+
+def field(name: str, type_: object, length: int | None = None) -> Field:
+    return Field(name, type_, length, HERE)  # type: ignore[arg-type]
+
+
+def ref(name: str, by_reference: bool = False) -> StructRef:
+    return StructRef(f"c:@N@ns@S@{name}", f"ns::{name}", HERE, by_reference)
+
+
+POINT = struct("Point", field("x", DOUBLE_T), field("y", DOUBLE_T))
+
+
+def test_struct_parameters_and_results() -> None:
+    model = Function("mid", ("ns",), (Parameter("a", ref("Point", True)),), ref("Point"), HERE)
+    plan = plan_for(enum_header(POINT, model))
+    item = plan.headers[0].items[1]
+    assert isinstance(item, FunctionPlan)
+    function = item.c_function
+    assert function.signature == "ns_mid(const ns_Point* a, ns_Point* out_result)"
+    assert function.statement == (
+        "*out_result = mod_detail::to_c(::ns::mid(static_cast<const ::ns::Point&>("
+        "mod_detail::from_c(*a))));"
+    )
+    # Value outputs are checked with the inputs, never reset: they may alias one.
+    assert [c.condition for c in function.checks] == ["a == nullptr", "out_result == nullptr"]
+    assert function.owned_checks == ()
+    assert function.ctypes_argtypes == (
+        "[ctypes.POINTER(_types._ns_Point), ctypes.POINTER(_types._ns_Point)]"
+    )
+    assert item.py.args[0].conversions == ('a = _types._ns_Point__to_c(a, "a")',)
+    assert item.py.result.setup == ("_out = _types._ns_Point()",)
+    assert item.py.result.value == "_types._ns_Point__from_c(_out)"
+    assert plan.headers[0].c_functions[0].name == "ns_Point_init"
+
+
+def test_struct_conversions_are_flattened() -> None:
+    msg = struct(
+        "Msg",
+        field("tag", BUILTIN_TYPES["UCHAR"]),
+        field("where", ref("Point")),
+        field("path", ref("Point"), 2),
+    )
+    plan = plan_for(enum_header(POINT, msg))
+    (msg_plan,) = [s for s in plan.structs if s.c_type == "ns_Msg"]
+    assert msg_plan.to_c == (
+        "    _out.tag = _in.tag;",
+        "    _out.where.x = _in.where.x;",
+        "    _out.where.y = _in.where.y;",
+        "    for (size_t _i0 = 0; _i0 < 2; ++_i0) {",
+        "        _out.path[_i0].x = _in.path[_i0].x;",
+        "        _out.path[_i0].y = _in.path[_i0].y;",
+        "    }",
+    )
+    assert msg_plan.extents == (("::ns::Msg::path", 2),)
+    # Each struct comes after those it contains.
+    assert [s.c_type for s in plan_for(enum_header(msg, POINT)).structs] == ["ns_Point", "ns_Msg"]
+
+
+def test_struct_member_names() -> None:
+    names = struct(
+        "Names",
+        field("from", INT32),
+        field("restrict", INT32),
+        field("errno", INT32),
+        field("errno_", INT32),
+        field("_fields_", INT32),
+        field("self", INT32),
+    )
+    (plan,) = plan_for(enum_header(names)).structs
+    # A renamed member never takes the name of another one.
+    assert [f.name for f in plan.fields] == [
+        "from_",
+        "restrict_",
+        "errno2",
+        "errno_",
+        "_fields_",
+        "self",
+    ]
+    assert plan.fields[4].ctypes_name == "_fields__"
+
+
+def test_struct_members_named_like_generated_macros() -> None:
+    bad = struct("S", field("ns_Color_Red", INT32))
+    with pytest.raises(GenerationError, match="has the name of a macro of the generated C"):
+        plan_for(enum_header(color(), bad))
+
+
+def test_struct_names_are_reserved() -> None:
+    with pytest.raises(GenerationError, match="'ns_Point_init'"):
+        plan_for(enum_header(POINT, function("Point_init")))
+    system = VisibleNames(tag_names=frozenset({"ns_Point"}))
+    with pytest.raises(GenerationError, match=r"'ns_Point'.*struct, union or enum tag"):
+        build_plan(Module("mod", (Header(Path("t.h"), "t.h", (POINT,)),), system))
+
+
+def test_struct_overload_tokens() -> None:
+    plan = plan_for(
+        enum_header(
+            POINT,
+            function("f", Parameter("p", ref("Point"))),
+            function("f", Parameter("i", INT32)),
+        )
+    )
+    assert [f.name for f in plan.headers[0].c_functions][1:] == ["ns_f_ns_Point", "ns_f_int32"]
+
+
+def test_structs_that_no_wrapped_header_defines() -> None:
+    elsewhere = StructRef("c:@N@ns@S@P", "ns::P", Location("other.h", 1, 1))
+    with pytest.raises(GenerationError, match=r"defined in other\.h, which is not one of"):
+        plan_for(enum_header(function("f", Parameter("p", elsewhere))))
+    handle = StructRef("c:@N@ns@S@K", "ns::K", None)
+    with pytest.raises(GenerationError, match="classes passed by value are not supported yet"):
+        plan_for(enum_header(klass("K"), function("f", Parameter("p", handle))))
+
+
+def test_nested_enum_of_a_struct_against_its_members() -> None:
+    mode = dataclasses.replace(color(), name="x", scope=("S",), usr="c:@N@ns@S@S@E@x")
+    bad = dataclasses.replace(struct("S", field("x", INT32)), enums=(mode,))
+    with pytest.raises(GenerationError, match="get the Python name 'x'"):
+        plan_for(enum_header(bad))
+
+
+def test_sources_include_the_headers_of_the_structs_they_use() -> None:
+    user = function("f", Parameter("p", ref("Point")))
+    plan = plan_for(enum_header(user, name="a.h"), enum_header(POINT, name="b.h"))
+    a, b = plan.headers
+    assert [h.stem for h in a.foreign_headers] == ["b"]
+    assert a.internal_includes == ("b_c_internal.hpp",)
+    assert b.internal_includes == ("b_c_internal.hpp",)

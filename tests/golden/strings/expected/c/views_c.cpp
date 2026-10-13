@@ -28,6 +28,16 @@
 #include "txt_runtime_internal.hpp"
 #include <string_view>
 
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
 extern "C" {
 
 // std::string_view views::first_word(std::string_view s)
@@ -90,3 +100,9 @@ txt_status views_literal(char** out_result, size_t* out_result_size)
 }
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

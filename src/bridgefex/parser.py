@@ -33,6 +33,8 @@ from .model import (
     Enumeration,
     Enumerator,
     EnumRef,
+    Field,
+    FieldType,
     Function,
     Header,
     Method,
@@ -40,6 +42,8 @@ from .model import (
     ScalarType,
     StringKind,
     StringType,
+    Struct,
+    StructRef,
     Type,
     TypeCategory,
     VisibleNames,
@@ -59,10 +63,13 @@ class ParseOptions:
         args += [f"-D{definition}" for definition in self.defines]
         args += list(self.extra_args)
         # MSVC gives an enum without a fixed underlying type the type int, and
-        # truncates larger enumerators silently: with its target, reject them,
-        # as on the other targets (see _Visitor._parse_enum).
-        args.append("-Werror=microsoft-enum-value")
+        # truncates larger enumerators: with its target, they are rejected in
+        # the parsed header (see parse_header), as on the other targets.
+        args.append(_MSVC_ENUM_WARNING)
         return args
+
+
+_MSVC_ENUM_WARNING = "-Wmicrosoft-enum-value"
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,6 +380,57 @@ _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 
 
+def is_value_struct(definition: cindex.Cursor) -> bool:
+    """True for a class definition with a public non-static data member: its
+    values are copied across the boundary, member by member. Other classes are
+    handles to objects."""
+    return any(
+        field.access_specifier == AccessSpecifier.PUBLIC for field in definition.type.get_fields()
+    )
+
+
+_NOT_BY_VALUE = "classes passed by value are not supported yet"
+
+
+def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
+    """A use of a value struct (through any alias).
+
+    Raises:
+        typemap.UnsupportedTypeError: a class that cannot be passed by value.
+    """
+    spelling = str(clang_type.spelling)
+    if clang_type.is_volatile_qualified():
+        raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+    declaration = clang_type.get_canonical().get_declaration()
+    if (
+        libclang.std_declaration_name(declaration) is not None
+        or declaration.is_anonymous()
+        or not declaration.spelling
+        or int(clang_type.get_canonical().get_num_template_arguments()) > 0
+    ):
+        raise typemap.UnsupportedTypeError(f"'{spelling}': {_NOT_BY_VALUE}")
+    definition = declaration.get_definition()
+    if definition is not None and not is_value_struct(definition):
+        raise typemap.UnsupportedTypeError(
+            f"'{spelling}': {_NOT_BY_VALUE} (only structs with public data members are)"
+        )
+    parts = [str(declaration.spelling)]
+    parent = declaration.semantic_parent
+    while parent is not None and parent.kind != CursorKind.TRANSLATION_UNIT:
+        if parent.kind not in (CursorKind.NAMESPACE, CursorKind.LINKAGE_SPEC):
+            raise typemap.UnsupportedTypeError(f"'{spelling}': nested classes are not supported")
+        if parent.kind == CursorKind.NAMESPACE:
+            parts.append(str(parent.spelling))
+        parent = parent.semantic_parent
+    return StructRef(
+        usr=str(declaration.get_usr()),
+        qualified_name="::".join(reversed(parts)),
+        definition=_location(definition.location) if definition is not None else None,
+        by_reference=by_reference,
+        system=bool(declaration.location.is_in_system_header),
+    )
+
+
 def _enum_ref(clang_type: cindex.Type) -> EnumRef:
     """A use of an enum type (through any alias).
 
@@ -404,15 +462,12 @@ def _enum_ref(clang_type: cindex.Type) -> EnumRef:
         if parent.kind != CursorKind.LINKAGE_SPEC:
             parts.append(str(parent.spelling))
         parent = parent.semantic_parent
-    if declaration.location.is_in_system_header:
-        raise typemap.UnsupportedTypeError(
-            f"enum '{'::'.join(reversed(parts))}' of a system header is not supported"
-        )
     definition = declaration.get_definition()
     return EnumRef(
         usr=str(declaration.get_usr()),
         qualified_name="::".join(reversed(parts)),
         definition=_location(definition.location) if definition is not None else None,
+        system=bool(declaration.location.is_in_system_header),
     )
 
 
@@ -555,9 +610,14 @@ def parse_header(path: Path, include: str, options: ParseOptions) -> ParseResult
 
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
+    target = _path_key(str(path))
     for diagnostic in unit.diagnostics:
         converted = Diagnostic(str(diagnostic.spelling), _location(diagnostic.location))
-        if diagnostic.severity >= cindex.Diagnostic.Error:
+        file = diagnostic.location.file
+        in_target = file is not None and _path_key(str(file.name)) == target
+        if diagnostic.severity >= cindex.Diagnostic.Error or (
+            in_target and str(diagnostic.option) == _MSVC_ENUM_WARNING
+        ):
             errors.append(converted)
         elif diagnostic.severity >= cindex.Diagnostic.Warning:
             warnings.append(converted)
@@ -655,6 +715,7 @@ class _Visitor:
             string = string_type(clang_type)
             if string is not None:
                 return string
+            by_reference = False
             if clang_type.kind == TypeKind.LVALUEREFERENCE:
                 # A const reference to a scalar is copied across the boundary.
                 pointee = clang_type.get_pointee()
@@ -664,8 +725,11 @@ class _Visitor:
                 clang_type = pointee
                 spelling = str(clang_type.spelling)
                 allow_void = False
+                by_reference = True
             if clang_type.get_canonical().kind == TypeKind.ENUM:
                 return _enum_ref(clang_type)
+            if clang_type.get_canonical().kind == TypeKind.RECORD:
+                return _struct_ref(clang_type, by_reference=by_reference)
             user_alias = False
             if clang_type.kind == TypeKind.ELABORATED:
                 # The named type is spelled with its real qualification
@@ -758,9 +822,13 @@ class _Visitor:
         elif kind in (CursorKind.CLASS_DECL, CursorKind.STRUCT_DECL):
             # Forward declarations are skipped; the definition is what counts.
             if cursor.is_definition() and self._first_time(cursor):
-                parsed_class = self._parse_class(cursor, kind)
-                if parsed_class is not None:
-                    self.declarations.append(parsed_class)
+                parsed: Class | Struct | None = (
+                    self._parse_struct(cursor)
+                    if is_value_struct(cursor)
+                    else self._parse_class(cursor, kind)
+                )
+                if parsed is not None:
+                    self.declarations.append(parsed)
         elif kind == CursorKind.FUNCTION_DECL:
             if self._first_time(cursor):
                 function = self._parse_function(cursor)
@@ -822,6 +890,22 @@ class _Visitor:
         if not cursor.is_definition() or not self._first_time(cursor):
             return None  # an opaque declaration: the definition is what counts
         name = str(cursor.spelling)
+        parent = cursor.semantic_parent
+        if (
+            namespace is None
+            and parent is not None
+            and parent.kind
+            in (
+                CursorKind.CLASS_DECL,
+                CursorKind.STRUCT_DECL,
+            )
+        ):
+            self._error(
+                cursor,
+                f"enum '{parent.spelling}::{name}' is defined outside its class; this is not "
+                "supported yet: define it in the class",
+            )
+            return None
         if cursor.is_anonymous() or not name:
             self._error(cursor, "anonymous enums are not supported yet; give the enum a name")
             return None
@@ -860,10 +944,12 @@ class _Visitor:
         else:
             c_type = typemap.BUILTIN_TYPES["INT"]
         enumerators: list[Enumerator] = []
+        unavailable: list[int] = []
         for child in cursor.get_children():
             if child.kind != CursorKind.ENUM_CONSTANT_DECL:
                 continue
             if child.availability == AvailabilityKind.NOT_AVAILABLE:
+                unavailable.append(libclang.enumerator_value(child, underlying))
                 continue
             constant = str(child.spelling)
             if not self._check_name(child, constant):
@@ -892,7 +978,192 @@ class _Visitor:
             fixed=fixed,
             enumerators=tuple(enumerators),
             location=location,
+            unavailable=tuple(unavailable),
         )
+
+    # Value structs -------------------------------------------------------------
+
+    def _parse_struct(self, cursor: cindex.Cursor) -> Struct | None:
+        """A class with public data members, which crosses the boundary by value."""
+        errors_before = len(self.errors)
+        name = str(cursor.spelling)
+        if not name or cursor.is_anonymous():
+            self._error(cursor, "anonymous structs are not supported")
+            return None
+        if not self._check_name(cursor, name):
+            return None
+        namespace = self._namespace_of(cursor)
+        if namespace is None:
+            return None
+        qualified = "::".join((*namespace, name))
+        if int(cursor.type.get_num_template_arguments()) > 0:
+            self._error(cursor, f"template specialization '{qualified}' is not supported")
+            return None
+        enums = self._check_struct_members(cursor, qualified, namespace)
+        fields = [self._parse_field(field, qualified) for field in cursor.type.get_fields()]
+        if len(self.errors) > errors_before:
+            return None
+        location = _location(cursor.location)
+        assert location is not None
+        return Struct(
+            name=name,
+            namespace=namespace,
+            usr=str(cursor.get_usr()),
+            fields=tuple(field for field in fields if field is not None),
+            location=location,
+            enums=tuple(enums),
+        )
+
+    def _check_struct_members(
+        self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
+    ) -> list[Enumeration]:
+        """Report the members that a value struct cannot have; return its public enums.
+
+        Its value is made by default construction and member assignments, so it
+        needs a public default constructor, and copies.
+        """
+        where = f"value struct '{qualified}'"
+        enums: list[Enumeration] = []
+        declares_constructor = has_default_constructor = False
+        declares_copy = declares_move = False
+        for member in cursor.get_children():
+            try:
+                kind = member.kind
+            except ValueError:
+                self._error(member, f"member of '{qualified}' of a kind unknown to the bindings")
+                continue
+            if (
+                kind.is_attribute()
+                or kind in _IGNORED_MEMBER_KINDS
+                or kind
+                in (
+                    CursorKind.FIELD_DECL,
+                    CursorKind.VAR_DECL,  # static data members are not part of the value
+                )
+            ):
+                continue
+            public = member.access_specifier == AccessSpecifier.PUBLIC
+            available = not self._unavailable(member)
+            member_name = f"'{qualified}::{member.spelling}'"
+            if kind == CursorKind.CXX_BASE_SPECIFIER:
+                self._error(member, f"{where}: inheritance is not supported yet")
+            elif kind == CursorKind.CONSTRUCTOR:
+                declares_constructor = True
+                role = self._struct_constructor(member, where)
+                declares_copy |= role == "copy"
+                declares_move |= role == "move"
+                has_default_constructor |= role == "default"
+            elif kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
+                declares_constructor = True
+                self._error(member, f"{where}: constructor templates are not supported")
+            elif kind == CursorKind.DESTRUCTOR:
+                if not public or not available or member.is_virtual_method():
+                    self._error(member, f"{where} needs a public, non-virtual destructor")
+            elif kind == CursorKind.CXX_METHOD and member.spelling == "operator=":
+                if member.is_move_assignment_operator_method():
+                    declares_move = True
+            elif kind == CursorKind.CXX_METHOD:
+                self._error(member, f"{where}: methods are not supported yet ({member_name})")
+            elif kind == CursorKind.CONVERSION_FUNCTION:
+                self._error(member, f"{where}: conversion operators are not supported yet")
+            elif kind == CursorKind.ENUM_DECL:
+                if public:
+                    enum = self._parse_enum(member, (str(cursor.spelling),), namespace)
+                    if enum is not None:
+                        enums.append(enum)
+            elif kind in _NESTED_TYPE_KINDS:
+                if not member.is_anonymous():  # anonymous members are reported as fields
+                    self._error(member, f"nested type {member_name} is not supported yet")
+            else:
+                self._error(member, f"{where}: unsupported member {member_name} ({kind.name})")
+        if declares_constructor and not has_default_constructor:
+            self._error(cursor, f"{where} has no public default constructor")
+        if declares_move and not declares_copy:
+            self._error(cursor, f"{where} cannot be copied: it declares a move operation only")
+        return enums
+
+    def _struct_constructor(self, member: cindex.Cursor, where: str) -> str:
+        """What a constructor of a value struct is: "copy", "move", "default" (a
+        usable default constructor) or "" (reported if it is not allowed)."""
+        usable = member.access_specifier == AccessSpecifier.PUBLIC and not self._unavailable(member)
+        if member.is_copy_constructor():
+            if not usable:
+                self._error(
+                    member,
+                    f"{where} cannot be copied: its copy constructor is deleted or not public",
+                )
+            return "copy"
+        if member.is_move_constructor():
+            return "move"
+        if not list(member.get_arguments()):
+            return "default" if usable else ""
+        self._error(
+            member,
+            f"{where}: constructors with parameters are not supported yet "
+            "(a value struct is built member by member)",
+        )
+        return ""
+
+    def _parse_field(self, field: cindex.Cursor, qualified: str) -> Field | None:
+        name = str(field.spelling)
+        where = f"member '{qualified}::{name}'"
+        if field.access_specifier != AccessSpecifier.PUBLIC:
+            self._error(
+                field,
+                f"{where} is not public: every data member of a value struct must be public",
+            )
+            return None
+        if (
+            not name
+            or field.is_anonymous_record_decl()
+            or field.type.get_declaration().is_anonymous()
+        ):
+            self._error(field, f"anonymous unions and structs in '{qualified}' are not supported")
+            return None
+        if not self._check_name(field, name):
+            return None
+        if (name.startswith("_") and (len(name) == 1 or name[1].isupper())) or "__" in name:
+            self._error(field, f"{where}: the name is reserved in C and C++")
+            return None
+        if field.is_bitfield():
+            self._error(field, f"{where}: bit-fields are not supported yet")
+            return None
+        clang_type = field.type
+        length: int | None = None
+        canonical = clang_type.get_canonical()
+        if canonical.kind == TypeKind.INCOMPLETEARRAY:
+            self._error(field, f"{where}: arrays without a size are not supported")
+            return None
+        if canonical.kind == TypeKind.CONSTANTARRAY:
+            length = int(clang_type.get_array_size())
+            clang_type = clang_type.get_array_element_type()
+            canonical = clang_type.get_canonical()
+            if canonical.kind in (TypeKind.CONSTANTARRAY, TypeKind.INCOMPLETEARRAY):
+                self._error(field, f"{where}: arrays of arrays are not supported yet")
+                return None
+            if canonical.kind in _CHAR_KINDS:
+                self._error(
+                    field, f"{where}: char arrays (fixed-size strings) are not supported yet"
+                )
+                return None
+        if canonical.kind in (TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE):
+            self._error(field, f"{where}: reference members are not supported")
+            return None
+        if canonical.is_const_qualified():
+            self._error(
+                field, f"{where}: const members are not supported (bridgefex assigns every member)"
+            )
+            return None
+        type_ = self._type(clang_type, field, where, allow_void=False)
+        if type_ is None:
+            return None
+        if isinstance(type_, StringType):
+            self._error(field, f"{where}: strings in value structs are not supported yet")
+            return None
+        location = _location(field.location)
+        assert location is not None
+        field_type: FieldType = type_
+        return Field(name, field_type, length, location)
 
     # Classes ---------------------------------------------------------------
 

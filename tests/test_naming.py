@@ -74,7 +74,7 @@ def test_parameter_names() -> None:
     )
     # Renaming never creates duplicates.
     # ... nor '__', which C and C++ reserve.
-    assert naming.parameter_names(["self", "self_"]) == ("self_", "self_2")
+    assert naming.parameter_names(["self", "self_"]) == ("self2", "self_")
     assert naming.parameter_names(["x_", "x_"]) == ("x_", "x_2")
     assert naming.parameter_names(["", "arg1"]) == ("arg1", "arg1_")
     assert naming.parameter_names(["handle"], reserved={"handle"}) == ("handle_",)

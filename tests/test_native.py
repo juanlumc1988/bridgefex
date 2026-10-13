@@ -356,6 +356,51 @@ def test_string_references_reach_the_wrapped_overload(
     assert completed.stdout.split() == ["1", "1"]
 
 
+def test_struct_mirrors_keep_their_layout_under_a_leaked_pack(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """A #pragma pack(1) left active by another header must not pack the mirrors."""
+    include = GOLDEN_DIR / "structs" / "expected" / "c"
+    source = tmp_path / "leak.c"
+    source.write_text(
+        "#pragma pack(push, 1)\n"
+        '#include "geo_c.h"\n#include "route_c.h"\n'
+        "#pragma pack(pop)\n#include <stddef.h>\n"
+        '_Static_assert(offsetof(geo_Point, y) == 8, "natural layout");\n'
+        '_Static_assert(offsetof(geo_Msg, where) == 8, "natural layout");\n'
+        '_Static_assert(sizeof(route_Leg) == 40, "natural layout");\n'
+        "int bridgefex_leak(void);\nint bridgefex_leak(void) { return 0; }\n",
+        encoding="utf-8",
+    )
+    flag = standard(toolchain, "c", "c11", probe_dir)
+    toolchain.syntax_check(source, "c", flag, [include]).check()
+
+
+def test_array_lengths_are_checked_where_the_sources_are_built(
+    toolchain: Toolchain, tmp_path: Path, probe_dir: Path
+) -> None:
+    """Lengths come from the platform that runs bridgefex: a source built with
+    another one fails to compile instead of copying past the end."""
+    header = tmp_path / "arr.h"
+    header.write_text(
+        "#pragma once\n#ifndef ARR_N\n#define ARR_N 4\n#endif\n"
+        "namespace arr { struct S { int a[ARR_N]; }; S f(); }\n",
+        encoding="utf-8",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("arr"))
+    output = tmp_path / "out"
+    bridgefex.write_files(result.files, output)
+    flag = standard(toolchain, "c++", "c++17", probe_dir)
+    good = tmp_path / "good.cpp"
+    good.write_text('#include "arr_c.cpp"\n', encoding="utf-8")
+    toolchain.syntax_check(good, "c++", flag, [output / "c", tmp_path]).check()
+    bad = tmp_path / "bad.cpp"
+    bad.write_text('#define ARR_N 8\n#include "arr_c.cpp"\n', encoding="utf-8")
+    completed = toolchain.syntax_check(bad, "c++", flag, [output / "c", tmp_path])
+    assert completed.returncode != 0
+    assert "arr::S::a does not have 4 elements here" in completed.output
+
+
 @pytest.mark.parametrize(
     ("modules", "reverse"),
     [
@@ -369,6 +414,8 @@ def test_string_references_reach_the_wrapped_overload(
         (("strings", "demo"), True),
         (("enums", "strings"), False),
         (("enums", "strings"), True),
+        (("structs", "enums"), False),
+        (("structs", "enums"), True),
     ],
 )
 def test_unity_build(
@@ -386,7 +433,7 @@ def test_unity_build(
     unity.write_text("".join(f'#include "{source.name}"\n' for source in sources), encoding="utf-8")
     include_dirs = [*directories, *(GOLDEN_DIR / module / "input" for module in modules)]
     # The strings case needs C++17 (std::string_view).
-    needs_cxx17 = {"strings", "enums"} & set(modules)
+    needs_cxx17 = {"strings", "enums", "structs"} & set(modules)
     for wanted in ("c++17",) if needs_cxx17 else ("c++14", "c++17"):
         flag = standard(toolchain, "c++", wanted, probe_dir)
         toolchain.syntax_check(unity, "c++", flag, include_dirs).check()

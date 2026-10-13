@@ -104,6 +104,9 @@ class EnumRef:
     definition: Location | None
     """Where the definition seen by the using header is, if it sees one."""
 
+    system: bool = False
+    """Declared in a system header (which is wrapped only if given as one)."""
+
     @property
     def is_void(self) -> bool:
         return False
@@ -113,8 +116,46 @@ class EnumRef:
         return self.qualified_name
 
 
-Type = ScalarType | StringType | EnumRef
+@dataclass(frozen=True, slots=True)
+class StructRef:
+    """A use of a value struct; the plan finds its definition (:class:`Struct`) by
+    USR, in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    """Where the definition seen by the using header is, if it sees one."""
+
+    by_reference: bool = False
+    """True for ``const T&``."""
+
+    system: bool = False
+    """Declared in a system header (which is wrapped only if given as one)."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def cpp_spelling(self) -> str:
+        return f"const {self.qualified_name}&" if self.by_reference else self.qualified_name
+
+
+Type = ScalarType | StringType | EnumRef | StructRef
 """Every type that can cross the C boundary."""
+
+FieldType = ScalarType | EnumRef | StructRef
+"""Every type that a field of a value struct can have."""
+
+
+@dataclass(frozen=True, slots=True)
+class Field:
+    name: str
+    type: FieldType
+    length: int | None
+    """The number of elements of an array, or None."""
+
+    location: Location
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +186,9 @@ class Enumeration:
 
     enumerators: tuple[Enumerator, ...]
     location: Location
+    unavailable: tuple[int, ...] = ()
+    """The values of the enumerators that cannot be used, which still count for
+    the valid values."""
 
     @property
     def qualified_name(self) -> str:
@@ -156,7 +200,7 @@ class Enumeration:
         or None when the underlying type is fixed."""
         if self.fixed:
             return None
-        values = [enumerator.value for enumerator in self.enumerators]
+        values = [enumerator.value for enumerator in self.enumerators] + list(self.unavailable)
         low, high = min(values, default=0), max(values, default=0)
         if low >= 0:
             bits = max(high.bit_length(), 1)
@@ -231,7 +275,24 @@ class Class:
         return "::".join((*self.namespace, self.name))
 
 
-Declaration = Class | Function | Enumeration
+@dataclass(frozen=True, slots=True)
+class Struct:
+    """A value struct: public data members only, copied across the boundary."""
+
+    name: str
+    namespace: tuple[str, ...]
+    usr: str
+    fields: tuple[Field, ...]
+    location: Location
+    enums: tuple[Enumeration, ...] = ()
+    """Public enums nested in the struct."""
+
+    @property
+    def qualified_name(self) -> str:
+        return "::".join((*self.namespace, self.name))
+
+
+Declaration = Class | Function | Enumeration | Struct
 
 
 @dataclass(frozen=True, slots=True)

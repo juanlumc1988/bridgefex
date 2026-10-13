@@ -27,6 +27,16 @@
 #include "numbers_c.h"
 #include "scalars_runtime_internal.hpp"
 
+// The code below names the wrapped declarations to expose them, deprecated
+// ones too: that is no reason to warn here.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
 #if !defined(__cpp_aligned_new)
 // Before C++17, new ignores alignments larger than the default one.
 static_assert(alignof(::Accumulator) <= scalars_detail::new_alignment,
@@ -363,3 +373,9 @@ scalars_status scalars_do_nothing(void)
 }
 
 }  // extern "C"
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

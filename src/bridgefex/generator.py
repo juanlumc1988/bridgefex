@@ -8,7 +8,7 @@ from pathlib import Path, PurePosixPath
 
 import jinja2
 
-from .plan import ClassPlan, EnumPlan, ModulePlan, api_fingerprint
+from .plan import ClassPlan, EnumPlan, ModulePlan, StructPlan, api_fingerprint
 
 LANGUAGES = ("python",)
 """Languages that bindings can be generated for, on top of the C layer."""
@@ -24,6 +24,10 @@ def _is_enum_plan(value: object) -> bool:
     return isinstance(value, EnumPlan)
 
 
+def _is_struct_plan(value: object) -> bool:
+    return isinstance(value, StructPlan)
+
+
 def _environment() -> jinja2.Environment:
     environment = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(_TEMPLATES)),
@@ -36,6 +40,7 @@ def _environment() -> jinja2.Environment:
     )
     environment.tests["class_plan"] = _is_class_plan
     environment.tests["enum_plan"] = _is_enum_plan
+    environment.tests["struct_plan"] = _is_struct_plan
     return environment
 
 
@@ -72,6 +77,8 @@ def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, 
     put(f"c/{plan.runtime_source}", "runtime.cpp.j2", fingerprint=fingerprint)
     for header in plan.headers:
         put(f"c/{header.c_source}", "source_c.cpp.j2", h=header)
+        if header.structs:
+            put(f"c/{header.c_internal_header}", "source_c_internal.hpp.j2", h=header)
 
     if "python" in languages:
         package = f"python/{plan.name}"

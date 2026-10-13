@@ -20,6 +20,7 @@ from .model import (
     Class,
     Enumeration,
     EnumRef,
+    Field,
     Function,
     Header,
     Module,
@@ -27,6 +28,8 @@ from .model import (
     ScalarType,
     StringKind,
     StringType,
+    Struct,
+    StructRef,
     Type,
     TypeCategory,
 )
@@ -369,9 +372,61 @@ class EnumPlan:
             return self.model.description
         return f"{self.model.description}: only the values {valid[0]}..{valid[1]} are valid"
 
+
+@dataclass(frozen=True, slots=True)
+class FieldPlan:
+    model: Field
+    name: str
+    """In the C mirror and the Python dataclass."""
+
+    ctypes_name: str
+    """In the ctypes mirror, where a few names are taken by ctypes itself."""
+
+    c_declaration: str
+    ctypes_type: str
+    py_annotation: str
+    """The type of the dataclass field, as _types.py names it."""
+
+    fill: tuple[str, ...]
+    """Statements of _<c_type>__fill that check the value and store it in ``raw``."""
+
+    read: str
+    """Expression of _<c_type>__from_c that reads it from ``raw``."""
+
+
+@dataclass(frozen=True, slots=True)
+class StructPlan:
+    model: Struct
+    c_type: str
+    fields: tuple[FieldPlan, ...]
+    init: CFunction
+    py_name: str
+    py_qualname: str
+    py_module: str
+    enums: tuple[EnumPlan, ...] = ()
+    """Nested enums."""
+
+    to_c: tuple[str, ...] = ()
+    """Body of the C++ conversion to the C mirror (member by member)."""
+
+    from_c: tuple[str, ...] = ()
+    """Body of the C++ conversion from the C mirror (member by member)."""
+
+    extents: tuple[tuple[str, int], ...] = ()
+    """The arrays of this struct and of the structs it contains, with their length."""
+
     @property
-    def has_deprecated(self) -> bool:
-        return any(enumerator.deprecated for enumerator in self.enumerators)
+    def cpp_name(self) -> str:
+        return "::" + self.model.qualified_name
+
+    @property
+    def mirror(self) -> str:
+        return f"_{self.c_type}"
+
+    @property
+    def py_type(self) -> str:
+        """The dataclass, as the generated header modules name it."""
+        return f"_types.{self.c_type}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -428,11 +483,39 @@ class HeaderPlan:
     c_header: str
     c_source: str
     guard: str
-    items: tuple[ClassPlan | FunctionPlan | EnumPlan, ...]
-    """Classes, free functions and enums, in source order."""
+    items: tuple[ClassPlan | FunctionPlan | EnumPlan | StructPlan, ...]
+    """Classes, free functions, enums and value structs, in source order."""
 
     foreign_enums: tuple[EnumPlan, ...] = ()
     """Enums of other headers with a fixed underlying type that this header uses."""
+
+    foreign_headers: tuple[HeaderPlan, ...] = ()
+    """The other headers whose value structs this header's functions use: the
+    generated source includes them and their conversions."""
+
+    @property
+    def structs(self) -> tuple[StructPlan, ...]:
+        return tuple(item for item in self.items if isinstance(item, StructPlan))
+
+    @property
+    def struct_inits(self) -> tuple[CFunction, ...]:
+        """The <c_type>_init functions, which _types.py binds."""
+        return tuple(struct.init for struct in self.structs)
+
+    @property
+    def c_internal_header(self) -> str:
+        """The conversions of the value structs (generated only if there are any)."""
+        return f"{self.stem}_c_internal.hpp"
+
+    @property
+    def internal_guard(self) -> str:
+        return f"{self.guard.removesuffix('_C_H')}_C_INTERNAL_HPP"
+
+    @property
+    def internal_includes(self) -> tuple[str, ...]:
+        """The internal headers that the generated source includes."""
+        owners = (self, *self.foreign_headers) if self.structs else self.foreign_headers
+        return tuple(header.c_internal_header for header in owners)
 
     @property
     def classes(self) -> tuple[ClassPlan, ...]:
@@ -440,11 +523,14 @@ class HeaderPlan:
 
     @property
     def types(self) -> tuple[ClassPlan | EnumPlan, ...]:
-        """Handles and enums, in source order; nested enums after their class."""
+        """Handles and enums, in source order; nested enums after their class or
+        struct. (The value structs come later, in the order of their contents.)"""
         types: list[ClassPlan | EnumPlan] = []
         for item in self.items:
             if isinstance(item, ClassPlan):
                 types += [item, *item.enums]
+            elif isinstance(item, StructPlan):
+                types += item.enums
             elif isinstance(item, EnumPlan):
                 types.append(item)
         return tuple(types)
@@ -462,6 +548,8 @@ class HeaderPlan:
                 functions += item.c_functions
             elif isinstance(item, FunctionPlan):
                 functions.append(item.c_function)
+            elif isinstance(item, StructPlan):
+                functions.append(item.init)
         return tuple(functions)
 
     @property
@@ -486,9 +574,12 @@ class HeaderPlan:
         return tuple(includes)
 
 
-def _header_types(header: Header) -> Iterable[Type]:
-    """Every parameter and result type of a header's declarations."""
+def _header_types(header: Header, *, fields: bool = True) -> Iterable[Type]:
+    """Every parameter and result type of a header's declarations, and with
+    ``fields`` the types of the members of its value structs."""
     for declaration in header.declarations:
+        if fields and isinstance(declaration, Struct):
+            yield from (field.type for field in declaration.fields)
         if isinstance(declaration, Function):
             yield from (parameter.type for parameter in declaration.parameters)
             yield declaration.result
@@ -504,6 +595,8 @@ def _header_types(header: Header) -> Iterable[Type]:
 class ModulePlan:
     name: str
     headers: tuple[HeaderPlan, ...]
+    structs: tuple[StructPlan, ...] = ()
+    """Every value struct, each after the structs it contains."""
 
     @property
     def macro_prefix(self) -> str:
@@ -562,6 +655,16 @@ class ModulePlan:
 _INT_MIN = -(2**31)
 _INT_MAX = 2**31 - 1
 
+
+@dataclass(slots=True)
+class _Copies:
+    """The bodies of the C++ conversions of a struct, while they are built."""
+
+    to_c: list[str] = dataclasses.field(default_factory=list)
+    from_c: list[str] = dataclasses.field(default_factory=list)
+    extents: dict[str, int] = dataclasses.field(default_factory=dict)
+
+
 # Longest line written in one piece in the generated Python code.
 _MAX_LINE_LENGTH = 99
 
@@ -572,11 +675,13 @@ def _spelling(type_: Type) -> str:
     return type_.cpp_spelling
 
 
-def _token(type_: Type, enums: dict[str, EnumPlan]) -> str:
-    """Name of a type in overload suffixes: the C type name for an enum."""
+def _token(type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str]) -> str:
+    """Name of a type in overload suffixes: the C type name for an enum or a struct."""
     if isinstance(type_, EnumRef):
         enum = enums.get(type_.usr)
         return enum.c_type if enum is not None else "enum"
+    if isinstance(type_, StructRef):
+        return structs.get(type_.usr, "struct")
     return type_.token
 
 
@@ -589,12 +694,18 @@ def _describe_params(parameters: Sequence[Parameter]) -> str:
     )
 
 
-def _conversion(name: str, scalar: ScalarType) -> str:
+def _checked(value: str, scalar: ScalarType, name: str) -> str:
+    """Python expression that checks ``value`` for a scalar of C; ``name`` is the
+    expression of its name in error messages."""
     if scalar.category is TypeCategory.BOOL:
-        return f'_runtime.to_bool({name}, "{name}")'
+        return f"_runtime.to_bool({value}, {name})"
     if scalar.category is TypeCategory.FLOATING:
-        return f'_runtime.to_float({name}, ctypes.{scalar.ctypes_name}, "{name}")'
-    return f'_runtime.to_int({name}, ctypes.{scalar.ctypes_name}, "{name}")'
+        return f"_runtime.to_float({value}, ctypes.{scalar.ctypes_name}, {name})"
+    return f"_runtime.to_int({value}, ctypes.{scalar.ctypes_name}, {name})"
+
+
+def _conversion(name: str, scalar: ScalarType) -> str:
+    return _checked(name, scalar, f'"{name}"')
 
 
 class _Builder:
@@ -629,6 +740,10 @@ class _Builder:
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
+        # A generated type with the name of an output parameter would be hidden
+        # by it. (Only generated names: these do not clash with the headers.)
+        for name in ("out_self", "out_result", "out_result_size"):
+            self._c_names[name] = ("an output parameter of the generated functions", None)
         # A parameter named like a macro without arguments would be replaced
         # by it: the generated macros and include guards, and the macros of the
         # wrapped headers (the generated source includes them first).
@@ -643,8 +758,8 @@ class _Builder:
         self._enum_headers: dict[str, Header] = {}
         for header in module.headers:
             for declaration in header.declarations:
-                nested = declaration.enums if isinstance(declaration, Class) else ()
-                scope = (declaration,) if isinstance(declaration, Class) else ()
+                nested = declaration.enums if isinstance(declaration, (Class, Struct)) else ()
+                scope = (declaration,) if isinstance(declaration, (Class, Struct)) else ()
                 enums = (declaration,) if isinstance(declaration, Enumeration) else nested
                 for enum in enums:
                     plan = self._enum_plan(enum, header, scope)
@@ -662,8 +777,17 @@ class _Builder:
             f"{naming.c_prefix(declaration.namespace, module.name)}_{declaration.name}"
             for header in module.headers
             for declaration in header.declarations
+            if isinstance(declaration, (Class, Struct))
+        }
+        self._handle_names = {
+            declaration.qualified_name
+            for header in module.headers
+            for declaration in header.declarations
             if isinstance(declaration, Class)
         }
+        self._structs = self._collect_structs(module)
+        # Per header stem, the headers whose structs its functions use.
+        self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
 
     # Bookkeeping -------------------------------------------------------------
 
@@ -717,13 +841,18 @@ class _Builder:
     def _suffix(self, key: tuple[str, ...], parameters: Sequence[Parameter]) -> str:
         if self._overloads[key] > 1:
             return naming.overload_suffix(
-                [_token(parameter.type, self._enums) for parameter in parameters]
+                [
+                    _token(parameter.type, self._enums, self._struct_c_types)
+                    for parameter in parameters
+                ]
             )
         return ""
 
     # Enums -------------------------------------------------------------------
 
-    def _enum_plan(self, model: Enumeration, header: Header, scope: tuple[Class, ...]) -> EnumPlan:
+    def _enum_plan(
+        self, model: Enumeration, header: Header, scope: tuple[Class | Struct, ...]
+    ) -> EnumPlan:
         prefix = naming.c_prefix(model.namespace, self.module.name)
         c_type = "_".join((prefix, *model.scope, model.name))
         what = f"enum '{model.qualified_name}'"
@@ -769,12 +898,282 @@ class _Builder:
             py_module=f"{self.module.name}.{header.stem}",
         )
 
+    # Value structs -----------------------------------------------------------------
+
+    def _collect_structs(self, module: Module) -> dict[str, StructPlan]:
+        """Every value struct of the module, by USR, with its conversions."""
+        models: dict[str, tuple[Struct, Header]] = {}
+        for header in module.headers:
+            for declaration in header.declarations:
+                if isinstance(declaration, Struct):
+                    models.setdefault(declaration.usr, (declaration, header))
+        self._struct_headers = {usr: header for usr, (_, header) in models.items()}
+        self._struct_c_types = {
+            usr: f"{naming.c_prefix(model.namespace, module.name)}_{model.name}"
+            for usr, (model, _) in models.items()
+        }
+        plans = {usr: self._struct_plan(model, header) for usr, (model, header) in models.items()}
+        for usr, plan in plans.items():
+            copies = _Copies()
+            self._struct_copies(plan, plans, copies)
+            plans[usr] = dataclasses.replace(
+                plan,
+                to_c=tuple(copies.to_c),
+                from_c=tuple(copies.from_c),
+                extents=tuple(copies.extents.items()),
+            )
+        return plans
+
+    def _struct_plan(self, model: Struct, header: Header) -> StructPlan:
+        c_type = self._struct_c_types[model.usr]
+        what = f"value struct '{model.qualified_name}'"
+        self._reserve_c_name(c_type, f"the type of {what}", model.location, tag=True)
+        init_name = f"{c_type}_init"
+        self._reserve_c_name(init_name, f"the default value function of {what}", model.location)
+        cpp_names = [field.name for field in model.fields]
+        names = naming.field_names(cpp_names, self._parameter_macros)
+        ctypes_names = naming.ctypes_field_names(names)
+        generated = self._macros | {
+            enumerator.macro for enum in self._enums.values() for enumerator in enum.enumerators
+        }
+        fields: list[FieldPlan] = []
+        for field, name, ctypes_name in zip(model.fields, names, ctypes_names, strict=True):
+            if field.name in generated:
+                # The generated sources would see the macro in place of the member.
+                self.errors.append(
+                    Diagnostic(
+                        f"member '{model.qualified_name}::{field.name}' has the name of a macro "
+                        "of the generated C headers; rename it",
+                        field.location,
+                    )
+                )
+                continue
+            plan = self._field_plan(field, name, ctypes_name)
+            if plan is not None:
+                fields.append(plan)
+        detail = f"{self.module.name}_detail"
+        cpp_name = "::" + model.qualified_name
+        init = CFunction(
+            name=init_name,
+            params=(
+                CParam("out_result", f"{c_type}*", Role.OUT_RESULT, f"ctypes.POINTER(_{c_type})"),
+            ),
+            returns_status=True,
+            # Value-initialization: zeros, then the default member initializers,
+            # or the default constructor.
+            statement=f"*out_result = {detail}::to_c({cpp_name}());",
+            description=f"{model.qualified_name}(): the value of a default-constructed "
+            f"{model.qualified_name}",
+            ctypes_restype="_runtime.Status",
+            checks=(_null_check("out_result"),),
+            location=model.location,
+        )
+        py_name = naming.python_name(model.name)
+        return StructPlan(
+            model=model,
+            c_type=c_type,
+            fields=tuple(fields),
+            init=init,
+            py_name=py_name,
+            py_qualname=py_name,
+            py_module=f"{self.module.name}.{header.stem}",
+            enums=tuple(self._enums[enum.usr] for enum in model.enums),
+        )
+
+    def _field_plan(self, field: Field, name: str, ctypes_name: str) -> FieldPlan | None:
+        """How a member crosses: C declaration, ctypes type, Python checks."""
+        type_ = field.type
+        length = field.length
+        value = f"value.{name}"
+        path = f'name + ".{name}"'
+        if isinstance(type_, EnumRef):
+            enum = self._enum(type_, field.location)
+            if enum is None:
+                return None
+            c_type, ctypes_element, annotation = enum.c_type, enum.ctypes_type, enum.c_type
+            valid = enum.model.valid_range
+            extra = f", ({valid[0]}, {valid[1]})" if valid is not None else ""
+
+            def check(item: str, where: str) -> str:
+                return (
+                    f"_runtime.to_enum({item}, {enum.c_type}, {enum.ctypes_type}, {where}{extra})"
+                )
+
+            def read(item: str) -> str:
+                return f"_runtime.enum_result({enum.c_type}, {item})"
+
+        elif isinstance(type_, StructRef):
+            nested = self._struct_c_types.get(type_.usr)
+            if nested is None:
+                self._struct_missing(type_, field.location)
+                return None
+            c_type, ctypes_element, annotation = nested, f"_{nested}", nested
+
+            def check(item: str, where: str) -> str:  # unused: structs are filled in place
+                raise AssertionError
+
+            def read(item: str) -> str:
+                return f"_{nested}__from_c({item})"
+
+        else:
+            c_type, ctypes_element = type_.c_name, f"ctypes.{type_.ctypes_name}"
+            annotation = {
+                TypeCategory.BOOL: "bool",
+                TypeCategory.FLOATING: "float",
+            }.get(type_.category, "int")
+            scalar = type_
+
+            def check(item: str, where: str) -> str:
+                return _checked(item, scalar, where)
+
+            def read(item: str) -> str:
+                return item
+
+        if length is None:
+            if isinstance(type_, StructRef):
+                fill = (f"_{c_type}__fill(raw.{ctypes_name}, {value}, {path})",)
+            else:
+                fill = (f"raw.{ctypes_name} = {check(value, path)}",)
+            return FieldPlan(
+                model=field,
+                name=name,
+                ctypes_name=ctypes_name,
+                c_declaration=f"{c_type} {name}",
+                ctypes_type=ctypes_element,
+                py_annotation=annotation,
+                fill=fill,
+                read=read(f"raw.{ctypes_name}"),
+            )
+        # Bytes for the arrays of bytes only: b"ab" is no list of int16.
+        is_bytes = isinstance(type_, ScalarType) and type_.c_name in ("uint8_t", "unsigned char")
+        where = f'f"{{name}}.{name}[{{i}}]"'
+        items = f"_runtime.to_items({value}, {length}, {path}{', True' if is_bytes else ''})"
+        if isinstance(type_, StructRef):
+            body = f"_{c_type}__fill(raw.{ctypes_name}[i], item, {where})"
+        else:
+            body = f"raw.{ctypes_name}[i] = {check('item', where)}"
+        if isinstance(type_, ScalarType):
+            reading = f"raw.{ctypes_name}[:]"
+        else:
+            reading = f"[{read('item')} for item in raw.{ctypes_name}]"
+        return FieldPlan(
+            model=field,
+            name=name,
+            ctypes_name=ctypes_name,
+            c_declaration=f"{c_type} {name}[{length}]",
+            ctypes_type=f"{ctypes_element} * {length}",
+            py_annotation="list",
+            fill=(f"for i, item in enumerate({items}):", f"    {body}"),
+            read=reading,
+        )
+
+    def _struct_copies(
+        self,
+        plan: StructPlan,
+        plans: dict[str, StructPlan],
+        copies: _Copies,
+        *,
+        c_path: str = "",
+        cpp_path: str = "",
+        depth: int = 0,
+    ) -> None:
+        """The member-by-member copies of a struct, both ways, with full member
+        paths (``c_path`` in the C mirror, ``cpp_path`` in the C++ struct): a
+        nested struct is never bound to a reference, which would be misaligned
+        in a packed struct. Loops use the variables _i<depth>."""
+        for field in plan.fields:
+            pad = "    " * (depth + 1)
+            c_member, cpp_member = f"{c_path}.{field.name}", f"{cpp_path}.{field.model.name}"
+            inner_depth = depth
+            if field.model.length is not None:
+                copies.extents[f"{plan.cpp_name}::{field.model.name}"] = field.model.length
+                variable = f"_i{depth}"
+                loop = (
+                    f"{pad}for (size_t {variable} = 0; {variable} < {field.model.length}; "
+                    f"++{variable}) {{"
+                )
+                copies.to_c.append(loop)
+                copies.from_c.append(loop)
+                c_member += f"[{variable}]"
+                cpp_member += f"[{variable}]"
+                inner_depth = depth + 1
+            inner = "    " * (inner_depth + 1)
+            type_ = field.model.type
+            if isinstance(type_, StructRef):
+                self._struct_copies(
+                    plans[type_.usr],
+                    plans,
+                    copies,
+                    c_path=c_member,
+                    cpp_path=cpp_member,
+                    depth=inner_depth,
+                )
+            elif isinstance(type_, EnumRef):
+                enum = self._enums[type_.usr]
+                copies.to_c.append(
+                    f"{inner}_out{c_member} = static_cast<{enum.c_type}>(_in{cpp_member});"
+                )
+                valid = enum.model.valid_range
+                if valid is not None:
+                    low, high = valid
+                    terms = [f"_in{c_member} < {low}"] if low > _INT_MIN else []
+                    terms += [f"_in{c_member} > {high}"] if high < _INT_MAX else []
+                    if terms:
+                        message = (
+                            f"'{plan.model.qualified_name}::{field.model.name}' is not a value of "
+                            f"{enum.model.qualified_name} ({low}..{high})"
+                        )
+                        copies.from_c.append(f"{inner}if ({' || '.join(terms)}) {{")
+                        copies.from_c.append(f'{inner}    throw argument_error{{"{message}"}};')
+                        copies.from_c.append(f"{inner}}}")
+                copies.from_c.append(
+                    f"{inner}_out{cpp_member} = static_cast<{enum.cpp_name}>(_in{c_member});"
+                )
+            else:
+                copies.to_c.append(f"{inner}_out{c_member} = _in{cpp_member};")
+                copies.from_c.append(f"{inner}_out{cpp_member} = _in{c_member};")
+            if field.model.length is not None:
+                copies.to_c.append(f"{pad}}}")
+                copies.from_c.append(f"{pad}}}")
+
+    def _struct(self, ref: StructRef, location: Location) -> StructPlan | None:
+        """The struct of a reference, or None (reported) if no wrapped header defines it."""
+        struct = self._structs.get(ref.usr)
+        if struct is None:
+            self._struct_missing(ref, location)
+        return struct
+
+    def _struct_missing(self, ref: StructRef, location: Location) -> None:
+        if ref.qualified_name in self._handle_names:
+            message = (
+                f"'{ref.qualified_name}': classes passed by value are not supported yet "
+                "(only structs with public data members are)"
+            )
+        elif ref.system:
+            message = (
+                f"'{ref.qualified_name}' of a system header: classes passed by value are not "
+                "supported yet (it is not one of the wrapped headers)"
+            )
+        elif ref.definition is None:
+            message = f"struct '{ref.qualified_name}' has no definition in the wrapped headers"
+        else:
+            message = (
+                f"struct '{ref.qualified_name}' is defined in {ref.definition.file}, which is "
+                "not one of the wrapped headers"
+            )
+        self.errors.append(Diagnostic(message, location))
+
     def _enum(self, ref: EnumRef, location: Location) -> EnumPlan | None:
         """The enum of a reference, or None (reported) if no wrapped header defines it."""
         enum = self._enums.get(ref.usr)
         if enum is not None:
             return enum
-        if ref.definition is None:
+        if ref.system:
+            message = (
+                f"enum '{ref.qualified_name}' of a system header is not supported (it is not "
+                "one of the wrapped headers)"
+            )
+        elif ref.definition is None:
             message = (
                 f"enum '{ref.qualified_name}' has no definition in the wrapped headers "
                 "(opaque enums are not supported yet)"
@@ -817,6 +1216,8 @@ class _Builder:
             return self._lower_string_param(name, size, type_)
         if isinstance(type_, EnumRef):
             return self._lower_enum_param(name, self._enum(type_, location))
+        if isinstance(type_, StructRef):
+            return self._lower_struct_param(name, type_, self._struct(type_, location))
         return LoweredParam(
             c_params=(CParam(name, type_.c_name, Role.INPUT, f"ctypes.{type_.ctypes_name}"),),
             argument=name,
@@ -896,6 +1297,58 @@ class _Builder:
             call_args=(name,),
         )
 
+    def _lower_struct_param(
+        self, name: str, ref: StructRef, struct: StructPlan | None
+    ) -> LoweredParam:
+        if struct is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        detail = f"{self.module.name}_detail"
+        temporary = f"{detail}::from_c(*{name})"
+        # As for strings: a const reference gets an lvalue (see _temporaries_check).
+        argument = (
+            f"static_cast<const {struct.cpp_name}&>({temporary})" if ref.by_reference else temporary
+        )
+        return LoweredParam(
+            c_params=(
+                CParam(
+                    name,
+                    f"const {struct.c_type}*",
+                    Role.INPUT,
+                    f"ctypes.POINTER(_types.{struct.mirror})",
+                ),
+            ),
+            argument=argument,
+            null_checks=(_null_check(name),),
+            value_checks=(),
+            py=PyArg(name, (f'{name} = _types.{struct.mirror}__to_c({name}, "{name}")',)),
+            call_args=(name,),
+            temporary=temporary if ref.by_reference else None,
+        )
+
+    def _lower_struct_result(self, struct: StructPlan | None) -> LoweredResult:
+        if struct is None:  # reported
+            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+        detail = f"{self.module.name}_detail"
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    f"{struct.c_type}*",
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER(_types.{struct.mirror})",
+                ),
+            ),
+            # Caller storage, which may alias an input: written on success only,
+            # after the call.
+            statement=f"*out_result = {detail}::to_c({{call}});",
+            null_checks=(_null_check("out_result"),),
+            py=PyResult(
+                setup=(f"_out = _types.{struct.mirror}()",),
+                value=f"_types.{struct.mirror}__from_c(_out)",
+            ),
+            call_args=("_out",),
+        )
+
     def _lower_enum_result(self, enum: EnumPlan | None) -> LoweredResult:
         if enum is None:  # reported
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
@@ -924,6 +1377,8 @@ class _Builder:
             return self._lower_string_result(type_)
         if isinstance(type_, EnumRef):
             return self._lower_enum_result(self._enum(type_, location))
+        if isinstance(type_, StructRef):
+            return self._lower_struct_result(self._struct(type_, location))
         return LoweredResult(
             c_params=(
                 CParam(
@@ -1211,14 +1666,28 @@ class _Builder:
         stem = naming.check_header_stem(header.stem)
         guard = naming.header_guard(self.module.name, stem)
         self._reserve_c_name(guard, f"the include guard of the C header of {header.path}", None)
-        items: list[ClassPlan | FunctionPlan | EnumPlan] = []
+        internal_guard = f"{guard.removesuffix('_C_H')}_C_INTERNAL_HPP"
+        if any(isinstance(declaration, Struct) for declaration in header.declarations):
+            self._reserve_c_name(
+                internal_guard, f"the include guard of the conversions of {header.path}", None
+            )
+        items: list[ClassPlan | FunctionPlan | EnumPlan | StructPlan] = []
         for declaration in header.declarations:
             if isinstance(declaration, Class):
                 items.append(self.build_class(declaration))
             elif isinstance(declaration, Function):
                 items.append(self.build_function(declaration))
+            elif isinstance(declaration, Struct):
+                items.append(self._struct_with_names(self._structs[declaration.usr]))
             else:
                 items.append(self._enums[declaration.usr])
+        owners: dict[str, Header] = {}
+        for type_ in _header_types(header, fields=False):
+            if isinstance(type_, StructRef) and type_.usr in self._structs:
+                owner = self._struct_headers[type_.usr]
+                if owner is not header:
+                    owners.setdefault(owner.stem, owner)
+        self.foreign_struct_headers[header.stem] = tuple(owners.values())
         foreign: dict[str, EnumPlan] = {}
         for type_ in _header_types(header):
             if isinstance(type_, EnumRef) and type_.usr in self._enums:
@@ -1236,22 +1705,45 @@ class _Builder:
             foreign_enums=tuple(foreign.values()),
         )
 
+    def _struct_with_names(self, struct: StructPlan) -> StructPlan:
+        """The Python names of a struct's nested enums, which must not take the
+        name of a field."""
+        fields = {field.name: field.model.location for field in struct.fields}
+        enums: list[EnumPlan] = []
+        for enum in struct.enums:
+            py_name = naming.member_name(enum.model.name)
+            if py_name in fields:
+                self.errors.append(
+                    Diagnostic(
+                        f"enum '{enum.model.qualified_name}' and a member of "
+                        f"'{struct.model.qualified_name}' get the Python name '{py_name}'",
+                        enum.model.location,
+                    )
+                )
+            enums.append(dataclasses.replace(enum, py_name=py_name))
+        return dataclasses.replace(struct, enums=tuple(enums))
+
     def _assign_module_names(
-        self, items: Sequence[ClassPlan | FunctionPlan | EnumPlan]
-    ) -> tuple[ClassPlan | FunctionPlan | EnumPlan, ...]:
-        """Give classes, functions and enums Python names that do not hide generated
-        globals, and nested enums their final qualified name."""
-        renamed: list[ClassPlan | FunctionPlan | EnumPlan] = []
+        self, items: Sequence[ClassPlan | FunctionPlan | EnumPlan | StructPlan]
+    ) -> tuple[ClassPlan | FunctionPlan | EnumPlan | StructPlan, ...]:
+        """Give classes, functions, enums and structs Python names that do not hide
+        generated globals, and nested enums their final qualified name."""
+        renamed: list[ClassPlan | FunctionPlan | EnumPlan | StructPlan] = []
         seen: dict[str, Location] = {}
         for item in items:
-            if isinstance(item, ClassPlan):
+            if isinstance(item, (ClassPlan, StructPlan)):
                 name = naming.module_level_name(item.py_name)
                 location = item.model.location
                 enums = tuple(
                     dataclasses.replace(enum, py_qualname=f"{name}.{enum.py_name}")
                     for enum in item.enums
                 )
-                renamed.append(dataclasses.replace(item, py_name=name, enums=enums))
+                if isinstance(item, StructPlan):
+                    renamed.append(
+                        dataclasses.replace(item, py_name=name, py_qualname=name, enums=enums)
+                    )
+                else:
+                    renamed.append(dataclasses.replace(item, py_name=name, enums=enums))
             elif isinstance(item, EnumPlan):
                 name = naming.module_level_name(item.py_name)
                 location = item.model.location
@@ -1281,7 +1773,9 @@ class _Builder:
 #   2  <module>_free, strings (results in memory that <module>_free releases),
 #      ERROR_INVALID_ARGUMENT, outputs that the function allocates are NULL on
 #      every failure.
-C_API_CONVENTIONS = 2
+#   3  value structs: by pointer, in pack(8) mirrors, results written on
+#      success only; ERROR_INVALID_ARGUMENT for invalid members.
+C_API_CONVENTIONS = 3
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:
@@ -1349,4 +1843,35 @@ def build_plan(module: Module) -> ModulePlan:
         headers.append(builder.build_header(header))
     if builder.errors:
         raise GenerationError(builder.errors)
-    return ModulePlan(name=module.name, headers=tuple(headers))
+    # The sources include the headers (in module order) whose structs they use.
+    plans = {plan.stem: plan for plan in headers}
+    headers = [
+        dataclasses.replace(
+            plan,
+            foreign_headers=tuple(
+                plans[other.stem]
+                for other in module.headers
+                if other in builder.foreign_struct_headers.get(plan.stem, ())
+            ),
+        )
+        for plan in headers
+    ]
+    return ModulePlan(name=module.name, headers=tuple(headers), structs=_structs_in_order(headers))
+
+
+def _structs_in_order(headers: Sequence[HeaderPlan]) -> tuple[StructPlan, ...]:
+    """Every struct after those it contains, otherwise in header and source order."""
+    by_usr = {struct.model.usr: struct for header in headers for struct in header.structs}
+    ordered: dict[str, StructPlan] = {}
+
+    def visit(struct: StructPlan) -> None:
+        if struct.model.usr in ordered:
+            return
+        for field in struct.model.fields:
+            if isinstance(field.type, StructRef) and field.type.usr in by_usr:
+                visit(by_usr[field.type.usr])
+        ordered[struct.model.usr] = struct
+
+    for struct in by_usr.values():
+        visit(struct)
+    return tuple(ordered.values())

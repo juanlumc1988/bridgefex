@@ -16,6 +16,8 @@ from bridgefex.model import (
     Header,
     StringKind,
     StringType,
+    Struct,
+    StructRef,
 )
 from bridgefex.parser import ParseOptions, parse_header
 
@@ -532,3 +534,41 @@ def test_enumerators_that_msvc_would_truncate_are_rejected_for_its_target(
         options = ParseOptions(extra_args=(f"--target={target}", "-Wno-microsoft-enum-value"))
         with pytest.raises(GenerationError, match=message):
             parse_header(path, "input.h", options)
+
+
+def test_value_structs(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        namespace v {
+        struct Point { double x; double y = 1.5; static const int kDims = 2; };
+        typedef struct { std::int16_t a[3]; Point p; } Pair;
+        struct Copy { int x; Copy() = default; Copy(const Copy&) = default;
+                      Copy& operator=(const Copy&) = default; ~Copy() = default; };
+        struct Tagged { enum class Mode : int { a }; Mode mode; };
+        class Handle { public: int f(); };
+        Point f(const Point& a, Point b, const Pair c);
+        }
+        """,
+    )
+    structs = {d.name: d for d in header.declarations if isinstance(d, Struct)}
+    assert set(structs) == {"Point", "Pair", "Copy", "Tagged"}
+    assert [(f.name, f.length) for f in structs["Point"].fields] == [("x", None), ("y", None)]
+    pair = structs["Pair"].fields
+    assert pair[0].length == 3
+    assert isinstance(pair[1].type, StructRef)
+    assert pair[1].type.qualified_name == "v::Point"
+    assert [e.name for e in structs["Tagged"].enums] == ["Mode"]
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    types = [parameter.type for parameter in function.parameters]
+    assert [t.by_reference for t in types] == [True, False, False]  # type: ignore[union-attr]
+    assert [t.cpp_spelling for t in types] == ["const v::Point&", "v::Point", "v::Pair"]
+
+
+def test_struct_references_without_a_definition(tmp_path: Path) -> None:
+    header = parse(tmp_path, "namespace w { struct Later; int f(const Later& l); }")
+    (function,) = header.declarations
+    assert isinstance(function, Function)
+    ref = function.parameters[0].type
+    assert isinstance(ref, StructRef)
+    assert ref.definition is None

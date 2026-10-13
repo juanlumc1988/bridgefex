@@ -171,6 +171,35 @@ def test_c_round_trip(
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
+    check_layouts(case, output, completed.stdout)
+
+
+def check_layouts(case: Case, output: Path, c_output: str) -> None:
+    """The ctypes mirrors have the layouts that check_c.c printed: lines
+    'layout <C type> <size> <member>=<offset>...'."""
+    layouts = [line.split()[1:] for line in c_output.splitlines() if line.startswith("layout ")]
+    if not layouts:
+        return
+    code = (
+        "import ctypes, sys\n"
+        f"from {case.module} import _types\n"
+        "for name, size, *members in (line.split() for line in sys.stdin):\n"
+        "    mirror = getattr(_types, '_' + name)\n"
+        "    actual = [str(ctypes.sizeof(mirror))]\n"
+        "    actual += [m.split('=')[0] + '=' + str(getattr(mirror, m.split('=')[0]).offset)"
+        " for m in members]\n"
+        "    assert actual == [size, *members], (name, actual, [size, *members])\n"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(output / "python")}
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        input="\n".join(" ".join(layout) for layout in layouts),
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 # Symbols that the linker defines in every shared library.

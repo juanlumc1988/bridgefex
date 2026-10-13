@@ -46,7 +46,45 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("class A { public: A operator+(int) const; };", "operator 'A::operator+'"),
         ("class A { public: operator int() const; };", "conversion operator of 'A'"),
         ("class A { public: template <typename T> void f(T); };", "member template 'A::f'"),
-        ("class A { public: int value; };", "public data member 'A::value'"),
+        # Value structs.
+        ("struct S { int x; private: int y; };", "member 'S::y' is not public"),
+        ("struct S { int x; int f(); };", "methods are not supported yet ('S::f')"),
+        ("struct S { int x; S(int v); };", "constructors with parameters are not supported yet"),
+        (
+            "struct S { int x; S(int v = 0); };",
+            "constructors with parameters are not supported yet",
+        ),
+        (
+            "struct S { int x; private: S(); };",
+            "value struct 'S' has no public default constructor",
+        ),
+        ("struct S { int x; S(const S&) = delete; };", "cannot be copied"),
+        ("struct S { int x; S() = default; S(S&&); };", "declares a move operation only"),
+        ("struct S { int x; virtual ~S(); };", "needs a public, non-virtual destructor"),
+        ("struct B {}; struct S : B { int x; };", "inheritance is not supported yet"),
+        ("struct S { int x; operator int() const; };", "conversion operators are not supported"),
+        ("struct S { int x; bool operator==(const S&) const; };", "methods are not supported yet"),
+        ("struct S { int x : 3; };", "bit-fields are not supported yet"),
+        ("struct S { const int x; };", "const members are not supported"),
+        ("struct S { int& x; };", "reference members are not supported"),
+        ("struct S { int* x; };", "pointers are not supported yet"),
+        ("struct S { volatile int x; };", "volatile"),
+        ("struct S { int x[2][2]; };", "arrays of arrays are not supported yet"),
+        ("struct S { char name[8]; };", "char arrays (fixed-size strings) are not supported yet"),
+        ("struct S { int n; int x[]; };", "arrays without a size are not supported"),
+        ("struct S { std::string s; };", "strings in value structs are not supported yet"),
+        ("class H { public: void f(); }; struct S { H h; };", "classes passed by value"),
+        ("struct S { union { int a; float b; }; };", "anonymous unions and structs"),
+        (
+            "struct S { int x; struct In { int y; } in; };",
+            "nested type 'S::In' is not supported yet",
+        ),
+        ("struct S { int __x; };", "the name is reserved in C and C++"),
+        ("struct S { int _X; };", "the name is reserved in C and C++"),
+        ("struct S { int x; }; void f(S& s);", "non-const references are not supported yet"),
+        ("struct S { int x; }; void f(S* s);", "pointers are not supported yet"),
+        ("struct S { int x; }; void f(S&& s);", "references are not supported yet"),
+        ("struct S { int x; }; S& f();", "non-const references are not supported yet"),
         ("class A { public: static int shared; };", "public data member 'A::shared'"),
         ("class A { public: struct Inner {}; };", "nested type 'A::Inner'"),
         ("class A { public: struct N {}; };", "nested type 'A::N'"),
@@ -119,12 +157,12 @@ def test_all_problems_are_reported_at_once(tmp_path: Path) -> None:
         tmp_path,
         """
         void a(char c);
-        class B { public: int value; virtual void v(); };
+        class B { public: int value : 2; virtual void v(); };
         enum { x };
         """,
     )
-    # char, the data member, the virtual method, the missing virtual destructor, the enum.
-    assert len(errors) == 5, errors
+    # char, the bit-field, the (virtual) method of a value struct, the enum.
+    assert len(errors) == 4, errors
 
 
 def test_libclang_errors_abort_before_the_ast_is_used(tmp_path: Path) -> None:
@@ -145,6 +183,8 @@ def test_non_ascii_names_are_rejected(tmp_path: Path) -> None:
 
 
 def test_a_rejected_member_rejects_its_class_only(tmp_path: Path) -> None:
-    errors = errors_for(tmp_path, "class Good { public: int f(); };\nclass Bad { public: int x; };")
+    errors = errors_for(
+        tmp_path, "class Good { public: int f(); };\nclass Bad { public: int x : 3; };"
+    )
     assert len(errors) == 1
     assert "Bad::x" in errors[0]

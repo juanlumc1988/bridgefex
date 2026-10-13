@@ -101,6 +101,12 @@ def verify(
                 # file of the user's such as time.h would also replace <time.h>.
                 "-iquote",
                 str(include_dirs[header.stem]),
+                # The headers of the value structs of other headers that it uses.
+                *(
+                    argument
+                    for other in header.foreign_headers
+                    for argument in ("-iquote", str(include_dirs[other.stem]))
+                ),
                 *(f"-I{directory}" for directory in options.include_dirs),
                 *(f"-D{definition}" for definition in options.defines),
                 *_without_werror(options.extra_args),

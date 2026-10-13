@@ -1,0 +1,4 @@
+# Options passed to bridgefex for this case.
+module = "vals"
+headers = ["geo.h", "route.h"]
+std = "c++17"

@@ -37,6 +37,13 @@ constexpr decltype(sizeof 0) new_alignment = alignof(::max_align_t);
 // Stores a copy of message as the last error of the calling thread.
 void set_last_error(const char* message) noexcept;
 
+// Thrown by the conversions of the generated code when a value cannot be
+// passed to C++ (a member of an enum without a fixed underlying type that is
+// out of its range); guard() turns it into SCALARS_ERROR_INVALID_ARGUMENT.
+struct argument_error {
+    const char* message;
+};
+
 inline scalars_status null_argument(const char* message) noexcept
 {
     set_last_error(message);
@@ -111,6 +118,9 @@ scalars_status guard(const Function& function)
     } catch (__cxxabiv1::__forced_unwind&) {
         throw;
 #endif
+    } catch (const argument_error& error) {
+        set_last_error(error.message);
+        return SCALARS_ERROR_INVALID_ARGUMENT;
     } catch (const std::bad_alloc& error) {
         set_last_error(error.what());
         return SCALARS_ERROR_OUT_OF_MEMORY;
