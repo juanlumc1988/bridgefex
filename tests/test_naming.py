@@ -83,6 +83,9 @@ def test_python_and_member_names() -> None:
     assert naming.python_name("from") == "from_"
     assert naming.python_name("match") == "match"  # soft keywords are valid names
     assert naming.member_name("close") == "close_"
+    # Methods that the constructors and close() of every class call.
+    assert naming.member_name("_watch") == "_watch_"
+    assert naming.member_name("_collected") == "_collected_"
     assert naming.member_name("create_int32", reserved={"create_int32"}) == "create_int32_"
     assert naming.member_name("value") == "value"
 

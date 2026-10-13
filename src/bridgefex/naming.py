@@ -75,13 +75,15 @@ RESERVED_PARAMETER_NAMES = (
 # Members that every generated Python class defines.
 RESERVED_MEMBER_NAMES = frozenset(
     """
-    close _adopt _ptr _handle _finalizer _owned __init__ __enter__ __exit__ __copy__
-    __deepcopy__ __reduce__ __slots__ __weakref__
+    close _watch _adopt _ptr _collected _handle _finalizer _owned __init__ __enter__ __exit__
+    __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
     """.split()
 )
 
 # Globals of every generated per-header Python module, and the builtins that
-# close() names directly (it cannot use _builtins at interpreter exit).
+# close() names directly (it cannot use _builtins at interpreter exit). weakref,
+# _sys, _watch and _watchers are not generated any more, but stay reserved so
+# that the names already given to C++ declarations do not change.
 MODULE_GLOBALS = frozenset(
     """
     ctypes weakref threading _builtins _sys _runtime _lib _bind _bind_lock _watch _watchers
