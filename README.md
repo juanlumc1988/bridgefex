@@ -69,6 +69,7 @@ Requirements:
 - Python 3.12 or newer.
 - **libclang 20**, including the clang resource headers (e.g. `stddef.h`).
   - Ubuntu 24.04: `sudo apt install libclang1-20 libclang-common-20-dev`
+  - WSL2 with Ubuntu 24.04: [`scripts/setup-wsl.sh`](scripts/setup-wsl.sh) installs this and everything the tests need (see Development).
   - Windows: the official LLVM 20 installer, which installs `C:\Program Files\LLVM\bin\libclang.dll`.
   - Elsewhere: any LLVM 20 installation. Use `--libclang PATH` or the `BRIDGEFEX_LIBCLANG` environment variable if it is not found.
 - To build the generated code: any C++11 compiler (GCC, Clang, MSVC).
@@ -272,6 +273,14 @@ ruff check . && ruff format --check . && mypy
 - **Verification**: before writing anything, bridgefex compiles the generated C++ sources against your headers and the C headers as C23 and as strict C99, with libclang, and compiles and imports the generated Python package.
 - **Native tests** check the thread-local last error, thread cancellation, the alignment check, unity builds and their glibc check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
 - Set `BRIDGEFEX_SKIP_NATIVE_TESTS=1` to skip the tests that need a compiler.
+
+On WSL2 with Ubuntu 24.04 (for example from VS Code with the WSL extension), [`scripts/setup-wsl.sh`](scripts/setup-wsl.sh) installs the system dependencies: git, GCC 14, Clang 20, libclang 20 with its resource headers and Python 3.12 with `venv`; `--with-arm` adds the GCC 14 cross compilers for 32-bit ARM (`arm-linux-gnueabihf-g++-14`). It also sets `CC=gcc-14` and `CXX=g++-14` in `~/.bashrc`, as the CI does. Then, in a clone kept in the Linux file system (not under `/mnt/c`):
+
+```sh
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -e '.[dev]'
+pytest
+```
 
 Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh), which installs libclang 20, the compilers and the virtual environment.
 
