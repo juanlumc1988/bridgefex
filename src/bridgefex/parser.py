@@ -32,6 +32,8 @@ from .model import (
     CallbackArgument,
     CallbackType,
     Class,
+    ClassForm,
+    ClassRef,
     Constructor,
     ContainerKind,
     ContainerType,
@@ -504,11 +506,25 @@ def _forwards_to(alias: cindex.Cursor, name: str) -> bool:
     return True
 
 
-def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
-    """A use of a value struct (through any alias).
+@dataclass(frozen=True, slots=True)
+class _UserRecord:
+    """A class type of the user's code, found through any alias."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    system: bool
+    is_struct: bool | None
+    """True for a value struct, False for a class (a handle), None if the
+    definition is not seen."""
+
+
+def _user_record(clang_type: cindex.Type) -> _UserRecord:
+    """The class or struct that a type names.
 
     Raises:
-        typemap.UnsupportedTypeError: a class that cannot be passed by value.
+        typemap.UnsupportedTypeError: a type that is neither (a union, a class
+            of the standard library, an anonymous class, a template...).
     """
     spelling = str(clang_type.spelling)
     if clang_type.is_volatile_qualified():
@@ -524,10 +540,6 @@ def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
     ):
         raise typemap.UnsupportedTypeError(f"'{spelling}': {_NOT_BY_VALUE}")
     definition = declaration.get_definition()
-    if definition is not None and not is_value_struct(definition):
-        raise typemap.UnsupportedTypeError(
-            f"'{spelling}': {_NOT_BY_VALUE} (only structs with public data members are)"
-        )
     parts = [str(declaration.spelling)]
     parent = declaration.semantic_parent
     while parent is not None and parent.kind != CursorKind.TRANSLATION_UNIT:
@@ -536,13 +548,79 @@ def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef:
         if parent.kind == CursorKind.NAMESPACE:
             parts.append(str(parent.spelling))
         parent = parent.semantic_parent
-    return StructRef(
+    return _UserRecord(
         usr=str(declaration.get_usr()),
         qualified_name="::".join(reversed(parts)),
         definition=_location(definition.location) if definition is not None else None,
-        by_reference=by_reference,
         system=bool(declaration.location.is_in_system_header),
+        is_struct=is_value_struct(definition) if definition is not None else None,
     )
+
+
+def _struct_ref(clang_type: cindex.Type, *, by_reference: bool) -> StructRef | ClassRef:
+    """A use, by value or as a const reference, of a value struct (through any
+    alias), or of a class: a copy of the object.
+
+    Raises:
+        typemap.UnsupportedTypeError: a class that cannot be passed by value.
+    """
+    record = _user_record(clang_type)
+    if record.is_struct is False:
+        form = ClassForm.CONST_REFERENCE if by_reference else ClassForm.VALUE
+        return ClassRef(record.usr, record.qualified_name, record.definition, form, record.system)
+    return StructRef(
+        usr=record.usr,
+        qualified_name=record.qualified_name,
+        definition=record.definition,
+        by_reference=by_reference,
+        system=record.system,
+    )
+
+
+def _class_ref(pointee: cindex.Type, form: ClassForm, what: str) -> ClassRef:
+    """A pointer, a reference or a ``std::unique_ptr`` to a class.
+
+    Raises:
+        typemap.UnsupportedTypeError: a value struct or another type.
+    """
+    record = _user_record(pointee)
+    if record.is_struct:
+        raise typemap.UnsupportedTypeError(
+            f"{what} are not supported yet for the value struct '{record.qualified_name}' "
+            "(pass it by value or as a const reference)"
+        )
+    return ClassRef(record.usr, record.qualified_name, record.definition, form, record.system)
+
+
+def _unique_ptr(unique: cindex.Type) -> ClassRef:
+    """A ``std::unique_ptr<T>`` (the default deleter only) of a class.
+
+    Raises:
+        typemap.UnsupportedTypeError: any other unique_ptr.
+    """
+    canonical = unique.get_canonical()
+    spelling = str(unique.spelling)
+    if int(canonical.get_num_template_arguments()) != 2:
+        raise typemap.UnsupportedTypeError(f"cannot read the element type of '{spelling}'")
+    element = canonical.get_template_argument_type(0).get_canonical()
+    deleter = canonical.get_template_argument_type(1).get_canonical()
+    if (
+        _std_record_name(deleter) != "default_delete"
+        or int(deleter.get_num_template_arguments()) != 1
+        or deleter.get_template_argument_type(0).get_canonical() != element
+    ):
+        raise typemap.UnsupportedTypeError(
+            f"'{spelling}': std::unique_ptr with a custom deleter is not supported"
+        )
+    if element.kind != TypeKind.RECORD:
+        raise typemap.UnsupportedTypeError(
+            f"'{spelling}': only std::unique_ptr of a class is supported"
+        )
+    if element.is_const_qualified():
+        raise typemap.UnsupportedTypeError(
+            f"'{spelling}': std::unique_ptr of a const class is not supported"
+        )
+    return _class_ref(element, ClassForm.UNIQUE, "std::unique_ptrs")
 
 
 def _enum_ref(clang_type: cindex.Type) -> EnumRef:
@@ -830,6 +908,9 @@ class _Visitor:
             string = string_type(clang_type)
             if string is not None:
                 return string
+            class_ref = self._class_type(clang_type, is_result=is_result)
+            if class_ref is not None:
+                return class_ref
             by_reference = rvalue_reference = False
             if (
                 clang_type.kind == TypeKind.RVALUEREFERENCE
@@ -895,6 +976,60 @@ class _Visitor:
         except ValueError:
             self._error(cursor, f"{context}: type '{spelling}' is unknown to the libclang bindings")
         return None
+
+    @staticmethod
+    def _class_type(clang_type: cindex.Type, *, is_result: bool) -> ClassRef | None:
+        """A pointer or reference to a class, or a ``std::unique_ptr`` of one
+        (the wrapped classes are matched by the plan); None for any other type.
+
+        Raises:
+            typemap.UnsupportedTypeError: a form that is not supported.
+        """
+        canonical = clang_type.get_canonical()
+        kind = canonical.kind
+        if kind == TypeKind.RECORD:
+            record = canonical
+        elif kind in (TypeKind.POINTER, TypeKind.LVALUEREFERENCE, TypeKind.RVALUEREFERENCE):
+            record = canonical.get_pointee()
+            if record.get_canonical().kind != TypeKind.RECORD:
+                return None  # int*, void*, function pointers...
+        else:
+            return None
+        std_name = _std_record_name(record)
+        spelling = str(clang_type.spelling)
+        if std_name in ("shared_ptr", "weak_ptr"):
+            raise typemap.UnsupportedTypeError(
+                f"std::{std_name} is not supported yet; use std::unique_ptr, a reference or "
+                "a pointer"
+            )
+        if std_name == "unique_ptr":
+            if kind == TypeKind.RVALUEREFERENCE and not is_result:
+                return _unique_ptr(record)
+            if kind == TypeKind.RECORD:
+                return _unique_ptr(record)
+            what = "a pointer to" if kind == TypeKind.POINTER else "a reference to"
+            raise typemap.UnsupportedTypeError(
+                f"'{spelling}': {what} a std::unique_ptr is not supported; take it by value "
+                "(or as std::unique_ptr&&) to transfer ownership"
+            )
+        if std_name is not None or kind == TypeKind.RECORD:
+            return None  # containers, std::function...: or a class by value, below
+        if canonical.is_volatile_qualified() or record.is_volatile_qualified():
+            raise typemap.UnsupportedTypeError("volatile-qualified types are not supported")
+        constant = record.is_const_qualified()
+        if kind == TypeKind.RVALUEREFERENCE:
+            if _user_record(record).is_struct:
+                return None  # a value struct: reported with the other references
+            raise typemap.UnsupportedTypeError(
+                f"'{spelling}': rvalue references to a class are not supported; take it by "
+                "value, by reference or as a std::unique_ptr"
+            )
+        if kind == TypeKind.LVALUEREFERENCE:
+            if constant:
+                return None  # a copy, like the value: see _struct_ref
+            return _class_ref(record, ClassForm.REFERENCE, "non-const references")
+        form = ClassForm.CONST_POINTER if constant else ClassForm.POINTER
+        return _class_ref(record, form, "pointers")
 
     def _parameters(self, cursor: cindex.Cursor, where: str) -> tuple[Parameter, ...] | None:
         function_type = cursor.type.get_canonical()
@@ -998,6 +1133,10 @@ class _Visitor:
         element = self._type(element_type, cursor, f"element of {context}", allow_void=False)
         if element is None:
             return None
+        if isinstance(element, ClassRef):
+            raise typemap.UnsupportedTypeError(
+                f"std::{name} of a wrapped class ('{element_type.spelling}') is not supported yet"
+            )
         if isinstance(element, ContainerType | CallbackType) or (
             isinstance(element, StringType) and element.kind is not StringKind.STRING
         ):
@@ -1018,8 +1157,9 @@ class _Visitor:
         *,
         is_result: bool,
         by_reference: bool,
-    ) -> ContainerType | CallbackType | StructRef | None:
-        """A class type: a std container, a std::function or a value struct."""
+    ) -> ContainerType | CallbackType | StructRef | ClassRef | None:
+        """A class type: a std container, a std::function, a value struct or a
+        wrapped class (a copy)."""
         std_name = _std_record_name(clang_type)
         if std_name in _CONTAINERS:
             return self._container(clang_type, std_name, cursor, context, by_reference=by_reference)
@@ -1503,6 +1643,9 @@ class _Visitor:
         if isinstance(type_, CallbackType):
             self._error(field, f"{where}: std::function in value structs is not supported yet")
             return None
+        if isinstance(type_, ClassRef):
+            self._error(field, f"{where}: wrapped classes in value structs are not supported yet")
+            return None
         location = _location(field.location)
         assert location is not None
         field_type: FieldType = type_
@@ -1553,6 +1696,7 @@ class _Visitor:
             tuple(methods),
             location,
             tuple(enums),
+            str(cursor.get_usr()),
         )
 
     def _parse_members(

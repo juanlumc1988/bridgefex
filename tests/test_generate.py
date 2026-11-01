@@ -818,3 +818,133 @@ def test_spans_that_convert_their_elements_call_the_span_overload(tmp_path: Path
         "overloads.h",
     )
     bridgefex.generate([overloads], bridgefex.Options("mod", std="c++20"))
+
+
+# Wrapped classes as parameters ------------------------------------------------------
+
+
+@pytest.mark.parametrize("include", ['#include "a.h"', "namespace a { class N; }"])
+def test_classes_of_another_header(tmp_path: Path, include: str) -> None:
+    """The source of b.h includes the header that defines the class, also when
+    b.h only declares it (the verification compiles it, with the class complete
+    for the copy)."""
+    first = write_header(
+        tmp_path,
+        "#pragma once\nnamespace a { class N { public: N(); N(const N&); int v() const; }; }\n",
+        "a.h",
+    )
+    second = write_header(
+        tmp_path,
+        f"#pragma once\n{include}\nnamespace b {{\n"
+        "int f(a::N& n);\nint f(const a::N& n);\nint g(const a::N* n);\nint h(a::N* n);\n"
+        "int copy(const a::N& n);\n}\n",
+        "b.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    assert '#include "a.h"' in result.files["c/b_c.cpp"]
+    declarations = result.files["c/b_c.h"]
+    for name in ("b_f_a_N_ref", "b_f_a_N", "b_g", "b_h"):
+        assert f" {name}(" in declarations, name
+    assert "from . import a as _a" in result.files["python/mod/b.py"]
+
+
+def test_a_class_by_value_must_be_copyable(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace k { class Pinned { public: Pinned(); Pinned(const Pinned&) = delete; };\n"
+        "int f(Pinned p);\nint g(const Pinned& p); }",
+    )
+    assert "parameter 'p' takes k::Pinned by value, which cannot be copied" in error
+    # Reported at the declaration of the function, not in the generated code.
+    assert "api.h:6" in error
+    assert "api_c.cpp" not in error
+
+
+def test_a_class_that_no_wrapped_header_defines(tmp_path: Path) -> None:
+    other = write_header(tmp_path, "namespace k { class Hidden { public: int v(); }; }", "other.h")
+    del other
+    error = error_of(tmp_path, '#include "other.h"\nnamespace k { int f(Hidden& h); }')
+    assert "class 'k::Hidden' is not a class of this module: it is defined in" in error
+    assert "other.h" in error
+    assert "which is not one of the wrapped headers" in error
+
+
+def test_a_class_by_value_and_by_const_reference_are_the_same_overload(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace k { class N { public: N(); N(const N&); };\nint f(N n);\nint f(const N& n); }",
+    )
+    assert "the C name 'k_f_k_N'" in error
+    assert "clashes" in error
+
+
+def test_classes_and_pointers_of_the_standard_library_are_not_wrapped(tmp_path: Path) -> None:
+    declarations = ("void f(std::mutex& m);", "void f(std::mutex* m);", "void f(std::mutex m);")
+    for declaration in declarations:
+        error = error_of(tmp_path, "#include <mutex>\nnamespace k { " + declaration + " }")
+        assert "not supported" in error
+
+
+# Wrapped classes as results -----------------------------------------------------------
+
+_PINNED = (
+    "namespace k { class Pinned { public: Pinned(); Pinned(const Pinned&) = delete;"
+    " Pinned(Pinned&&) = delete; int answer() const; };\nPinned make(); }"
+)
+
+
+@pytest.mark.parametrize("std", ["c++11", "c++14"])
+def test_a_class_that_cannot_be_moved_is_returned_by_value_since_cxx17(
+    tmp_path: Path, std: str
+) -> None:
+    error = error_of(tmp_path, _PINNED, std)
+    assert "k::Pinned is returned by value but cannot be moved" in error
+    assert "compile this file as C++17 or later" in error
+
+
+@pytest.mark.parametrize("std", ["c++17", "c++20"])
+def test_guaranteed_elision_returns_a_class_that_cannot_be_moved(tmp_path: Path, std: str) -> None:
+    result = generate(tmp_path, _PINNED, std)
+    assert "new ::k::Pinned(::k::make())" in result.files["c/api_c.cpp"]
+
+
+def test_a_class_that_is_only_returned_by_reference_needs_no_move(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace k { class Pinned { public: Pinned(); Pinned(const Pinned&) = delete;"
+        " Pinned(Pinned&&) = delete; };\nPinned& get(); const Pinned& cget(); }",
+        "c++11",
+    )
+    assert "is_move_constructible" not in result.files["c/api_c.cpp"]
+
+
+def test_the_classes_of_other_headers_as_results(tmp_path: Path) -> None:
+    first = write_header(
+        tmp_path,
+        "#pragma once\nnamespace a { class N { public: N(); int v() const; }; }\n",
+        "a.h",
+    )
+    second = write_header(
+        tmp_path,
+        "#pragma once\n#include <memory>\nnamespace a { class N; }\nnamespace b {\n"
+        "a::N make();\nstd::unique_ptr<a::N> maybe();\na::N& ref(a::N& n);\n"
+        "const a::N& cref();\n}\n",
+        "b.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    assert '#include "a.h"' in result.files["c/b_c.cpp"]
+    python = result.files["python/mod/b.py"]
+    assert "_result = _a.N.__new__(_a.N)" in python
+    assert "_runtime.borrow(_a.N, _out, (n,), False)" in python
+
+
+def test_a_result_class_that_no_wrapped_header_defines(tmp_path: Path) -> None:
+    write_header(tmp_path, "namespace k { class Hidden { public: int v(); }; }", "other.h")
+    error = error_of(tmp_path, '#include "other.h"\nnamespace k { Hidden& get(); }')
+    assert "class 'k::Hidden' is not a class of this module" in error
+
+
+def test_raw_pointer_results_need_an_annotation(tmp_path: Path) -> None:
+    error = error_of(tmp_path, "namespace k { class N { public: N(); }; N* find(); }")
+    assert "returns a raw pointer to the wrapped class 'k::N'" in error
+    assert "annotations" in error

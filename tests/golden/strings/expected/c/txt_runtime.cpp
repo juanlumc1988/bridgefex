@@ -105,7 +105,7 @@ extern "C" const char* txt_last_error(void)
 
 extern "C" const char* txt_api_fingerprint(void)
 {
-    return "58fe4637df1cdfa4562254ba27a832b2";
+    return "7685cc33b658614f5e14c39d88bc8f75";
 }
 
 extern "C" void txt_free(void* memory)

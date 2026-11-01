@@ -19,6 +19,8 @@ from .errors import Diagnostic, GenerationError, Location
 from .model import (
     CallbackType,
     Class,
+    ClassForm,
+    ClassRef,
     ContainerKind,
     ContainerType,
     ElementType,
@@ -135,6 +137,10 @@ class CFunction:
     """Declarations before the checks: the owners of the callbacks, which
     release them on every return."""
 
+    notes: tuple[str, ...] = ()
+    """What the C header says besides the declaration: who owns the objects that
+    cross (they are part of the API, so they are part of its fingerprint)."""
+
     @property
     def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
         """Each NULL check of an output that the function allocates, with its reset."""
@@ -162,6 +168,19 @@ class PyArg:
     registers it in the call's scope, after every conversion (which may fail)
     and right before the call."""
 
+    imports: tuple[str, ...] = ()
+    """The header modules (stems) of other headers whose classes the conversions
+    name, as ``_<stem>``: imported when the function runs, so that header modules
+    never import each other at module level."""
+
+    retain: bool = False
+    """The C++ object keeps a pointer to this argument (a wrapped object): the
+    Python object that owns the C++ one keeps the argument alive."""
+
+    borrowable: bool = False
+    """A reference or a pointer to a wrapped object: what a function without
+    ``self`` returns by reference is borrowed from its arguments."""
+
 
 @dataclass(frozen=True, slots=True)
 class PyResult:
@@ -182,6 +201,13 @@ class PyResult:
     """Statements that release the allocated outputs, inline: a Python function
     call before the release would let a second pending signal (Ctrl-C) raise
     first and leak them."""
+
+    imports: tuple[str, ...] = ()
+    """Like :attr:`PyArg.imports`, for the class of a result."""
+
+    finish: tuple[str, ...] = ()
+    """Statements after the call, before the value is returned: they hand the
+    object that the C function created to the Python object that owns it."""
 
 
 _NO_RESULT = PyResult()
@@ -206,9 +232,27 @@ class PyCallable:
     def registrations(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
         return tuple(arg.registration for arg in self.args if arg.registration is not None)
 
-    def check_call(self, indent: int, before_call: Sequence[str] = ()) -> str:
-        """The argument conversions, the ``before_call`` statements, then the C
-        call wrapped in ``_runtime.check``, indented by ``indent`` spaces.
+    @property
+    def imports(self) -> tuple[str, ...]:
+        """The ``from . import`` statements of the modules of other headers."""
+        stems = dict.fromkeys(stem for arg in self.args for stem in arg.imports)
+        stems.update(dict.fromkeys(self.result.imports))
+        return tuple(f"from . import {stem} as _{stem}" for stem in stems)
+
+    def retain_statements(self, owner: str) -> tuple[str, ...]:
+        """The statements that make ``owner`` (``self`` or ``_self``) keep alive
+        the arguments that the C++ object keeps a pointer to, before the call:
+        on failure the C++ code may already have stored them."""
+        return tuple(
+            f"_runtime.retain({owner}._retained, {arg.name})" for arg in self.args if arg.retain
+        )
+
+    def check_call(
+        self, indent: int, before_call: Sequence[str] = (), *, with_imports: bool = True
+    ) -> str:
+        """The imports (``with_imports``), the argument conversions, the
+        ``before_call`` statements, then the C call wrapped in
+        ``_runtime.check``, indented by ``indent`` spaces.
 
         The conversions run Python code (``__index__``, ``__float__``), which
         could close the object: they come before ``self._ptr()``, after which
@@ -216,7 +260,8 @@ class PyCallable:
         by reference itself, without a call to ``ctypes.byref``).
         """
         pad = " " * indent
-        lines = [f"{pad}{line}" for arg in self.args for line in arg.conversions]
+        lines = [f"{pad}{line}" for line in self.imports if with_imports]
+        lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
         if self.registrations:
             lines.append(self._scoped_call(indent, before_call))
             return "\n".join(lines)
@@ -278,12 +323,12 @@ class PyCallable:
         """Statements of a method or function that calls the C function."""
         pad = " " * indent
         result = self.result
-        lines = [f"{pad}{line}" for line in result.setup]
+        lines = [f"{pad}{line}" for line in (*self.imports, *result.setup)]
         if self.registrations:
             lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
             lines.append(self._scoped_call(indent, read=result.read, cleanup=result.cleanup))
         elif result.read is None:
-            lines.append(self.check_call(indent))
+            lines.append(self.check_call(indent, with_imports=False))
         else:
             # The conversions stay out of the 'try': nothing is allocated yet.
             inner = " " * (indent + 4)
@@ -293,6 +338,7 @@ class PyCallable:
             lines.append(f"{inner}{result.read}")
             lines.append(f"{pad}finally:")
             lines += [f"{inner}{line}" for line in result.cleanup]
+        lines += [f"{pad}{line}" for line in result.finish]
         if result.value is not None:
             lines.append(f"{pad}return {result.value}")
         return "\n".join(lines)
@@ -322,6 +368,9 @@ class LoweredParam:
     probe: str | None = None
     """An expression of the argument's type and value category, for unevaluated
     operands, when ``argument`` cannot appear there: a lambda before C++20."""
+
+    compile_checks: tuple[str, ...] = ()
+    """static_asserts for this parameter, at the start of the C function."""
 
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
@@ -366,6 +415,9 @@ class LoweredResult:
 
     resets: tuple[str, ...] = ()
     """Statements that reset those outputs, so they are NULL on every failure."""
+
+    notes: tuple[str, ...] = ()
+    """For the C header: who owns the result (see :attr:`CFunction.notes`)."""
 
 
 # How each C type spells its constants: a suffix, or a macro of <stdint.h>.
@@ -572,6 +624,24 @@ class HeaderPlan:
     foreign_headers: tuple[HeaderPlan, ...] = ()
     """The other headers whose value structs this header's functions use: the
     generated source includes them and their conversions."""
+
+    foreign_class_headers: tuple[HeaderPlan, ...] = ()
+    """The other headers whose classes this header's functions use: the
+    generated source includes them, so that the classes are complete there."""
+
+    created_classes: tuple[tuple[str, str], ...] = ()
+    """The (C++ name, qualified name) of the classes that the generated source
+    creates with ``new``: those of this header, and those that its functions
+    return by value (which may belong to another header)."""
+
+    value_results: tuple[tuple[str, str], ...] = ()
+    """The same, for the classes that its functions return by value."""
+
+    @property
+    def included_headers(self) -> tuple[HeaderPlan, ...]:
+        """The other wrapped headers that the generated source includes."""
+        others = {plan.stem: plan for plan in (*self.foreign_headers, *self.foreign_class_headers)}
+        return tuple(others.values())
 
     @property
     def structs(self) -> tuple[StructPlan, ...]:
@@ -801,6 +871,27 @@ _INT_MAX = 2**31 - 1
 
 
 @dataclass(frozen=True, slots=True)
+class _ClassInfo:
+    """A class of the module, as the uses of it in any header name it."""
+
+    model: Class
+    header: Header
+    c_type: str
+    py_name: str
+    """Its name in the module of its header."""
+
+    @property
+    def cpp_name(self) -> str:
+        return "::" + self.model.qualified_name
+
+    @property
+    def pointer_name(self) -> str:
+        # '__' separates the role from the C name: C names never contain it, so
+        # the class X_p cannot take the pointer type of X.
+        return f"_{self.c_type}__p"
+
+
+@dataclass(frozen=True, slots=True)
 class _Element:
     """How the elements of a container cross the boundary."""
 
@@ -866,20 +957,37 @@ def _spelling(type_: Type) -> str:
     return type_.cpp_spelling
 
 
-def _token(type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str]) -> str:
-    """Name of a type in overload suffixes: the C type name for an enum or a struct."""
+_CLASS_TOKEN_SUFFIXES = {
+    ClassForm.VALUE: "",
+    ClassForm.CONST_REFERENCE: "",
+    ClassForm.REFERENCE: "_ref",
+    ClassForm.POINTER: "_ptr",
+    ClassForm.CONST_POINTER: "_cptr",
+    ClassForm.UNIQUE: "_unique",
+}
+
+
+def _token(
+    type_: Type, enums: dict[str, EnumPlan], structs: dict[str, str], classes: dict[str, str]
+) -> str:
+    """Name of a type in overload suffixes: the C type name for an enum, a struct
+    or a class (with a suffix for a reference, a pointer or a std::unique_ptr:
+    ``f(T&)`` and ``f(const T&)`` are different overloads)."""
     if isinstance(type_, EnumRef):
         enum = enums.get(type_.usr)
         return enum.c_type if enum is not None else "enum"
     if isinstance(type_, StructRef):
-        return structs.get(type_.usr, "struct")
+        # A class that the header only declares is seen as a struct.
+        return structs.get(type_.usr) or classes.get(type_.usr, "struct")
+    if isinstance(type_, ClassRef):
+        return classes.get(type_.usr, "class") + _CLASS_TOKEN_SUFFIXES[type_.form]
     if isinstance(type_, ContainerType):
-        element = _token(type_.element, enums, structs)
+        element = _token(type_.element, enums, structs, classes)
         if type_.kind is ContainerKind.ARRAY:
             return f"array{type_.length}_{element}"
         return f"{type_.kind.value}_{element}"
     if isinstance(type_, CallbackType):
-        parts = [_token(part, enums, structs) for part in (type_.result, *type_.arguments)]
+        parts = [_token(part, enums, structs, classes) for part in (type_.result, *type_.arguments)]
         return "_".join(["function", *parts])
     return type_.token
 
@@ -1003,8 +1111,30 @@ class _Builder:
             if isinstance(declaration, Class)
         }
         self._structs = self._collect_structs(module)
-        # Per header stem, the headers whose structs its functions use.
+        # Every class of the module, by USR: a header can use the classes of the others.
+        self._classes: dict[str, _ClassInfo] = {}
+        for header in module.headers:
+            for declaration in header.declarations:
+                if isinstance(declaration, Class):
+                    prefix = naming.c_prefix(declaration.namespace, module.name)
+                    self._classes.setdefault(
+                        declaration.usr,
+                        _ClassInfo(
+                            declaration,
+                            header,
+                            f"{prefix}_{declaration.name}",
+                            naming.module_level_name(declaration.name),
+                        ),
+                    )
+        self._class_c_types = {usr: info.c_type for usr, info in self._classes.items()}
+        # The header being built: its classes are named directly in Python, those
+        # of the others through their module.
+        self._header: Header | None = None
+        # A parameter named like the module alias of a header would hide it.
+        self._parameter_macros |= {f"_{header.stem}" for header in module.headers}
+        # Per header stem, the headers whose structs or classes its functions use.
         self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
+        self.foreign_class_headers: dict[str, tuple[Header, ...]] = {}
         self.thunks: dict[str, ThunkPlan] = {}
 
     # Bookkeeping -------------------------------------------------------------
@@ -1060,7 +1190,7 @@ class _Builder:
         if self._overloads[key] > 1:
             return naming.overload_suffix(
                 [
-                    _token(parameter.type, self._enums, self._struct_c_types)
+                    _token(parameter.type, self._enums, self._struct_c_types, self._class_c_types)
                     for parameter in parameters
                 ]
             )
@@ -1404,11 +1534,67 @@ class _Builder:
         self.errors.append(Diagnostic(message, location))
         return None
 
+    # Wrapped classes ---------------------------------------------------------------
+
+    def _as_class(self, type_: Type) -> ClassRef | None:
+        """The use of a class that a type is: a ClassRef, or a StructRef (by value
+        or by const reference) of a class that the header only declares."""
+        if isinstance(type_, ClassRef):
+            return type_
+        if isinstance(type_, StructRef) and type_.usr in self._classes:
+            form = ClassForm.CONST_REFERENCE if type_.by_reference else ClassForm.VALUE
+            return ClassRef(type_.usr, type_.qualified_name, type_.definition, form, type_.system)
+        return None
+
+    def _class(self, ref: ClassRef, location: Location) -> _ClassInfo | None:
+        """The class of a reference, or None (reported) if it is no class of the module."""
+        info = self._classes.get(ref.usr)
+        if info is not None:
+            return info
+        name = ref.qualified_name
+        if ref.usr in self._structs:
+            message = (
+                f"'{name}' is a value struct: pointers, non-const references and "
+                "std::unique_ptr of it are not supported yet (pass it by value or as a const "
+                "reference)"
+            )
+        elif ref.system:
+            message = (
+                f"class '{name}' of a system header is not a class of this module "
+                "(it is not one of the wrapped headers)"
+            )
+        elif ref.definition is None:
+            message = (
+                f"class '{name}' is not a class of this module: no wrapped header defines it "
+                "(wrap the header that does)"
+            )
+        else:
+            message = (
+                f"class '{name}' is not a class of this module: it is defined in "
+                f"{ref.definition.file}, which is not one of the wrapped headers"
+            )
+        self.errors.append(Diagnostic(message, location))
+        return None
+
+    def _py_class(self, info: _ClassInfo) -> tuple[str, tuple[str, ...]]:
+        """The Python expression of a class, and the module (stem) to import
+        for it when it belongs to another header."""
+        if self._header is None or info.header is self._header:
+            return info.py_name, ()
+        return f"_{info.header.stem}.{info.py_name}", (info.header.stem,)
+
     # Lowering: how each type crosses the boundary --------------------------------
 
     def _lower_params(
-        self, parameters: Sequence[Parameter], location: Location, reserved: Iterable[str] = ()
+        self,
+        parameters: Sequence[Parameter],
+        location: Location,
+        reserved: Iterable[str] = (),
+        *,
+        retain_references: bool = False,
     ) -> list[LoweredParam]:
+        """``retain_references``: the C++ object keeps the references and pointers
+        to wrapped classes that it is given (a constructor)."""
         callbacks = [
             parameter.type for parameter in parameters if isinstance(parameter.type, CallbackType)
         ]
@@ -1445,8 +1631,18 @@ class _Builder:
                     )
                 )
             else:
-                lowered.append(self._lower_param(name, sizes[position], type_, location))
+                param = self._lower_param(name, sizes[position], type_, location)
+                if retain_references and self._keeps_pointer(type_):
+                    param = dataclasses.replace(
+                        param, py=dataclasses.replace(param.py, retain=True)
+                    )
+                lowered.append(param)
         return lowered
+
+    def _keeps_pointer(self, type_: Type) -> bool:
+        """True for a reference or a pointer to a class: not for a copy."""
+        ref = self._as_class(type_)
+        return ref is not None and ref.form not in (ClassForm.VALUE, ClassForm.UNIQUE)
 
     def _lower_param(
         self, name: str, size: str | None, type_: Type, location: Location
@@ -1456,6 +1652,10 @@ class _Builder:
             return self._lower_string_param(name, size, type_)
         if isinstance(type_, EnumRef):
             return self._lower_enum_param(name, self._enum(type_, location))
+        class_ref = self._as_class(type_)
+        if class_ref is not None:
+            return self._lower_class_param(name, class_ref, location)
+        assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
             return self._lower_struct_param(name, type_, self._struct(type_, location))
         if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
@@ -1730,6 +1930,55 @@ class _Builder:
                 ),
             ),
             call_args=(name, size),
+        )
+
+    def _lower_class_param(self, name: str, ref: ClassRef, location: Location) -> LoweredParam:
+        """A wrapped class: a handle, which is a copy for ``T``, else the object itself."""
+        info = self._class(ref, location)
+        if info is None:  # reported
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        if ref.form is ClassForm.UNIQUE:
+            self.errors.append(
+                Diagnostic("std::unique_ptr parameters are not supported yet", location)
+            )
+            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        constant = ref.form in (ClassForm.VALUE, ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
+        qualifier = "const " if constant else ""
+        pointer = f"reinterpret_cast<{qualifier}{info.cpp_name}*>({name})"
+        is_pointer = ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER)
+        checks: list[str] = []
+        if ref.form is ClassForm.VALUE:
+            # The copy is made by the call; the compiler's error would be a template one.
+            message = (
+                f"parameter '{name}' takes {info.model.qualified_name} by value, which cannot "
+                "be copied; take it by reference"
+            )
+            checks.append(
+                f"static_assert(std::is_copy_constructible<{info.cpp_name}>::value,\n"
+                f'                  "{message}");'
+            )
+        py_class, imports = self._py_class(info)
+        accessor = "_ptr" if constant else "_mptr"
+        return LoweredParam(
+            c_params=(
+                CParam(
+                    name,
+                    f"{qualifier}{info.c_type}*",
+                    Role.INPUT,
+                    f"_types.{info.pointer_name}",
+                ),
+            ),
+            argument=pointer if is_pointer else f"*{pointer}",
+            null_checks=(_null_check(name),),
+            value_checks=(),
+            py=PyArg(
+                name,
+                (f'_runtime.check_object({name}, {py_class}, "{name}")',),
+                imports=imports,
+                borrowable=ref.form is not ClassForm.VALUE,
+            ),
+            call_args=(f"{name}.{accessor}()",),
+            compile_checks=tuple(checks),
         )
 
     def _lower_enum_param(self, name: str, enum: EnumPlan | None) -> LoweredParam:
@@ -2065,6 +2314,93 @@ class _Builder:
             call_args=("_out",),
         )
 
+    def _lower_class_result(
+        self, ref: ClassRef, location: Location, owners: str, is_method: bool
+    ) -> LoweredResult:
+        """A wrapped class: a new object that the caller owns (by value, or in a
+        std::unique_ptr), or a reference to one that the C++ code owns."""
+        info = self._class(ref, location)
+        placeholder = LoweredResult((), "{call};", (), _NO_RESULT, ())
+        if info is None:  # reported
+            return placeholder
+        if ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER):
+            self.errors.append(
+                Diagnostic(
+                    f"returns a raw pointer to the wrapped class '{ref.qualified_name}': say who "
+                    "owns it in an annotations file (see --annotations)",
+                    location,
+                )
+            )
+            return placeholder
+        py_class, imports = self._py_class(info)
+        pointer = f"_types.{info.pointer_name}"
+        destroy = f"{info.c_type}_destroy"
+        if ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE):
+            constant = ref.form is ClassForm.CONST_REFERENCE
+            qualifier = "const " if constant else ""
+            origin = " from self" if is_method else ""
+            return LoweredResult(
+                c_params=(
+                    CParam(
+                        "out_result",
+                        f"{qualifier}{info.c_type}**",
+                        Role.OUT_RESULT,
+                        f"ctypes.POINTER({pointer})",
+                    ),
+                ),
+                statement=(
+                    f"*out_result = reinterpret_cast<{qualifier}{info.c_type}*>("
+                    f"{self.module.name}_detail::object_address({{call}}));"
+                ),
+                null_checks=(_null_check("out_result"),),
+                py=PyResult(
+                    setup=(f"_out = {pointer}()",),
+                    value=f"_runtime.borrow({py_class}, _out, {owners}, {constant})",
+                    imports=imports,
+                ),
+                call_args=("_out",),
+                notes=(f"*out_result: borrowed{origin}, never NULL; do not destroy it.",),
+            )
+        # An object that the caller owns: the Python object that will own it
+        # exists before the call, and from the moment the C function writes the
+        # handle, its collection destroys the object (see ClassPlan.watch).
+        nullable = ref.form is ClassForm.UNIQUE
+        finish: tuple[str, ...]
+        if nullable:
+            statement = f"*out_result = reinterpret_cast<{info.c_type}*>({{call}}.release());"
+            finish = ("if _out:", "    _result._adopt(_out)")
+            value = "_result if _out else None"
+            note = f"*out_result: owned by the caller (NULL if empty); destroy it with {destroy}."
+        else:
+            statement = (
+                f"*out_result = reinterpret_cast<{info.c_type}*>(new {info.cpp_name}({{call}}));"
+            )
+            finish = ("_result._adopt(_out)",)
+            value = "_result"
+            note = f"*out_result: owned by the caller; destroy it with {destroy}."
+        return LoweredResult(
+            c_params=(
+                CParam(
+                    "out_result",
+                    f"{info.c_type}**",
+                    Role.OUT_RESULT,
+                    f"ctypes.POINTER({pointer})",
+                ),
+            ),
+            statement=statement,
+            null_checks=(),
+            py=PyResult(
+                setup=(f"_result = {py_class}.__new__({py_class})", "_out = _result._watch()"),
+                value=value,
+                finish=finish,
+                imports=imports,
+            ),
+            call_args=("_out",),
+            owned_checks=(_null_check("out_result"),),
+            resets=("*out_result = nullptr;",),
+            notes=(note,),
+        )
+
     def _lower_enum_result(self, enum: EnumPlan | None) -> LoweredResult:
         if enum is None:  # reported
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
@@ -2086,7 +2422,11 @@ class _Builder:
             call_args=("_out",),
         )
 
-    def _lower_result(self, type_: Type, location: Location) -> LoweredResult:
+    def _lower_result(
+        self, type_: Type, location: Location, owners: str = "()", is_method: bool = False
+    ) -> LoweredResult:
+        """``owners``: the Python tuple of the objects that a reference result
+        is borrowed from."""
         assert not isinstance(type_, CallbackType)  # the parser rejects them
         if type_.is_void:
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
@@ -2094,6 +2434,10 @@ class _Builder:
             return self._lower_string_result(type_)
         if isinstance(type_, EnumRef):
             return self._lower_enum_result(self._enum(type_, location))
+        class_ref = self._as_class(type_)
+        if class_ref is not None:
+            return self._lower_class_result(class_ref, location, owners, is_method)
+        assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
             return self._lower_struct_result(self._struct(type_, location))
         if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
@@ -2163,7 +2507,14 @@ class _Builder:
 
         ``call`` is the wrapped call, with ``{arguments}`` where the arguments go.
         """
-        lowered = self._lower_result(result, location)
+        # A reference that a function returns is valid while the objects it
+        # was obtained from are: self, else the objects it was given.
+        if self_param is not None:
+            owners = "(self,)"
+        else:
+            names = [param.py.name for param in params if param.py.borrowable]
+            owners = "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
+        lowered = self._lower_result(result, location, owners, self_param is not None)
         leading = (self_param,) if self_param is not None else ()
         null_checks = [_null_check(param.name) for param in leading]
         for param in params:
@@ -2185,8 +2536,12 @@ class _Builder:
             resets=lowered.resets,
             checks=(*null_checks, *(c for param in params for c in param.value_checks)),
             location=location,
-            compile_checks=_temporaries_check(call, params, f"'{description}'"),
+            compile_checks=(
+                *_temporaries_check(call, params, f"'{description}'"),
+                *(check for param in params for check in param.compile_checks),
+            ),
             prologue=tuple(line for param in params for line in param.prologue),
+            notes=lowered.notes,
         )
         return function, lowered
 
@@ -2246,7 +2601,9 @@ class _Builder:
                 Role.OUT_SELF,
                 f"ctypes.POINTER(_types.{pointer_name})",
             )
-            params = self._lower_params(constructor.parameters, constructor.location)
+            params = self._lower_params(
+                constructor.parameters, constructor.location, retain_references=True
+            )
             arguments = ", ".join(param.argument for param in params)
             description = (
                 f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
@@ -2267,8 +2624,9 @@ class _Builder:
                     *(c for param in params for c in param.value_checks),
                 ),
                 location=constructor.location,
-                compile_checks=_temporaries_check(
-                    f"{cpp_name}({{arguments}})", params, f"'{description}'"
+                compile_checks=(
+                    *_temporaries_check(f"{cpp_name}({{arguments}})", params, f"'{description}'"),
+                    *(check for param in params for check in param.compile_checks),
                 ),
                 prologue=tuple(line for param in params for line in param.prologue),
             )
@@ -2325,7 +2683,7 @@ class _Builder:
                     location=method.location,
                     self_param=self_param(method.is_const),
                 )
-                leading = ("self._ptr()",)
+                leading = ("self._ptr()" if method.is_const else "self._mptr()",)
             py_name = naming.member_name(method.name + suffix, reserved=factory_names)
             if py_name in py_names:
                 self.errors.append(
@@ -2394,6 +2752,10 @@ class _Builder:
             self._reserve_c_name(
                 internal_guard, f"the include guard of the conversions of {header.path}", None
             )
+        self._header = header
+        by_value = self._classes_returned_by_value(header)
+        created = {info.model.usr: info for info in self._classes.values() if info.header is header}
+        created.update({info.model.usr: info for info in by_value})
         items: list[ClassPlan | FunctionPlan | EnumPlan | StructPlan] = []
         for declaration in header.declarations:
             if isinstance(declaration, Class):
@@ -2411,6 +2773,14 @@ class _Builder:
                 if owner is not header:
                     owners.setdefault(owner.stem, owner)
         self.foreign_struct_headers[header.stem] = tuple(owners.values())
+        class_owners: dict[str, Header] = {}
+        for type_ in _components(_header_types(header, fields=False)):
+            ref = self._as_class(type_)
+            if ref is not None and ref.usr in self._classes:
+                owner = self._classes[ref.usr].header
+                if owner is not header:
+                    class_owners.setdefault(owner.stem, owner)
+        self.foreign_class_headers[header.stem] = tuple(class_owners.values())
         foreign: dict[str, EnumPlan] = {}
         for type_ in _components(_header_types(header)):
             if isinstance(type_, EnumRef) and type_.usr in self._enums:
@@ -2426,7 +2796,24 @@ class _Builder:
             guard=guard,
             items=self._assign_module_names(items),
             foreign_enums=tuple(foreign.values()),
+            created_classes=tuple((i.cpp_name, i.model.qualified_name) for i in created.values()),
+            value_results=tuple((i.cpp_name, i.model.qualified_name) for i in by_value),
         )
+
+    def _classes_returned_by_value(self, header: Header) -> list[_ClassInfo]:
+        """The classes of the module that the functions of a header return by value."""
+        found: dict[str, _ClassInfo] = {}
+        for declaration in header.declarations:
+            results: list[Type] = []
+            if isinstance(declaration, Function):
+                results.append(declaration.result)
+            elif isinstance(declaration, Class):
+                results += [method.result for method in declaration.methods]
+            for result in results:
+                ref = self._as_class(result)
+                if ref is not None and ref.form is ClassForm.VALUE and ref.usr in self._classes:
+                    found.setdefault(ref.usr, self._classes[ref.usr])
+        return list(found.values())
 
     def _struct_with_names(self, struct: StructPlan) -> StructPlan:
         """The Python names of a struct's nested enums, which must not take the
@@ -2500,7 +2887,15 @@ class _Builder:
 #      success only; ERROR_INVALID_ARGUMENT for invalid members.
 #   4  std::vector: elements in one block that <module>_free releases, never
 #      NULL on success (1 byte when empty); <module>_string elements.
-C_API_CONVENTIONS = 5
+#   5  std::function: a callback, its user_data and a release function, which
+#      C++ calls once for each callback, whatever the status;
+#      <module>_disable_callbacks.
+#   6  wrapped classes as parameters and results: references and pointers are
+#      handles of the caller's objects; a result by value or in a
+#      std::unique_ptr is a new object that the caller destroys (NULL on every
+#      failure, and for an empty std::unique_ptr); a reference result is
+#      borrowed (never NULL, never destroyed by the caller).
+C_API_CONVENTIONS = 6
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:
@@ -2577,6 +2972,11 @@ def build_plan(module: Module) -> ModulePlan:
                 plans[other.stem]
                 for other in module.headers
                 if other in builder.foreign_struct_headers.get(plan.stem, ())
+            ),
+            foreign_class_headers=tuple(
+                plans[other.stem]
+                for other in module.headers
+                if other in builder.foreign_class_headers.get(plan.stem, ())
             ),
         )
         for plan in headers

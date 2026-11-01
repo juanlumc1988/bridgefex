@@ -24,10 +24,11 @@
 #endif
 #undef {{ P }}_C_API_AFTER_GLIBC
 #endif
-{% for other in h.foreign_headers %}
+{% for other in h.included_headers %}
 {% if loop.first %}
 
-// The headers of the value structs of other headers that this one uses.
+// The headers that define the value structs and the classes of other headers
+// that this one uses.
 {% endif %}
 #include "{{ other.header.include }}"
 {% endfor %}
@@ -80,13 +81,23 @@ static_assert(static_cast<{{ e.model.underlying.c_name if e.model.fixed else "lo
 static_assert(std::is_same<std::underlying_type<{{ e.cpp_name }}>::type, {{ e.model.underlying.c_name }}>::value,
               "{{ e.model.qualified_name }}: the underlying type is not {{ e.model.underlying.c_name }}");
 {% endfor %}
-{% if h.classes %}
+{% if h.created_classes %}
 
 #if !defined(__cpp_aligned_new)
 // Before C++17, new ignores alignments larger than the default one.
-{% for c in h.classes %}
-static_assert(alignof({{ c.cpp_name }}) <= {{ m.detail_namespace }}::new_alignment,
-              "{{ c.model.qualified_name }} is over-aligned: compile this file as C++17 or later");
+{% for cpp_name, name in h.created_classes %}
+static_assert(alignof({{ cpp_name }}) <= {{ m.detail_namespace }}::new_alignment,
+              "{{ name }} is over-aligned: compile this file as C++17 or later");
+{% endfor %}
+#endif
+{% endif %}
+{% if h.value_results %}
+
+#if !((defined(_MSVC_LANG) && _MSVC_LANG >= 201703L) || __cplusplus >= 201703L)
+// Before C++17, a result by value is moved (or copied) into the new object.
+{% for cpp_name, name in h.value_results %}
+static_assert(std::is_move_constructible<{{ cpp_name }}>::value,
+              "{{ name }} is returned by value but cannot be moved: compile this file as C++17 or later");
 {% endfor %}
 #endif
 {% endif %}

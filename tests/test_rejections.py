@@ -89,7 +89,14 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("struct S { char name[8]; };", "char arrays (fixed-size strings) are not supported yet"),
         ("struct S { int n; int x[]; };", "arrays without a size are not supported"),
         ("struct S { std::string s; };", "strings in value structs are not supported yet"),
-        ("class H { public: void f(); }; struct S { H h; };", "classes passed by value"),
+        (
+            "class H { public: void f(); }; struct S { H h; };",
+            "wrapped classes in value structs are not supported yet",
+        ),
+        (
+            "class H { public: void f(); }; struct S { H* h; };",
+            "wrapped classes in value structs are not supported yet",
+        ),
         ("struct S { union { int a; float b; }; };", "anonymous unions and structs"),
         (
             "struct S { int x; struct In { int y; } in; };",
@@ -185,8 +192,82 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("void f(int* p);", "pointers are not supported yet"),
         ("void f(int& r);", "non-const references are not supported yet"),
         ("void f(int&& r);", "references are not supported yet"),
-        ("class P {}; void f(P p);", "classes passed by value are not supported yet"),
-        ("class P {}; P f();", "return type of 'f'"),
+        # Wrapped classes.
+        ("class C {}; void f(C&& c);", "rvalue references to a class are not supported"),
+        ("class C {}; C&& f();", "rvalue references to a class are not supported"),
+        ("class C {}; void f(volatile C* c);", "volatile"),
+        ("class C {}; void f(C* volatile c);", "volatile"),
+        ("class C {}; void f(C** c);", "pointers are not supported yet"),
+        ("class C {}; void f(C*& c);", "non-const references are not supported yet"),
+        (
+            "#include <memory>\nclass C {}; void f(std::shared_ptr<C> c);",
+            "std::shared_ptr is not supported yet; use std::unique_ptr, a reference or a pointer",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(const std::shared_ptr<C>& c);",
+            "std::shared_ptr is not supported yet",
+        ),
+        (
+            "#include <memory>\nclass C {}; std::shared_ptr<C> f();",
+            "std::shared_ptr is not supported yet",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(std::weak_ptr<C> c);",
+            "std::weak_ptr is not supported yet",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(const std::unique_ptr<C>& c);",
+            "a reference to a std::unique_ptr is not supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(std::unique_ptr<C>& c);",
+            "a reference to a std::unique_ptr is not supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(std::unique_ptr<C>* c);",
+            "a pointer to a std::unique_ptr is not supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; std::unique_ptr<C>&& f();",
+            "a reference to a std::unique_ptr is not supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; struct D { void operator()(C*); };"
+            "\nvoid f(std::unique_ptr<C, D> c);",
+            "std::unique_ptr with a custom deleter is not supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(std::unique_ptr<C[]> c);",
+            "only std::unique_ptr of a class is supported",
+        ),
+        (
+            "#include <memory>\nclass C {}; void f(std::unique_ptr<const C> c);",
+            "std::unique_ptr of a const class is not supported",
+        ),
+        (
+            "#include <memory>\nvoid f(std::unique_ptr<int> c);",
+            "only std::unique_ptr of a class is supported",
+        ),
+        (
+            "#include <memory>\nstruct S { int x; }; void f(std::unique_ptr<S> c);",
+            "std::unique_ptrs are not supported yet for the value struct 'S'",
+        ),
+        (
+            "#include <vector>\nclass C {}; void f(std::vector<C*> v);",
+            "std::vector of a wrapped class",
+        ),
+        (
+            "#include <vector>\nclass C {}; void f(const std::vector<C>& v);",
+            "std::vector of a wrapped class",
+        ),
+        (
+            "#include <functional>\nclass C {}; void f(std::function<void(C*)> g);",
+            "callbacks that take",
+        ),
+        (
+            "#include <functional>\nclass C {}; void f(std::function<C*()> g);",
+            "callbacks that return",
+        ),
         # Strings.
         ("void f(std::string& s);", "non-const references to std::string are not supported"),
         ("void f(std::string&& s);", "rvalue references to std::string are not supported yet"),

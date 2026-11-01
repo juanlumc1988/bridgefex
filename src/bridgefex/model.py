@@ -141,6 +141,66 @@ class StructRef:
         return f"const {self.qualified_name}&" if self.by_reference else self.qualified_name
 
 
+class ClassForm(Enum):
+    """How a wrapped class (a handle) is passed or returned."""
+
+    VALUE = "value"
+    """``T`` or ``const T``: a copy."""
+
+    REFERENCE = "reference"
+    """``T&``."""
+
+    CONST_REFERENCE = "const_reference"
+    """``const T&``."""
+
+    POINTER = "pointer"
+    """``T*`` and ``T* const``."""
+
+    CONST_POINTER = "const_pointer"
+    """``const T*``."""
+
+    UNIQUE = "unique"
+    """``std::unique_ptr<T>`` (``&&`` too, as a parameter)."""
+
+
+@dataclass(frozen=True, slots=True)
+class ClassRef:
+    """A use of a wrapped class (a handle); the plan finds its definition
+    (:class:`Class`) by USR, in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    definition: Location | None
+    """Where the definition seen by the using header is, if it sees one."""
+
+    form: ClassForm
+
+    system: bool = False
+    """Declared in a system header (which is wrapped only if given as one)."""
+
+    @property
+    def is_void(self) -> bool:
+        return False
+
+    @property
+    def token(self) -> str:
+        """Overload token: ``f(T&)``, ``f(const T&)``, ``f(T*)``... are different overloads."""
+        return self.form.value
+
+    @property
+    def cpp_spelling(self) -> str:
+        name = self.qualified_name
+        spellings = {
+            ClassForm.VALUE: name,
+            ClassForm.REFERENCE: f"{name}&",
+            ClassForm.CONST_REFERENCE: f"const {name}&",
+            ClassForm.POINTER: f"{name}*",
+            ClassForm.CONST_POINTER: f"const {name}*",
+            ClassForm.UNIQUE: f"std::unique_ptr<{name}>",
+        }
+        return spellings[self.form]
+
+
 ElementType = ScalarType | EnumRef | StructRef | StringType
 """Every type that a container can hold."""
 
@@ -236,7 +296,7 @@ class CallbackType:
         return f"const {name}&" if self.by_reference else name
 
 
-Type = ScalarType | StringType | EnumRef | StructRef | ContainerType | CallbackType
+Type = ScalarType | StringType | EnumRef | StructRef | ClassRef | ContainerType | CallbackType
 """Every type that can cross the C boundary."""
 
 FieldType = ScalarType | EnumRef | StructRef
@@ -364,6 +424,9 @@ class Class:
     location: Location
     enums: tuple[Enumeration, ...] = ()
     """Public enums nested in the class."""
+
+    usr: str = ""
+    """What the uses of the class (:class:`ClassRef`) name it by."""
 
     @property
     def qualified_name(self) -> str:

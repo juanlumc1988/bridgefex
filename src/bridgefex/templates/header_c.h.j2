@@ -10,7 +10,9 @@ extern "C" {
 #endif
 {% for f in h.c_functions %}
 
-/* {{ f.description }} */
+/* {{ f.description }}{% for note in f.notes %}
+
+ * {{ note }}{% endfor %} */
 {% if f.returns_status %}
 {{ P }}_NODISCARD {{ P }}_API {{ m.status_type }} {{ f.signature }};
 {% else %}

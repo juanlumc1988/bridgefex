@@ -356,10 +356,20 @@ class Timer:
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
     when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed.
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
 
     def __init__(self, on_tick):
         """Wraps ``ev::Timer::Timer(std::function<void (int32_t)> on_tick)``."""
@@ -391,6 +401,10 @@ class Timer:
         handle = _types._ev_Timer__p()
         self._handle = None
         self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = []
         self._finalizer = _runtime.watch(self, handle, _bind().ev_Timer_destroy)
         return handle
 
@@ -406,21 +420,41 @@ class Timer:
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Timer object is closed")
+        for owner in self._owners:
+            if not owner._owned:
+                raise _builtins.ValueError(
+                    "Timer object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
         return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Timer object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit.
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
         armed = self._finalizer
-        return armed() is None and armed._as_parameter_ is self._handle
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
-        """Destroy the C++ object now. Calling it again does nothing."""
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
             return
         if self._collected():
             self._handle = None
@@ -432,6 +466,10 @@ class Timer:
         # and this destruction must not be skipped.
         self._finalizer._as_parameter_ = null
         destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
 
     def __enter__(self):
         return self
@@ -458,7 +496,7 @@ class Timer:
             )
             _status = _scope.call(
                 _bind().ev_Timer_set_on_tick,
-                self._ptr(),
+                self._mptr(),
                 on_tick,
                 on_tick_user_data,
                 on_tick_release,
@@ -471,7 +509,7 @@ class Timer:
     def tick(self, times):
         """Wraps ``void ev::Timer::tick(int32_t times)``."""
         times = _runtime.to_int(times, ctypes.c_int32, "times")
-        _runtime.check(_bind().ev_Timer_tick(self._ptr(), times))
+        _runtime.check(_bind().ev_Timer_tick(self._mptr(), times))
 
     def ticks(self):
         """Wraps ``int32_t ev::Timer::ticks() const``."""
@@ -490,7 +528,7 @@ class Timer:
             f, f_user_data, f_release = _scope.callback(f, _types._callback__void__int32, "f")
             _status = _scope.call(
                 _bind().ev_Timer_each,
-                self._ptr(),
+                self._mptr(),
                 values,
                 values_size,
                 f,
@@ -526,10 +564,20 @@ class Watcher:
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
     when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed.
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
 
     def __init__(self, name, at, on_notify):
         """Wraps ``ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)``."""
@@ -571,6 +619,10 @@ class Watcher:
         handle = _types._ev_Watcher__p()
         self._handle = None
         self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = []
         self._finalizer = _runtime.watch(self, handle, _bind().ev_Watcher_destroy)
         return handle
 
@@ -586,21 +638,41 @@ class Watcher:
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Watcher object is closed")
+        for owner in self._owners:
+            if not owner._owned:
+                raise _builtins.ValueError(
+                    "Watcher object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
         return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Watcher object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit.
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
         armed = self._finalizer
-        return armed() is None and armed._as_parameter_ is self._handle
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
-        """Destroy the C++ object now. Calling it again does nothing."""
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
             return
         if self._collected():
             self._handle = None
@@ -612,6 +684,10 @@ class Watcher:
         # and this destruction must not be skipped.
         self._finalizer._as_parameter_ = null
         destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
 
     def __enter__(self):
         return self

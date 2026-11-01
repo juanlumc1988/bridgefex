@@ -24,7 +24,8 @@
 #undef VALS_C_API_AFTER_GLIBC
 #endif
 
-// The headers of the value structs of other headers that this one uses.
+// The headers that define the value structs and the classes of other headers
+// that this one uses.
 #include "geo.h"
 
 #include "route_c.h"

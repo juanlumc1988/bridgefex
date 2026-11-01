@@ -561,6 +561,76 @@ def test_no_callbacks_after_exit(fresh_runtime: Callable[[], ModuleType]) -> Non
     assert runtime._callbacks == {}
 
 
+class FakeObject:
+    """The attributes that a generated class gives its objects."""
+
+    __slots__ = ("_finalizer", "_handle", "_owned", "_owners", "_readonly", "_retained")
+
+
+class OtherObject(FakeObject):
+    __slots__ = ()
+
+
+def owned_object(handle: object = 1) -> FakeObject:
+    obj = FakeObject()
+    obj._handle = handle
+    obj._owned = [(len, None)]
+    obj._owners = ()
+    obj._readonly = False
+    obj._retained = []
+    obj._finalizer = None
+    return obj
+
+
+def test_check_object(runtime: ModuleType) -> None:
+    runtime.check_object(FakeObject(), FakeObject, "x")
+    runtime.check_object(OtherObject(), FakeObject, "x")  # subclasses are accepted
+    with pytest.raises(TypeError, match="argument 'x' must be FakeObject, not NoneType"):
+        runtime.check_object(None, FakeObject, "x")
+    with pytest.raises(TypeError, match="argument 'y' must be OtherObject, not int"):
+        runtime.check_object(3, OtherObject, "y")
+    with pytest.raises(TypeError, match=r"must be OtherObject, not \S*FakeObject"):
+        runtime.check_object(FakeObject(), OtherObject, "y")
+
+
+def test_retain(runtime: ModuleType) -> None:
+    retained: list[object] = []
+    value = object()
+    runtime.retain(retained, value)
+    runtime.retain(retained, value)
+    assert retained == [value, value]
+
+
+def test_borrow(runtime: ModuleType) -> None:
+    owner = owned_object()
+    borrowed = runtime.borrow(FakeObject, "handle", (owner,), False)
+    assert isinstance(borrowed, FakeObject)
+    assert borrowed._handle == "handle"
+    assert borrowed._owned == [(None, None)]  # closing it destroys nothing
+    assert borrowed._owners == (owner,)
+    assert borrowed._readonly is False
+    assert borrowed._finalizer is None
+    # What it retains lives as long as its only owner.
+    assert borrowed._retained is owner._retained
+    assert runtime.borrow(FakeObject, "h", (owner,), True)._readonly is True
+    # A NULL handle is no object.
+    assert runtime.borrow(FakeObject, None, (owner,), False) is None
+    assert runtime.borrow(FakeObject, 0, (owner,), False) is None
+
+
+def test_borrowed_objects_are_chained_to_every_owner(runtime: ModuleType) -> None:
+    first, second = owned_object(), owned_object()
+    middle = runtime.borrow(FakeObject, "m", (first, second), False)
+    assert middle._owners == (first, second)
+    last = runtime.borrow(FakeObject, "l", (middle,), False)
+    assert last._owners == (middle, first, second)
+    # Several owners, or none: nobody's lifetime is the object's.
+    assert middle._retained is runtime.forever
+    assert runtime.borrow(FakeObject, "x", (), False)._retained is runtime.forever
+    # One owner that is itself borrowed shares the list of its root.
+    assert last._retained is middle._retained
+
+
 def test_to_callback(runtime: ModuleType) -> None:
     assert runtime.to_callback(None, "f") is None
     assert runtime.to_callback(len, "f") is len

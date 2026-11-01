@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "SCALARS_LIBRARY"
 
-API_FINGERPRINT = "ebec475a823ce2c020b84cd3f90701c5"
+API_FINGERPRINT = "7f2e462973692cb9e8a202c4986be66d"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -233,6 +233,59 @@ def watch(obj, handle, destroy):
     if _exiting:
         armed._as_parameter_ = type(handle)()
     return armed
+
+
+# Wrapped objects ---------------------------------------------------------------
+
+forever = []
+"""Objects kept alive until the interpreter exits: those that a free function or
+a static method retains, and those retained through a borrowed object that
+has no single owner."""
+
+
+def check_object(value, cls, name):
+    """Check that value is a cls object before the call.
+
+    It does not read the handle: the conversions of other arguments run Python
+    code that could close the object, so the handles are read last, in the call.
+    """
+    if not isinstance(value, cls):
+        raise TypeError(
+            f"argument {name!r} must be {cls.__qualname__}, not {_type_name(value)}"
+        )
+
+
+def borrow(cls, handle, owners, readonly):
+    """A cls object for a C++ object that the C++ code keeps owning; None for NULL.
+
+    ``owners`` are the objects it was obtained from (self for a method; the
+    reference and pointer arguments of a static method or function): it stays
+    valid while they are open, and keeps them alive. Closing it destroys
+    nothing, and it cannot be copied.
+    """
+    if not handle:
+        return None
+    chain = []
+    for owner in owners:
+        chain.append(owner)
+        chain.extend(owner._owners)
+    obj = cls.__new__(cls)
+    obj._handle = handle
+    obj._owned = [(None, None)]
+    obj._owners = tuple(chain)
+    obj._readonly = readonly
+    # What it retains must live as long as the C++ object, whose lifetime is
+    # its owner's: with several possible owners (or none), forever.
+    obj._retained = owners[0]._retained if len(owners) == 1 else forever
+    obj._finalizer = None
+    return obj
+
+
+def retain(retained, value):
+    """Keep value alive while a C++ object may use it: ``retained`` is the list of
+    that object (self._retained), or ``forever``. Called before the C call: on
+    failure the C++ code may already have stored it."""
+    retained.append(value)
 
 
 def _leave_alone():

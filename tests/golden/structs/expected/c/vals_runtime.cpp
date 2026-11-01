@@ -105,7 +105,7 @@ extern "C" const char* vals_last_error(void)
 
 extern "C" const char* vals_api_fingerprint(void)
 {
-    return "3fa3ac9ab1f81201dd5c3cdd4fdf94fe";
+    return "9826cac85c309048830497e2817d9dee";
 }
 
 extern "C" void vals_free(void* memory)
