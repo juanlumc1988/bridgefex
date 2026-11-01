@@ -894,7 +894,16 @@ _PINNED = (
 )
 
 
-@pytest.mark.parametrize("std", ["c++11", "c++14"])
+@pytest.mark.parametrize(
+    "std",
+    [
+        # The STL of MSVC cannot be parsed before C++14.
+        pytest.param(
+            "c++11", marks=pytest.mark.skipif(sys.platform == "win32", reason="MSVC STL: C++14")
+        ),
+        "c++14",
+    ],
+)
 def test_a_class_that_cannot_be_moved_is_returned_by_value_since_cxx17(
     tmp_path: Path, std: str
 ) -> None:
@@ -914,7 +923,7 @@ def test_a_class_that_is_only_returned_by_reference_needs_no_move(tmp_path: Path
         tmp_path,
         "namespace k { class Pinned { public: Pinned(); Pinned(const Pinned&) = delete;"
         " Pinned(Pinned&&) = delete; };\nPinned& get(); const Pinned& cget(); }",
-        "c++11",
+        "c++14",
     )
     assert "is_move_constructible" not in result.files["c/api_c.cpp"]
 

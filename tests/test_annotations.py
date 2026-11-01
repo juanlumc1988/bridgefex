@@ -39,7 +39,8 @@ node = "nullable"
 
 def write(directory: Path, text: str, name: str = "annotations.toml") -> Path:
     path = directory / name
-    path.write_text(text, encoding="utf-8")
+    # Bytes: write_text() would turn every \n into \r\n on Windows.
+    path.write_bytes(text.encode("utf-8"))
     return path
 
 
