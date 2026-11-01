@@ -689,6 +689,18 @@ own_status own_same(const own_Node* node, const own_Node** out_result)
     return own_detail::guard([&]() { *out_result = reinterpret_cast<const own_Node*>(own_detail::object_address(::own::same(*reinterpret_cast<const ::own::Node*>(node)))); });
 }
 
+// own::Node& own::pickFirst(own::Node& first, own::Node* second)
+own_status own_pickFirst(own_Node* first, own_Node* second, own_Node** out_result)
+{
+    if (first == nullptr) {
+        return own_detail::null_argument("own_pickFirst: 'first' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_pickFirst: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<own_Node*>(own_detail::object_address(::own::pickFirst(*reinterpret_cast<::own::Node*>(first), reinterpret_cast<::own::Node*>(second)))); });
+}
+
 // own::Pipeline::Pipeline(std::unique_ptr<own::Item> first)
 own_status own_Pipeline_create_own_Item_unique(own_Pipeline** out_self, own_Item* first)
 {

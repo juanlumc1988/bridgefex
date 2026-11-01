@@ -262,12 +262,14 @@ def borrow(cls, handle, owners, readonly):
     """A cls object for a C++ object that the C++ code keeps owning; None for NULL.
 
     ``owners`` are the objects it was obtained from (self for a method; the
-    reference and pointer arguments of a static method or function): it stays
-    valid while they are open, and keeps them alive. Closing it destroys
-    nothing, and it cannot be copied.
+    reference and pointer arguments of a static method or function, None
+    ignored): it stays valid while they are open, and keeps them alive. Closing
+    it destroys nothing, and it cannot be copied.
     """
     if not handle:
         return None
+    # A nullable pointer argument that is None is nobody's owner.
+    owners = tuple(owner for owner in owners if owner is not None)
     chain = []
     for owner in owners:
         chain.append(owner)

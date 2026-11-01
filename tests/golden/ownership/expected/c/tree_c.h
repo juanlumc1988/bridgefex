@@ -183,6 +183,11 @@ OWN_NODISCARD OWN_API own_status own_pick(own_Node* first, own_Node* second, boo
  * *out_result: borrowed, never NULL; do not destroy it. */
 OWN_NODISCARD OWN_API own_status own_same(const own_Node* node, const own_Node** out_result);
 
+/* own::Node& own::pickFirst(own::Node& first, own::Node* second)
+ * second: may be NULL.
+ * *out_result: borrowed, never NULL; do not destroy it. */
+OWN_NODISCARD OWN_API own_status own_pickFirst(own_Node* first, own_Node* second, own_Node** out_result);
+
 /* own::Pipeline::Pipeline(std::unique_ptr<own::Item> first)
  * first: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
 OWN_NODISCARD OWN_API own_status own_Pipeline_create_own_Item_unique(own_Pipeline** out_self, own_Item* first);

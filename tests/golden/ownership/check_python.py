@@ -24,6 +24,7 @@ from own.tree import (
     globalNodeValue,
     idOf,
     pick,
+    pickFirst,
     same,
     setGlobalNode,
     total,
@@ -314,6 +315,17 @@ expect(TypeError, tree.sum, None, b, message="argument 'a' must be Node, not Non
 assert Tree.labelLength(None) == -1 and Tree.labelLength("abc") == 3
 expect(ValueError, Tree.labelLength, "a\0b", message="NUL")
 expect(TypeError, Tree.labelLength, 5)
+
+# A reference is borrowed from the arguments that are not None.
+only = Node(61)
+picked_first = pickFirst(only, None)
+assert picked_first.value() == 61
+assert picked_first._owners == (only,)
+other = Node(62)
+assert pickFirst(only, other).value() == 62
+del picked_first
+only.close()
+other.close()
 
 # Bytes, not text.
 assert tree.signature() == b"a\x00\xff"

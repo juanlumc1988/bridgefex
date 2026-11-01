@@ -123,6 +123,8 @@ Node twin(const Node& node);
 // The argument itself, or the other one: borrowed from the arguments.
 Node& pick(Node& first, Node& second, bool useSecond);
 const Node& same(const Node& node);
+// The first node, which may be borrowed from a second one that is NULL.
+Node& pickFirst(Node& first, Node* second);
 
 // Takes ownership of its first item.
 class Pipeline {

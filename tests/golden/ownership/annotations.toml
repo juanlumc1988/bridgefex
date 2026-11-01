@@ -24,6 +24,9 @@ node = "nullable"
 first = "nullable"
 2 = "nullable"          # the same, by position
 
+[own_pickFirst]
+second = "nullable"
+
 [own_Tree_labelLength]
 label = "nullable"
 

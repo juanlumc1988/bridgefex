@@ -300,7 +300,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 6
-PINNED_RUNTIME_SHA256 = "8019369785d7f4ed06af3eecf3a48ae1194827c8107eb2f750914396d91d97a7"
+PINNED_RUNTIME_SHA256 = "92cc2cd16f49260b99fdaf94a17597e84bd9a570d1ecd81d47e5a86a29c8294a"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:

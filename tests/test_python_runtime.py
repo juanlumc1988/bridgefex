@@ -618,6 +618,16 @@ def test_borrow(runtime: ModuleType) -> None:
     assert runtime.borrow(FakeObject, 0, (owner,), False) is None
 
 
+def test_borrow_ignores_the_owners_that_are_none(runtime: ModuleType) -> None:
+    owner = owned_object()
+    borrowed = runtime.borrow(FakeObject, "h", (owner, None), False)
+    assert borrowed._owners == (owner,)
+    assert borrowed._retained is owner._retained  # None is no owner: there is one
+    only_none = runtime.borrow(FakeObject, "h", (None,), False)
+    assert only_none._owners == ()
+    assert only_none._retained is runtime.forever
+
+
 def test_borrowed_objects_are_chained_to_every_owner(runtime: ModuleType) -> None:
     first, second = owned_object(), owned_object()
     middle = runtime.borrow(FakeObject, "m", (first, second), False)

@@ -252,6 +252,11 @@ const Node& same(const Node& node)
     return node;
 }
 
+Node& pickFirst(Node& first, Node* second)
+{
+    return second != nullptr ? *second : first;
+}
+
 Driver::Driver(Node& node) : node_(&node) {}
 
 std::int32_t Driver::read() const

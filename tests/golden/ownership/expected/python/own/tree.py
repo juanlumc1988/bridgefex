@@ -13,6 +13,7 @@ __all__ = [
     "twin",
     "pick",
     "same",
+    "pickFirst",
     "Pipeline",
     "consume",
     "Peek",
@@ -135,6 +136,8 @@ def _bind():
             lib.own_pick.restype = _runtime.Status
             lib.own_same.argtypes = [_types._own_Node__p, ctypes.POINTER(_types._own_Node__p)]
             lib.own_same.restype = _runtime.Status
+            lib.own_pickFirst.argtypes = [_types._own_Node__p, _types._own_Node__p, ctypes.POINTER(_types._own_Node__p)]
+            lib.own_pickFirst.restype = _runtime.Status
             lib.own_Pipeline_create_own_Item_unique.argtypes = [ctypes.POINTER(_types._own_Pipeline__p), _types._own_Item__p]
             lib.own_Pipeline_create_own_Item_unique.restype = _runtime.Status
             lib.own_Pipeline_create_own_Item_unique_int32.argtypes = [ctypes.POINTER(_types._own_Pipeline__p), _types._own_Item__p, ctypes.c_int32]
@@ -911,6 +914,20 @@ def same(node):
     _runtime.check_object(node, _node.Node, "node")
     _runtime.check(_bind().own_same(node._ptr(), _out))
     return _runtime.borrow(_node.Node, _out, (node,), True)
+
+
+def pickFirst(first, second):
+    """Wraps ``own::Node& own::pickFirst(own::Node& first, own::Node* second)``."""
+    from . import node as _node
+    _out = _types._own_Node__p()
+    _runtime.check_object(first, _node.Node, "first")
+    _runtime.check_object(second, _node.Node, "second", nullable=True)
+    _runtime.check(_bind().own_pickFirst(
+        first._mptr(),
+        (second._mptr() if second is not None else None),
+        _out,
+    ))
+    return _runtime.borrow(_node.Node, _out, (first, second), False)
 
 
 class Pipeline:
