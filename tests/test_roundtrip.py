@@ -925,6 +925,86 @@ def test_cyclic_object_is_closed_in_its_del(
     assert completed.stdout.splitlines() == ["del: Counter object is closed", "live: 0"]
 
 
+_OWNERSHIP_CYCLES = """
+import gc
+from own.node import Item, Node
+from own.tree import Box, Tree, consume
+
+
+class Cyclic(Item):
+    def __del__(self):
+        try:
+            consume(self)  # takes it: the collection destroyed it already
+        except ValueError as error:
+            print("taken in __del__:", error)
+
+
+cyclic = Cyclic(7)
+cyclic.me = cyclic
+del cyclic
+gc.collect()
+
+
+class Parent(Tree):
+    def __del__(self):
+        try:
+            self.child.value()  # borrowed from self, which the collection destroyed
+        except ValueError as error:
+            print("borrowed in __del__:", error)
+
+
+parent = Parent()
+parent.child = parent.root()
+del parent
+gc.collect()
+print("live:", Item.live())
+
+# What a taken object retained is kept alive when it is given back.
+box, holder, pointee = Box(), Tree(), Node(88)
+holder.setCursor(pointee)
+box.put(holder)
+del pointee
+gc.collect()
+back = box.pop()
+box.close()
+gc.collect()
+print("cursor:", back.cursorValue())
+"""
+
+
+@pytest.mark.parametrize("sanitized", [False, True], ids=["plain", "asan"])
+def test_ownership_survives_cyclic_garbage_and_hand_backs(
+    request: pytest.FixtureRequest, sanitized: bool
+) -> None:
+    """Under AddressSanitizer a double free or a use after free would abort."""
+    environment = dict(os.environ)
+    if sanitized:
+        library, output, runtime = request.getfixturevalue("ownership_asan_build")
+        environment["LD_PRELOAD"] = runtime
+        environment["ASAN_OPTIONS"] = "detect_leaks=0"
+    else:
+        library, output = request.getfixturevalue("ownership_build")
+    environment["PYTHONPATH"] = str(output / "python")
+    environment["OWN_LIBRARY"] = str(library)
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", _OWNERSHIP_CYCLES],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == [
+        "taken in __del__: argument 'item': Cyclic object is closed",
+        "borrowed in __del__: Node object is no longer valid: an object it was obtained from "
+        "is closed",
+        "live: 0",
+        "cursor: 88",
+    ]
+
+
 @pytest.fixture(scope="module")
 def callbacks_build(
     toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory

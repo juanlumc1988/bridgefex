@@ -57,6 +57,8 @@ static_assert(alignof(::own::Pair) <= own_detail::new_alignment,
               "own::Pair is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Pipeline) <= own_detail::new_alignment,
               "own::Pipeline is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::own::Box) <= own_detail::new_alignment,
+              "own::Box is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Peek) <= own_detail::new_alignment,
               "own::Peek is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Node) <= own_detail::new_alignment,
@@ -760,6 +762,50 @@ own_status own_consume(own_Item* item, int32_t* out_result)
         return own_detail::null_argument("own_consume: 'out_result' is NULL");
     }
     return own_detail::guard([&]() { *out_result = ::own::consume(item_owner.take<std::unique_ptr<::own::Item>>()); });
+}
+
+// own::Box::Box()
+own_status own_Box_create(own_Box** out_self)
+{
+    if (out_self == nullptr) {
+        return own_detail::null_argument("own_Box_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return own_detail::guard([&]() { *out_self = reinterpret_cast<own_Box*>(new ::own::Box()); });
+}
+
+// own::Box::~Box()
+void own_Box_destroy(own_Box* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    own_detail::guard_silently([&]() { delete reinterpret_cast<::own::Box*>(self); });
+}
+
+// void own::Box::put(std::unique_ptr<own::Tree> tree)
+own_status own_Box_put(own_Box* self, own_Tree* tree)
+{
+    own_detail::transferred<::own::Tree> tree_owner(reinterpret_cast<::own::Tree*>(tree));
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Box_put: 'self' is NULL");
+    }
+    if (tree == nullptr) {
+        return own_detail::null_argument("own_Box_put: 'tree' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Box*>(self)->put(tree_owner.take<std::unique_ptr<::own::Tree>>()); });
+}
+
+// std::unique_ptr<own::Tree> own::Box::pop()
+own_status own_Box_pop(own_Box* self, own_Tree** out_result)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Box_pop: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Box_pop: 'self' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<own_Tree*>(reinterpret_cast<::own::Box*>(self)->pop().release()); });
 }
 
 // own::Peek::Peek(const own::Node& node)

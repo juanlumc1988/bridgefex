@@ -51,6 +51,13 @@ class _own_Pipeline(ctypes.Structure):
 _own_Pipeline__p = ctypes.POINTER(_own_Pipeline)
 
 
+class _own_Box(ctypes.Structure):
+    """Opaque C handle of own::Box."""
+
+
+_own_Box__p = ctypes.POINTER(_own_Box)
+
+
 class _own_Peek(ctypes.Structure):
     """Opaque C handle of own::Peek."""
 

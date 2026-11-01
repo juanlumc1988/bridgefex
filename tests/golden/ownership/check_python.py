@@ -15,6 +15,7 @@ import own
 from own import Error
 from own.node import Item, Node
 from own.tree import (
+    Box,
     Driver,
     Pair,
     Peek,
@@ -347,6 +348,26 @@ assert Node.live() == base_nodes + 1  # its root and its cursor went with it
 tree.setCursor(a)
 gc.collect()
 assert Node.live() == base_nodes + 1 and tree.cursorValue() == a.value()
+
+# A taken object keeps pointing to what it retained, also when it is given back.
+back_before = Node.live()
+box = Box()
+holder = Tree()
+pointee = Node(88)
+holder.setCursor(pointee)
+box.put(holder)
+del pointee
+gc.collect()
+back = box.pop()
+box.close()
+gc.collect()
+assert back.cursorValue() == 88 and Node.live() == back_before + 2  # holder's root, the node
+back.close()
+gc.collect()
+assert Node.live() == back_before
+
+# A borrowed object was not built by its __init__, and cannot be built again.
+expect(TypeError, tree.root().__init__, 99, message="already initialized")
 
 # A constructor keeps what it gets, unless it only reads it.
 transient = Node(4)

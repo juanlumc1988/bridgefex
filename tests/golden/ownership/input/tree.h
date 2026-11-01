@@ -142,6 +142,17 @@ private:
 // Takes the item, and returns its id.
 std::int32_t consume(std::unique_ptr<Item> item);
 
+// Keeps a tree that it is given, and gives it back.
+class Box {
+public:
+    Box();
+    void put(std::unique_ptr<Tree> tree);
+    std::unique_ptr<Tree> pop();
+
+private:
+    std::unique_ptr<Tree> tree_;
+};
+
 // Only reads the node while it is built.
 class Peek {
 public:

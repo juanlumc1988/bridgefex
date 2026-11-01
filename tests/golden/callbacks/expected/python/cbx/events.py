@@ -373,7 +373,7 @@ class Timer:
 
     def __init__(self, on_tick):
         """Wraps ``ev::Timer::Timer(std::function<void (int32_t)> on_tick)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Timer object is already initialized")
         on_tick = _runtime.to_callback(on_tick, "on_tick")
         _scope = _runtime.CallScope()
@@ -404,7 +404,7 @@ class Timer:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().ev_Timer_destroy)
         return handle
 
@@ -416,12 +416,13 @@ class Timer:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().ev_Timer_destroy, _types._ev_Timer__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Timer object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Timer object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -581,7 +582,7 @@ class Watcher:
 
     def __init__(self, name, at, on_notify):
         """Wraps ``ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Watcher object is already initialized")
         name = _runtime.to_bytes(name, "name")
         name_size = _builtins.len(name)
@@ -622,7 +623,7 @@ class Watcher:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().ev_Watcher_destroy)
         return handle
 
@@ -634,12 +635,13 @@ class Watcher:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().ev_Watcher_destroy, _types._ev_Watcher__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Watcher object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Watcher object is no longer valid: an object it was obtained "
                     "from is closed"

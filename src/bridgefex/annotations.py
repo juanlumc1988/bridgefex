@@ -59,6 +59,13 @@ class FunctionAnnotations:
         return f"{self.source}:{line}" if line else self.source
 
 
+_QUOTE = "[\"']?"
+
+
+def _at(path: Path, line: int) -> str:
+    return f"{path}:{line}" if line else str(path)
+
+
 def _line_of(lines: Sequence[str], pattern: str, start: int = 0, stop: int | None = None) -> int:
     """The 1-based number of the first line from ``start`` that matches, else 0."""
     compiled = re.compile(pattern)
@@ -97,7 +104,8 @@ def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
     problems: list[str] = []
     for path in paths:
         try:
-            text = path.read_bytes().decode("utf-8")
+            # utf-8-sig: an editor may put a byte order mark first.
+            text = path.read_bytes().decode("utf-8-sig")
             data = tomllib.loads(text)
         except OSError as error:
             raise ConfigurationError(f"cannot read the annotations file {path}: {error}") from error
@@ -108,18 +116,19 @@ def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
             where = f"{path}:{match['line']}:{match['column']}" if match else str(path)
             message = match["message"] if match else str(error)
             raise ConfigurationError(f"{where}: invalid TOML: {message}") from error
-        lines = text.splitlines()
+        # Only \n ends a line in TOML (splitlines() also splits at U+2028...).
+        lines = text.split("\n")
         headers = [
             (
                 name,
-                _line_of(lines, rf'\s*\[\s*"?{re.escape(name)}"?\s*\]')
-                or _line_of(lines, rf'\s*"?{re.escape(name)}"?\s*='),
+                _line_of(lines, rf"\s*\[\s*{_QUOTE}{re.escape(name)}{_QUOTE}\s*\]")
+                or _line_of(lines, rf"\s*{_QUOTE}{re.escape(name)}{_QUOTE}\s*="),
             )
             for name in data
         ]
         for index, (function, header) in enumerate(headers):
             entries = data[function]
-            at = f"{path}:{header}" if header else str(path)
+            at = _at(path, header)
             if not isinstance(entries, dict):
                 problems.append(
                     f'{at}: expected a table, e.g. [{function}] followed by return = "owned"'
@@ -135,8 +144,10 @@ def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
             result_line = 0
             parameters: dict[str, tuple[frozenset[str], int]] = {}
             for key, value in entries.items():
-                line = _line_of(lines, rf'\s*"?{re.escape(key)}"?\s*=', header, stop and stop - 1)
-                here = f"{path}:{line or header}: [{function}]"
+                line = _line_of(
+                    lines, rf"\s*{_QUOTE}{re.escape(key)}{_QUOTE}\s*=", header, stop and stop - 1
+                )
+                here = f"{_at(path, line or header)}: [{function}]"
                 if key == "return":
                     result = _words(value, RESULT_WORDS, f"{here} return", problems)
                     result_line = line

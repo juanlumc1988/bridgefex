@@ -16,6 +16,7 @@ __all__ = [
     "pickFirst",
     "Pipeline",
     "consume",
+    "Box",
     "Peek",
     "setGlobalNode",
     "globalNodeValue",
@@ -148,6 +149,14 @@ def _bind():
             lib.own_Pipeline_firstId.restype = _runtime.Status
             lib.own_consume.argtypes = [_types._own_Item__p, ctypes.POINTER(ctypes.c_int32)]
             lib.own_consume.restype = _runtime.Status
+            lib.own_Box_create.argtypes = [ctypes.POINTER(_types._own_Box__p)]
+            lib.own_Box_create.restype = _runtime.Status
+            lib.own_Box_destroy.argtypes = [_types._own_Box__p]
+            lib.own_Box_destroy.restype = None
+            lib.own_Box_put.argtypes = [_types._own_Box__p, _types._own_Tree__p]
+            lib.own_Box_put.restype = _runtime.Status
+            lib.own_Box_pop.argtypes = [_types._own_Box__p, ctypes.POINTER(_types._own_Tree__p)]
+            lib.own_Box_pop.restype = _runtime.Status
             lib.own_Peek_create.argtypes = [ctypes.POINTER(_types._own_Peek__p), _types._own_Node__p]
             lib.own_Peek_create.restype = _runtime.Status
             lib.own_Peek_destroy.argtypes = [_types._own_Peek__p]
@@ -188,7 +197,7 @@ class Tree:
 
     def __init__(self):
         """Wraps ``own::Tree::Tree()``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Tree object is already initialized")
         _handle = self._watch()
         _runtime.check(_bind().own_Tree_create(_handle))
@@ -207,7 +216,7 @@ class Tree:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Tree_destroy)
         return handle
 
@@ -219,12 +228,13 @@ class Tree:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Tree_destroy, _types._own_Tree__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Tree object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Tree object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -639,7 +649,7 @@ class Driver:
 
     def __init__(self, node):
         """Wraps ``own::Driver::Driver(own::Node& node)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Driver object is already initialized")
         from . import node as _node
         _runtime.check_object(node, _node.Node, "node")
@@ -661,7 +671,7 @@ class Driver:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Driver_destroy)
         return handle
 
@@ -673,12 +683,13 @@ class Driver:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Driver_destroy, _types._own_Driver__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Driver object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Driver object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -772,7 +783,7 @@ class Pair:
 
     def __init__(self, first, second):
         """Wraps ``own::Pair::Pair(const own::Node* first, own::Node* second)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Pair object is already initialized")
         from . import node as _node
         _runtime.check_object(first, _node.Node, "first")
@@ -796,7 +807,7 @@ class Pair:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Pair_destroy)
         return handle
 
@@ -808,12 +819,13 @@ class Pair:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Pair_destroy, _types._own_Pair__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Pair object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Pair object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -996,7 +1008,7 @@ class Pipeline:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Pipeline_destroy)
         return handle
 
@@ -1008,12 +1020,13 @@ class Pipeline:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Pipeline_destroy, _types._own_Pipeline__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Pipeline object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Pipeline object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -1096,6 +1109,148 @@ def consume(item):
     return _out.value
 
 
+class Box:
+    """Wraps ``own::Box``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
+
+    def __init__(self):
+        """Wraps ``own::Box::Box()``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Box object is already initialized")
+        _handle = self._watch()
+        _runtime.check(_bind().own_Box_create(_handle))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._own_Box__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._finalizer = _runtime.watch(self, handle, _bind().own_Box_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "own::Box: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().own_Box_destroy, _types._own_Box__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Box object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Box object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Box object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Box objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Box objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Box objects cannot be pickled")
+
+    def put(self, tree):
+        """Wraps ``void own::Box::put(std::unique_ptr<own::Tree> tree)``."""
+        _runtime.check_object(tree, Tree, "tree")
+        _c = _bind().own_Box_put
+        _h1 = self._mptr()
+        [_h2] = _runtime.take(self._retained, (tree, "tree"), keep=self)
+        _runtime.check(_c(_h1, _h2))
+
+    def pop(self):
+        """Wraps ``std::unique_ptr<own::Tree> own::Box::pop()``."""
+        _result = Tree.__new__(Tree)
+        _out = _result._watch()
+        _runtime.check(_bind().own_Box_pop(self._mptr(), _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+
 class Peek:
     """Wraps ``own::Peek``.
 
@@ -1118,7 +1273,7 @@ class Peek:
 
     def __init__(self, node):
         """Wraps ``own::Peek::Peek(const own::Node& node)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Peek object is already initialized")
         from . import node as _node
         _runtime.check_object(node, _node.Node, "node")
@@ -1139,7 +1294,7 @@ class Peek:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Peek_destroy)
         return handle
 
@@ -1151,12 +1306,13 @@ class Peek:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Peek_destroy, _types._own_Peek__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Peek object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Peek object is no longer valid: an object it was obtained "
                     "from is closed"

@@ -206,6 +206,20 @@ OWN_NODISCARD OWN_API own_status own_Pipeline_firstId(const own_Pipeline* self, 
  * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
 OWN_NODISCARD OWN_API own_status own_consume(own_Item* item, int32_t* out_result);
 
+/* own::Box::Box() */
+OWN_NODISCARD OWN_API own_status own_Box_create(own_Box** out_self);
+
+/* own::Box::~Box() */
+OWN_API void own_Box_destroy(own_Box* self);
+
+/* void own::Box::put(std::unique_ptr<own::Tree> tree)
+ * tree: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Box_put(own_Box* self, own_Tree* tree);
+
+/* std::unique_ptr<own::Tree> own::Box::pop()
+ * *out_result: owned by the caller (may be NULL); destroy it with own_Tree_destroy. */
+OWN_NODISCARD OWN_API own_status own_Box_pop(own_Box* self, own_Tree** out_result);
+
 /* own::Peek::Peek(const own::Node& node) */
 OWN_NODISCARD OWN_API own_status own_Peek_create(own_Peek** out_self, const own_Node* node);
 

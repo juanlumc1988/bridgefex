@@ -1239,6 +1239,9 @@ class _Builder:
         self._header: Header | None = None
         # A parameter named like the module alias of a header would hide it.
         self._parameter_macros |= {f"_{header.stem}" for header in module.headers}
+        # The Python classes are named unqualified in the generated functions: a
+        # parameter with the same name would hide them.
+        self._parameter_macros |= {info.py_name for info in self._classes.values()}
         # Per header stem, the headers whose structs or classes its functions use.
         self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
         self.foreign_class_headers: dict[str, tuple[Header, ...]] = {}
@@ -1704,7 +1707,8 @@ class _Builder:
             parameter.type for parameter in parameters if isinstance(parameter.type, CallbackType)
         ]
         # The locals of the Python function that takes the objects it is given.
-        python_locals = {"_c"} | {f"_h{position}" for position in range(1, len(parameters) + 4)}
+        # (a call argument is one parameter at most three, plus self and the outputs)
+        python_locals = {"_c"} | {f"_h{position}" for position in range(1, 3 * len(parameters) + 5)}
         taken = (
             self._parameter_macros
             | frozenset(reserved)

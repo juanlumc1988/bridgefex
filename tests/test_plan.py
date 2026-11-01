@@ -300,7 +300,7 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
 PINNED_CONVENTIONS = 6
-PINNED_RUNTIME_SHA256 = "92cc2cd16f49260b99fdaf94a17597e84bd9a570d1ecd81d47e5a86a29c8294a"
+PINNED_RUNTIME_SHA256 = "cb23b9612fe43307d11a540339284dbb3f363e49406460008eb8094c83531169"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -1905,3 +1905,28 @@ def test_the_annotations_are_part_of_the_api_fingerprint() -> None:
 
     assert fingerprint("owned") != fingerprint("borrowed")
     assert fingerprint("owned") == fingerprint("owned")
+
+
+def test_a_parameter_cannot_take_the_name_of_a_wrapped_class() -> None:
+    """The generated Python functions name the classes unqualified."""
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(Parameter("Node", cref("Node")), Parameter("Tree", unique))
+    names = [p.name for p in item.members[0].function.params]
+    assert names[1:3] == ["Node_", "Tree_"]
+    body = item.members[0].body(8)
+    assert '_runtime.check_object(Node_, _node.Node, "Node_")' in body
+
+
+def test_the_locals_of_the_call_are_reserved_for_every_argument() -> None:
+    """Each string adds a size to the arguments of the C call: _h13 is a local."""
+    strings = [Parameter(f"s{i}", StringType(StringKind.STRING)) for i in range(6)]
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(
+        *strings,
+        Parameter("n", cref("Node", ClassForm.REFERENCE)),
+        Parameter("u", unique),
+        Parameter("_h13", INT32),
+    )
+    function = item.members[0].function
+    assert "_h13_" in [p.name for p in function.params]
+    assert "_h13" in item.members[0].prepare[0] or "_h13" in " ".join(item.members[0].call_args)

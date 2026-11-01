@@ -290,6 +290,18 @@ std::int32_t consume(std::unique_ptr<Item> item)
     return item->id();
 }
 
+Box::Box() = default;
+
+void Box::put(std::unique_ptr<Tree> tree)
+{
+    tree_ = std::move(tree);
+}
+
+std::unique_ptr<Tree> Box::pop()
+{
+    return std::move(tree_);
+}
+
 Peek::Peek(const Node& node) : seen_(node.value()) {}
 
 std::int32_t Peek::seen() const

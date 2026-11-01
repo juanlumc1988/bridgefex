@@ -74,7 +74,7 @@ class Node:
 
     def __init__(self, value):
         """Wraps ``own::Node::Node(int32_t value)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Node object is already initialized")
         value = _runtime.to_int(value, ctypes.c_int32, "value")
         _handle = self._watch()
@@ -94,7 +94,7 @@ class Node:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Node_destroy)
         return handle
 
@@ -106,12 +106,13 @@ class Node:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Node_destroy, _types._own_Node__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Node object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Node object is no longer valid: an object it was obtained "
                     "from is closed"
@@ -229,7 +230,7 @@ class Item:
 
     def __init__(self, id):
         """Wraps ``own::Item::Item(int32_t id)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Item object is already initialized")
         id = _runtime.to_int(id, ctypes.c_int32, "id")
         _handle = self._watch()
@@ -249,7 +250,7 @@ class Item:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().own_Item_destroy)
         return handle
 
@@ -261,12 +262,13 @@ class Item:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().own_Item_destroy, _types._own_Item__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Item object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Item object is no longer valid: an object it was obtained "
                     "from is closed"

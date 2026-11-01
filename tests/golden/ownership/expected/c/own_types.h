@@ -33,6 +33,9 @@ typedef struct own_Pair own_Pair;
 /* Opaque handle of own::Pipeline. */
 typedef struct own_Pipeline own_Pipeline;
 
+/* Opaque handle of own::Box. */
+typedef struct own_Box own_Box;
+
 /* Opaque handle of own::Peek. */
 typedef struct own_Peek own_Peek;
 

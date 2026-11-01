@@ -152,7 +152,7 @@ class Accumulator:
 
     def __init__(self):
         """Wraps ``Accumulator::Accumulator()``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Accumulator object is already initialized")
         _handle = self._watch()
         _runtime.check(_bind().scalars_Accumulator_create(_handle))
@@ -171,7 +171,7 @@ class Accumulator:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().scalars_Accumulator_destroy)
         return handle
 
@@ -183,12 +183,13 @@ class Accumulator:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().scalars_Accumulator_destroy, _types._scalars_Accumulator__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Accumulator object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Accumulator object is no longer valid: an object it was obtained "
                     "from is closed"

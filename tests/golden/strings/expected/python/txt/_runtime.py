@@ -237,10 +237,11 @@ def watch(obj, handle, destroy):
 
 # Wrapped objects ---------------------------------------------------------------
 
-forever = []
-"""Objects kept alive until the interpreter exits: those that a free function or
-a static method retains, and those retained through a borrowed object that
-has no single owner."""
+forever = {}
+"""Objects kept alive until the interpreter exits (by id): those that a free
+function or a static method retains, and those retained through a borrowed object
+that has no single owner. Like the ``_retained`` of an object, it holds each
+object once, however many times it is retained."""
 
 
 def check_object(value, cls, name, nullable=False):
@@ -294,7 +295,7 @@ def take(retained, *arguments, keep=None):
     ``keep`` (self) must not be one of them. It is called last before the C call,
     which consumes the objects whatever its status: a Python object that still
     owned one would destroy it again. What they retained is then retained by their
-    new owner (``retained``: its list, or ``forever``).
+    new owner (``retained``: its dict, or ``forever``).
 
     A signal that arrives between this function and the C call leaks the objects
     (it never destroys one twice).
@@ -310,7 +311,7 @@ def take(retained, *arguments, keep=None):
             raise ValueError(f"argument {name!r} is the same object as {other!r}")
         seen[id(value)] = name
         owned = value._owned
-        if not owned:
+        if not owned or value._collected():
             raise ValueError(f"argument {name!r}: {type(value).__name__} object is closed")
         if owned[-1][0] is None:
             raise ValueError(
@@ -318,7 +319,7 @@ def take(retained, *arguments, keep=None):
                 "it is borrowed from another object"
             )
         for owner in value._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise ValueError(
                     f"argument {name!r}: {type(value).__name__} object is no longer valid"
                 )
@@ -332,17 +333,51 @@ def take(retained, *arguments, keep=None):
         value._handle = None
         # The collection of the Python object must not destroy it any more.
         value._finalizer._as_parameter_ = null
-        retained.append(value._retained)
+        if value._retained:
+            # What it kept pointers to lives as long as its new owner, and as long
+            # as whoever gets the object back from it (see recover()).
+            kept = _Kept(value._retained)
+            value._retained = {}  # the taken object does not keep them any more
+            retained[id(kept)] = kept
+            _kept[_address(handle)] = kept
         handles.append(handle)
     return handles
 
 
+class _Kept:
+    """The objects that a taken object retained."""
+
+    __slots__ = ("__weakref__", "items")
+
+    def __init__(self, items):
+        self.items = items
+
+
+_kept = weakref.WeakValueDictionary()
+"""By address: what the objects that were taken and may come back retained. An
+entry goes with the last owner that holds it."""
+
+
+def _address(handle):
+    return ctypes.cast(handle, ctypes.c_void_p).value
+
+
+def recover(retained, handle):
+    """Keep alive what an object retained before it was taken, for a new Python
+    object of it: the C++ code gave it back (a pop, a release...) and it still
+    points to those objects, which the owner that took it may no longer keep."""
+    if _kept:
+        kept = _kept.get(_address(handle))
+        if kept is not None:
+            retained[id(kept)] = kept
+
+
 def retain(retained, value):
-    """Keep value alive while a C++ object may use it: ``retained`` is the list of
-    that object (self._retained), or ``forever``. Called before the C call: on
-    failure the C++ code may already have stored it."""
+    """Keep value alive while a C++ object may use it: ``retained`` is the dict of
+    that object (self._retained), or ``forever``; it holds each object once.
+    Called before the C call: on failure the C++ code may already have stored it."""
     if value is not None:
-        retained.append(value)
+        retained[id(value)] = value
 
 
 def _leave_alone():

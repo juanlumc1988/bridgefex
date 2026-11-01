@@ -229,7 +229,7 @@ class Lamp:
 
     def __init__(self, color):
         """Wraps ``colors::Lamp::Lamp(colors::Color color)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Lamp object is already initialized")
         color = _runtime.to_enum(color, _types.colors_Color, ctypes.c_uint8, "color")
         _handle = self._watch()
@@ -249,7 +249,7 @@ class Lamp:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().colors_Lamp_destroy)
         return handle
 
@@ -261,12 +261,13 @@ class Lamp:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().colors_Lamp_destroy, _types._colors_Lamp__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Lamp object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Lamp object is no longer valid: an object it was obtained "
                     "from is closed"

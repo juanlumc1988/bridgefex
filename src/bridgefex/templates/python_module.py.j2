@@ -68,7 +68,7 @@ class {{ c.py_name }}:
 
     def __init__(self{{ ", " + ctor.parameter_list if ctor.args else "" }}):
         """Wraps ``{{ ctor.function.description }}``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
 {{ ctor.check_call(8, ("_handle = self._watch()",) + ctor.retain_statements("self")) }}
         self._adopt(_handle)
@@ -103,7 +103,7 @@ class {{ c.py_name }}:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().{{ c.destroy.name }})
         return handle
 
@@ -115,12 +115,13 @@ class {{ c.py_name }}:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().{{ c.destroy.name }}, {{ c.py_pointer }}()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("{{ c.py_name }} object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "{{ c.py_name }} object is no longer valid: an object it was obtained "
                     "from is closed"

@@ -341,7 +341,7 @@ class Bag:
 
     def __init__(self, items):
         """Wraps ``vec::Bag::Bag(const std::vector<std::string>& items)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Bag object is already initialized")
         items = _runtime.to_string_array(items, "items")
         items_size = _builtins.len(items)
@@ -362,7 +362,7 @@ class Bag:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().vec_Bag_destroy)
         return handle
 
@@ -374,12 +374,13 @@ class Bag:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().vec_Bag_destroy, _types._vec_Bag__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Bag object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Bag object is no longer valid: an object it was obtained "
                     "from is closed"

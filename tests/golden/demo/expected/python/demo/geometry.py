@@ -76,7 +76,7 @@ class Circle:
 
     def __init__(self, radius):
         """Wraps ``demo::geometry::Circle::Circle(double radius)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Circle object is already initialized")
         radius = _runtime.to_float(radius, ctypes.c_double, "radius")
         _handle = self._watch()
@@ -96,7 +96,7 @@ class Circle:
         self._owners = ()
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = []
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().demo_geometry_Circle_destroy)
         return handle
 
@@ -108,12 +108,13 @@ class Circle:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().demo_geometry_Circle_destroy, _types._demo_geometry_Circle__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Circle object is closed")
         for owner in self._owners:
-            if not owner._owned:
+            if not owner._owned or owner._collected():
                 raise _builtins.ValueError(
                     "Circle object is no longer valid: an object it was obtained "
                     "from is closed"

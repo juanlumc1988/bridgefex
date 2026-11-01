@@ -564,7 +564,18 @@ def test_no_callbacks_after_exit(fresh_runtime: Callable[[], ModuleType]) -> Non
 class FakeObject:
     """The attributes that a generated class gives its objects."""
 
-    __slots__ = ("_finalizer", "_handle", "_owned", "_owners", "_readonly", "_retained")
+    __slots__ = (
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+        "collected",
+    )
+
+    def _collected(self) -> bool:
+        return getattr(self, "collected", False)
 
 
 class OtherObject(FakeObject):
@@ -577,7 +588,7 @@ def owned_object(handle: object = 1) -> FakeObject:
     obj._owned = [(len, None)]
     obj._owners = ()
     obj._readonly = False
-    obj._retained = []
+    obj._retained = {}
     obj._finalizer = None
     return obj
 
@@ -594,11 +605,17 @@ def test_check_object(runtime: ModuleType) -> None:
 
 
 def test_retain(runtime: ModuleType) -> None:
-    retained: list[object] = []
-    value = object()
+    retained: dict[int, object] = {}
+    value, other = object(), object()
     runtime.retain(retained, value)
-    runtime.retain(retained, value)
-    assert retained == [value, value]
+    runtime.retain(retained, value)  # once: a pointer that is set again is not kept twice
+    runtime.retain(retained, other)
+    runtime.retain(retained, None)
+    assert list(retained.values()) == [value, other]
+    runtime.retain(runtime.forever, value)
+    runtime.retain(runtime.forever, value)
+    assert list(runtime.forever.values()).count(value) == 1
+    del runtime.forever[id(value)]
 
 
 def test_borrow(runtime: ModuleType) -> None:
@@ -648,27 +665,70 @@ class Armed:
         self._as_parameter_ = handle
 
 
-def owned_with_finalizer(handle: str, retained: list[object] | None = None) -> FakeObject:
+def owned_with_finalizer(handle: str, retained: dict[int, object] | None = None) -> FakeObject:
     obj = owned_object(handle)
     obj._owned = [(len, "null")]
     obj._finalizer = Armed(handle)  # type: ignore[assignment]
-    obj._retained = retained if retained is not None else []
+    obj._retained = retained if retained is not None else {}
     return obj
 
 
+@pytest.fixture
+def addresses(monkeypatch: pytest.MonkeyPatch, runtime: ModuleType) -> None:
+    """The handles of these tests are strings: their address is the string."""
+    monkeypatch.setattr(runtime, "_address", lambda handle: handle)
+
+
+@pytest.mark.usefixtures("addresses")
 def test_take_gives_up_the_objects(runtime: ModuleType) -> None:
-    first = owned_with_finalizer("h1", ["kept by first"])
+    kept_by_first = object()
+    first = owned_with_finalizer("h1", {id(kept_by_first): kept_by_first})
     second = owned_with_finalizer("h2")
-    owner_list: list[object] = []
-    handles = runtime.take(owner_list, (first, "first"), (second, "second"))
+    owner_dict: dict[int, object] = {}
+    handles = runtime.take(owner_dict, (first, "first"), (second, "second"))
     assert handles == ["h1", "h2"]
     for obj in (first, second):
         assert obj._owned == []  # closed
         assert obj._handle is None
         # Collecting it must not destroy what the C++ code owns now.
         assert obj._finalizer._as_parameter_ == "null"
-    # What they retained is kept alive by the new owner.
-    assert owner_list == [["kept by first"], []]
+    # What the first retained is kept alive by the new owner; the second retained
+    # nothing, and costs nothing (a loop of takes does not grow the owner).
+    (kept,) = owner_dict.values()
+    assert list(kept.items.values()) == [kept_by_first]
+    assert first._retained == {}  # it keeps nothing: its owner does
+
+
+@pytest.mark.usefixtures("addresses")
+def test_what_a_taken_object_retained_comes_back_with_it(runtime: ModuleType) -> None:
+    """The C++ code gives the object back (a pop, a release): it still points to
+    what it pointed to, which its owner no longer has to keep."""
+    kept_by_object = object()
+    taken = owned_with_finalizer("h1", {id(kept_by_object): kept_by_object})
+    owner_dict: dict[int, object] = {}
+    runtime.take(owner_dict, (taken, "taken"))
+    returned = owned_object("h1")
+    runtime.recover(returned._retained, "h1")
+    assert [k.items for k in returned._retained.values()] == [{id(kept_by_object): kept_by_object}]
+    # Another address gets nothing.
+    stranger = owned_object("h2")
+    runtime.recover(stranger._retained, "h2")
+    assert stranger._retained == {}
+    # The owner goes (its dict is cleared): the object that came back still has it.
+    owner_dict.clear()
+    del taken
+    assert len(runtime._kept) == 1
+    returned._retained.clear()
+    assert len(runtime._kept) == 0  # nobody holds it any more: no entry to leak
+
+
+def test_taking_objects_that_retain_nothing_leaves_no_trace(runtime: ModuleType) -> None:
+    owner_dict: dict[int, object] = {}
+    before = len(runtime._kept)
+    for index in range(100):
+        runtime.take(owner_dict, (owned_with_finalizer(f"h{index}"), "x"))
+    assert owner_dict == {}
+    assert len(runtime._kept) == before
 
 
 def test_take_checks_everything_before_giving_anything_up(runtime: ModuleType) -> None:
@@ -680,10 +740,12 @@ def test_take_checks_everything_before_giving_anything_up(runtime: ModuleType) -
     invalid._owned = [(len, "null")]  # as if it owned something
     invalid._owners[0]._owned = []  # whose owner was closed
     me = owned_with_finalizer("me")
+    garbage = owned_with_finalizer("garbage")
+    garbage.collected = True  # cyclic garbage that a __del__ sees: already destroyed
 
     def attempt(*arguments: tuple[object, str], keep: object = None) -> str:
         with pytest.raises(ValueError, match="argument") as raised:
-            runtime.take([], (good, "good"), *arguments, keep=keep)
+            runtime.take({}, (good, "good"), *arguments, keep=keep)
         return str(raised.value)
 
     assert "argument 'x': FakeObject object is closed" in attempt((closed, "x"))
@@ -692,6 +754,11 @@ def test_take_checks_everything_before_giving_anything_up(runtime: ModuleType) -
     assert "argument 'x': FakeObject object is no longer valid" in attempt((invalid, "x"))
     assert "argument 'x' is the same object as 'good'" in attempt((good, "x"))
     assert "argument 'x' is the same object as 'self'" in attempt((me, "x"), keep=me)
+    assert "argument 'x': FakeObject object is closed" in attempt((garbage, "x"))
+    # An owner that the collection destroyed makes the object invalid too.
+    borrowed_from_garbage = runtime.borrow(FakeObject, "g", (garbage,), False)
+    borrowed_from_garbage._owned = [(len, "null")]
+    assert "no longer valid" in attempt((borrowed_from_garbage, "x"))
     # Nothing was taken by any of the failed calls.
     assert good._owned == [(len, "null")]
     assert good._handle == "good"
@@ -700,8 +767,8 @@ def test_take_checks_everything_before_giving_anything_up(runtime: ModuleType) -
 
 def test_take_passes_none_through(runtime: ModuleType) -> None:
     obj = owned_with_finalizer("h")
-    assert runtime.take([], (None, "a"), (obj, "b"), (None, "c")) == [None, "h", None]
-    assert runtime.take([], (None, "a")) == [None]
+    assert runtime.take({}, (None, "a"), (obj, "b"), (None, "c")) == [None, "h", None]
+    assert runtime.take({}, (None, "a")) == [None]
 
 
 def test_to_callback(runtime: ModuleType) -> None:

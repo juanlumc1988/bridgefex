@@ -370,3 +370,29 @@ def test_function_annotations_are_values() -> None:
     assert entry.where() == "a.toml:4"
     assert entry.where(9) == "a.toml:9"
     assert FunctionAnnotations("a.toml").where() == "a.toml"
+
+
+def test_a_byte_order_mark_is_accepted(tmp_path: Path) -> None:
+    path = tmp_path / "bom.toml"
+    path.write_bytes(b'\xef\xbb\xbf[f]\nx = "nullable"\n')
+    assert set(load([path])) == {"f"}
+
+
+def test_lines_are_counted_as_toml_does(tmp_path: Path) -> None:
+    # U+2028 is no line break in TOML; str.splitlines() would split there.
+    separator = chr(0x2028)
+    message = config_error(tmp_path, f'# a note {separator} here\n[f]\nx = "nulable"\n')
+    assert "file0.toml:3:" in message
+    # CRLF is.
+    assert "file0.toml:3:" in config_error(tmp_path, '# note\r\n[f]\r\nx = "nulable"\r\n')
+
+
+def test_quoted_names_have_their_line(tmp_path: Path) -> None:
+    assert "file0.toml:2:" in config_error(tmp_path, "['f']\n'x' = \"nulable\"\n")
+    assert "file0.toml:2:" in config_error(tmp_path, '["f"]\n"x" = "nulable"\n')
+
+
+def test_a_table_without_a_header_has_no_line_zero(tmp_path: Path) -> None:
+    message = config_error(tmp_path, 'f.x = "nulable"\n')
+    assert "file0.toml" in message
+    assert ":0:" not in message
