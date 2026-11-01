@@ -84,7 +84,7 @@ class {{ c.py_name }}:
     @_builtins.classmethod
     def {{ ctor.name }}(cls{{ ", " + ctor.parameter_list if ctor.args else "" }}):
         """Wraps ``{{ ctor.function.description }}``."""
-{{ ctor.check_call(8, ("_self = cls.__new__(cls)", "_handle = _self._watch()") + ctor.retain_statements("_self")) }}
+{{ ctor.check_call(8, ("_self = cls.__new__(cls)", "_handle = _self._watch()") + ctor.retain_statements("_self"), owner="_self") }}
         _self._adopt(_handle)
         return _self
 {% endfor %}

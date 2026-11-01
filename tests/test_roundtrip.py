@@ -657,6 +657,12 @@ _OWNERSHIP_ROUND = """
 if scenario == "unique_ptr":
     go.set()
     tree.slowMake(7, 50)
+elif scenario == "transfer":
+    # Taken by the C++ code before the signals are handled; the tree keeps it
+    # (and throws no exception: the ASan runtime cannot intercept one here).
+    item = Item(7)
+    go.set()
+    tree.slowAdopt(item, 50)
 else:
     go.set()
     tree.slowNode(7, 50)
@@ -667,8 +673,8 @@ _OWNERSHIP_SIGNALS = (
         "#IMPORTS#", "from own.node import Item, Node\nfrom own.tree import Tree"
     )
     .replace("#ROUND#", textwrap.indent(_OWNERSHIP_ROUND.strip("\n"), "    "))
-    .replace("#SETUP#", "tree = Tree()\nbaseline = Node.live() + Item.live()")
-    .replace("#LIVE#", "Node.live() + Item.live() - baseline")
+    .replace("#SETUP#", "baseline = Node.live() + Item.live()\ntree = Tree()")
+    .replace("#LIVE#", "(tree.close(), gc.collect(), Node.live() + Item.live() - baseline)[2]")
 )
 _SIGNAL_ROUNDS = 200
 
@@ -809,7 +815,7 @@ def ownership_asan_build(
 
 
 @_POSIX_SIGNALS
-@pytest.mark.parametrize("scenario", ["unique_ptr", "value"])
+@pytest.mark.parametrize("scenario", ["unique_ptr", "value", "transfer"])
 def test_pending_signals_do_not_leak_owned_results(
     ownership_build: tuple[Path, Path], scenario: str
 ) -> None:
@@ -823,7 +829,7 @@ def test_pending_signals_do_not_leak_owned_results(
 
 
 @_POSIX_SIGNALS
-@pytest.mark.parametrize("scenario", ["unique_ptr", "value"])
+@pytest.mark.parametrize("scenario", ["unique_ptr", "value", "transfer"])
 def test_pending_signals_do_not_double_free_owned_results(
     ownership_asan_build: tuple[Path, Path, str], scenario: str
 ) -> None:

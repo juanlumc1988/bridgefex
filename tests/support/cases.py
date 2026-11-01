@@ -8,6 +8,7 @@ Each case has:
   impl/            optional C++ implementation, for the round-trip tests
   check_python.py  optional Python program run against the built library
   check_c.c        optional C program linked against the built library
+  annotations.toml optional, if case.toml lists it: who owns what (see bridgefex.annotations)
 """
 
 from __future__ import annotations
@@ -31,6 +32,9 @@ class Case:
     min_cxx: str
     """Oldest C++ standard that the generated sources compile with."""
 
+    annotations: tuple[Path, ...] = ()
+    """The annotation files of the case."""
+
     @property
     def input_dir(self) -> Path:
         return self.directory / "input"
@@ -52,7 +56,7 @@ class Case:
         return self.directory / "check_c.c"
 
     def options(self) -> bridgefex.Options:
-        return bridgefex.Options(module=self.module, std=self.std)
+        return bridgefex.Options(module=self.module, std=self.std, annotations=self.annotations)
 
 
 def load_case(directory: Path) -> Case:
@@ -65,6 +69,7 @@ def load_case(directory: Path) -> Case:
         headers=tuple(directory / "input" / name for name in config["headers"]),
         std=config.get("std", "c++17"),
         min_cxx=config.get("min_cxx", "c++11"),
+        annotations=tuple(directory / name for name in config.get("annotations", ())),
     )
 
 

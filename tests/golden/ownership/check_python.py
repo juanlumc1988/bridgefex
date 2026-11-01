@@ -14,7 +14,21 @@ import sys
 import own
 from own import Error
 from own.node import Item, Node
-from own.tree import Driver, Pair, Tree, idOf, pick, same, total, twin
+from own.tree import (
+    Driver,
+    Pair,
+    Peek,
+    Pipeline,
+    Tree,
+    consume,
+    globalNodeValue,
+    idOf,
+    pick,
+    same,
+    setGlobalNode,
+    total,
+    twin,
+)
 
 
 def expect(exception_type, function, *args, message=None):
@@ -29,6 +43,7 @@ def expect(exception_type, function, *args, message=None):
 
 # The singleton and its root Node live until the program ends.
 Tree.global_()
+SINGLETON_NODES = Node.live()
 
 a, b = Node(3), Node(4)
 tree = Tree()
@@ -147,6 +162,60 @@ assert Tree.global_().croot().value() == 0
 expect(TypeError, copy.copy, root)
 expect(TypeError, pickle.dumps, root)
 
+# Transfer: the C++ code takes the objects, and Python gives them up.
+items_before = Item.live()
+five = Item(5)
+tree.adopt(five)
+expect(ValueError, five.id, message="Item object is closed")
+five.close()  # nothing left to destroy
+assert tree.items() == 1 and tree.itemSum() == 5 and Item.live() == items_before + 1
+assert tree.first().id() == 5
+expect(ValueError, tree.adopt, five, message="argument 'item': Item object is closed")
+
+# Everything is checked before anything is given up.
+x, y = Item(7), Item(8)
+expect(ValueError, tree.adoptBoth, x, 1, x, message="argument 'second' is the same object")
+expect(ValueError, tree.adoptBoth, x, 1, five, message="argument 'second': Item object is closed")
+expect(ValueError, tree.adoptBoth, tree.first(), 1, y, message="cannot be transferred")
+expect(TypeError, tree.adoptBoth, x, 1, Node(1), message="argument 'second' must be Item")
+expect(TypeError, tree.adoptBoth, x, "1", y)
+expect(ValueError, dead.adoptBoth, x, 1, y, message="Tree object is closed")
+assert x.id() == 7 and y.id() == 8  # still theirs
+assert tree.items() == 1
+# self is not an argument.
+expect(ValueError, tree.adopt, tree.first(), message="cannot be transferred")
+
+# An exception after the objects were taken: they are destroyed anyway.
+expect(Error, tree.adoptBoth, x, -1, y, message="tag")
+expect(ValueError, x.id, message="Item object is closed")
+expect(ValueError, y.id, message="Item object is closed")
+assert Item.live() == items_before + 1
+tree.adoptBoth(Item(9), 1, Item(10))
+assert tree.items() == 3 and tree.itemSum() == 24
+
+# Constructors and functions take them too.
+item = Item(11)
+pipeline = Pipeline.create_own_Item_unique(item)
+expect(ValueError, item.id, message="Item object is closed")
+assert pipeline.firstId() == 11 and Item.live() == items_before + 4
+pipeline.close()
+assert Item.live() == items_before + 3
+failing = Item(12)
+expect(Error, Pipeline.create_own_Item_unique_int32, failing, 100, message="below the minimum")
+expect(ValueError, failing.id, message="Item object is closed")
+assert Item.live() == items_before + 3
+last = Item(14)
+assert consume(last) == 14
+expect(ValueError, last.id, message="Item object is closed")
+assert Item.live() == items_before + 3
+
+# What the tree owns is destroyed with it.
+tree_with_items = Tree()
+tree_with_items.adopt(Item(1))
+assert Item.live() == items_before + 4
+tree_with_items.close()
+assert Item.live() == items_before + 3
+
 # Subclasses are accepted.
 
 
@@ -198,7 +267,98 @@ PROGRAMS = (
 for code in PROGRAMS:
     subprocess.run([sys.executable, "-c", code], check=True)
 
+# Raw pointers: the annotations say who owns them.
+base_nodes = Node.live()
+root = tree.root()
+root.setValue(50)
+found = tree.find(50)
+assert found is not None and found.value() == 50
+assert tree.find(51) is None
+cfound = tree.cfind(50)
+assert cfound is not None and cfound.value() == 50
+expect(TypeError, cfound.setValue, 1, message="read-only")
+assert tree.cfind(51) is None
+# A borrowed object keeps its owner alive, and is invalid once the owner is closed.
+spare = Tree()
+inside = spare.find(0)
+del spare
+gc.collect()
+assert inside is not None and inside.value() == 0
+inside._owners[0].close()
+expect(ValueError, inside.value, message="no longer valid")
+del inside
+gc.collect()
+assert Node.live() == base_nodes
+
+# An owned pointer is Python's: None when there is nothing, else to destroy.
+while tree.items():
+    tree.detach().close()
+assert tree.detach() is None
+base_items = Item.live()
+tree.adopt(Item(31))
+assert Item.live() == base_items + 1
+with tree.detach() as detached:
+    assert type(detached) is Item and detached.id() == 31
+assert Item.live() == base_items
+raw = Item(20)
+tree.adoptRaw(raw)
+expect(ValueError, raw.id, message="Item object is closed")
+expect(TypeError, tree.adoptRaw, None, message="argument 'item' must be Item, not NoneType")
+assert tree.detach().id() == 20
+
+# Pointers that may be NULL.
+assert tree.valueOf(None) == -1 and tree.valueOf(a) == a.value()
+assert tree.both(None, b) == b.value() and tree.both(None, None) == 0
+expect(TypeError, tree.valueOf, 5, message="argument 'node' must be Node or None, not int")
+expect(TypeError, tree.sum, None, b, message="argument 'a' must be Node, not NoneType")
+assert Tree.labelLength(None) == -1 and Tree.labelLength("abc") == 3
+expect(ValueError, Tree.labelLength, "a\0b", message="NUL")
+expect(TypeError, Tree.labelLength, 5)
+
+# Bytes, not text.
+assert tree.signature() == b"a\x00\xff"
+
+# What the C++ object keeps pointers to is kept alive by it, until it is closed.
+cursor = Node(77)
+tree.setCursor(cursor)
+del cursor
+gc.collect()
+assert Node.live() == base_nodes + 1 and tree.cursorValue() == 77
+holder = Tree()
+holder.setCursor(Node(78))
+gc.collect()
+assert holder.cursorValue() == 78 and Node.live() == base_nodes + 3
+holder.close()
+gc.collect()
+assert Node.live() == base_nodes + 1  # its root and its cursor went with it
+# A pointer that is replaced stays alive until the object is closed.
+tree.setCursor(a)
+gc.collect()
+assert Node.live() == base_nodes + 1 and tree.cursorValue() == a.value()
+
+# A constructor keeps what it gets, unless it only reads it.
+transient = Node(4)
+peek = Peek(transient)
+del transient
+gc.collect()
+assert peek.seen() == 4 and Node.live() == base_nodes + 1
+peek.close()
+
 for obj in (a, b, tree):
     obj.close()
+gc.collect()
+assert Node.live() == SINGLETON_NODES and Item.live() == 0
+
+# Without an object to keep them, a function or a static method keeps them forever.
+kept = len(own._runtime.forever)
+shared = Node(79)
+Tree.setSharedCursor(shared)
+del shared
+global_node = Node(80)
+setGlobalNode(global_node)
+del global_node
+gc.collect()
+assert Tree.sharedCursorValue() == 79 and globalNodeValue() == 80
+assert len(own._runtime.forever) == kept + 2 and Node.live() == SINGLETON_NODES + 2
 assert own is not None
 print("ownership: Python round trip OK")

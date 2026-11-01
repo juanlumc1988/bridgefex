@@ -42,3 +42,17 @@ class _own_Pair(ctypes.Structure):
 
 
 _own_Pair__p = ctypes.POINTER(_own_Pair)
+
+
+class _own_Pipeline(ctypes.Structure):
+    """Opaque C handle of own::Pipeline."""
+
+
+_own_Pipeline__p = ctypes.POINTER(_own_Pipeline)
+
+
+class _own_Peek(ctypes.Structure):
+    """Opaque C handle of own::Peek."""
+
+
+_own_Peek__p = ctypes.POINTER(_own_Peek)

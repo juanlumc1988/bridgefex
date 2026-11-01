@@ -99,6 +99,7 @@ bridgefex --module demo --output out include/counter.h include/geometry.h
 | `-I DIR`, `-D NAME[=VALUE]` | Include directories and macros for parsing. |
 | `--clang-arg=ARG` | Any other libclang argument. |
 | `--include-root DIR` | Make the `#include` lines of the generated sources relative to `DIR` (default: each header by its file name). |
+| `--annotations FILE` | TOML file that says who owns the objects that cross the boundary (repeatable; see Ownership). |
 | `--libclang PATH` | libclang shared library. |
 | `--no-verify` | Do not compile the generated C layer with libclang before writing it (see below). |
 
@@ -149,6 +150,7 @@ Generation is all-or-nothing. If any header contains something unsupported, ever
 | `std::span<const T>` | C++20, with a dynamic extent; `T` as for `std::vector`. Parameters `S`, `const S` and `const S&`, results `S` and `const S&`. |
 | Strings | `std::string`, `std::string_view` (C++17) and `const char*`, as parameters and results, also through aliases. `const` values and `const T&` of `std::string` and `std::string_view` are passed by value. Not `std::string&` (an output parameter), `std::string&&`, `char*`, other character types (`std::wstring`, `std::u8string`...) or custom traits and allocators. |
 | `std::function<R(A...)>` | Parameters (`F`, `const F`, `const F&`, `F&&`), also through a plain alias, of free functions, methods and constructors. Arguments: scalars (`const T&` too), enums, value structs and the three string types. Results: `void`, scalars and enums. See Callbacks below. |
+| Wrapped classes | The classes of the module (also those of another header of it) as parameters: `T&`, `const T&`, `T*`, `const T*`, `T` (a copy) and `std::unique_ptr<T>` (also `&&`). As results: `T` and `std::unique_ptr<T>` (new objects that the caller owns), `T&` and `const T&` (borrowed), and `T*` and `const T*` when the annotations say who owns them. See Ownership. |
 
 Rejected with an error, for now:
 
@@ -159,9 +161,9 @@ Rejected with an error, for now:
 - Anonymous enums (`enum { kSize = 4 };`), enums that no wrapped header defines, `std::byte` and the other enums of the standard library.
 - Unions, global variables, `extern "C"` blocks.
 - Anonymous and inline namespaces.
-- Pointers (except `const char*`) and non-const references.
+- Pointers and non-const references, except to the wrapped classes; `T&&`, `std::shared_ptr`, `std::weak_ptr`, `std::unique_ptr` with a deleter, to a const class, of an array or passed by reference; classes of headers that are not wrapped, and a class as a container element, a callback argument or a member of a value struct.
 - Function pointers, `std::function` results, `std::function&` and `std::function*`, callbacks that take containers or other callbacks, or that return strings, structs or references, variadic signatures, and `std::function` through an alias template.
-- Classes by value other than value structs and the containers above (`std::map`, `std::pair`, `std::optional`...), plain `char`, `wchar_t`, `long double`.
+- Classes of the standard library other than the containers above (`std::map`, `std::pair`, `std::optional`...), plain `char`, `wchar_t`, `long double`.
 - Containers of other types (`char`, `const char*`, `std::string_view`, pointers, other containers; `std::string` in a `std::array`), vectors with another allocator (`std::pmr::vector`), `std::span` of non-const elements (an output buffer) or with a fixed extent, `std::array<T, 0>`, non-const references and pointers to containers, and containers in value structs.
 - In value structs: bit-fields, `const`, reference, pointer and string members, `char` arrays, multi-dimensional or empty arrays, anonymous unions, base classes, methods and constructors with parameters, destructors that may throw, copy or move constructors that are deleted, private or explicit. Unions. Non-const references and pointers to value structs.
 - Type aliases other than the standard fixed-width ones. A type is only taken as `int64_t`, `size_t`... if it is the standard one: an alias with that name declared by your code (`typedef unsigned size_t;` in your namespace) is rejected.
@@ -184,6 +186,7 @@ Copy and move constructors, deleted functions, and private or protected members 
 - **Arrays.** A `std::array<T, N>` parameter becomes `const CT a[N]`, a pointer that must not be NULL, to `N` elements. Parameters taken by reference are converted on the heap, so a large array does not overflow the stack. A result is written into `CT out_result[N]`, which the caller provides, and only on success. `N` is the value on the platform that ran bridgefex: a build where it differs (`std::array<int, sizeof(long)>`) fails to compile.
 - **Value structs** become a C struct with the same members (renamed like parameters when needed: `from` becomes `from_`), in `<module>_types.h`, with natural layout whatever packing is in effect (`#pragma pack(push, 8)`). They are passed by pointer: `const geo_Point* a` in, `geo_Point* out_result` out. A result is written only on success, so the output may be one of the inputs. `<c_type>_init(T* out)` gives the value of a default-constructed `T`, default member initializers included. The generated sources copy member by member, so the C++ struct may be packed or aligned differently. An array member has the length that it had on the platform that ran bridgefex; a `static_assert` stops a build where it differs. A member of an enum without a fixed underlying type that is out of its range returns `ERROR_INVALID_ARGUMENT`.
 - **Handles.** Each class becomes an opaque handle: an incomplete `struct` with the same type in C and C++, so function pointers and control-flow integrity checks see one type. `X_create...` allocates an object and returns it through `X** out_self`, which is set to NULL on failure. `X_destroy(X*)` deletes it and accepts NULL. The generated source converts between handle and class with `reinterpret_cast`.
+- **Wrapped classes.** A class passed by reference or pointer is its handle: `const X* x` for `const X&`, `const X*` and a copy (`X`), `X* x` for `X&` and `X*`. A handle is never NULL unless the header says that it may be (see Ownership); NULL gives `ERROR_NULL_ARGUMENT`. A result by value or in a `std::unique_ptr` is a new object, returned through `X** out_result`, which the caller destroys with `X_destroy` (NULL after any failure, and for an empty `std::unique_ptr`). A reference result is written through `X** out_result` too, and is **borrowed**: never NULL, never destroyed by the caller, valid while the object it came from is. A `std::unique_ptr` parameter, and a pointer annotated `transfer`, give the object to the function: **it is consumed whatever the status**, also when the call fails before it reaches the wrapped function (a NULL `self`, another NULL argument), and when the wrapped function throws; the caller must not use or destroy it afterwards. The comment of each function in the C header says which of these apply, so the API fingerprint covers them. A class passed by value must be copyable (a `static_assert` says so); one returned by value needs C++17 unless it can be moved.
 - **Errors.** Every function that can fail returns a `<module>_status`:
 
   | Status | Meaning |
@@ -214,6 +217,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 - String parameters accept `str`, encoded as UTF-8 (strictly: lone surrogates raise `UnicodeEncodeError`), and bytes-like objects with 1-byte items (`bytes`, `bytearray`, `memoryview`...), which are copied first. A `const char*` parameter refuses NUL characters (`ValueError`), which C++ would not see. String results are decoded as strict UTF-8: on invalid data the `UnicodeDecodeError` keeps the bytes in `.object`. A NULL `const char*` result is `None`. The memory of a result is released even when Ctrl-C interrupts the call.
 - Value structs become dataclasses with the members as fields (`geo.Point(1.0, 2.0)`), compared by value, copyable and picklable, with `__slots__`. Omitted fields take their value in a default-constructed C++ struct, which loads the library. Arrays are lists of the exact length (`bytes` too for arrays of bytes), nested structs are dataclasses. Values are checked when they are passed, with the path of the member in messages (`argument 'm.samples[1]' must be in [-32768, 32767]`). Results are new objects: changing them does not change C++ data.
 - Callbacks accept any callable, or `None` for an empty `std::function`. Their results are checked like arguments (`OverflowError: the result of callback 'f' must be in [...]`). An exception raised by a callback during the call, on any thread, is raised by the call when it returns, and its other callbacks are then skipped (C++ gets 0); `KeyboardInterrupt` too, also when Ctrl-C arrives as a callback starts. C++ cannot be cancelled: a loop of callbacks still runs to its end, without calling Python. A callback that C++ stores is kept alive as long as C++ holds it, also when Ctrl-C arrives as the call returns; one that raises after the call has returned is reported by `sys.unraisablehook`, except `KeyboardInterrupt` on the main thread, which the running call of the bindings (such as an event loop's `run()`) raises when it returns. At exit, the callbacks are disabled before Python shuts down: C++ code that still calls one (a static destructor, a thread) gets 0, and a call that passes a callback raises `RuntimeError`.
+- Wrapped classes: a parameter takes an object of the class (or of a subclass), checked before anything else (`TypeError`); the handles are read last, in the call, so a closed object raises `ValueError`. A result by value or in a `std::unique_ptr` is a new object that Python owns; `None` for an empty `std::unique_ptr`. A **borrowed** object (a reference or an annotated pointer result) belongs to the C++ object it came from: it keeps that object alive, raises `ValueError` once it, or an object it came from, is closed, destroys nothing when closed, and is read-only when it came through `const` (`TypeError` for non-const methods and parameters). A function that is not a method borrows from the reference and pointer arguments it was given. A `std::unique_ptr` parameter (or a pointer annotated `transfer`) gives the object up: the Python object is closed afterwards, even if the call fails, and cannot be a borrowed object, `self` or given twice; everything is checked before any object is given up. What the objects kept (see `retain`) moves with them. A constructor keeps alive the references and pointers it gets, as long as the object lives (a method keeps nothing unless told so), and `close()` releases them after the destructor.
 - Vector parameters accept any sequence with `len()` and indexing (list, tuple, range, `array.array`, numpy arrays...), but not sets, mappings, iterators, strings or `memoryview` (except for byte vectors); each element is checked like a parameter, and errors name it (`argument 'values[1]' ...`), so a numpy array of `bool` is refused like any value that is not a Python `bool` (pass `array.tolist()`). Byte vectors also accept one-dimensional `bytes`-like objects of unsigned bytes, copied at once; signed ones (`array.array('b')`) are checked element by element. Results are lists.
 - Enums become `IntEnum` classes, nested ones as class attributes (`Lamp.State`), with the C++ names, except Python keywords and the names that `IntEnum` reserves (`mro`, `bit_length`...), which get a trailing `_`. Arguments accept a member or an `int` (flag combinations), not `bool` or a member of another enum: `OverflowError` outside the C type, `ValueError` outside the valid range of an enum without a fixed underlying type. Results are members, or `int` for values that are not enumerators.
 - C++ exceptions raise `<module>.Error`, with `.status`, `.status_name` and the message. Errors can be pickled, for example to come back from a worker process.
@@ -225,6 +229,52 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 
   On Windows, a library's own dependencies are found in its directory and the system directories. Use `os.add_dll_directory()` for others.
 - Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking. That includes `close()`: closing an object while another thread, a `sys.setprofile`/`sys.settrace` hook or a signal handler is about to call a method of it is not supported. A cyclic object whose class defines `__del__` finds itself closed there, because CPython runs weak-reference callbacks before finalizers on cyclic garbage; use `with` or `close()` for such objects. Calling `__init__` again from inside the conversion of its own arguments is not supported either. Loading and binding are thread-safe, reentrant (a `__del__` may call into the bindings) and safe across `os.fork()`.
+
+## Ownership
+
+C++ declarations do not say who owns a `T*`, nor whether a function keeps a pointer it is given. bridgefex decides what it can from the types and asks for the rest:
+
+| C++ | Default |
+|---|---|
+| result `T`, `std::unique_ptr<T>` | a new object that the caller owns |
+| result `T&`, `const T&` | borrowed, never NULL |
+| result `T*`, `const T*` | **an annotation is required**: `owned` or `borrowed`; it may be NULL (`None`) |
+| parameter `T&`, `const T&`, `T*`, `const T*`, `T` | not NULL; used during the call (a constructor keeps references and pointers) |
+| parameter `std::unique_ptr<T>` | taken by the function |
+
+The **annotations file** is TOML with one table per generated C function (the name in the C header), keys for the parameters (by their C++ name, or by position counted from 1) and `return`:
+
+```toml
+[demo_Tree_find]                # Node* Tree::find(int value)
+return = "borrowed"             # the tree keeps owning it
+
+[demo_Tree_detach]              # Item* Tree::detach()
+return = "owned"                # the caller destroys it
+
+[demo_Tree_adoptRaw]            # void Tree::adoptRaw(Item* item)
+item = "transfer"               # the tree takes it
+
+[demo_Tree_both]                # int both(const Node* first, const Node* second)
+first = "nullable"
+2 = ["nullable"]                # the same, by position
+
+[demo_Tree_setCursor]           # void setCursor(Node* node)
+node = "retain"                 # the tree keeps the pointer: it keeps the object alive
+
+[demo_Peek_create]              # explicit Peek(const Node& node), which only reads it
+node = "call"                   # a constructor keeps what it gets, unless told so
+```
+
+| Word | Where | Meaning |
+|---|---|---|
+| `owned`, `borrowed` | `return` of `T*`, `const T*` (`owned` not for `const`) | who owns the result |
+| `bytes` | `return` of a string | Python returns `bytes`, not `str` |
+| `nullable` | `T*`, `const T*`, `std::unique_ptr`, `const char*` | NULL (`None`) is accepted |
+| `transfer` | `T*` | the function takes the object (a `std::unique_ptr` always does) |
+| `retain` | `T&`, `const T&`, `T*`, `const T*` | the C++ code keeps the pointer; Python keeps the object alive while the C++ object lives, or for ever for a function without one |
+| `call` | the same | only used during the call (the default, except for constructors) |
+
+Everything is checked, and all the problems are reported with `file:line`: an unknown function (adding an overload renames the C functions of the others, so an annotation of the old name is an error with suggestions), an unknown parameter or word, a word that does not apply to the type, `owned` with `borrowed` or `transfer` with `retain`, a result that is always owned or borrowed, a raw pointer result with no annotation. The policy is printed in the comments of the C header, so changing it changes the API fingerprint; `bytes`, which only affects Python, does not.
 
 ## Platforms
 
@@ -255,6 +305,10 @@ Not tested: cross-compiling the generated sources to 32-bit ARM (the arm64 runne
 - `<module>_free` is an exported C symbol: the module name must not give a name that another library of the program exports (`g_free` of GLib, `curl_free` of libcurl).
 - A callback that refers to the object that stores it (`timer.set_on_tick(lambda i: timer.tick(0))`) makes a reference cycle through C++ that the garbage collector cannot see: close such objects, or use a weak reference.
 - Ctrl-C during a callback reaches the call through a `sys.unraisablehook` that the bindings install at import, one for the bindings of every package; code that replaces the hook (some test runners do) loses only that. A C++ thread that is inside a callback when Python shuts down can still crash or hang it.
+- A borrowed object can only be checked against the objects it came from being closed. If the C++ owner frees it while it is open (`tree.release()` after `tree.find()`), using the borrowed object is a use after free, as with any reference in C++: copy it, or use it in a `with` scope of its owner. A reference that the C++ code returns from an argument is borrowed from `self` only (from the reference and pointer arguments, for a function without `self`).
+- Taking an object gives it up for good: the objects borrowed from it become invalid, and a signal (Ctrl-C) that arrives between giving it up and the C call, a few microseconds, leaks that object (it is never destroyed twice).
+- What `retain` keeps is kept until the C++ object is closed: a pointer that a method replaces keeps its old object alive, and a function or static method that keeps a pointer keeps its object for ever (`<module>._runtime.forever`).
+- A class returned by value that cannot be copied or moved needs C++17 (guaranteed copy elision). `std::shared_ptr` is not supported.
 - A signal that a handler turns into an exception during `close()` can postpone the destruction until the object is collected. Under a `sys.settrace`, `sys.setprofile` or `sys.monitoring` hook, which runs Python code between two lines, such an exception can also leak the object.
 
 ## Development
@@ -287,8 +341,8 @@ Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/
 ## Roadmap
 
 1. Prototype: classes, functions and scalar types; C layer and Python bindings; golden and round-trip tests. *(done)*
-2. More types: strings, enums, POD structs, containers and callbacks *(done)*; handles across headers and ownership annotations.
-3. Python complete: inheritance and virtual methods, which change the C layer that every language shares.
+2. More types: strings, enums, POD structs, containers, callbacks, and wrapped classes across headers with ownership annotations. *(done)*
+3. Python complete: the loose ends of the callbacks (the error of a stored callback that another call runs, one disable slot per library, the diagnostics for headers that use the names of the generated locals), and inheritance and virtual methods, which change the C layer that every language shares.
 4. Language-neutral architecture: one plan with one backend per language, and a conformance suite that every backend runs on the same golden headers.
 5. C# (P/Invoke), on that common base.
 6. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.

@@ -74,6 +74,16 @@ def build_parser() -> argparse.ArgumentParser:
         "(default: include each header by its file name)",
     )
     parser.add_argument(
+        "--annotations",
+        dest="annotations",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="FILE",
+        help="TOML file that says who owns the objects that cross the boundary: raw "
+        "pointers, objects that are taken or kept (repeatable)",
+    )
+    parser.add_argument(
         "--libclang",
         type=Path,
         metavar="PATH",
@@ -110,6 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         clang_args=tuple(args.clang_args),
         include_root=args.include_root,
         languages=languages,
+        annotations=tuple(args.annotations),
         verify=args.verify,
     )
     try:

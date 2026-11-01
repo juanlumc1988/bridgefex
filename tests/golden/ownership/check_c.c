@@ -140,6 +140,125 @@ int main(void)
         check(own_Tree_root(NULL, &root) == OWN_ERROR_NULL_ARGUMENT, "NULL self");
     }
 
+    /* Transfer: the function owns what it is given, whatever the status. */
+    {
+        own_Item* x = NULL;
+        own_Item* y = NULL;
+        own_Item* first = NULL;
+        own_Pipeline* pipeline = NULL;
+        size_t items_before = 0;
+        size_t count = 0;
+        check(own_Item_live(&items_before) == OWN_OK, "live");
+        check(own_Item_create(&x, 5) == OWN_OK && own_Item_create(&y, 6) == OWN_OK, "Items");
+        check(own_Tree_adopt(tree, x) == OWN_OK, "adopt");
+        check(own_Tree_items(tree, &count) == OWN_OK && count == 1, "one item");
+        check(own_Tree_itemSum(tree, &out) == OWN_OK && out == 5, "the sum of the ids");
+        check(own_Tree_first(tree, &first) == OWN_OK && first == x, "the item is the same");
+        /* A NULL self, a NULL output... the object is destroyed anyway. */
+        check(own_Tree_adopt(NULL, y) == OWN_ERROR_NULL_ARGUMENT && mentions("'self' is NULL"),
+              "NULL self");
+        check(own_Item_live(&live) == OWN_OK && live == items_before + 1, "y was destroyed");
+        /* An exception after the objects were taken: they are destroyed. */
+        check(own_Item_create(&x, 7) == OWN_OK && own_Item_create(&y, 8) == OWN_OK, "Items");
+        check(own_Tree_adoptBoth(tree, x, -1, y) == OWN_ERROR_EXCEPTION && mentions("tag"),
+              "adoptBoth throws");
+        check(own_Item_live(&live) == OWN_OK && live == items_before + 1, "both destroyed");
+        /* A NULL argument: the other one is destroyed too. */
+        check(own_Item_create(&x, 7) == OWN_OK, "Item");
+        check(own_Tree_adoptBoth(tree, x, 1, NULL) == OWN_ERROR_NULL_ARGUMENT
+                  && mentions("'second' is NULL"),
+              "NULL second");
+        check(own_Tree_adoptBoth(tree, NULL, 1, NULL) == OWN_ERROR_NULL_ARGUMENT, "both NULL");
+        check(own_Item_live(&live) == OWN_OK && live == items_before + 1, "x was destroyed");
+        check(own_Item_create(&x, 9) == OWN_OK && own_Item_create(&y, 10) == OWN_OK, "Items");
+        check(own_Tree_adoptBoth(tree, x, 1, y) == OWN_OK, "adoptBoth");
+        check(own_Tree_items(tree, &count) == OWN_OK && count == 3, "three items");
+        check(own_Tree_itemSum(tree, &out) == OWN_OK && out == 24, "the sum");
+        /* Constructors, and a free function. */
+        check(own_Item_create(&x, 11) == OWN_OK, "Item");
+        check(own_Pipeline_create_own_Item_unique(&pipeline, x) == OWN_OK, "Pipeline");
+        check(own_Pipeline_firstId(pipeline, &out) == OWN_OK && out == 11, "firstId");
+        /* A constructor that throws resets its output, and takes the object. */
+        check(own_Item_create(&x, 12) == OWN_OK, "Item");
+        {
+            own_Pipeline* other = pipeline;
+            check(own_Pipeline_create_own_Item_unique_int32(&other, x, 100) == OWN_ERROR_EXCEPTION
+                      && other == NULL,
+                  "a constructor that throws");
+        }
+        own_Pipeline_destroy(pipeline);
+        check(own_Item_create(&x, 13) == OWN_OK, "Item");
+        check(own_Pipeline_create_own_Item_unique(NULL, x) == OWN_ERROR_NULL_ARGUMENT,
+              "NULL out_self");
+        check(own_Item_create(&x, 14) == OWN_OK, "Item");
+        check(own_consume(x, &out) == OWN_OK && out == 14, "consume");
+        check(own_Item_live(&live) == OWN_OK && live == items_before + 3, "nothing leaked");
+    }
+
+    /* Raw pointers: the annotations say who owns them. */
+    {
+        own_Node* found = NULL;
+        const own_Node* cfound = NULL;
+        own_Node* root = NULL;
+        own_Item* detached = NULL;
+        own_Item* raw = NULL;
+        char* data = NULL;
+        size_t size = 0;
+        size_t count = 0;
+        check(own_Tree_root(tree, &root) == OWN_OK, "root");
+        check(own_Tree_find(tree, 50, &found) == OWN_OK && found == root, "find");
+        check(own_Tree_find(tree, 51, &found) == OWN_OK && found == NULL, "find: not found");
+        check(own_Tree_cfind(tree, 50, &cfound) == OWN_OK && cfound == root, "cfind");
+        check(own_Tree_cfind(tree, 51, &cfound) == OWN_OK && cfound == NULL, "cfind: not found");
+        /* An owned pointer is the caller's: NULL when there is nothing, else to destroy. */
+        check(own_Tree_items(tree, &count) == OWN_OK, "items");
+        while (count > 0) {
+            check(own_Tree_detach(tree, &detached) == OWN_OK && detached != NULL, "detach");
+            own_Item_destroy(detached);
+            check(own_Tree_items(tree, &count) == OWN_OK, "items");
+        }
+        check(own_Item_create(&raw, 20) == OWN_OK, "Item");
+        detached = raw;
+        check(own_Tree_detach(tree, &detached) == OWN_OK && detached == NULL, "nothing to detach");
+        check(own_Tree_adoptRaw(tree, raw) == OWN_OK, "adoptRaw");
+        check(own_Tree_adoptRaw(tree, NULL) == OWN_ERROR_NULL_ARGUMENT && mentions("'item' is NULL"),
+              "a pointer that is taken is not nullable");
+        check(own_Tree_detach(tree, &detached) == OWN_OK && detached == raw, "the same item");
+        own_Item_destroy(detached);
+        /* Pointers that may be NULL. */
+        check(own_Tree_valueOf(tree, NULL, &out) == OWN_OK && out == -1, "NULL is allowed");
+        check(own_Tree_valueOf(tree, root, &out) == OWN_OK && out == 50, "valueOf");
+        check(own_Tree_both(tree, NULL, b, &out) == OWN_OK && out == 40, "both: first is NULL");
+        check(own_Tree_both(tree, NULL, NULL, &out) == OWN_OK && out == 0, "both are NULL");
+        check(own_Tree_both(tree, a, b, &out) == OWN_OK && out == 44, "both");
+        check(own_Tree_labelLength(NULL, &out) == OWN_OK && out == -1, "a NULL string");
+        check(own_Tree_labelLength("abc", &out) == OWN_OK && out == 3, "labelLength");
+        /* The others are still checked. */
+        check(own_Tree_sum(tree, NULL, b, &out) == OWN_ERROR_NULL_ARGUMENT, "a, not nullable");
+        /* Bytes. */
+        check(own_Tree_signature(tree, &data, &size) == OWN_OK && size == 3, "signature");
+        check(memcmp(data, "a\0\xff", 3) == 0, "the bytes");
+        own_free(data);
+        /* What the C++ object keeps. */
+        check(own_Tree_setCursor(tree, a) == OWN_OK, "setCursor");
+        check(own_Tree_cursorValue(tree, &out) == OWN_OK && out == 4, "cursorValue");
+        check(own_Tree_setSharedCursor(b) == OWN_OK, "setSharedCursor");
+        check(own_Tree_sharedCursorValue(&out) == OWN_OK && out == 40, "sharedCursorValue");
+        check(own_setGlobalNode(a) == OWN_OK, "setGlobalNode");
+        check(own_globalNodeValue(&out) == OWN_OK && out == 4, "globalNodeValue");
+        /* Not kept: the constructor only reads it. */
+        {
+            own_Peek* peek = NULL;
+            check(own_Peek_create(&peek, a) == OWN_OK, "Peek");
+            check(own_Peek_seen(peek, &out) == OWN_OK && out == 4, "seen");
+            own_Peek_destroy(peek);
+        }
+        /* Nobody uses them any more. */
+        check(own_Tree_setCursor(tree, NULL) == OWN_ERROR_NULL_ARGUMENT, "not nullable");
+        check(own_Tree_setSharedCursor(NULL) == OWN_ERROR_NULL_ARGUMENT, "not nullable either");
+        check(own_Tree_sharedCursorValue(&out) == OWN_OK, "sharedCursorValue");
+    }
+
     /* Objects that keep the pointers they get. */
     check(own_Driver_create(&driver, a) == OWN_OK, "Driver");
     check(own_Node_setValue(a, 5) == OWN_OK, "setValue");

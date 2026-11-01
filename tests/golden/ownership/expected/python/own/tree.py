@@ -13,6 +13,11 @@ __all__ = [
     "twin",
     "pick",
     "same",
+    "Pipeline",
+    "consume",
+    "Peek",
+    "setGlobalNode",
+    "globalNodeValue",
     "total",
     "idOf",
 ]
@@ -48,6 +53,42 @@ def _bind():
             lib.own_Tree_addCopy.restype = _runtime.Status
             lib.own_Tree_copies.argtypes = [_types._own_Tree__p, ctypes.POINTER(ctypes.c_int32)]
             lib.own_Tree_copies.restype = _runtime.Status
+            lib.own_Tree_adopt.argtypes = [_types._own_Tree__p, _types._own_Item__p]
+            lib.own_Tree_adopt.restype = _runtime.Status
+            lib.own_Tree_adoptBoth.argtypes = [_types._own_Tree__p, _types._own_Item__p, ctypes.c_int32, _types._own_Item__p]
+            lib.own_Tree_adoptBoth.restype = _runtime.Status
+            lib.own_Tree_slowAdopt.argtypes = [_types._own_Tree__p, _types._own_Item__p, ctypes.c_int32]
+            lib.own_Tree_slowAdopt.restype = _runtime.Status
+            lib.own_Tree_first.argtypes = [_types._own_Tree__p, ctypes.POINTER(_types._own_Item__p)]
+            lib.own_Tree_first.restype = _runtime.Status
+            lib.own_Tree_items.argtypes = [_types._own_Tree__p, ctypes.POINTER(ctypes.c_size_t)]
+            lib.own_Tree_items.restype = _runtime.Status
+            lib.own_Tree_itemSum.argtypes = [_types._own_Tree__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_itemSum.restype = _runtime.Status
+            lib.own_Tree_find.argtypes = [_types._own_Tree__p, ctypes.c_int32, ctypes.POINTER(_types._own_Node__p)]
+            lib.own_Tree_find.restype = _runtime.Status
+            lib.own_Tree_cfind.argtypes = [_types._own_Tree__p, ctypes.c_int32, ctypes.POINTER(_types._own_Node__p)]
+            lib.own_Tree_cfind.restype = _runtime.Status
+            lib.own_Tree_detach.argtypes = [_types._own_Tree__p, ctypes.POINTER(_types._own_Item__p)]
+            lib.own_Tree_detach.restype = _runtime.Status
+            lib.own_Tree_adoptRaw.argtypes = [_types._own_Tree__p, _types._own_Item__p]
+            lib.own_Tree_adoptRaw.restype = _runtime.Status
+            lib.own_Tree_valueOf.argtypes = [_types._own_Tree__p, _types._own_Node__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_valueOf.restype = _runtime.Status
+            lib.own_Tree_both.argtypes = [_types._own_Tree__p, _types._own_Node__p, _types._own_Node__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_both.restype = _runtime.Status
+            lib.own_Tree_setCursor.argtypes = [_types._own_Tree__p, _types._own_Node__p]
+            lib.own_Tree_setCursor.restype = _runtime.Status
+            lib.own_Tree_cursorValue.argtypes = [_types._own_Tree__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_cursorValue.restype = _runtime.Status
+            lib.own_Tree_setSharedCursor.argtypes = [_types._own_Node__p]
+            lib.own_Tree_setSharedCursor.restype = _runtime.Status
+            lib.own_Tree_sharedCursorValue.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_sharedCursorValue.restype = _runtime.Status
+            lib.own_Tree_labelLength.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Tree_labelLength.restype = _runtime.Status
+            lib.own_Tree_signature.argtypes = [_types._own_Tree__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
+            lib.own_Tree_signature.restype = _runtime.Status
             lib.own_Tree_weight_own_Node.argtypes = [_types._own_Tree__p, _types._own_Node__p, ctypes.POINTER(ctypes.c_int32)]
             lib.own_Tree_weight_own_Node.restype = _runtime.Status
             lib.own_Tree_weight_own_Node_ref.argtypes = [_types._own_Tree__p, _types._own_Node__p, ctypes.POINTER(ctypes.c_int32)]
@@ -94,6 +135,26 @@ def _bind():
             lib.own_pick.restype = _runtime.Status
             lib.own_same.argtypes = [_types._own_Node__p, ctypes.POINTER(_types._own_Node__p)]
             lib.own_same.restype = _runtime.Status
+            lib.own_Pipeline_create_own_Item_unique.argtypes = [ctypes.POINTER(_types._own_Pipeline__p), _types._own_Item__p]
+            lib.own_Pipeline_create_own_Item_unique.restype = _runtime.Status
+            lib.own_Pipeline_create_own_Item_unique_int32.argtypes = [ctypes.POINTER(_types._own_Pipeline__p), _types._own_Item__p, ctypes.c_int32]
+            lib.own_Pipeline_create_own_Item_unique_int32.restype = _runtime.Status
+            lib.own_Pipeline_destroy.argtypes = [_types._own_Pipeline__p]
+            lib.own_Pipeline_destroy.restype = None
+            lib.own_Pipeline_firstId.argtypes = [_types._own_Pipeline__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Pipeline_firstId.restype = _runtime.Status
+            lib.own_consume.argtypes = [_types._own_Item__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_consume.restype = _runtime.Status
+            lib.own_Peek_create.argtypes = [ctypes.POINTER(_types._own_Peek__p), _types._own_Node__p]
+            lib.own_Peek_create.restype = _runtime.Status
+            lib.own_Peek_destroy.argtypes = [_types._own_Peek__p]
+            lib.own_Peek_destroy.restype = None
+            lib.own_Peek_seen.argtypes = [_types._own_Peek__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.own_Peek_seen.restype = _runtime.Status
+            lib.own_setGlobalNode.argtypes = [_types._own_Node__p]
+            lib.own_setGlobalNode.restype = _runtime.Status
+            lib.own_globalNodeValue.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.own_globalNodeValue.restype = _runtime.Status
             lib.own_total.argtypes = [_types._own_Node__p, _types._own_Item__p, ctypes.POINTER(ctypes.c_int32)]
             lib.own_total.restype = _runtime.Status
             lib.own_idOf.argtypes = [_types._own_Item__p, ctypes.POINTER(ctypes.c_int32)]
@@ -266,6 +327,164 @@ class Tree:
         _out = ctypes.c_int32()
         _runtime.check(_bind().own_Tree_copies(self._ptr(), _out))
         return _out.value
+
+    def adopt(self, item):
+        """Wraps ``void own::Tree::adopt(std::unique_ptr<own::Item> item)``."""
+        from . import node as _node
+        _runtime.check_object(item, _node.Item, "item")
+        _c = _bind().own_Tree_adopt
+        _h1 = self._mptr()
+        [_h2] = _runtime.take(self._retained, (item, "item"), keep=self)
+        _runtime.check(_c(_h1, _h2))
+
+    def adoptBoth(self, first, tag, second):
+        """Wraps ``void own::Tree::adoptBoth(std::unique_ptr<own::Item> first, int32_t tag, std::unique_ptr<own::Item> second)``."""
+        from . import node as _node
+        _runtime.check_object(first, _node.Item, "first")
+        tag = _runtime.to_int(tag, ctypes.c_int32, "tag")
+        _runtime.check_object(second, _node.Item, "second")
+        _c = _bind().own_Tree_adoptBoth
+        _h1 = self._mptr()
+        [_h2, _h4] = _runtime.take(self._retained, (first, "first"), (second, "second"), keep=self)
+        _runtime.check(_c(_h1, _h2, tag, _h4))
+
+    def slowAdopt(self, item, milliseconds):
+        """Wraps ``void own::Tree::slowAdopt(std::unique_ptr<own::Item> item, int32_t milliseconds)``."""
+        from . import node as _node
+        _runtime.check_object(item, _node.Item, "item")
+        milliseconds = _runtime.to_int(milliseconds, ctypes.c_int32, "milliseconds")
+        _c = _bind().own_Tree_slowAdopt
+        _h1 = self._mptr()
+        [_h2] = _runtime.take(self._retained, (item, "item"), keep=self)
+        _runtime.check(_c(_h1, _h2, milliseconds))
+
+    def first(self):
+        """Wraps ``own::Item& own::Tree::first()``."""
+        from . import node as _node
+        _out = _types._own_Item__p()
+        _runtime.check(_bind().own_Tree_first(self._mptr(), _out))
+        return _runtime.borrow(_node.Item, _out, (self,), False)
+
+    def items(self):
+        """Wraps ``size_t own::Tree::items() const``."""
+        _out = ctypes.c_size_t()
+        _runtime.check(_bind().own_Tree_items(self._ptr(), _out))
+        return _out.value
+
+    def itemSum(self):
+        """Wraps ``int32_t own::Tree::itemSum() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().own_Tree_itemSum(self._ptr(), _out))
+        return _out.value
+
+    def find(self, value):
+        """Wraps ``own::Node* own::Tree::find(int32_t value)``."""
+        from . import node as _node
+        _out = _types._own_Node__p()
+        value = _runtime.to_int(value, ctypes.c_int32, "value")
+        _runtime.check(_bind().own_Tree_find(self._mptr(), value, _out))
+        return _runtime.borrow(_node.Node, _out, (self,), False)
+
+    def cfind(self, value):
+        """Wraps ``const own::Node* own::Tree::cfind(int32_t value) const``."""
+        from . import node as _node
+        _out = _types._own_Node__p()
+        value = _runtime.to_int(value, ctypes.c_int32, "value")
+        _runtime.check(_bind().own_Tree_cfind(self._ptr(), value, _out))
+        return _runtime.borrow(_node.Node, _out, (self,), True)
+
+    def detach(self):
+        """Wraps ``own::Item* own::Tree::detach()``."""
+        from . import node as _node
+        _result = _node.Item.__new__(_node.Item)
+        _out = _result._watch()
+        _runtime.check(_bind().own_Tree_detach(self._mptr(), _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+    def adoptRaw(self, item):
+        """Wraps ``void own::Tree::adoptRaw(own::Item* item)``."""
+        from . import node as _node
+        _runtime.check_object(item, _node.Item, "item")
+        _c = _bind().own_Tree_adoptRaw
+        _h1 = self._mptr()
+        [_h2] = _runtime.take(self._retained, (item, "item"), keep=self)
+        _runtime.check(_c(_h1, _h2))
+
+    def valueOf(self, node):
+        """Wraps ``int32_t own::Tree::valueOf(const own::Node* node) const``."""
+        from . import node as _node
+        _out = ctypes.c_int32()
+        _runtime.check_object(node, _node.Node, "node", nullable=True)
+        _runtime.check(_bind().own_Tree_valueOf(
+            self._ptr(),
+            (node._ptr() if node is not None else None),
+            _out,
+        ))
+        return _out.value
+
+    def both(self, first, second):
+        """Wraps ``int32_t own::Tree::both(const own::Node* first, const own::Node* second) const``."""
+        from . import node as _node
+        _out = ctypes.c_int32()
+        _runtime.check_object(first, _node.Node, "first", nullable=True)
+        _runtime.check_object(second, _node.Node, "second", nullable=True)
+        _runtime.check(_bind().own_Tree_both(
+            self._ptr(),
+            (first._ptr() if first is not None else None),
+            (second._ptr() if second is not None else None),
+            _out,
+        ))
+        return _out.value
+
+    def setCursor(self, node):
+        """Wraps ``void own::Tree::setCursor(own::Node* node)``."""
+        from . import node as _node
+        _runtime.check_object(node, _node.Node, "node")
+        _runtime.retain(self._retained, node)
+        _runtime.check(_bind().own_Tree_setCursor(self._mptr(), node._mptr()))
+
+    def cursorValue(self):
+        """Wraps ``int32_t own::Tree::cursorValue() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().own_Tree_cursorValue(self._ptr(), _out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def setSharedCursor(node):
+        """Wraps ``static void own::Tree::setSharedCursor(const own::Node* node)``."""
+        from . import node as _node
+        _runtime.check_object(node, _node.Node, "node")
+        _runtime.retain(_runtime.forever, node)
+        _runtime.check(_bind().own_Tree_setSharedCursor(node._ptr()))
+
+    @_builtins.staticmethod
+    def sharedCursorValue():
+        """Wraps ``static int32_t own::Tree::sharedCursorValue()``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().own_Tree_sharedCursorValue(_out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def labelLength(label):
+        """Wraps ``static int32_t own::Tree::labelLength(const char* label)``."""
+        _out = ctypes.c_int32()
+        label = None if label is None else _runtime.to_c_string(label, "label")
+        _runtime.check(_bind().own_Tree_labelLength(label, _out))
+        return _out.value
+
+    def signature(self):
+        """Wraps ``std::string own::Tree::signature() const``."""
+        _out = ctypes.c_void_p()
+        _out_size = ctypes.c_size_t()
+        try:
+            _runtime.check(_bind().own_Tree_signature(self._ptr(), _out, _out_size))
+            _out_data = _runtime.string_at(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.own_free(_out)
+        return _out_data
 
     def weight_own_Node(self, node):
         """Wraps ``int32_t own::Tree::weight(const own::Node& node) const``."""
@@ -692,6 +911,319 @@ def same(node):
     _runtime.check_object(node, _node.Node, "node")
     _runtime.check(_bind().own_same(node._ptr(), _out))
     return _runtime.borrow(_node.Node, _out, (node,), True)
+
+
+class Pipeline:
+    """Wraps ``own::Pipeline``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
+
+    def __init__(self, *args, **kwargs):
+        raise _builtins.TypeError(
+            "Pipeline has several constructors; use "
+            "Pipeline.create_own_Item_unique(), Pipeline.create_own_Item_unique_int32()"
+        )
+
+    @_builtins.classmethod
+    def create_own_Item_unique(cls, first):
+        """Wraps ``own::Pipeline::Pipeline(std::unique_ptr<own::Item> first)``."""
+        from . import node as _node
+        _runtime.check_object(first, _node.Item, "first")
+        _self = cls.__new__(cls)
+        _handle = _self._watch()
+        _c = _bind().own_Pipeline_create_own_Item_unique
+        [_h2] = _runtime.take(_self._retained, (first, "first"), keep=_self)
+        _runtime.check(_c(_handle, _h2))
+        _self._adopt(_handle)
+        return _self
+
+    @_builtins.classmethod
+    def create_own_Item_unique_int32(cls, first, minimum):
+        """Wraps ``own::Pipeline::Pipeline(std::unique_ptr<own::Item> first, int32_t minimum)``."""
+        from . import node as _node
+        _runtime.check_object(first, _node.Item, "first")
+        minimum = _runtime.to_int(minimum, ctypes.c_int32, "minimum")
+        _self = cls.__new__(cls)
+        _handle = _self._watch()
+        _c = _bind().own_Pipeline_create_own_Item_unique_int32
+        [_h2] = _runtime.take(_self._retained, (first, "first"), keep=_self)
+        _runtime.check(_c(_handle, _h2, minimum))
+        _self._adopt(_handle)
+        return _self
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._own_Pipeline__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = []
+        self._finalizer = _runtime.watch(self, handle, _bind().own_Pipeline_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "own::Pipeline: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().own_Pipeline_destroy, _types._own_Pipeline__p()))
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Pipeline object is closed")
+        for owner in self._owners:
+            if not owner._owned:
+                raise _builtins.ValueError(
+                    "Pipeline object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Pipeline object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Pipeline objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Pipeline objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Pipeline objects cannot be pickled")
+
+    def firstId(self):
+        """Wraps ``int32_t own::Pipeline::firstId() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().own_Pipeline_firstId(self._ptr(), _out))
+        return _out.value
+
+
+def consume(item):
+    """Wraps ``int32_t own::consume(std::unique_ptr<own::Item> item)``."""
+    from . import node as _node
+    _out = ctypes.c_int32()
+    _runtime.check_object(item, _node.Item, "item")
+    _c = _bind().own_consume
+    [_h1] = _runtime.take(_runtime.forever, (item, "item"))
+    _runtime.check(_c(_h1, _out))
+    return _out.value
+
+
+class Peek:
+    """Wraps ``own::Peek``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
+
+    def __init__(self, node):
+        """Wraps ``own::Peek::Peek(const own::Node& node)``."""
+        if _builtins.getattr(self, "_finalizer", None) is not None:
+            raise _builtins.TypeError("Peek object is already initialized")
+        from . import node as _node
+        _runtime.check_object(node, _node.Node, "node")
+        _handle = self._watch()
+        _runtime.check(_bind().own_Peek_create(_handle, node._ptr()))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._own_Peek__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = []
+        self._finalizer = _runtime.watch(self, handle, _bind().own_Peek_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "own::Peek: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().own_Peek_destroy, _types._own_Peek__p()))
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Peek object is closed")
+        for owner in self._owners:
+            if not owner._owned:
+                raise _builtins.ValueError(
+                    "Peek object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Peek object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Peek objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Peek objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Peek objects cannot be pickled")
+
+    def seen(self):
+        """Wraps ``int32_t own::Peek::seen() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().own_Peek_seen(self._ptr(), _out))
+        return _out.value
+
+
+def setGlobalNode(node):
+    """Wraps ``void own::setGlobalNode(own::Node* node)``."""
+    from . import node as _node
+    _runtime.check_object(node, _node.Node, "node")
+    _runtime.retain(_runtime.forever, node)
+    _runtime.check(_bind().own_setGlobalNode(node._mptr()))
+
+
+def globalNodeValue():
+    """Wraps ``int32_t own::globalNodeValue()``."""
+    _out = ctypes.c_int32()
+    _runtime.check(_bind().own_globalNodeValue(_out))
+    return _out.value
 
 
 def total(node, item):

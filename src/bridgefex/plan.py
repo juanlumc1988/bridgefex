@@ -10,17 +10,26 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
 from . import naming
+from .annotations import (
+    FunctionAnnotations,
+    Kind,
+    Param,
+    Resolved,
+    resolve,
+    unknown_functions,
+)
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
     CallbackType,
     Class,
     ClassForm,
     ClassRef,
+    Constructor,
     ContainerKind,
     ContainerType,
     ElementType,
@@ -181,6 +190,10 @@ class PyArg:
     """A reference or a pointer to a wrapped object: what a function without
     ``self`` returns by reference is borrowed from its arguments."""
 
+    transfer: bool = False
+    """The C++ code takes the object (a std::unique_ptr): the Python object
+    gives it up, last before the call (see :func:`_runtime.take`)."""
+
 
 @dataclass(frozen=True, slots=True)
 class PyResult:
@@ -224,6 +237,20 @@ class PyCallable:
     result: PyResult = _NO_RESULT
     is_static: bool = False
 
+    prepare: tuple[str, ...] = ()
+    """With transfers: the statements that read the handles into locals, before
+    the objects are given up (a closed or read-only object must fail first)."""
+
+    transfers: tuple[tuple[str, str], ...] = ()
+    """The (parameter, local) of each object that the call takes."""
+
+    retained: str = "_runtime.forever"
+    """The list that keeps alive what the objects taken retained (``{owner}``:
+    self, or _self in a factory of a constructor)."""
+
+    keep: str | None = None
+    """The object that must not be one of those taken."""
+
     @property
     def parameter_list(self) -> str:
         return ", ".join(arg.name for arg in self.args)
@@ -239,16 +266,20 @@ class PyCallable:
         stems.update(dict.fromkeys(self.result.imports))
         return tuple(f"from . import {stem} as _{stem}" for stem in stems)
 
-    def retain_statements(self, owner: str) -> tuple[str, ...]:
-        """The statements that make ``owner`` (``self`` or ``_self``) keep alive
-        the arguments that the C++ object keeps a pointer to, before the call:
-        on failure the C++ code may already have stored them."""
-        return tuple(
-            f"_runtime.retain({owner}._retained, {arg.name})" for arg in self.args if arg.retain
-        )
+    def retain_statements(self, owner: str = "self") -> tuple[str, ...]:
+        """The statements that keep alive the arguments that the C++ code keeps a
+        pointer to (in the list of ``owner``, ``self`` or ``_self``, or ``forever``),
+        before the call: on failure the C++ code may already have stored them."""
+        retained = self.retained.format(owner=owner)
+        return tuple(f"_runtime.retain({retained}, {arg.name})" for arg in self.args if arg.retain)
 
     def check_call(
-        self, indent: int, before_call: Sequence[str] = (), *, with_imports: bool = True
+        self,
+        indent: int,
+        before_call: Sequence[str] = (),
+        *,
+        with_imports: bool = True,
+        owner: str = "self",
     ) -> str:
         """The imports (``with_imports``), the argument conversions, the
         ``before_call`` statements, then the C call wrapped in
@@ -263,11 +294,38 @@ class PyCallable:
         lines = [f"{pad}{line}" for line in self.imports if with_imports]
         lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
         if self.registrations:
-            lines.append(self._scoped_call(indent, before_call))
+            lines.append(self._scoped_call(indent, before_call, owner=owner))
             return "\n".join(lines)
         lines += [pad + statement for statement in before_call]
+        lines += self._take(indent, owner)
         lines.append(self._call(indent))
         return "\n".join(lines)
+
+    def _take(self, indent: int, owner: str) -> list[str]:
+        """With transfers, the last statements before the call: bind the C
+        function, read the handles, then give up the objects that the call takes.
+        Nothing after that may fail, except a signal (which leaks the objects)."""
+        if not self.transfers:
+            return []
+        pad = " " * indent
+        lines = [f"{pad}_c = _bind().{self.function.name}"]
+        lines += [pad + statement for statement in self.prepare]
+        targets = ", ".join(local for _, local in self.transfers)
+        arguments = [f'({name}, "{name}")' for name, _ in self.transfers]
+        if self.keep is not None:
+            arguments.append(f"keep={self.keep.format(owner=owner)}")
+        lines.append(
+            _python_call(
+                f"[{targets}] = _runtime.take",
+                [self.retained.format(owner=owner), *arguments],
+                indent,
+            )
+        )
+        return lines
+
+    @property
+    def _callee(self) -> str:
+        return "_c" if self.transfers else f"_bind().{self.function.name}"
 
     def _scoped_call(
         self,
@@ -275,6 +333,7 @@ class PyCallable:
         before_call: Sequence[str] = (),
         read: str | None = None,
         cleanup: Sequence[str] = (),
+        owner: str = "self",
     ) -> str:
         """The call of a function with callbacks, in a scope that keeps the
         errors of its callbacks (see _runtime.CallScope).
@@ -292,12 +351,9 @@ class PyCallable:
             for targets, arguments in self.registrations
         ]
         lines += [inner + statement for statement in before_call]
+        lines += self._take(indent + 4, owner)
         lines.append(
-            _python_call(
-                "_status = _scope.call",
-                (f"_bind().{self.function.name}", *self.call_args),
-                indent + 4,
-            )
+            _python_call("_status = _scope.call", (self._callee, *self.call_args), indent + 4)
         )
         lines.append(f"{inner}_scope.close()")
         lines.append(f"{inner}_scope.check(_status)")
@@ -308,15 +364,15 @@ class PyCallable:
         lines.append(f"{inner}_scope.close()")
         return "\n".join(lines)
 
-    def _call(self, indent: int, head: str = "_runtime.check(_bind()", tail: str = ")") -> str:
+    def _call(self, indent: int) -> str:
         pad = " " * indent
-        head = f"{head}.{self.function.name}("
-        one_line = f"{pad}{head}{', '.join(self.call_args)}){tail}"
+        head = f"_runtime.check({self._callee}("
+        one_line = f"{pad}{head}{', '.join(self.call_args)}))"
         if len(one_line) <= _MAX_LINE_LENGTH:
             return one_line
         lines = [pad + head]
         lines += [f"{pad}    {argument}," for argument in self.call_args]
-        lines.append(f"{pad}){tail}")
+        lines.append(f"{pad}))")
         return "\n".join(lines)
 
     def body(self, indent: int) -> str:
@@ -324,16 +380,21 @@ class PyCallable:
         pad = " " * indent
         result = self.result
         lines = [f"{pad}{line}" for line in (*self.imports, *result.setup)]
+        retains = self.retain_statements()
         if self.registrations:
             lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
-            lines.append(self._scoped_call(indent, read=result.read, cleanup=result.cleanup))
+            lines.append(
+                self._scoped_call(indent, retains, read=result.read, cleanup=result.cleanup)
+            )
         elif result.read is None:
-            lines.append(self.check_call(indent, with_imports=False))
+            lines.append(self.check_call(indent, retains, with_imports=False))
         else:
             # The conversions stay out of the 'try': nothing is allocated yet.
             inner = " " * (indent + 4)
             lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
             lines.append(f"{pad}try:")
+            lines += [f"{inner}{statement}" for statement in retains]
+            lines += self._take(indent + 4, "self")
             lines.append(self._call(indent + 4))
             lines.append(f"{inner}{result.read}")
             lines.append(f"{pad}finally:")
@@ -371,6 +432,36 @@ class LoweredParam:
 
     compile_checks: tuple[str, ...] = ()
     """static_asserts for this parameter, at the start of the C function."""
+
+    transfers: bool = False
+    """The wrapped function takes the object this parameter points to."""
+
+    words: frozenset[str] = frozenset()
+    """The annotations that apply to this parameter, the implied ones included
+    (``nullable``, ``transfer``, ``retain``, ``call``)."""
+
+
+def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
+    """What the C header says about the objects that the function is given: which
+    it takes, which may be NULL and which it keeps a pointer to (``keeper`` is who
+    keeps it: self, the new object, the library)."""
+    notes: list[str] = []
+    taken = [param.py.name for param in params if param.transfers]
+    if taken:
+        pronoun = "it" if len(taken) == 1 else "them"
+        notes.append(
+            f"{', '.join(taken)}: ownership is transferred, whatever the status: do not use or "
+            f"destroy {pronoun} afterwards."
+        )
+    nullable = [param.py.name for param in params if "nullable" in param.words]
+    if nullable:
+        notes.append(f"{', '.join(nullable)}: may be NULL.")
+    notes += [
+        f"{param.py.name}: {keeper} a pointer to it; it must stay valid as long as it is used."
+        for param in params
+        if "retain" in param.words
+    ]
+    return tuple(notes)
 
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
@@ -731,6 +822,11 @@ class HeaderPlan:
         includes += [kind.value for kind in ContainerKind if kind in containers]
         if any(isinstance(type_, CallbackType) for type_ in _header_types(self.header)):
             includes.append("functional")
+        if any(
+            isinstance(type_, ClassRef) and type_.form is ClassForm.UNIQUE
+            for type_ in _header_types(self.header)
+        ):
+            includes.append("memory")
         return tuple(includes)
 
 
@@ -1015,6 +1111,12 @@ def _describe_params(parameters: Sequence[Parameter]) -> str:
     )
 
 
+def _check_object(name: str, py_class: str, nullable: bool) -> str:
+    """The statement that checks the type of a wrapped object, before any conversion."""
+    suffix = ", nullable=True" if nullable else ""
+    return f'_runtime.check_object({name}, {py_class}, "{name}"{suffix})'
+
+
 def _checked(value: str, scalar: ScalarType, name: str) -> str:
     """Python expression that checks ``value`` for a scalar of C; ``name`` is the
     expression of its name in error messages."""
@@ -1030,8 +1132,13 @@ def _conversion(name: str, scalar: ScalarType) -> str:
 
 
 class _Builder:
-    def __init__(self, module: Module) -> None:
+    def __init__(
+        self, module: Module, annotations: Mapping[str, FunctionAnnotations] | None = None
+    ) -> None:
         self.module = module
+        self._annotations: Mapping[str, FunctionAnnotations] = annotations or {}
+        # The generated C functions that an annotation can name.
+        self.annotatable: list[str] = []
         self.errors: list[Diagnostic] = []
         self._c_names: dict[str, tuple[str, Location | None]] = {}
         # Names that generated C identifiers must not take: declarations at
@@ -1589,16 +1696,21 @@ class _Builder:
         self,
         parameters: Sequence[Parameter],
         location: Location,
+        policy: Resolved,
         reserved: Iterable[str] = (),
-        *,
-        retain_references: bool = False,
     ) -> list[LoweredParam]:
-        """``retain_references``: the C++ object keeps the references and pointers
-        to wrapped classes that it is given (a constructor)."""
+        """``policy`` says which of the parameters are nullable, taken or kept."""
         callbacks = [
             parameter.type for parameter in parameters if isinstance(parameter.type, CallbackType)
         ]
-        taken = self._parameter_macros | frozenset(reserved) | _callback_locals(callbacks)
+        # The locals of the Python function that takes the objects it is given.
+        python_locals = {"_c"} | {f"_h{position}" for position in range(1, len(parameters) + 4)}
+        taken = (
+            self._parameter_macros
+            | frozenset(reserved)
+            | _callback_locals(callbacks)
+            | python_locals
+        )
         cpp_names = [parameter.name for parameter in parameters]
         names = naming.parameter_names(cpp_names, taken)
         sizes = naming.derived_names(
@@ -1616,6 +1728,14 @@ class _Builder:
         user_data = naming.derived_names(cpp_names, names, is_callback, "_user_data", derived)
         derived |= {name for name in user_data if name is not None}
         releases = naming.derived_names(cpp_names, names, is_callback, "_release", derived)
+        derived |= {name for name in releases if name is not None}
+        owner_names = naming.derived_names(
+            cpp_names,
+            names,
+            ["transfer" in words for words in policy.parameters],
+            "_owner",
+            derived,
+        )
         lowered: list[LoweredParam] = []
         owners = 0
         for position, (name, parameter) in enumerate(zip(names, parameters, strict=True)):
@@ -1631,30 +1751,77 @@ class _Builder:
                     )
                 )
             else:
-                param = self._lower_param(name, sizes[position], type_, location)
-                if retain_references and self._keeps_pointer(type_):
-                    param = dataclasses.replace(
-                        param, py=dataclasses.replace(param.py, retain=True)
-                    )
-                lowered.append(param)
+                words = policy.parameters[position]
+                param = self._lower_param(
+                    name, sizes[position], type_, location, owner=owner_names[position], words=words
+                )
+                py = dataclasses.replace(param.py, retain="retain" in words)
+                lowered.append(dataclasses.replace(param, py=py, words=words))
         return lowered
 
-    def _keeps_pointer(self, type_: Type) -> bool:
-        """True for a reference or a pointer to a class: not for a copy."""
+    # Policies -------------------------------------------------------------------------
+
+    def _kind(self, type_: Type) -> Kind:
+        """What an annotation sees of a type."""
         ref = self._as_class(type_)
-        return ref is not None and ref.form not in (ClassForm.VALUE, ClassForm.UNIQUE)
+        if ref is not None:
+            return {
+                ClassForm.VALUE: Kind.OBJECT_VALUE,
+                ClassForm.REFERENCE: Kind.OBJECT_REFERENCE,
+                ClassForm.CONST_REFERENCE: Kind.OBJECT_REFERENCE,
+                ClassForm.POINTER: Kind.OBJECT_POINTER,
+                ClassForm.CONST_POINTER: Kind.OBJECT_CONST_POINTER,
+                ClassForm.UNIQUE: Kind.UNIQUE_PTR,
+            }[ref.form]
+        if isinstance(type_, StringType):
+            return Kind.C_STRING if type_.kind is StringKind.C_STRING else Kind.STRING
+        if isinstance(type_, CallbackType):
+            return Kind.CALLBACK
+        return Kind.OTHER
+
+    def _policy(
+        self,
+        c_name: str,
+        what: str,
+        parameters: Sequence[Parameter],
+        result: Type | None,
+        location: Location,
+        *,
+        constructor: bool = False,
+    ) -> Resolved:
+        """The policy of a generated C function: its annotations, and what the
+        types imply. Reports what is wrong with them."""
+        self.annotatable.append(c_name)
+        resolved, problems = resolve(
+            c_name,
+            what,
+            [Param(parameter.name, self._kind(parameter.type)) for parameter in parameters],
+            None if result is None or result.is_void else self._kind(result),
+            constructor=constructor,
+            annotations=self._annotations,
+            location=location,
+        )
+        self.errors.extend(problems)
+        return resolved
 
     def _lower_param(
-        self, name: str, size: str | None, type_: Type, location: Location
+        self,
+        name: str,
+        size: str | None,
+        type_: Type,
+        location: Location,
+        *,
+        owner: str | None = None,
+        words: frozenset[str] = frozenset(),
     ) -> LoweredParam:
         assert not isinstance(type_, CallbackType)  # see _lower_callback_param
         if isinstance(type_, StringType):
-            return self._lower_string_param(name, size, type_)
+            return self._lower_string_param(name, size, type_, "nullable" in words)
         if isinstance(type_, EnumRef):
             return self._lower_enum_param(name, self._enum(type_, location))
         class_ref = self._as_class(type_)
         if class_ref is not None:
-            return self._lower_class_param(name, class_ref, location)
+            return self._lower_class_param(name, class_ref, location, owner, words)
         assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
             return self._lower_struct_param(name, type_, self._struct(type_, location))
@@ -1894,16 +2061,21 @@ class _Builder:
         )
         return f"{spell(type_.result, False)} ({arguments})"
 
-    def _lower_string_param(self, name: str, size: str | None, type_: StringType) -> LoweredParam:
+    def _lower_string_param(
+        self, name: str, size: str | None, type_: StringType, nullable: bool = False
+    ) -> LoweredParam:
         data = CParam(name, "const char*", Role.INPUT, "ctypes.c_char_p")
         if size is None:
             # NUL-terminated: Python refuses NULs, which C++ would not see.
+            conversion = f'_runtime.to_c_string({name}, "{name}")'
+            if nullable:
+                conversion = f"None if {name} is None else {conversion}"
             return LoweredParam(
                 c_params=(data,),
                 argument=name,
-                null_checks=(_null_check(name),),
+                null_checks=() if nullable else (_null_check(name),),
                 value_checks=(),
-                py=PyArg(name, (f'{name} = _runtime.to_c_string({name}, "{name}")',)),
+                py=PyArg(name, (f"{name} = {conversion}",)),
                 call_args=(name,),
             )
         constructor = "std::string" if type_.kind is StringKind.STRING else "std::string_view"
@@ -1932,16 +2104,22 @@ class _Builder:
             call_args=(name, size),
         )
 
-    def _lower_class_param(self, name: str, ref: ClassRef, location: Location) -> LoweredParam:
+    def _lower_class_param(
+        self,
+        name: str,
+        ref: ClassRef,
+        location: Location,
+        owner: str | None,
+        words: frozenset[str] = frozenset(),
+    ) -> LoweredParam:
         """A wrapped class: a handle, which is a copy for ``T``, else the object itself."""
         info = self._class(ref, location)
         if info is None:  # reported
             return LoweredParam((), name, (), (), PyArg(name, ()), ())
-        if ref.form is ClassForm.UNIQUE:
-            self.errors.append(
-                Diagnostic("std::unique_ptr parameters are not supported yet", location)
-            )
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+        nullable = "nullable" in words
+        if "transfer" in words:
+            assert owner is not None
+            return self._lower_taken_param(name, info, owner, ref.form, nullable)
         constant = ref.form in (ClassForm.VALUE, ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
         qualifier = "const " if constant else ""
         pointer = f"reinterpret_cast<{qualifier}{info.cpp_name}*>({name})"
@@ -1959,6 +2137,9 @@ class _Builder:
             )
         py_class, imports = self._py_class(info)
         accessor = "_ptr" if constant else "_mptr"
+        handle = f"{name}.{accessor}()"
+        if nullable:
+            handle = f"({handle} if {name} is not None else None)"
         return LoweredParam(
             c_params=(
                 CParam(
@@ -1969,16 +2150,45 @@ class _Builder:
                 ),
             ),
             argument=pointer if is_pointer else f"*{pointer}",
-            null_checks=(_null_check(name),),
+            null_checks=() if nullable else (_null_check(name),),
             value_checks=(),
             py=PyArg(
                 name,
-                (f'_runtime.check_object({name}, {py_class}, "{name}")',),
+                (_check_object(name, py_class, nullable),),
                 imports=imports,
                 borrowable=ref.form is not ClassForm.VALUE,
             ),
-            call_args=(f"{name}.{accessor}()",),
+            call_args=(handle,),
             compile_checks=tuple(checks),
+        )
+
+    def _lower_taken_param(
+        self, name: str, info: _ClassInfo, owner: str, form: ClassForm, nullable: bool
+    ) -> LoweredParam:
+        """A ``std::unique_ptr<T>`` or a ``T*`` that the function takes: the C
+        function owns the object until the wrapped function takes it, whatever
+        the status (``transferred`` deletes it on every return that comes first)."""
+        detail = f"{self.module.name}_detail"
+        py_class, imports = self._py_class(info)
+        taken = f"{info.cpp_name}*" if form is ClassForm.POINTER else None
+        taken = taken or f"std::unique_ptr<{info.cpp_name}>"
+        return LoweredParam(
+            c_params=(CParam(name, f"{info.c_type}*", Role.INPUT, f"_types.{info.pointer_name}"),),
+            argument=f"{owner}.take<{taken}>()",
+            null_checks=() if nullable else (_null_check(name),),
+            value_checks=(),
+            py=PyArg(
+                name,
+                (_check_object(name, py_class, nullable),),
+                imports=imports,
+                transfer=True,
+            ),
+            call_args=(f"{name}._mptr()",),
+            prologue=(
+                f"{detail}::transferred<{info.cpp_name}> {owner}"
+                f"(reinterpret_cast<{info.cpp_name}*>({name}));",
+            ),
+            transfers=True,
         )
 
     def _lower_enum_param(self, name: str, enum: EnumPlan | None) -> LoweredParam:
@@ -2315,30 +2525,46 @@ class _Builder:
         )
 
     def _lower_class_result(
-        self, ref: ClassRef, location: Location, owners: str, is_method: bool
+        self,
+        ref: ClassRef,
+        location: Location,
+        owners: str,
+        is_method: bool,
+        ownership: str | None,
     ) -> LoweredResult:
-        """A wrapped class: a new object that the caller owns (by value, or in a
-        std::unique_ptr), or a reference to one that the C++ code owns."""
+        """A wrapped class: a new object that the caller owns (by value, in a
+        std::unique_ptr, or a raw pointer annotated ``owned``), or one that the
+        C++ code keeps owning (a reference, or a pointer annotated ``borrowed``).
+
+        ``ownership`` is the annotation of a raw pointer (None for the others,
+        and when it is missing, which the policy reported).
+        """
         info = self._class(ref, location)
         placeholder = LoweredResult((), "{call};", (), _NO_RESULT, ())
         if info is None:  # reported
             return placeholder
-        if ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER):
-            self.errors.append(
-                Diagnostic(
-                    f"returns a raw pointer to the wrapped class '{ref.qualified_name}': say who "
-                    "owns it in an annotations file (see --annotations)",
-                    location,
-                )
-            )
+        pointer_form = ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER)
+        if pointer_form and ownership is None:  # reported by the policy
             return placeholder
         py_class, imports = self._py_class(info)
         pointer = f"_types.{info.pointer_name}"
         destroy = f"{info.c_type}_destroy"
-        if ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE):
-            constant = ref.form is ClassForm.CONST_REFERENCE
+        borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
+            ownership == "borrowed"
+        )
+        if borrowed:
+            constant = ref.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
             qualifier = "const " if constant else ""
             origin = " from self" if is_method else ""
+            if pointer_form:
+                statement = f"*out_result = reinterpret_cast<{qualifier}{info.c_type}*>({{call}});"
+                nullability = "may be NULL"
+            else:
+                statement = (
+                    f"*out_result = reinterpret_cast<{qualifier}{info.c_type}*>("
+                    f"{self.module.name}_detail::object_address({{call}}));"
+                )
+                nullability = "never NULL"
             return LoweredResult(
                 c_params=(
                     CParam(
@@ -2348,10 +2574,7 @@ class _Builder:
                         f"ctypes.POINTER({pointer})",
                     ),
                 ),
-                statement=(
-                    f"*out_result = reinterpret_cast<{qualifier}{info.c_type}*>("
-                    f"{self.module.name}_detail::object_address({{call}}));"
-                ),
+                statement=statement,
                 null_checks=(_null_check("out_result"),),
                 py=PyResult(
                     setup=(f"_out = {pointer}()",),
@@ -2359,22 +2582,26 @@ class _Builder:
                     imports=imports,
                 ),
                 call_args=("_out",),
-                notes=(f"*out_result: borrowed{origin}, never NULL; do not destroy it.",),
+                notes=(f"*out_result: borrowed{origin}, {nullability}; do not destroy it.",),
             )
         # An object that the caller owns: the Python object that will own it
         # exists before the call, and from the moment the C function writes the
         # handle, its collection destroys the object (see ClassPlan.watch).
-        nullable = ref.form is ClassForm.UNIQUE
+        nullable = ref.form is not ClassForm.VALUE
         finish: tuple[str, ...]
-        if nullable:
+        if ref.form is ClassForm.UNIQUE:
             statement = f"*out_result = reinterpret_cast<{info.c_type}*>({{call}}.release());"
-            finish = ("if _out:", "    _result._adopt(_out)")
-            value = "_result if _out else None"
-            note = f"*out_result: owned by the caller (NULL if empty); destroy it with {destroy}."
+        elif pointer_form:
+            statement = f"*out_result = reinterpret_cast<{info.c_type}*>({{call}});"
         else:
             statement = (
                 f"*out_result = reinterpret_cast<{info.c_type}*>(new {info.cpp_name}({{call}}));"
             )
+        if nullable:
+            finish = ("if _out:", "    _result._adopt(_out)")
+            value = "_result if _out else None"
+            note = f"*out_result: owned by the caller (may be NULL); destroy it with {destroy}."
+        else:
             finish = ("_result._adopt(_out)",)
             value = "_result"
             note = f"*out_result: owned by the caller; destroy it with {destroy}."
@@ -2423,7 +2650,12 @@ class _Builder:
         )
 
     def _lower_result(
-        self, type_: Type, location: Location, owners: str = "()", is_method: bool = False
+        self,
+        type_: Type,
+        location: Location,
+        policy: Resolved,
+        owners: str = "()",
+        is_method: bool = False,
     ) -> LoweredResult:
         """``owners``: the Python tuple of the objects that a reference result
         is borrowed from."""
@@ -2431,12 +2663,12 @@ class _Builder:
         if type_.is_void:
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
         if isinstance(type_, StringType):
-            return self._lower_string_result(type_)
+            return self._lower_string_result(type_, policy.result_bytes)
         if isinstance(type_, EnumRef):
             return self._lower_enum_result(self._enum(type_, location))
         class_ref = self._as_class(type_)
         if class_ref is not None:
-            return self._lower_class_result(class_ref, location, owners, is_method)
+            return self._lower_class_result(class_ref, location, owners, is_method, policy.result)
         assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
             return self._lower_struct_result(self._struct(type_, location))
@@ -2459,16 +2691,21 @@ class _Builder:
             call_args=("_out",),
         )
 
-    def _lower_string_result(self, type_: StringType) -> LoweredResult:
+    def _lower_string_result(self, type_: StringType, as_bytes: bool = False) -> LoweredResult:
+        """``as_bytes``: the bytes as they are, not decoded as UTF-8."""
         detail = f"{self.module.name}_detail"
         helper = "return_string" if type_.sized else "return_c_string"
         if type_.sized:
             read = "_out_data = _runtime.string_at(_out, _out_size.value)"
-            value = "_runtime.decode(_out_data)"
+            value = "_out_data" if as_bytes else "_runtime.decode(_out_data)"
         else:
             # A NULL const char* is None.
             read = "_out_data = _runtime.string_at(_out, _out_size.value) if _out else None"
-            value = "None if _out_data is None else _runtime.decode(_out_data)"
+            value = (
+                "_out_data"
+                if as_bytes
+                else "None if _out_data is None else _runtime.decode(_out_data)"
+            )
         return LoweredResult(
             c_params=(
                 CParam("out_result", "char**", Role.OUT_RESULT, "ctypes.POINTER(ctypes.c_void_p)"),
@@ -2501,7 +2738,9 @@ class _Builder:
         description: str,
         *,
         location: Location,
+        policy: Resolved,
         self_param: CParam | None = None,
+        keeper: str = "the library keeps",
     ) -> tuple[CFunction, LoweredResult]:
         """A function that returns a status and passes the result through out-parameters.
 
@@ -2514,7 +2753,7 @@ class _Builder:
         else:
             names = [param.py.name for param in params if param.py.borrowable]
             owners = "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
-        lowered = self._lower_result(result, location, owners, self_param is not None)
+        lowered = self._lower_result(result, location, policy, owners, self_param is not None)
         leading = (self_param,) if self_param is not None else ()
         null_checks = [_null_check(param.name) for param in leading]
         for param in params:
@@ -2541,7 +2780,7 @@ class _Builder:
                 *(check for param in params for check in param.compile_checks),
             ),
             prologue=tuple(line for param in params for line in param.prologue),
-            notes=lowered.notes,
+            notes=(*_parameter_notes(params, keeper), *lowered.notes),
         )
         return function, lowered
 
@@ -2553,20 +2792,102 @@ class _Builder:
         result: LoweredResult | None,
         *,
         leading: Sequence[str] = (),
+        kind: str = "static",
     ) -> PyCallable:
-        """``leading`` are the call arguments before the parameters (self._ptr()...)."""
-        call_args = [*leading, *(arg for param in params for arg in param.call_args)]
+        """``leading`` are the call arguments before the parameters (self._ptr()...).
+
+        ``kind`` is how the function belongs to its class: ``method``,
+        ``constructor`` or ``static`` (also a free function): the object that
+        keeps alive what the objects taken retained.
+        """
+        call_args = [*leading]
+        transfers: list[tuple[str, str]] = []
+        for param in params:
+            for arg in param.call_args:
+                if param.py.transfer:
+                    # Given up last, so that every failure comes first.
+                    transfers.append((param.py.name, f"_h{len(call_args) + 1}"))
+                call_args.append(arg)
         if result is not None:
             call_args += result.call_args
+        prepare: list[str] = []
+        if transfers:
+            # Every handle is read before any object is given up: a closed or
+            # read-only object must fail while nothing has been taken.
+            taken = {int(local[2:]) for _, local in transfers}
+            for position, arg in enumerate(call_args, start=1):
+                if position not in taken and "(" in arg:
+                    prepare.append(f"_h{position} = {arg}")
+                    call_args[position - 1] = f"_h{position}"
+            for position in taken:
+                call_args[position - 1] = f"_h{position}"
+        retained, keep = {
+            "method": ("self._retained", "self"),
+            "constructor": ("{owner}._retained", "{owner}"),
+            "static": ("_runtime.forever", None),
+        }[kind]
         return PyCallable(
             name,
             function,
             tuple(param.py for param in params),
             tuple(call_args),
             result.py if result is not None else _NO_RESULT,
+            prepare=tuple(prepare),
+            transfers=tuple(transfers),
+            retained=retained,
+            keep=keep,
         )
 
     # Declarations ------------------------------------------------------------
+
+    def _constructor_plan(
+        self, model: Class, constructor: Constructor, c_type: str, pointer_name: str
+    ) -> PyCallable:
+        cpp_name = "::" + model.qualified_name
+        key = (*model.namespace, model.name)
+        suffix = self._suffix(("constructor", *key), constructor.parameters)
+        name = f"{c_type}_create{suffix}"
+        what = f"constructor '{cpp_name}({_describe_params(constructor.parameters)})'"
+        self._reserve_c_name(name, what, constructor.location)
+        out_self = CParam(
+            "out_self",
+            f"{c_type}**",
+            Role.OUT_SELF,
+            f"ctypes.POINTER(_types.{pointer_name})",
+        )
+        policy = self._policy(
+            name, what, constructor.parameters, None, constructor.location, constructor=True
+        )
+        params = self._lower_params(constructor.parameters, constructor.location, policy)
+        arguments = ", ".join(param.argument for param in params)
+        description = (
+            f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
+        )
+        function = CFunction(
+            name=name,
+            params=(out_self, *(c for param in params for c in param.c_params)),
+            returns_status=True,
+            statement=f"*out_self = reinterpret_cast<{c_type}*>(new {cpp_name}({arguments}));",
+            description=description,
+            ctypes_restype="_runtime.Status",
+            owned_checks=(_null_check("out_self"),),
+            resets=("*out_self = nullptr;",),
+            checks=(
+                *(c for param in params for c in param.null_checks),
+                *(c for param in params for c in param.value_checks),
+            ),
+            location=constructor.location,
+            compile_checks=(
+                *_temporaries_check(f"{cpp_name}({{arguments}})", params, f"'{description}'"),
+                *(check for param in params for check in param.compile_checks),
+            ),
+            prologue=tuple(line for param in params for line in param.prologue),
+            notes=_parameter_notes(params, "the new object keeps"),
+        )
+        py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
+        return self._python_callable(
+            py_name, function, params, None, leading=("_handle",), kind="constructor"
+        )
 
     def build_class(self, model: Class) -> ClassPlan:
         prefix = naming.c_prefix(model.namespace, self.module.name)
@@ -2589,51 +2910,10 @@ class _Builder:
             qualifier = "const " if is_const else ""
             return f"reinterpret_cast<{qualifier}{cpp_name}*>(self)"
 
-        constructors: list[PyCallable] = []
-        for constructor in model.constructors:
-            suffix = self._suffix(("constructor", *key), constructor.parameters)
-            name = f"{c_type}_create{suffix}"
-            what = f"constructor '{cpp_name}({_describe_params(constructor.parameters)})'"
-            self._reserve_c_name(name, what, constructor.location)
-            out_self = CParam(
-                "out_self",
-                f"{c_type}**",
-                Role.OUT_SELF,
-                f"ctypes.POINTER(_types.{pointer_name})",
-            )
-            params = self._lower_params(
-                constructor.parameters, constructor.location, retain_references=True
-            )
-            arguments = ", ".join(param.argument for param in params)
-            description = (
-                f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
-            )
-            function = CFunction(
-                name=name,
-                params=(out_self, *(c for param in params for c in param.c_params)),
-                returns_status=True,
-                statement=(
-                    f"*out_self = reinterpret_cast<{c_type}*>(new {cpp_name}({arguments}));"
-                ),
-                description=description,
-                ctypes_restype="_runtime.Status",
-                owned_checks=(_null_check("out_self"),),
-                resets=("*out_self = nullptr;",),
-                checks=(
-                    *(c for param in params for c in param.null_checks),
-                    *(c for param in params for c in param.value_checks),
-                ),
-                location=constructor.location,
-                compile_checks=(
-                    *_temporaries_check(f"{cpp_name}({{arguments}})", params, f"'{description}'"),
-                    *(check for param in params for check in param.compile_checks),
-                ),
-                prologue=tuple(line for param in params for line in param.prologue),
-            )
-            py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
-            constructors.append(
-                self._python_callable(py_name, function, params, None, leading=("_handle",))
-            )
+        constructors = [
+            self._constructor_plan(model, constructor, c_type, pointer_name)
+            for constructor in model.constructors
+        ]
 
         destroy_name = f"{c_type}_destroy"
         self._reserve_c_name(destroy_name, f"the destructor of '{cpp_name}'", model.location)
@@ -2656,7 +2936,8 @@ class _Builder:
             name = f"{c_type}_{method.name}{suffix}"
             what = f"method '{cpp_name}::{method.name}({_describe_params(method.parameters)})'"
             self._reserve_c_name(name, what, method.location)
-            params = self._lower_params(method.parameters, method.location)
+            policy = self._policy(name, what, method.parameters, method.result, method.location)
+            params = self._lower_params(method.parameters, method.location, policy)
             qualifiers = " const" if method.is_const else ""
             static = "static " if method.is_static else ""
             description = (
@@ -2671,6 +2952,7 @@ class _Builder:
                     method.result,
                     description,
                     location=method.location,
+                    policy=policy,
                 )
                 leading: tuple[str, ...] = ()
             else:
@@ -2681,7 +2963,9 @@ class _Builder:
                     method.result,
                     description,
                     location=method.location,
+                    policy=policy,
                     self_param=self_param(method.is_const),
+                    keeper="self keeps",
                 )
                 leading = ("self._ptr()" if method.is_const else "self._mptr()",)
             py_name = naming.member_name(method.name + suffix, reserved=factory_names)
@@ -2694,7 +2978,14 @@ class _Builder:
                     )
                 )
             py_names[py_name] = method.location
-            member = self._python_callable(py_name, function, params, result, leading=leading)
+            member = self._python_callable(
+                py_name,
+                function,
+                params,
+                result,
+                leading=leading,
+                kind="static" if method.is_static else "method",
+            )
             members.append(dataclasses.replace(member, is_static=method.is_static))
 
         return ClassPlan(
@@ -2727,7 +3018,8 @@ class _Builder:
         name = f"{prefix}_{model.name}{suffix}"
         what = f"function '{model.qualified_name}({_describe_params(model.parameters)})'"
         self._reserve_c_name(name, what, model.location)
-        params = self._lower_params(model.parameters, model.location)
+        policy = self._policy(name, what, model.parameters, model.result, model.location)
+        params = self._lower_params(model.parameters, model.location, policy)
         description = (
             f"{_spelling(model.result)} {model.qualified_name}"
             f"({_describe_params(model.parameters)})"
@@ -2739,6 +3031,7 @@ class _Builder:
             model.result,
             description,
             location=model.location,
+            policy=policy,
         )
         py_name = naming.python_name(model.name + suffix)
         return FunctionPlan(model, self._python_callable(py_name, function, params, result))
@@ -2894,7 +3187,12 @@ class _Builder:
 #      handles of the caller's objects; a result by value or in a
 #      std::unique_ptr is a new object that the caller destroys (NULL on every
 #      failure, and for an empty std::unique_ptr); a reference result is
-#      borrowed (never NULL, never destroyed by the caller).
+#      borrowed (never NULL, never destroyed by the caller); a
+#      std::unique_ptr parameter, or a pointer annotated "transfer", takes the
+#      object whatever the status, also when the call fails before it reaches
+#      the wrapped function; a pointer result is owned or borrowed as the
+#      annotations say (it may be NULL); the header says which parameters may
+#      be NULL and which pointers the function keeps.
 C_API_CONVENTIONS = 6
 
 
@@ -2914,15 +3212,19 @@ def api_fingerprint(public_headers: Iterable[str]) -> str:
     return digest.hexdigest()[:32]
 
 
-def build_plan(module: Module) -> ModulePlan:
+def build_plan(
+    module: Module, annotations: Mapping[str, FunctionAnnotations] | None = None
+) -> ModulePlan:
     """Decide every generated name and check that none of them clash.
+
+    ``annotations`` are the annotation files, loaded (see :mod:`bridgefex.annotations`).
 
     Raises:
         ConfigurationError: invalid module or header names.
         GenerationError: generated names clash.
     """
     naming.check_module_name(module.name)
-    builder = _Builder(module)
+    builder = _Builder(module, annotations)
     # Compared without case: Windows and macOS file systems ignore it.
     generated_files = {
         name.casefold()
@@ -2961,6 +3263,7 @@ def build_plan(module: Module) -> ModulePlan:
             continue
         stems[key] = header
         headers.append(builder.build_header(header))
+    builder.errors.extend(unknown_functions(annotations or {}, builder.annotatable))
     if builder.errors:
         raise GenerationError(builder.errors)
     # The sources include the headers (in module order) whose structs they use.

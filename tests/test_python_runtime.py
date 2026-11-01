@@ -631,6 +631,69 @@ def test_borrowed_objects_are_chained_to_every_owner(runtime: ModuleType) -> Non
     assert last._retained is middle._retained
 
 
+class Armed:
+    """The weak reference that destroys an object when it is collected."""
+
+    def __init__(self, handle: object) -> None:
+        self._as_parameter_ = handle
+
+
+def owned_with_finalizer(handle: str, retained: list[object] | None = None) -> FakeObject:
+    obj = owned_object(handle)
+    obj._owned = [(len, "null")]
+    obj._finalizer = Armed(handle)  # type: ignore[assignment]
+    obj._retained = retained if retained is not None else []
+    return obj
+
+
+def test_take_gives_up_the_objects(runtime: ModuleType) -> None:
+    first = owned_with_finalizer("h1", ["kept by first"])
+    second = owned_with_finalizer("h2")
+    owner_list: list[object] = []
+    handles = runtime.take(owner_list, (first, "first"), (second, "second"))
+    assert handles == ["h1", "h2"]
+    for obj in (first, second):
+        assert obj._owned == []  # closed
+        assert obj._handle is None
+        # Collecting it must not destroy what the C++ code owns now.
+        assert obj._finalizer._as_parameter_ == "null"
+    # What they retained is kept alive by the new owner.
+    assert owner_list == [["kept by first"], []]
+
+
+def test_take_checks_everything_before_giving_anything_up(runtime: ModuleType) -> None:
+    good = owned_with_finalizer("good")
+    closed = owned_with_finalizer("closed")
+    closed._owned = []
+    borrowed = runtime.borrow(FakeObject, "b", (good,), False)
+    invalid = runtime.borrow(FakeObject, "i", (owned_with_finalizer("o"),), False)
+    invalid._owned = [(len, "null")]  # as if it owned something
+    invalid._owners[0]._owned = []  # whose owner was closed
+    me = owned_with_finalizer("me")
+
+    def attempt(*arguments: tuple[object, str], keep: object = None) -> str:
+        with pytest.raises(ValueError, match="argument") as raised:
+            runtime.take([], (good, "good"), *arguments, keep=keep)
+        return str(raised.value)
+
+    assert "argument 'x': FakeObject object is closed" in attempt((closed, "x"))
+    assert "argument 'x': FakeObject object cannot be transferred" in attempt((borrowed, "x"))
+    assert "borrowed from another object" in attempt((borrowed, "x"))
+    assert "argument 'x': FakeObject object is no longer valid" in attempt((invalid, "x"))
+    assert "argument 'x' is the same object as 'good'" in attempt((good, "x"))
+    assert "argument 'x' is the same object as 'self'" in attempt((me, "x"), keep=me)
+    # Nothing was taken by any of the failed calls.
+    assert good._owned == [(len, "null")]
+    assert good._handle == "good"
+    assert good._finalizer._as_parameter_ == "good"
+
+
+def test_take_passes_none_through(runtime: ModuleType) -> None:
+    obj = owned_with_finalizer("h")
+    assert runtime.take([], (None, "a"), (obj, "b"), (None, "c")) == [None, "h", None]
+    assert runtime.take([], (None, "a")) == [None]
+
+
 def test_to_callback(runtime: ModuleType) -> None:
     assert runtime.to_callback(None, "f") is None
     assert runtime.to_callback(len, "f") is len

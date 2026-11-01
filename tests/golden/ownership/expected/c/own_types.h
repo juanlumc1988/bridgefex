@@ -30,6 +30,12 @@ typedef struct own_Driver own_Driver;
 /* Opaque handle of own::Pair. */
 typedef struct own_Pair own_Pair;
 
+/* Opaque handle of own::Pipeline. */
+typedef struct own_Pipeline own_Pipeline;
+
+/* Opaque handle of own::Peek. */
+typedef struct own_Peek own_Peek;
+
 #pragma pack(pop)
 
 #endif /* OWN_TYPES_H */

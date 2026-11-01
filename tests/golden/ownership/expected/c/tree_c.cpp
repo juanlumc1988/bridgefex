@@ -30,6 +30,8 @@
 
 #include "tree_c.h"
 #include "own_runtime_internal.hpp"
+#include <string>
+#include <memory>
 
 // The code below names the wrapped declarations to expose them, deprecated
 // ones too: that is no reason to warn here. Nor is a member that a default
@@ -53,6 +55,10 @@ static_assert(alignof(::own::Driver) <= own_detail::new_alignment,
               "own::Driver is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Pair) <= own_detail::new_alignment,
               "own::Pair is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::own::Pipeline) <= own_detail::new_alignment,
+              "own::Pipeline is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::own::Peek) <= own_detail::new_alignment,
+              "own::Peek is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Node) <= own_detail::new_alignment,
               "own::Node is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::own::Item) <= own_detail::new_alignment,
@@ -168,6 +174,227 @@ own_status own_Tree_copies(const own_Tree* self, int32_t* out_result)
         return own_detail::null_argument("own_Tree_copies: 'out_result' is NULL");
     }
     return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->copies(); });
+}
+
+// void own::Tree::adopt(std::unique_ptr<own::Item> item)
+own_status own_Tree_adopt(own_Tree* self, own_Item* item)
+{
+    own_detail::transferred<::own::Item> item_owner(reinterpret_cast<::own::Item*>(item));
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_adopt: 'self' is NULL");
+    }
+    if (item == nullptr) {
+        return own_detail::null_argument("own_Tree_adopt: 'item' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Tree*>(self)->adopt(item_owner.take<std::unique_ptr<::own::Item>>()); });
+}
+
+// void own::Tree::adoptBoth(std::unique_ptr<own::Item> first, int32_t tag, std::unique_ptr<own::Item> second)
+own_status own_Tree_adoptBoth(own_Tree* self, own_Item* first, int32_t tag, own_Item* second)
+{
+    own_detail::transferred<::own::Item> first_owner(reinterpret_cast<::own::Item*>(first));
+    own_detail::transferred<::own::Item> second_owner(reinterpret_cast<::own::Item*>(second));
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_adoptBoth: 'self' is NULL");
+    }
+    if (first == nullptr) {
+        return own_detail::null_argument("own_Tree_adoptBoth: 'first' is NULL");
+    }
+    if (second == nullptr) {
+        return own_detail::null_argument("own_Tree_adoptBoth: 'second' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Tree*>(self)->adoptBoth(first_owner.take<std::unique_ptr<::own::Item>>(), tag, second_owner.take<std::unique_ptr<::own::Item>>()); });
+}
+
+// void own::Tree::slowAdopt(std::unique_ptr<own::Item> item, int32_t milliseconds)
+own_status own_Tree_slowAdopt(own_Tree* self, own_Item* item, int32_t milliseconds)
+{
+    own_detail::transferred<::own::Item> item_owner(reinterpret_cast<::own::Item*>(item));
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_slowAdopt: 'self' is NULL");
+    }
+    if (item == nullptr) {
+        return own_detail::null_argument("own_Tree_slowAdopt: 'item' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Tree*>(self)->slowAdopt(item_owner.take<std::unique_ptr<::own::Item>>(), milliseconds); });
+}
+
+// own::Item& own::Tree::first()
+own_status own_Tree_first(own_Tree* self, own_Item** out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_first: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_first: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<own_Item*>(own_detail::object_address(reinterpret_cast<::own::Tree*>(self)->first())); });
+}
+
+// size_t own::Tree::items() const
+own_status own_Tree_items(const own_Tree* self, size_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_items: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_items: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->items(); });
+}
+
+// int32_t own::Tree::itemSum() const
+own_status own_Tree_itemSum(const own_Tree* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_itemSum: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_itemSum: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->itemSum(); });
+}
+
+// own::Node* own::Tree::find(int32_t value)
+own_status own_Tree_find(own_Tree* self, int32_t value, own_Node** out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_find: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_find: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<own_Node*>(reinterpret_cast<::own::Tree*>(self)->find(value)); });
+}
+
+// const own::Node* own::Tree::cfind(int32_t value) const
+own_status own_Tree_cfind(const own_Tree* self, int32_t value, const own_Node** out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_cfind: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_cfind: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const own_Node*>(reinterpret_cast<const ::own::Tree*>(self)->cfind(value)); });
+}
+
+// own::Item* own::Tree::detach()
+own_status own_Tree_detach(own_Tree* self, own_Item** out_result)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_detach: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_detach: 'self' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<own_Item*>(reinterpret_cast<::own::Tree*>(self)->detach()); });
+}
+
+// void own::Tree::adoptRaw(own::Item* item)
+own_status own_Tree_adoptRaw(own_Tree* self, own_Item* item)
+{
+    own_detail::transferred<::own::Item> item_owner(reinterpret_cast<::own::Item*>(item));
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_adoptRaw: 'self' is NULL");
+    }
+    if (item == nullptr) {
+        return own_detail::null_argument("own_Tree_adoptRaw: 'item' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Tree*>(self)->adoptRaw(item_owner.take<::own::Item*>()); });
+}
+
+// int32_t own::Tree::valueOf(const own::Node* node) const
+own_status own_Tree_valueOf(const own_Tree* self, const own_Node* node, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_valueOf: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_valueOf: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->valueOf(reinterpret_cast<const ::own::Node*>(node)); });
+}
+
+// int32_t own::Tree::both(const own::Node* first, const own::Node* second) const
+own_status own_Tree_both(const own_Tree* self, const own_Node* first, const own_Node* second, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_both: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_both: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->both(reinterpret_cast<const ::own::Node*>(first), reinterpret_cast<const ::own::Node*>(second)); });
+}
+
+// void own::Tree::setCursor(own::Node* node)
+own_status own_Tree_setCursor(own_Tree* self, own_Node* node)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_setCursor: 'self' is NULL");
+    }
+    if (node == nullptr) {
+        return own_detail::null_argument("own_Tree_setCursor: 'node' is NULL");
+    }
+    return own_detail::guard([&]() { reinterpret_cast<::own::Tree*>(self)->setCursor(reinterpret_cast<::own::Node*>(node)); });
+}
+
+// int32_t own::Tree::cursorValue() const
+own_status own_Tree_cursorValue(const own_Tree* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_cursorValue: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_cursorValue: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Tree*>(self)->cursorValue(); });
+}
+
+// static void own::Tree::setSharedCursor(const own::Node* node)
+own_status own_Tree_setSharedCursor(const own_Node* node)
+{
+    if (node == nullptr) {
+        return own_detail::null_argument("own_Tree_setSharedCursor: 'node' is NULL");
+    }
+    return own_detail::guard([&]() { ::own::Tree::setSharedCursor(reinterpret_cast<const ::own::Node*>(node)); });
+}
+
+// static int32_t own::Tree::sharedCursorValue()
+own_status own_Tree_sharedCursorValue(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_sharedCursorValue: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = ::own::Tree::sharedCursorValue(); });
+}
+
+// static int32_t own::Tree::labelLength(const char* label)
+own_status own_Tree_labelLength(const char* label, int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_labelLength: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = ::own::Tree::labelLength(label); });
+}
+
+// std::string own::Tree::signature() const
+own_status own_Tree_signature(const own_Tree* self, char** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Tree_signature: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return own_detail::null_argument("own_Tree_signature: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Tree_signature: 'self' is NULL");
+    }
+    return own_detail::guard([&]() { own_detail::return_string(reinterpret_cast<const ::own::Tree*>(self)->signature(), out_result, out_result_size); });
 }
 
 // int32_t own::Tree::weight(const own::Node& node) const
@@ -460,6 +687,118 @@ own_status own_same(const own_Node* node, const own_Node** out_result)
         return own_detail::null_argument("own_same: 'out_result' is NULL");
     }
     return own_detail::guard([&]() { *out_result = reinterpret_cast<const own_Node*>(own_detail::object_address(::own::same(*reinterpret_cast<const ::own::Node*>(node)))); });
+}
+
+// own::Pipeline::Pipeline(std::unique_ptr<own::Item> first)
+own_status own_Pipeline_create_own_Item_unique(own_Pipeline** out_self, own_Item* first)
+{
+    own_detail::transferred<::own::Item> first_owner(reinterpret_cast<::own::Item*>(first));
+    if (out_self == nullptr) {
+        return own_detail::null_argument("own_Pipeline_create_own_Item_unique: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (first == nullptr) {
+        return own_detail::null_argument("own_Pipeline_create_own_Item_unique: 'first' is NULL");
+    }
+    return own_detail::guard([&]() { *out_self = reinterpret_cast<own_Pipeline*>(new ::own::Pipeline(first_owner.take<std::unique_ptr<::own::Item>>())); });
+}
+
+// own::Pipeline::Pipeline(std::unique_ptr<own::Item> first, int32_t minimum)
+own_status own_Pipeline_create_own_Item_unique_int32(own_Pipeline** out_self, own_Item* first, int32_t minimum)
+{
+    own_detail::transferred<::own::Item> first_owner(reinterpret_cast<::own::Item*>(first));
+    if (out_self == nullptr) {
+        return own_detail::null_argument("own_Pipeline_create_own_Item_unique_int32: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (first == nullptr) {
+        return own_detail::null_argument("own_Pipeline_create_own_Item_unique_int32: 'first' is NULL");
+    }
+    return own_detail::guard([&]() { *out_self = reinterpret_cast<own_Pipeline*>(new ::own::Pipeline(first_owner.take<std::unique_ptr<::own::Item>>(), minimum)); });
+}
+
+// own::Pipeline::~Pipeline()
+void own_Pipeline_destroy(own_Pipeline* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    own_detail::guard_silently([&]() { delete reinterpret_cast<::own::Pipeline*>(self); });
+}
+
+// int32_t own::Pipeline::firstId() const
+own_status own_Pipeline_firstId(const own_Pipeline* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Pipeline_firstId: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Pipeline_firstId: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Pipeline*>(self)->firstId(); });
+}
+
+// int32_t own::consume(std::unique_ptr<own::Item> item)
+own_status own_consume(own_Item* item, int32_t* out_result)
+{
+    own_detail::transferred<::own::Item> item_owner(reinterpret_cast<::own::Item*>(item));
+    if (item == nullptr) {
+        return own_detail::null_argument("own_consume: 'item' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_consume: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = ::own::consume(item_owner.take<std::unique_ptr<::own::Item>>()); });
+}
+
+// own::Peek::Peek(const own::Node& node)
+own_status own_Peek_create(own_Peek** out_self, const own_Node* node)
+{
+    if (out_self == nullptr) {
+        return own_detail::null_argument("own_Peek_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (node == nullptr) {
+        return own_detail::null_argument("own_Peek_create: 'node' is NULL");
+    }
+    return own_detail::guard([&]() { *out_self = reinterpret_cast<own_Peek*>(new ::own::Peek(*reinterpret_cast<const ::own::Node*>(node))); });
+}
+
+// own::Peek::~Peek()
+void own_Peek_destroy(own_Peek* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    own_detail::guard_silently([&]() { delete reinterpret_cast<::own::Peek*>(self); });
+}
+
+// int32_t own::Peek::seen() const
+own_status own_Peek_seen(const own_Peek* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return own_detail::null_argument("own_Peek_seen: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_Peek_seen: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = reinterpret_cast<const ::own::Peek*>(self)->seen(); });
+}
+
+// void own::setGlobalNode(own::Node* node)
+own_status own_setGlobalNode(own_Node* node)
+{
+    if (node == nullptr) {
+        return own_detail::null_argument("own_setGlobalNode: 'node' is NULL");
+    }
+    return own_detail::guard([&]() { ::own::setGlobalNode(reinterpret_cast<::own::Node*>(node)); });
+}
+
+// int32_t own::globalNodeValue()
+own_status own_globalNodeValue(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return own_detail::null_argument("own_globalNodeValue: 'out_result' is NULL");
+    }
+    return own_detail::guard([&]() { *out_result = ::own::globalNodeValue(); });
 }
 
 // int32_t own::total(const own::Node& node, const own::Item& item)

@@ -32,6 +32,73 @@ OWN_NODISCARD OWN_API own_status own_Tree_addCopy(own_Tree* self, const own_Node
 /* int32_t own::Tree::copies() const */
 OWN_NODISCARD OWN_API own_status own_Tree_copies(const own_Tree* self, int32_t* out_result);
 
+/* void own::Tree::adopt(std::unique_ptr<own::Item> item)
+ * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Tree_adopt(own_Tree* self, own_Item* item);
+
+/* void own::Tree::adoptBoth(std::unique_ptr<own::Item> first, int32_t tag, std::unique_ptr<own::Item> second)
+ * first, second: ownership is transferred, whatever the status: do not use or destroy them afterwards. */
+OWN_NODISCARD OWN_API own_status own_Tree_adoptBoth(own_Tree* self, own_Item* first, int32_t tag, own_Item* second);
+
+/* void own::Tree::slowAdopt(std::unique_ptr<own::Item> item, int32_t milliseconds)
+ * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Tree_slowAdopt(own_Tree* self, own_Item* item, int32_t milliseconds);
+
+/* own::Item& own::Tree::first()
+ * *out_result: borrowed from self, never NULL; do not destroy it. */
+OWN_NODISCARD OWN_API own_status own_Tree_first(own_Tree* self, own_Item** out_result);
+
+/* size_t own::Tree::items() const */
+OWN_NODISCARD OWN_API own_status own_Tree_items(const own_Tree* self, size_t* out_result);
+
+/* int32_t own::Tree::itemSum() const */
+OWN_NODISCARD OWN_API own_status own_Tree_itemSum(const own_Tree* self, int32_t* out_result);
+
+/* own::Node* own::Tree::find(int32_t value)
+ * *out_result: borrowed from self, may be NULL; do not destroy it. */
+OWN_NODISCARD OWN_API own_status own_Tree_find(own_Tree* self, int32_t value, own_Node** out_result);
+
+/* const own::Node* own::Tree::cfind(int32_t value) const
+ * *out_result: borrowed from self, may be NULL; do not destroy it. */
+OWN_NODISCARD OWN_API own_status own_Tree_cfind(const own_Tree* self, int32_t value, const own_Node** out_result);
+
+/* own::Item* own::Tree::detach()
+ * *out_result: owned by the caller (may be NULL); destroy it with own_Item_destroy. */
+OWN_NODISCARD OWN_API own_status own_Tree_detach(own_Tree* self, own_Item** out_result);
+
+/* void own::Tree::adoptRaw(own::Item* item)
+ * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Tree_adoptRaw(own_Tree* self, own_Item* item);
+
+/* int32_t own::Tree::valueOf(const own::Node* node) const
+ * node: may be NULL. */
+OWN_NODISCARD OWN_API own_status own_Tree_valueOf(const own_Tree* self, const own_Node* node, int32_t* out_result);
+
+/* int32_t own::Tree::both(const own::Node* first, const own::Node* second) const
+ * first, second: may be NULL. */
+OWN_NODISCARD OWN_API own_status own_Tree_both(const own_Tree* self, const own_Node* first, const own_Node* second, int32_t* out_result);
+
+/* void own::Tree::setCursor(own::Node* node)
+ * node: self keeps a pointer to it; it must stay valid as long as it is used. */
+OWN_NODISCARD OWN_API own_status own_Tree_setCursor(own_Tree* self, own_Node* node);
+
+/* int32_t own::Tree::cursorValue() const */
+OWN_NODISCARD OWN_API own_status own_Tree_cursorValue(const own_Tree* self, int32_t* out_result);
+
+/* static void own::Tree::setSharedCursor(const own::Node* node)
+ * node: the library keeps a pointer to it; it must stay valid as long as it is used. */
+OWN_NODISCARD OWN_API own_status own_Tree_setSharedCursor(const own_Node* node);
+
+/* static int32_t own::Tree::sharedCursorValue() */
+OWN_NODISCARD OWN_API own_status own_Tree_sharedCursorValue(int32_t* out_result);
+
+/* static int32_t own::Tree::labelLength(const char* label)
+ * label: may be NULL. */
+OWN_NODISCARD OWN_API own_status own_Tree_labelLength(const char* label, int32_t* out_result);
+
+/* std::string own::Tree::signature() const */
+OWN_NODISCARD OWN_API own_status own_Tree_signature(const own_Tree* self, char** out_result, size_t* out_result_size);
+
 /* int32_t own::Tree::weight(const own::Node& node) const */
 OWN_NODISCARD OWN_API own_status own_Tree_weight_own_Node(const own_Tree* self, const own_Node* node, int32_t* out_result);
 
@@ -60,7 +127,7 @@ OWN_NODISCARD OWN_API own_status own_Tree_makeChecked(const own_Tree* self, int3
 OWN_NODISCARD OWN_API own_status own_Tree_makeItem(const own_Tree* self, int32_t id, own_Item** out_result);
 
 /* std::unique_ptr<own::Item> own::Tree::makeUnique(int32_t id, bool make) const
- * *out_result: owned by the caller (NULL if empty); destroy it with own_Item_destroy. */
+ * *out_result: owned by the caller (may be NULL); destroy it with own_Item_destroy. */
 OWN_NODISCARD OWN_API own_status own_Tree_makeUnique(const own_Tree* self, int32_t id, bool make, own_Item** out_result);
 
 /* own::Node& own::Tree::root()
@@ -76,14 +143,15 @@ OWN_NODISCARD OWN_API own_status own_Tree_croot(const own_Tree* self, const own_
 OWN_NODISCARD OWN_API own_status own_Tree_global(own_Tree** out_result);
 
 /* std::unique_ptr<own::Item> own::Tree::slowMake(int32_t id, int32_t milliseconds) const
- * *out_result: owned by the caller (NULL if empty); destroy it with own_Item_destroy. */
+ * *out_result: owned by the caller (may be NULL); destroy it with own_Item_destroy. */
 OWN_NODISCARD OWN_API own_status own_Tree_slowMake(const own_Tree* self, int32_t id, int32_t milliseconds, own_Item** out_result);
 
 /* own::Node own::Tree::slowNode(int32_t value, int32_t milliseconds) const
  * *out_result: owned by the caller; destroy it with own_Node_destroy. */
 OWN_NODISCARD OWN_API own_status own_Tree_slowNode(const own_Tree* self, int32_t value, int32_t milliseconds, own_Node** out_result);
 
-/* own::Driver::Driver(own::Node& node) */
+/* own::Driver::Driver(own::Node& node)
+ * node: the new object keeps a pointer to it; it must stay valid as long as it is used. */
 OWN_NODISCARD OWN_API own_status own_Driver_create(own_Driver** out_self, own_Node* node);
 
 /* own::Driver::~Driver() */
@@ -92,7 +160,9 @@ OWN_API void own_Driver_destroy(own_Driver* self);
 /* int32_t own::Driver::read() const */
 OWN_NODISCARD OWN_API own_status own_Driver_read(const own_Driver* self, int32_t* out_result);
 
-/* own::Pair::Pair(const own::Node* first, own::Node* second) */
+/* own::Pair::Pair(const own::Node* first, own::Node* second)
+ * first: the new object keeps a pointer to it; it must stay valid as long as it is used.
+ * second: the new object keeps a pointer to it; it must stay valid as long as it is used. */
 OWN_NODISCARD OWN_API own_status own_Pair_create(own_Pair** out_self, const own_Node* first, own_Node* second);
 
 /* own::Pair::~Pair() */
@@ -112,6 +182,40 @@ OWN_NODISCARD OWN_API own_status own_pick(own_Node* first, own_Node* second, boo
 /* const own::Node& own::same(const own::Node& node)
  * *out_result: borrowed, never NULL; do not destroy it. */
 OWN_NODISCARD OWN_API own_status own_same(const own_Node* node, const own_Node** out_result);
+
+/* own::Pipeline::Pipeline(std::unique_ptr<own::Item> first)
+ * first: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Pipeline_create_own_Item_unique(own_Pipeline** out_self, own_Item* first);
+
+/* own::Pipeline::Pipeline(std::unique_ptr<own::Item> first, int32_t minimum)
+ * first: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_Pipeline_create_own_Item_unique_int32(own_Pipeline** out_self, own_Item* first, int32_t minimum);
+
+/* own::Pipeline::~Pipeline() */
+OWN_API void own_Pipeline_destroy(own_Pipeline* self);
+
+/* int32_t own::Pipeline::firstId() const */
+OWN_NODISCARD OWN_API own_status own_Pipeline_firstId(const own_Pipeline* self, int32_t* out_result);
+
+/* int32_t own::consume(std::unique_ptr<own::Item> item)
+ * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+OWN_NODISCARD OWN_API own_status own_consume(own_Item* item, int32_t* out_result);
+
+/* own::Peek::Peek(const own::Node& node) */
+OWN_NODISCARD OWN_API own_status own_Peek_create(own_Peek** out_self, const own_Node* node);
+
+/* own::Peek::~Peek() */
+OWN_API void own_Peek_destroy(own_Peek* self);
+
+/* int32_t own::Peek::seen() const */
+OWN_NODISCARD OWN_API own_status own_Peek_seen(const own_Peek* self, int32_t* out_result);
+
+/* void own::setGlobalNode(own::Node* node)
+ * node: the library keeps a pointer to it; it must stay valid as long as it is used. */
+OWN_NODISCARD OWN_API own_status own_setGlobalNode(own_Node* node);
+
+/* int32_t own::globalNodeValue() */
+OWN_NODISCARD OWN_API own_status own_globalNodeValue(int32_t* out_result);
 
 /* int32_t own::total(const own::Node& node, const own::Item& item) */
 OWN_NODISCARD OWN_API own_status own_total(const own_Node* node, const own_Item* item, int32_t* out_result);

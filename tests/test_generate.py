@@ -8,6 +8,7 @@ generated code.
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -946,5 +947,169 @@ def test_a_result_class_that_no_wrapped_header_defines(tmp_path: Path) -> None:
 
 def test_raw_pointer_results_need_an_annotation(tmp_path: Path) -> None:
     error = error_of(tmp_path, "namespace k { class N { public: N(); }; N* find(); }")
-    assert "returns a raw pointer to the wrapped class 'k::N'" in error
-    assert "annotations" in error
+    assert "returns a raw pointer to a wrapped class" in error
+    assert '[k_find] return = "owned"' in error
+    assert "annotations file" in error
+
+
+# std::unique_ptr parameters -----------------------------------------------------------
+
+_ITEMS = (
+    "#pragma once\n#include <memory>\n#include <string>\nnamespace k {\n"
+    "class Item { public: explicit Item(int id); Item(const Item&) = delete;"
+    " ~Item() noexcept(false); int id() const; };\n"
+)
+
+
+def test_unique_ptr_parameters(tmp_path: Path) -> None:
+    first = write_header(tmp_path, "namespace k { class Item { public: Item(); }; }", "a.h")
+    second = write_header(
+        tmp_path,
+        "#pragma once\n#include <memory>\n#include <string>\nnamespace k { class Item; }\n"
+        "namespace b {\nclass Box { public: Box(std::unique_ptr<k::Item> item);"
+        " void put(const std::string& label, std::unique_ptr<k::Item>&& item, int tag);\n};\n"
+        "int eat(std::unique_ptr<k::Item> a, std::unique_ptr<k::Item> b);\n}\n",
+        "b.h",
+    )
+    result = bridgefex.generate([first, second], bridgefex.Options("mod"))
+    source = result.files["c/b_c.cpp"]
+    assert '#include "a.h"' in source
+    assert "#include <memory>" in source
+    assert "mod_detail::transferred<::k::Item> item_owner(" in source
+    # Both are taken after every other argument is ready; the function owns them until then.
+    assert source.index("transferred<::k::Item> a_owner") < source.index("if (a == nullptr)")
+
+
+def test_unique_ptr_with_callbacks_and_strings(tmp_path: Path) -> None:
+    header = write_header(
+        tmp_path,
+        "#include <memory>\n#include <string>\nnamespace k {\nclass Item { public: Item(); };\n"
+        "int f(std::unique_ptr<Item> item, std::function<void(int)> cb, const std::string& s);\n}",
+    )
+    result = bridgefex.generate([header], bridgefex.Options("mod"))
+    python = result.files["python/mod/api.py"]
+    assert python.index("_scope.callback") < python.index("_runtime.take")
+    assert python.index("_runtime.take") < python.index("_scope.call(_c")
+
+
+def test_a_class_that_cannot_be_copied_is_taken_by_unique_ptr(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        _ITEMS.replace("#pragma once\n", "")
+        + "void keep(std::unique_ptr<Item> item);\nvoid peek(const Item& item); }",
+    )
+    assert "ownership is transferred" in result.files["c/api_c.h"]
+
+
+def test_unique_ptr_of_a_class_that_no_wrapped_header_defines(tmp_path: Path) -> None:
+    write_header(tmp_path, "namespace k { class Hidden { public: int v(); }; }", "other.h")
+    error = error_of(
+        tmp_path,
+        '#include <memory>\n#include "other.h"\nnamespace k { void f(std::unique_ptr<Hidden> h); }',
+    )
+    assert "class 'k::Hidden' is not a class of this module" in error
+
+
+# Annotations ----------------------------------------------------------------------------
+
+
+def annotated_options(directory: Path, text: str, **options: object) -> bridgefex.Options:
+    path = directory / "notes.toml"
+    path.write_text(text, encoding="utf-8")
+    return bridgefex.Options("mod", annotations=(path,), **options)  # type: ignore[arg-type]
+
+
+_POOL = (
+    "namespace k { class Item { public: Item(); ~Item(); };\n"
+    "class Pool { public: Pool(const Item& seed, Item* shared);"
+    " Item* find(int id); const Item* peek(int id) const; Item* take(); void keep(Item* item);"
+    " void give(Item* item); int check(const Item* item) const; };\n"
+    "int label(const char* text); }"
+)
+_NOTES = """
+[k_Pool_create]
+shared = "call"
+[k_Pool_find]
+return = "borrowed"
+[k_Pool_peek]
+return = "borrowed"
+[k_Pool_take]
+return = "owned"
+[k_Pool_keep]
+item = "retain"
+[k_Pool_give]
+item = "transfer"
+[k_Pool_check]
+item = "nullable"
+[k_label]
+text = "nullable"
+"""
+
+
+def test_annotations_end_to_end(tmp_path: Path) -> None:
+    header = write_header(tmp_path, _POOL)
+    result = bridgefex.generate([header], annotated_options(tmp_path, _NOTES))
+    source = result.files["c/api_c.cpp"]
+    # Compiled by the verification: owned, borrowed, taken, nullable.
+    assert "mod_detail::transferred<::k::Item> item_owner(" in source
+    assert "item_owner.take<::k::Item*>()" in source
+    python = result.files["python/mod/api.py"]
+    assert "_runtime.retain(self._retained, item)" in python
+    assert '_runtime.check_object(item, Item, "item", nullable=True)' in python
+    assert 'text = None if text is None else _runtime.to_c_string(text, "text")' in python
+    # 'call' turned off what the constructor keeps by default: only the pointer is not kept.
+    pool = python[python.index("class Pool") :]
+    constructor = pool[pool.index("def __init__") : pool.index("def _watch")]
+    assert "_runtime.retain(self._retained, seed)" in constructor
+    assert "_runtime.retain(self._retained, shared)" not in constructor
+
+
+def test_annotations_change_the_fingerprint(tmp_path: Path) -> None:
+    header = write_header(tmp_path, "namespace k { class Item { public: Item(); }; Item* make(); }")
+
+    def fingerprint(word: str) -> str:
+        options = annotated_options(tmp_path, f'[k_make]\nreturn = "{word}"\n')
+        files = bridgefex.generate([header], options).files
+        match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
+        assert match is not None
+        return match.group(1)
+
+    assert fingerprint("owned") != fingerprint("borrowed")
+
+
+def test_annotations_are_validated_before_anything_is_generated(tmp_path: Path) -> None:
+    header = write_header(tmp_path, _POOL)
+    with pytest.raises(BridgefexError) as raised:
+        bridgefex.generate(
+            [header],
+            annotated_options(
+                tmp_path, '[k_Pool_find]\nreturn = "borrowed"\n[k_Pool_peek]\nitem = "nullable"\n'
+            ),
+        )
+    message = str(raised.value)
+    # Every problem, in the order of the declarations: the missing owner of take()...
+    assert 'say who owns it with [k_Pool_take] return = "owned"' in message
+    # ...a parameter that does not exist on peek()...
+    assert "there is no parameter 'item'" in message
+    # ...and the raw pointer results with no annotation.
+    assert message.count("returns a raw pointer to a wrapped class") == 2
+
+
+def test_annotations_see_the_names_after_an_overload_is_added(tmp_path: Path) -> None:
+    code = "namespace k { class Item { public: Item(); }; Item* make(); Item* make(int n); }"
+    header = write_header(tmp_path, code)
+    options = annotated_options(tmp_path, '[k_make]\nreturn = "owned"\n')
+    with pytest.raises(BridgefexError) as raised:
+        bridgefex.generate([header], options)
+    message = str(raised.value)
+    assert "[k_make] is not a generated C function that can be annotated" in message
+    assert "did you mean" in message
+    assert "k_make_void" in message
+    assert "adding an overload renames the C functions of the others" in message
+
+
+def test_the_destroy_functions_cannot_be_annotated(tmp_path: Path) -> None:
+    header = write_header(tmp_path, "namespace k { class Item { public: Item(); }; }")
+    options = annotated_options(tmp_path, '[k_Item_destroy]\nreturn = "owned"\n')
+    with pytest.raises(BridgefexError, match="not a generated C function that can be annotated"):
+        bridgefex.generate([header], options)
