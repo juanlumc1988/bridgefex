@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with std::vector and std::array (see tests/conformance/scenarios.py).
+
+[[scenario]]
+name = "vectors of numbers go in and come back as lists"
+steps = [
+  { call = "vectors.scale", args = [[1, -2, 3], 10], expect = [10, -20, 30] },
+  { call = "vectors.scale", args = [[], 10], expect = [] },
+  { call = "vectors.invert", args = [[true, false]], expect = [false, true] },
+  { call = "vectors.echo_bytes", args = [[0, 255]], expect = [0, 255] },
+  { call = "vectors.halves", args = [[1.0, 3.0]], expect = [0.5, 1.5] },
+  { call = "vectors.primes", expect = [2, 3, 5, 7] },
+  { call = "vectors.sum", args = [[1, 2], 7], expect = 3007 },
+]
+
+[[scenario]]
+name = "an element that does not fit its type is refused"
+steps = [
+  { call = "vectors.scale", args = [[0, { int = "9223372036854775808" }], 1], error = "range" },
+  { call = "vectors.halves", args = [[1e39]], error = "range" },
+]
+
+[[scenario]]
+name = "vectors of strings keep every character"
+steps = [
+  { call = "vectors.total_size", args = [["ab", "c\u0000d", ""]], expect = 5 },
+  { call = "vectors.upper", args = [["ab\u0000c", "", "xyz"]], expect = ["AB\u0000C", "", "XYZ"] },
+  { call = "vectors.empty_strings", expect = ["", ""] },
+]
+
+[[scenario]]
+name = "vectors of enums and of structs"
+steps = [
+  { call = "vectors.rotate", args = [[{ enum = "vectors.Color", member = "Red" }, { enum = "vectors.Color", member = "Blue" }]], expect = [{ enum = "vectors.Color", member = "Green" }, { enum = "vectors.Color", member = "Red" }] },
+  { call = "vectors.count_high", args = [[{ enum = "vectors.Level", member = "High" }, { enum = "vectors.Level", member = "Low" }, { enum = "vectors.Level", member = "High" }]], expect = 2 },
+  { call = "vectors.levels", args = [3], expect = [{ enum = "vectors.Level", member = "Low" }, { enum = "vectors.Level", member = "High" }, { enum = "vectors.Level", member = "Low" }] },
+  { call = "vectors.shift", args = [[{ struct = "vectors.Point", x = 1.0, y = 2.0 }, { struct = "vectors.Point", x = 3.0, y = 4.0 }], 0.5], expect = [{ struct = "vectors.Point", x = 1.5, y = 2.0 }, { struct = "vectors.Point", x = 3.5, y = 4.0 }] },
+]
+
+[[scenario]]
+name = "a C++ exception raised while a vector is built"
+steps = [
+  { call = "vectors.too_big", error = "exception", message = "max_size" },
+]
+
+[[scenario]]
+name = "arrays have a fixed length"
+steps = [
+  { call = "vectors.twice", args = [[1.0, 2.0, 3.5, 4.0]], expect = [2.0, 4.0, 7.0, 8.0] },
+  { call = "vectors.swap", args = [[{ struct = "vectors.Point", x = 1.0, y = 2.0 }, { struct = "vectors.Point", x = 3.0, y = 4.0 }]], expect = [{ struct = "vectors.Point", x = 3.0, y = 4.0 }, { struct = "vectors.Point", x = 1.0, y = 2.0 }] },
+  { call = "vectors.colors", expect = [{ enum = "vectors.Color", member = "Blue" }, { enum = "vectors.Color", member = "Green" }, { enum = "vectors.Color", member = "Red" }] },
+  { call = "vectors.sum_levels", args = [[{ enum = "vectors.Level", member = "High" }, { enum = "vectors.Level", member = "High" }]], expect = 2 },
+]
+
+[[scenario]]
+name = "a class that takes and returns vectors"
+steps = [
+  { new = "vectors.Bag", args = [["a", "b"]], as = "bag" },
+  { call = "bag.add", args = [[1, 2]] },
+  { call = "bag.add", args = [[3]] },
+  { call = "bag.counts", expect = [1, 2, 3] },
+  { call = "bag.items", expect = ["a", "b"] },
+]
