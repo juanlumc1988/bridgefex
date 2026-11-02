@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "SCALARS_LIBRARY"
 
-API_FINGERPRINT = "7f2e462973692cb9e8a202c4986be66d"
+API_FINGERPRINT = "28aecb8d245e8d9bf2442a64da26feb0"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.scalars_free.restype = None
         library.scalars_disable_callbacks.argtypes = [Release]
         library.scalars_disable_callbacks.restype = None
+        library.scalars_enable_callbacks.argtypes = [Release]
+        library.scalars_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.scalars_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

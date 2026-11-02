@@ -299,8 +299,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 6
-PINNED_RUNTIME_SHA256 = "7ffd5b9d4fc79fc120628f6299bc681ff726e42eea1ce706075f6a0d2459fc3c"
+PINNED_CONVENTIONS = 7
+PINNED_RUNTIME_SHA256 = "f393114949e6704a3f85ae3d7b04b6e89af6330e8ea09f303a1b2752fa655052"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:

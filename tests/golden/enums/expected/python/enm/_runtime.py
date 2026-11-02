@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "ENM_LIBRARY"
 
-API_FINGERPRINT = "ae37a8121bb779d128c30c16a12a094b"
+API_FINGERPRINT = "25fd4b16424acd988b7e14317672708d"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.enm_free.restype = None
         library.enm_disable_callbacks.argtypes = [Release]
         library.enm_disable_callbacks.restype = None
+        library.enm_enable_callbacks.argtypes = [Release]
+        library.enm_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.enm_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

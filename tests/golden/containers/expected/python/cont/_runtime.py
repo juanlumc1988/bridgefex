@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "CONT_LIBRARY"
 
-API_FINGERPRINT = "36877d3f76e03645d59cd8259af88cac"
+API_FINGERPRINT = "c2662bafb2f8703e091d000c221e6bcf"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.cont_free.restype = None
         library.cont_disable_callbacks.argtypes = [Release]
         library.cont_disable_callbacks.restype = None
+        library.cont_enable_callbacks.argtypes = [Release]
+        library.cont_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.cont_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

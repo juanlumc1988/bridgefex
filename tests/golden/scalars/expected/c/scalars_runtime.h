@@ -113,9 +113,16 @@ SCALARS_API void scalars_free(void* memory);
  * scalars_disable_callbacks(release): from now on, the callbacks given with
  * this release function are neither called (C++ gets their default result)
  * nor released. For language runtimes that shut down while C++ may still hold
- * their callbacks (in globals, or in objects that are never destroyed).
+ * their callbacks (in globals, or in objects that are never destroyed). Every
+ * release function that was disabled stays disabled, so that several runtimes
+ * can share the library (sub-interpreters, other languages). NULL is ignored.
+ *
+ * scalars_enable_callbacks(release): undoes it. A runtime calls it when it
+ * starts, with the release function it will pass, in case an earlier runtime
+ * that was disabled at exit had a function at the same address.
  */
 SCALARS_API void scalars_disable_callbacks(void (*release)(void*));
+SCALARS_API void scalars_enable_callbacks(void (*release)(void*));
 
 #ifdef __cplusplus
 }

@@ -145,6 +145,11 @@ def load(path=None):
         library.{{ m.free_function }}.restype = None
         library.{{ m.disable_callbacks }}.argtypes = [Release]
         library.{{ m.disable_callbacks }}.restype = None
+        library.{{ m.enable_callbacks }}.argtypes = [Release]
+        library.{{ m.enable_callbacks }}.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.{{ m.enable_callbacks }}(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

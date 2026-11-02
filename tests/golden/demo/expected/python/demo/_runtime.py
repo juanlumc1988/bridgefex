@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "DEMO_LIBRARY"
 
-API_FINGERPRINT = "6867928e606c95317276e1df2932583a"
+API_FINGERPRINT = "fa4dd1b7ca56ac241a0be472b9c82bed"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.demo_free.restype = None
         library.demo_disable_callbacks.argtypes = [Release]
         library.demo_disable_callbacks.restype = None
+        library.demo_enable_callbacks.argtypes = [Release]
+        library.demo_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.demo_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

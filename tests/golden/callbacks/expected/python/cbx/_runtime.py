@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "CBX_LIBRARY"
 
-API_FINGERPRINT = "477ed5846e57e59c02a7cc9efc764b09"
+API_FINGERPRINT = "c209e72aa3fac4da5bf675a119f79163"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.cbx_free.restype = None
         library.cbx_disable_callbacks.argtypes = [Release]
         library.cbx_disable_callbacks.restype = None
+        library.cbx_enable_callbacks.argtypes = [Release]
+        library.cbx_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.cbx_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

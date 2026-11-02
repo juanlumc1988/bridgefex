@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "SPN_LIBRARY"
 
-API_FINGERPRINT = "33976184bbe1e16b1964c0e0b6e68e64"
+API_FINGERPRINT = "2e812db24ee742c48cd51dee6d8b1286"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.spn_free.restype = None
         library.spn_disable_callbacks.argtypes = [Release]
         library.spn_disable_callbacks.restype = None
+        library.spn_enable_callbacks.argtypes = [Release]
+        library.spn_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.spn_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

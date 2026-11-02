@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "EDGE_LIBRARY"
 
-API_FINGERPRINT = "0a5b8611d56a4683babe8aff829e11d3"
+API_FINGERPRINT = "8a6c4b38c19b40f587ac443308a63ab8"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.edge_free.restype = None
         library.edge_disable_callbacks.argtypes = [Release]
         library.edge_disable_callbacks.restype = None
+        library.edge_enable_callbacks.argtypes = [Release]
+        library.edge_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.edge_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path

@@ -933,6 +933,10 @@ class ModulePlan:
         return f"{self.name}_disable_callbacks"
 
     @property
+    def enable_callbacks(self) -> str:
+        return f"{self.name}_enable_callbacks"
+
+    @property
     def public_headers(self) -> tuple[str, ...]:
         """The generated C headers, in the order the API fingerprint hashes them."""
         return (
@@ -1166,6 +1170,7 @@ class _Builder:
             ("api_fingerprint", "the API fingerprint function"),
             ("free", "the function that releases returned memory"),
             ("disable_callbacks", "the function that disables the callbacks"),
+            ("enable_callbacks", "the function that enables the callbacks"),
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
@@ -3197,7 +3202,10 @@ class _Builder:
 #      the wrapped function; a pointer result is owned or borrowed as the
 #      annotations say (it may be NULL); the header says which parameters may
 #      be NULL and which pointers the function keeps.
-C_API_CONVENTIONS = 6
+#   7  <module>_disable_callbacks disables every release function that was
+#      given, not only the last one (several runtimes share a library), and
+#      <module>_enable_callbacks undoes it for one function.
+C_API_CONVENTIONS = 7
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:

@@ -51,8 +51,10 @@ class FakeFunction:
         self.result = result
         self.argtypes: object = None
         self.restype: object = None
+        self.calls: list[tuple[object, ...]] = []
 
-    def __call__(self) -> object:
+    def __call__(self, *arguments: object) -> object:
+        self.calls.append(arguments)
         return self.result
 
 
@@ -187,6 +189,28 @@ def test_load_after_loading(
     assert runtime.load("libscalars.so") is loaded
     with pytest.raises(RuntimeError, match="already loaded"):
         runtime.load(os.path.abspath("libscalars.so"))
+
+
+def test_load_enables_the_callbacks_of_this_runtime(
+    runtime: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A release function at the address of one that an earlier interpreter
+    disabled must not stay disabled."""
+
+    class Library:
+        scalars_api_fingerprint = FakeFunction(runtime.API_FINGERPRINT.encode())
+        scalars_last_error = FakeFunction(b"")
+        scalars_free = FakeFunction(None)
+        scalars_disable_callbacks = FakeFunction(None)
+        scalars_enable_callbacks = FakeFunction(None)
+
+    library = Library()
+    monkeypatch.setattr(runtime.ctypes, "CDLL", lambda path: library)
+    monkeypatch.setattr(runtime, "_library", None)
+    monkeypatch.setattr(runtime, "_library_path", None)
+    assert runtime.load("libscalars.so") is library
+    assert library.scalars_enable_callbacks.calls == [(runtime.release,)]
+    assert library.scalars_enable_callbacks.argtypes == [runtime.Release]
 
 
 def test_empty_environment_variable_is_ignored(

@@ -1034,3 +1034,37 @@ def test_callbacks_are_disabled_at_exit(callbacks_build: tuple[Path, Path], disa
     elif sys.platform != "win32":
         # Windows ends the process differently: the call may not crash there.
         assert completed.returncode != 0
+
+
+def test_a_new_runtime_enables_the_callbacks_at_its_release_function(
+    callbacks_build: tuple[Path, Path],
+) -> None:
+    """An earlier interpreter of the process disabled its release function when it
+    exited. The next one gets a function at the same address (ctypes reuses
+    freed closures): loading the library must enable it, or its callbacks would
+    never run."""
+    library, output = callbacks_build
+    code = """
+import ctypes
+from cbx import _runtime, events
+
+assert events.sum(3, lambda i: i) == 3
+_runtime._disable_callbacks()  # the first interpreter exits
+assert _runtime._disabled
+_runtime._disabled = False
+assert events.sum(3, lambda i: i) == 0  # the stale address is still disabled
+_runtime._library = _runtime._library_path = None  # a new interpreter loads it
+_runtime.load()
+assert events.sum(3, lambda i: i) == 3
+print("enabled")
+"""
+    environment = {**os.environ, "PYTHONPATH": str(output / "python"), "CBX_LIBRARY": str(library)}
+    completed = subprocess.run(
+        [sys.executable, "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout == "enabled\n"
