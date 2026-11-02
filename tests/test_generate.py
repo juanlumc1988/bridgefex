@@ -150,6 +150,46 @@ def test_verification_errors_point_at_the_wrapped_declaration(tmp_path: Path) ->
     assert error.startswith(f"{tmp_path / 'api.h'}:5:")
 
 
+_CALLBACK = "int each(std::function<int(int, int)> cb);"
+_STRUCT = "struct P { int a; int b[2]; };\nint total(const P& p);\nP make(int a);"
+
+
+@pytest.mark.parametrize(
+    ("macros", "code", "names"),
+    [
+        # Two variables of the callback lambda become the same parameter name.
+        ("#define _arg1 oops\n#define _arg2 oops", _CALLBACK, ["_arg1", "_arg2"]),
+        ("#define _result 1", _CALLBACK, ["_result"]),
+        ("#define _user_data 0", _CALLBACK, ["_user_data"]),
+        ("#define _owner1 (", _CALLBACK, ["_owner1"]),
+        # The helpers of the value structs are in their own generated header.
+        ("#define _in 7", _STRUCT, ["_in"]),
+        ("#define _out 7", _STRUCT, ["_out"]),
+        ("#define _i0 9", _STRUCT, ["_i0"]),
+        ("#define _item +", "int total(const std::vector<P>& items);", ["_item"]),
+    ],
+)
+def test_macros_named_like_generated_variables_are_pointed_out(
+    tmp_path: Path, macros: str, code: str, names: list[str]
+) -> None:
+    prelude = "#include <vector>\nstruct P { int a; };\n" if "vector" in code else ""
+    error = error_of(tmp_path, f"{prelude}{macros}\n{code}")
+    for name in names:
+        assert re.search(rf"api\.h:\d+:\d+: the macro '{name}' replaces an identifier", error), (
+            error
+        )
+    assert "rename or undefine the macro" in error
+
+
+def test_macros_that_the_generated_code_does_not_use_are_not_blamed(tmp_path: Path) -> None:
+    # Defined, but no wrapper declares `_result`: nothing to report, nothing breaks.
+    result = generate(tmp_path, "#define _result 1\n#define _unrelated 2\nint plain(int a);")
+    assert "mod_plain" in result.files["c/api_c.cpp"]
+    # A macro that is not the cause is not named: the error is another one.
+    error = error_of(tmp_path, "#define _unrelated 2\nint pick(); int pick(int x = 3);")
+    assert "_unrelated" not in error
+
+
 def test_verification_can_be_disabled(tmp_path: Path) -> None:
     header = write_header(tmp_path, "namespace d { int pick(); int pick(int x = 3); }")
     options = bridgefex.Options("mod", verify=False)
