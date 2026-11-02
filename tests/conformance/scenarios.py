@@ -33,8 +33,9 @@ that a ``new`` or a ``call`` returns; ``expect`` is the result; ``error`` is the
 of the failure (``exception``: C++ threw a ``std::exception``, with an optional
 ``message`` that the text of the error contains; ``unknown_exception``: it threw
 something else; ``out_of_memory``: ``std::bad_alloc``; ``range``: an argument does not
-fit its C type; ``closed``: the object was closed); ``approx`` allows that much
-difference in a floating-point result.
+fit its C type; ``length``: an array does not have the length of its type; ``closed``:
+the object was closed, or it is borrowed from one that was); ``approx`` allows that
+much difference in a floating-point result.
 
 Values: numbers, booleans and strings are themselves; a list is a list; a table is one
 of ``{ int = "18446744073709551615" }`` (beyond 64-bit signed TOML integers),
@@ -48,11 +49,22 @@ not an ``int``).
 
 from __future__ import annotations
 
+import re
 import tomllib
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from bridgefex.model import (
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+    Type,
+    TypeCategory,
+)
 from bridgefex.plan import (
     CallableKind,
     CallablePlan,
@@ -68,7 +80,7 @@ CXX_ERRORS = frozenset({"exception", "unknown_exception", "out_of_memory"})
 """The failures of the C++ code, by the status of the C API: a ``std::exception``, any
 other exception, and ``std::bad_alloc``."""
 
-ERROR_KINDS = CXX_ERRORS | {"range", "closed"}
+ERROR_KINDS = CXX_ERRORS | {"range", "length", "closed"}
 """The failures that every backend reports, each in the way of its language."""
 
 _ACTIONS = ("new", "call", "close")
@@ -152,15 +164,19 @@ def check(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[str]:
             problems.append(f"{name}: the name is used twice")
         names.add(name)
         variables: dict[str, ClassPlan | None] = {}
+        closed: set[str] = set()
         for number, step in enumerate(steps, start=1):
             where = f"{name}, step {number}"
-            for problem in _check_step(step, index, variables):
+            for problem in _check_step(step, index, variables, closed):
                 problems.append(f"{where}: {problem}")
     return problems
 
 
 def _check_step(
-    step: Mapping[str, object], index: _Index, variables: dict[str, ClassPlan | None]
+    step: Mapping[str, object],
+    index: _Index,
+    variables: dict[str, ClassPlan | None],
+    closed: set[str],
 ) -> list[str]:
     unknown = set(step) - _KEYS
     actions = [action for action in _ACTIONS if action in step]
@@ -172,35 +188,41 @@ def _check_step(
     args = step.get("args", [])
     if not isinstance(target, str) or not isinstance(args, list):
         return [f"{action} needs a name, and args a list: {dict(step)}"]
-    if "expect" in step and "error" in step:
-        problems.append("a step cannot expect a result and an error")
-    if step.get("error", "exception") not in ERROR_KINDS:
-        problems.append(f"unknown error kind {step['error']!r}")
-    if "message" in step and step.get("error") not in CXX_ERRORS:
-        problems.append(f"message goes with an error of the C++ code: {sorted(CXX_ERRORS)}")
+    problems += _option_problems(step)
     for value in [*args, *([step["expect"]] if "expect" in step else [])]:
         problems += _check_value(value, index, variables)
-
-    produced: ClassPlan | None = None
     if action == "close":
         if target not in variables:
             problems.append(f"close of {target!r}, which does not exist")
+        closed.add(target)
         return problems
+
+    produced: ClassPlan | None = None
     if action == "new":
         cls = _class(target, index)
         if cls is None:
             return [*problems, f"no class {target!r}"]
-        problems += _check_overload(cls, step.get("overload"), args)
+        constructor, overload_problems = _constructor(cls, step.get("overload"))
+        problems += overload_problems
+        call = constructor
         produced = cls
+        if "expect" in step:
+            problems.append("new gives an object (as): there is no result to expect")
     else:
         found = _callable(target, index, variables)
         if isinstance(found, str):
             return [*problems, found]
         call, produced = found
-        if len(args) != len(call.params):
-            problems.append(f"{target} takes {len(call.params)} arguments, not {len(args)}")
         if "overload" in step:
             problems.append("overload is for new")
+        if "expect" in step:
+            problems += _result_problems(step["expect"], call, index)
+        if target.split(".")[0] in closed and step.get("error") != "closed":
+            problems.append(
+                f"{target.split('.')[0]!r} was closed: this call must say error = 'closed'"
+            )
+    if call is not None:
+        problems += _argument_problems(args, call, target, index, variables, closed, step)
     if "as" in step:
         variable = step["as"]
         if not isinstance(variable, str) or variable in variables or variable in index.headers:
@@ -210,25 +232,121 @@ def _check_step(
     return problems
 
 
+def _option_problems(step: Mapping[str, object]) -> list[str]:
+    """What is wrong with ``expect``, ``error``, ``message`` and ``approx`` themselves."""
+    problems = []
+    if "expect" in step and "error" in step:
+        problems.append("a step cannot expect a result and an error")
+    if step.get("error", "exception") not in ERROR_KINDS:
+        problems.append(f"unknown error kind {step['error']!r}")
+    if "message" in step and step.get("error") not in CXX_ERRORS:
+        problems.append(f"message goes with an error of the C++ code: {sorted(CXX_ERRORS)}")
+    if "approx" in step:
+        approx = step["approx"]
+        number = isinstance(approx, int | float) and not isinstance(approx, bool)
+        if not number or approx < 0 or not isinstance(step.get("expect"), float):  # type: ignore[operator]
+            problems.append("approx is a number that is not negative, for a floating-point result")
+    return problems
+
+
+def _argument_problems(
+    args: list[object],
+    call: CallablePlan,
+    target: str,
+    index: _Index,
+    variables: Mapping[str, ClassPlan | None],
+    closed: set[str],
+    step: Mapping[str, object],
+) -> list[str]:
+    if len(args) != len(call.params):
+        return [f"{target} takes {len(call.params)} arguments, not {len(args)}"]
+    problems = []
+    for position, (value, spec) in enumerate(zip(args, call.params, strict=True), start=1):
+        reason = _kind_problem(value, spec.type, index, variables, result=False)
+        if reason is not None:
+            problems.append(f"argument {position} ({spec.name}): {reason}")
+        if isinstance(value, dict) and value.get("ref") in closed and step.get("error") != "closed":
+            problems.append(
+                f"argument {position}: {value['ref']!r} was closed: say error = 'closed'"
+            )
+    return problems
+
+
+def _result_problems(expected: object, call: CallablePlan, index: _Index) -> list[str]:
+    if call.result is None:
+        return [f"{call.name + call.suffix} returns nothing: there is no result to expect"]
+    reason = _kind_problem(expected, call.result.type, index, {}, result=True)
+    return [f"the result: {reason}"] if reason is not None else []
+
+
+def _is_integer(value: object) -> bool:
+    if isinstance(value, dict) and set(value) == {"int"}:
+        return isinstance(value["int"], str) and re.fullmatch(r"-?[0-9]+", value["int"]) is not None
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _kind_problem(
+    value: object,
+    type_: Type,
+    index: _Index,
+    variables: Mapping[str, ClassPlan | None],
+    *,
+    result: bool,
+) -> str | None:
+    """Why ``value`` cannot be an argument (or the result) of ``type_``, or None. A float
+    argument may be written as an integer; a result is compared strictly."""
+    table = value if isinstance(value, dict) else {}
+    if isinstance(type_, ScalarType):
+        if type_.category is TypeCategory.BOOL:
+            fits = isinstance(value, bool)
+        elif type_.category is TypeCategory.FLOATING:
+            fits = isinstance(value, float) or (not result and _is_integer(value))
+        else:
+            fits = _is_integer(value)
+        return None if fits else f"{value!r} is not a {type_.c_name}"
+    if isinstance(type_, StringType):
+        null = result and table.get("null") is True  # a const char* result may be NULL
+        return None if isinstance(value, str) or null else f"{value!r} is not a string"
+    if isinstance(type_, EnumRef):
+        enum = index.enums.get(str(table.get("enum")))
+        same = enum is not None and enum.model.usr == type_.usr and "member" in table
+        return None if same else f"{value!r} is not a member of {type_.qualified_name}"
+    if isinstance(type_, StructRef):
+        struct = index.structs.get(str(table.get("struct")))
+        same = struct is not None and struct.model.usr == type_.usr
+        return None if same else f"{value!r} is not a {type_.qualified_name}"
+    if isinstance(type_, ClassRef):
+        if table.get("null") is True:
+            return None
+        owner = variables.get(str(table.get("ref")))
+        if not result and owner is not None:
+            usrs = {ancestor.model.usr for ancestor in index.methods(owner)}
+            if type_.usr in usrs:
+                return None
+        return f"{value!r} is not a {type_.qualified_name}" + (
+            " (a result of a class can only be null here)" if result else ""
+        )
+    if isinstance(type_, ContainerType):
+        return None if isinstance(value, list) else f"{value!r} is not a list"
+    return "callbacks are not in the scenarios yet"
+
+
 def _class(target: str, index: _Index) -> ClassPlan | None:
     header, _, name = target.partition(".")
     return index.classes.get((header, name))
 
 
-def _check_overload(cls: ClassPlan, overload: object, args: list[object]) -> list[str]:
+def _constructor(cls: ClassPlan, overload: object) -> tuple[CallablePlan | None, list[str]]:
+    """The constructor that ``overload`` names (the only one if there is one)."""
     if len(cls.constructors) == 1:
-        constructor = cls.constructors[0]
         if overload is not None:
-            return ["the class has one constructor: no overload"]
-    else:
-        matching = [item for item in cls.constructors if item.suffix == overload]
-        if not matching:
-            options = [item.suffix for item in cls.constructors]
-            return [f"overload {overload!r} is not one of {options}"]
-        constructor = matching[0]
-    if len(args) != len(constructor.params):
-        return [f"the constructor takes {len(constructor.params)} arguments, not {len(args)}"]
-    return []
+            return cls.constructors[0], ["the class has one constructor: no overload"]
+        return cls.constructors[0], []
+    matching = [item for item in cls.constructors if item.suffix == overload]
+    if not matching:
+        options = [item.suffix for item in cls.constructors]
+        return None, [f"overload {overload!r} is not one of {options}"]
+    return matching[0], []
 
 
 def _callable(

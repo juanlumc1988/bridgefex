@@ -68,7 +68,10 @@ def test_every_backend_has_a_runner() -> None:
 
 
 def test_there_are_scenarios() -> None:
-    assert {case.name for case in CASES} >= {"scalars"}
+    cases = {"scalars", "demo", "strings", "enums", "structs", "containers", "inherit"}
+    assert {case.name for case in CASES} >= cases
+    for case in CASES:
+        assert scenarios.load(case.scenarios), f"{case.name} has no scenario"
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
@@ -106,6 +109,12 @@ _WRONG = {
         'call = "numbers.divide", args = [1, 0], error = "exception", message = "overflow"'
     ),
     "an error where none is expected": 'call = "numbers.divide", args = [1, 0], expect = 0',
+    "a value that is not valid, as a closed object": (
+        'call = "numbers.echo_float", args = [1e39], error = "closed"'
+    ),
+    "a range error where a length error is expected": (
+        'call = "numbers.echo_int8", args = [128], error = "length"'
+    ),
 }
 
 
@@ -182,8 +191,125 @@ def test_the_check_refuses_a_scenario_that_is_not_true_of_the_headers(
     path = tmp_path / "scenarios.toml"
     path.write_text(f'[[scenario]]\nname = "x"\nsteps = [{{ {step} }}]\n', encoding="utf-8")
     problems = scenarios.check(scenarios.load(path), plan_of(load_case(GOLDEN_DIR / "scalars")))
-    assert len(problems) == 1, problems
-    assert expected in problems[0]
+    assert any(expected in problem for problem in problems), problems
+
+
+# What is not true of the types in the headers, or of the objects: each is a list of
+# steps, the case whose headers they refer to, and what the problem says.
+_UNTRUE_TYPES = {
+    "a result of a function that returns nothing": (
+        "scalars",
+        ['call = "numbers.do_nothing", expect = 1'],
+        "returns nothing",
+    ),
+    "a string for an int": (
+        "scalars",
+        ['call = "numbers.twice", args = ["x"]'],
+        "is not a int",
+    ),
+    "a float for an int": ("scalars", ['call = "numbers.twice", args = [1.5]'], "is not a int"),
+    "a bool for an int": ("scalars", ['call = "numbers.twice", args = [true]'], "is not a int"),
+    "an int for a bool": (
+        "scalars",
+        ['call = "numbers.echo_bool", args = [1]'],
+        "is not a bool",
+    ),
+    "an int that is not digits": (
+        "scalars",
+        ['call = "numbers.echo_int64", args = [{ int = "abc" }]'],
+        "is not a",
+    ),
+    "a string as the result of an int": (
+        "scalars",
+        ['call = "numbers.twice", args = [1], expect = "two"'],
+        "the result",
+    ),
+    "an int as the result of a double": (
+        "scalars",
+        ['call = "numbers.echo_double", args = [1.0], expect = 1'],
+        "the result",
+    ),
+    "a negative approx": (
+        "scalars",
+        ['call = "numbers.echo_double", args = [1.0], expect = 1.0, approx = -1.0'],
+        "approx is a number",
+    ),
+    "approx for an int": (
+        "scalars",
+        ['call = "numbers.twice", args = [1], expect = 2, approx = 0.5'],
+        "approx is a number",
+    ),
+    "a result of new": (
+        "scalars",
+        ['new = "numbers.Accumulator", expect = 1'],
+        "no result to expect",
+    ),
+    "a use after close": (
+        "scalars",
+        [
+            'new = "numbers.Accumulator", as = "acc"',
+            'close = "acc"',
+            'call = "acc.count", expect = 0',
+        ],
+        "was closed",
+    ),
+    "a closed object given to a call": (
+        "inherit",
+        [
+            'new = "shapes.Circle", args = [1.0], as = "c"',
+            'close = "c"',
+            'call = "shapes.call_name", args = [{ ref = "c" }], expect = "x"',
+        ],
+        "was closed",
+    ),
+    "an object of another class": (
+        "inherit",
+        [
+            'new = "widget.Counter", as = "counter"',
+            'call = "shapes.call_name", args = [{ ref = "counter" }], expect = "x"',
+        ],
+        "is not a",
+    ),
+    "an enum of another type": (
+        "enums",
+        ['call = "colors.toggle", args = [{ enum = "colors.Color", member = "Red" }]'],
+        "is not a member of",
+    ),
+    "an enum without a member": (
+        "enums",
+        ['call = "colors.toggle", args = [{ enum = "colors.Mode" }]'],
+        "is not a member of",
+    ),
+    "a struct of another type": (
+        "structs",
+        [
+            'call = "geo.area_geo_Point", args = '
+            '[{ struct = "geo.Config", baud = 1, parity = true, kind = '
+            '{ enum = "geo.Kind", member = "Plain" } }]'
+        ],
+        "is not a",
+    ),
+    "a number for a list": (
+        "containers",
+        ['call = "vectors.scale", args = [1, 2]'],
+        "is not a list",
+    ),
+    "a struct with its members in another order": (
+        "structs",
+        ['call = "geo.area_geo_Point", args = [{ struct = "geo.Point", y = 1.0, x = 2.0 }]'],
+        "needs all its members",
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_UNTRUE_TYPES))
+def test_the_check_refuses_what_does_not_fit_the_types(name: str, tmp_path: Path) -> None:
+    case, steps, expected = _UNTRUE_TYPES[name]
+    body = ",\n  ".join("{ " + step + " }" for step in steps)
+    path = tmp_path / "scenarios.toml"
+    path.write_text(f'[[scenario]]\nname = "x"\nsteps = [\n  {body},\n]\n', encoding="utf-8")
+    problems = scenarios.check(scenarios.load(path), plan_of(load_case(GOLDEN_DIR / case)))
+    assert any(expected in problem for problem in problems), problems
 
 
 def test_the_check_follows_the_objects_and_their_classes(tmp_path: Path) -> None:

@@ -18,7 +18,13 @@ import tomllib
 import traceback
 from types import ModuleType
 
-_ERRORS = {"range": OverflowError, "closed": ValueError}
+# The failures of the bindings: the exception, and what its text must say (a ValueError is
+# also what a value that is not valid raises, so the kinds are told apart by the text).
+_ERRORS = {
+    "range": (OverflowError, ()),
+    "length": (ValueError, ("elements",)),
+    "closed": (ValueError, ("closed", "no longer valid")),
+}
 _STATUSES = {
     "exception": "ERROR_EXCEPTION",
     "unknown_exception": "ERROR_UNKNOWN_EXCEPTION",
@@ -84,8 +90,12 @@ class Player:
             cls = self.lookup(expected["struct"])
             if type(actual) is not cls:
                 return f"{where}: {type(actual).__name__}, not {cls.__name__}"
-            # The members of a dataclass are in declaration order, as in the scenario.
-            for field, member in zip(dataclasses.fields(cls), self.members(expected), strict=True):
+            # The members of a dataclass are in declaration order, as in the scenario; a
+            # name that the C++ declaration shares with a keyword gets a trailing '_'.
+            members = [(name, item) for name, item in expected.items() if name != "struct"]
+            for field, (name, member) in zip(dataclasses.fields(cls), members, strict=True):
+                if field.name not in (name, f"{name}_"):
+                    return f"{where}: the member {field.name!r} is not {name!r}"
                 problem = self.differences(
                     getattr(actual, field.name), member, approx, f"{where}.{field.name}"
                 )
@@ -152,7 +162,9 @@ class Player:
         except BaseException as error:
             if kind is None:
                 raise
-            wanted = _ERRORS.get(str(kind), self.error)
+            wanted, hints = _ERRORS.get(str(kind), (self.error, ()))
+            if hints and not any(hint in str(error) for hint in hints):
+                raise Failure(f"{type(error).__name__} ({error}), not a {kind} error") from error
             if not isinstance(error, wanted) or (
                 kind in _STATUSES and error.status != getattr(self.package, _STATUSES[str(kind)])
             ):

@@ -133,6 +133,7 @@ To add a language:
 4. Add the golden files (`tests/golden/<case>/expected/<name>/`). Registering a
    backend can change the C parameter names of the existing goldens (see above):
    regenerate them and check that the C files only change in that.
+5. Add a runner of the conformance scenarios (see below).
 
 The Python backend is the reference: `backends/python/ffi.py` maps `Ffi` to ctypes,
 `lower.py` lowers parameters and results, `module.py` builds the modules, classes,
@@ -160,8 +161,9 @@ steps = [
 
 `tests/conformance/scenarios.py` documents the format (names, steps, values, the
 kinds of failure) and checks every scenario against the neutral plan, so that a
-name, an overload or a number of arguments that the headers do not have is an error
-whichever language runs it. Each backend has a runner in `tests/conformance/` and an
+name, an overload, a number or a kind of argument or result that the headers do not
+have, or the use of an object after `close`, is an error whichever language runs
+it. (Members of a struct value are checked for names and order, not yet for kind.) Each backend has a runner in `tests/conformance/` and an
 entry in `RUNNERS` of `tests/test_conformance.py`; a registered backend without a
 runner fails the build. `runner_python.py` plays the scenarios with the generated
 package and nothing else, as a user would, and the tests check that it fails when a

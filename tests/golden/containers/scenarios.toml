@@ -50,6 +50,9 @@ steps = [
   { call = "vectors.swap", args = [[{ struct = "vectors.Point", x = 1.0, y = 2.0 }, { struct = "vectors.Point", x = 3.0, y = 4.0 }]], expect = [{ struct = "vectors.Point", x = 3.0, y = 4.0 }, { struct = "vectors.Point", x = 1.0, y = 2.0 }] },
   { call = "vectors.colors", expect = [{ enum = "vectors.Color", member = "Blue" }, { enum = "vectors.Color", member = "Green" }, { enum = "vectors.Color", member = "Red" }] },
   { call = "vectors.sum_levels", args = [[{ enum = "vectors.Level", member = "High" }, { enum = "vectors.Level", member = "High" }]], expect = 2 },
+  { call = "vectors.twice", args = [[1.0, 2.0]], error = "length" },
+  { call = "vectors.twice", args = [[1.0, 2.0, 3.0, 4.0, 5.0]], error = "length" },
+  { call = "vectors.swap", args = [[{ struct = "vectors.Point", x = 1.0, y = 2.0 }]], error = "length" },
 ]
 
 [[scenario]]
