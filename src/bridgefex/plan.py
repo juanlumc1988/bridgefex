@@ -434,8 +434,9 @@ class LoweredParam:
 
 
 def _param_name(param: LoweredParam) -> str:
-    assert param.spec is not None
-    return param.spec.name
+    # A parameter that could not be lowered was reported: the plan is not built, and
+    # what is written about it does not matter.
+    return param.spec.name if param.spec is not None else ""
 
 
 def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
@@ -1111,6 +1112,10 @@ def _token(
     return type_.token
 
 
+_DIRECTOR_PARAMETERS = frozenset({"director", "vtable", "out_director"})
+"""The names of the parameters that the functions of a director add: the others avoid them."""
+
+
 def _callback_locals(callbacks: Sequence[CallbackType]) -> frozenset[str]:
     """The names that the generated code of these callbacks declares in the C
     function (the owners) and in the lambdas that call them: no parameter may
@@ -1186,6 +1191,7 @@ class _Builder:
         self._reserve_c_name(
             f"{module.name}_string", "the string type of the runtime", None, tag=True
         )
+        self._reserve_director_names()
         # A generated type with the name of an output parameter would be hidden
         # by it. (Only generated names: these do not clash with the headers.)
         for name in ("out_self", "out_result", "out_result_size"):
@@ -2744,6 +2750,18 @@ class _Builder:
 
     # Directors ---------------------------------------------------------------
 
+    def _reserve_director_names(self) -> None:
+        """The names that the runtime of a module with directors adds."""
+        if not self.director_requests:
+            return
+        name = self.module.name
+        self._reserve_c_name(
+            f"{name}_string_sink", "the string sink of the vtables", None, tag=True
+        )
+        self._reserve_c_name(
+            f"{name}_string_sink_set", "the function that sets a string of the vtables", None
+        )
+
     def unknown_directors(self) -> list[Diagnostic]:
         """The classes that the annotations file asks a director for, and are not wrapped."""
         return unknown_directors(
@@ -2763,28 +2781,60 @@ class _Builder:
         visit(info)
         return list(found.values())
 
+    @staticmethod
+    def _slot_key(hook: Hook) -> str:
+        """What tells the virtual methods apart: see :attr:`Hook.key`. (A model that was
+        not made by the parser has no key: the spelled types stand in for it.)"""
+        if hook.key:
+            return hook.key
+        method = hook.method
+        if method is None:
+            return hook.name
+        types = ", ".join(
+            _spelling(p.type) + ("&" if p.by_reference else "") for p in method.parameters
+        )
+        return f"{method.name}({types}){' const' if method.is_const else ''}"
+
     def _director_slots(self, info: ClassInfo) -> tuple[list[_Slot], list[tuple[ClassInfo, Hook]]]:
         """The virtual methods that a director of the class overrides, the most derived
-        declaration of each, and those that the model could not read."""
-        slots: dict[tuple[object, ...], _Slot] = {}
+        declaration of each, and those that the model could not read.
+
+        A method is left to the class (the director does not override it) when the most
+        derived declaration is final, or private and has an implementation (a generated
+        class could not run it). A private pure one is overridden: nothing else makes the
+        director concrete. A method that two unrelated bases declare, and the class does
+        not, is ambiguous for a base call: it is overridden only if it is pure."""
+        slots: dict[str, _Slot] = {}
         unreadable: list[tuple[ClassInfo, Hook]] = []
-        unreadable_names: set[str] = set()
+        first: dict[str, ClassInfo] = {}
+        ambiguous: set[str] = set()
+        ancestors: dict[str, set[str]] = {}
+
+        def derives(owner: ClassInfo, base: ClassInfo) -> bool:
+            if owner.model.usr not in ancestors:
+                ancestors[owner.model.usr] = {item.model.usr for item in self._ancestor_list(owner)}
+            return base.model.usr in ancestors[owner.model.usr]
+
         for owner in (info, *self._ancestor_list(info)):
             for hook in owner.model.hooks:
-                method = hook.method
-                if method is None:
-                    if hook.name not in unreadable_names:
-                        unreadable_names.add(hook.name)
-                        unreadable.append((owner, hook))
+                key = self._slot_key(hook)
+                earlier = first.get(key)
+                if earlier is not None:
+                    if earlier is not info and not derives(earlier, owner):
+                        ambiguous.add(key)
                     continue
-                key = (
-                    method.name,
-                    tuple((_spelling(p.type), p.by_reference) for p in method.parameters),
-                    method.is_const,
-                )
-                if key not in slots:
-                    slots[key] = _Slot(owner, hook, method)
-        return [slot for slot in slots.values() if not slot.hook.is_final], unreadable
+                first[key] = owner
+                if hook.is_final or (hook.access is Access.PRIVATE and not hook.is_pure):
+                    continue
+                if hook.method is None:
+                    unreadable.append((owner, hook))
+                else:
+                    slots[key] = _Slot(owner, hook, hook.method)
+        for key in ambiguous:
+            slot = slots.get(key)
+            if slot is not None and not slot.hook.is_pure:
+                del slots[key]
+        return list(slots.values()), unreadable
 
     def _director_problems(self, slot: _Slot) -> list[str]:
         """Why a virtual method cannot be overridden from another language (yet)."""
@@ -2957,6 +3007,11 @@ class _Builder:
             f"    {detail}::callback_ref ref_;",
             "};",
         )
+        types += [
+            parameter.type
+            for constructor in model.director_constructors
+            for parameter in constructor.parameters
+        ]
         self._director_types.setdefault(info.header.stem, []).extend(types)
         return DirectorPlan(
             c_type=c_type,
@@ -2993,7 +3048,15 @@ class _Builder:
                 f"{struct.c_type}*",
                 struct.c_type,
                 [f"{struct.c_type} _result{{}};"],
-                [f"return {detail}::from_c(_result);"],
+                [
+                    "try {",
+                    f"    return {detail}::from_c(_result);",
+                    f"}} catch (const {detail}::argument_error&) {{",
+                    "    // A member that is not valid (an enum out of range) gives the zero",
+                    "    // value, as it does when it is the result itself.",
+                    f"    return {struct.cpp_name}();",
+                    "}",
+                ],
             )
         result = self._callback_result(type_, location)  # type: ignore[arg-type]
         assert result is not None  # checked
@@ -3066,14 +3129,18 @@ class _Builder:
             "    }",
         ]
         const = " const" if method.is_const else ""
-        base_member = [
-            "",
-            "    template <typename... Args>",
-            f"    {result_cpp} base_{field}(Args&&... args){const}",
-            "    {",
-            f"        return this->{cpp_base}::{method.name}(static_cast<Args&&>(args)...);",
-            "    }",
-        ]
+        base_member = (
+            []
+            if slot.hook.is_pure
+            else [
+                "",
+                "    template <typename... Args>",
+                f"    {result_cpp} bridgefex_base_{field}(Args&&... args){const}",
+                "    {",
+                f"        return this->{cpp_base}::{method.name}(static_cast<Args&&>(args)...);",
+                "    }",
+            ]
+        )
         callback = CallbackSpec(
             tuple(parts),
             self._callback_part(method.result, location),
@@ -3089,11 +3156,13 @@ class _Builder:
             what = f"the base call of '{description}'"
             self._reserve_c_name(name, what, location)
             policy = self._policy(name, what, method.parameters, method.result, location)
-            params = self._lower_params(method.parameters, location, policy)
+            params = self._lower_params(
+                method.parameters, location, policy, reserved=_DIRECTOR_PARAMETERS
+            )
             function, lowered_result = self._status_function(
                 name,
                 params,
-                f"reinterpret_cast<{detail}::{impl}*>(director)->base_{field}({{arguments}})",
+                f"reinterpret_cast<{detail}::{impl}*>(director)->bridgefex_base_{field}({{arguments}})",
                 method.result,
                 description,
                 location=location,
@@ -3169,7 +3238,9 @@ class _Builder:
             policy = self._policy(
                 name, what, constructor.parameters, None, constructor.location, constructor=True
             )
-            params = self._lower_params(constructor.parameters, constructor.location, policy)
+            params = self._lower_params(
+                constructor.parameters, constructor.location, policy, reserved=_DIRECTOR_PARAMETERS
+            )
             arguments = "".join(f", {param.argument}" for param in params)
             out_director = CParam(
                 "out_director",
@@ -3209,15 +3280,7 @@ class _Builder:
                     *(c for param in params for c in param.value_checks),
                 ),
                 location=constructor.location,
-                compile_checks=(
-                    *_temporaries_check(
-                        f"{detail}::{impl}(*static_cast<{detail}::callback_owner*>(nullptr), "
-                        f"*static_cast<const {vtable_type}*>(nullptr), {{arguments}})",
-                        params,
-                        f"'{description}'",
-                    ),
-                    *(check for param in params for check in param.compile_checks),
-                ),
+                compile_checks=tuple(check for param in params for check in param.compile_checks),
                 prologue=(
                     f"{detail}::callback_owner _vtable_owner(vtable != nullptr ? vtable->release"
                     " : nullptr, vtable != nullptr ? vtable->user_data : nullptr);",

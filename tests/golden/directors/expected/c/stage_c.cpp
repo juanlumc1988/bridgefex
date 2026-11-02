@@ -86,17 +86,17 @@ public:
         }
         drc_Point _result{};
         vt_.origin(ref_.user_data(), &_result);
-        return drc_detail::from_c(_result);
+        try {
+            return drc_detail::from_c(_result);
+        } catch (const drc_detail::argument_error&) {
+            // A member that is not valid (an enum out of range) gives the zero
+            // value, as it does when it is the result itself.
+            return ::drc::Point();
+        }
     }
 
     template <typename... Args>
-    ::std::string base_step(Args&&... args)
-    {
-        return this->::drc::Stage::step(static_cast<Args&&>(args)...);
-    }
-
-    template <typename... Args>
-    ::drc::Point base_origin(Args&&... args) const
+    ::drc::Point bridgefex_base_origin(Args&&... args) const
     {
         return this->::drc::Stage::origin(static_cast<Args&&>(args)...);
     }
@@ -196,7 +196,7 @@ drc_status drc_Stage_director_base_origin(drc_Stage_director* director, drc_Poin
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Stage_director_base_origin: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Stage_director_impl*>(director)->base_origin()); });
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Stage_director_impl*>(director)->bridgefex_base_origin()); });
 }
 
 }  // extern "C"

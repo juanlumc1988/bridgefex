@@ -24,6 +24,27 @@ inline ::dr1::Pair from_c(const dr1_Pair& _in)
     return _out;
 }
 
+// dr1::Tagged, member by member: no reference to a member,
+// which would be misaligned in a packed struct.
+inline dr1_Tagged to_c(const ::dr1::Tagged& _in) noexcept
+{
+    dr1_Tagged _out;
+    _out.kind = static_cast<dr1_Kind>(_in.kind);
+    _out.number = _in.number;
+    return _out;
+}
+
+inline ::dr1::Tagged from_c(const dr1_Tagged& _in)
+{
+    ::dr1::Tagged _out;
+    if (_in.kind < 0 || _in.kind > 15) {
+        throw argument_error{"'dr1::Tagged::kind' is not a value of dr1::Kind (0..15)"};
+    }
+    _out.kind = static_cast<::dr1::Kind>(_in.kind);
+    _out.number = _in.number;
+    return _out;
+}
+
 }  // namespace dr1_detail
 
 #endif  // DR1_BASE_C_INTERNAL_HPP

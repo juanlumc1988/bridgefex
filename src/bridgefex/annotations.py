@@ -180,6 +180,11 @@ def load(paths: Sequence[Path]) -> Annotations:
                 if key == "return":
                     result = _words(value, RESULT_WORDS, f"{here} return", problems)
                     result_line = line
+                elif key == "directors" and isinstance(value, list):
+                    problems.append(
+                        f"{here} directors: the list of classes has to come before the first "
+                        "table of the file (a key after a table belongs to it)"
+                    )
                 else:
                     parameters[key] = (
                         _words(value, PARAMETER_WORDS, f"{here} {key}", problems),

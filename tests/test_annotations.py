@@ -446,3 +446,8 @@ def test_a_director_asked_for_twice_is_an_error(tmp_path: Path) -> None:
     message = config_error(tmp_path, 'directors = ["a_One"]\n', 'directors = ["a_One"]\n')
     assert "file1.toml:1: directors: 'a_One' is also asked for in" in message
     assert "file0.toml:1" in message
+
+
+def test_directors_after_a_table_say_where_they_have_to_be(tmp_path: Path) -> None:
+    message = config_error(tmp_path, '[a_f]\nreturn = "owned"\ndirectors = ["a_One"]\n')
+    assert "file0.toml:3: [a_f] directors: the list of classes has to come before" in message

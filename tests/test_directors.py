@@ -254,3 +254,313 @@ def test_the_c_layer_with_directors_does_not_depend_on_the_languages(tmp_path: P
         bridgefex.Options("mod", annotations=(tmp_path / "annotations.toml",), languages=()),
     )
     assert {p: t for p, t in every.files.items() if p.startswith("c/")} == only_c.files
+
+
+# -- the findings of the review of the first version -------------------------------------
+
+
+def generate_files(
+    directory: Path, files: dict[str, str], *directors: str, std: str = "c++17"
+) -> bridgefex.Result:
+    headers = []
+    for name, code in files.items():
+        header = directory / name
+        header.write_text(PRELUDE + code + "\n", encoding="utf-8")
+        headers.append(header)
+    annotations = directory / "annotations.toml"
+    names = ", ".join(f'"{name}"' for name in directors)
+    annotations.write_bytes(f"directors = [{names}]\n".encode())
+    options = bridgefex.Options("mod", std=std, annotations=(annotations,))
+    return bridgefex.generate(headers, options)
+
+
+def vtable_of(result: bridgefex.Result, c_type: str, header: str = "api_c.h") -> str:
+    return (
+        result.files[f"c/{header}"].split(f"{c_type}_vtable {{")[1].split(f"}} {c_type}_vtable")[0]
+    )
+
+
+@pytest.mark.parametrize(
+    ("base", "derived"),
+    [
+        ("int x", "std::int32_t x"),
+        ("unsigned x", "std::uint32_t x"),
+        ("short x", "std::int16_t x"),
+        ("signed char x", "std::int8_t x"),
+        ("unsigned char x", "std::uint8_t x"),
+        ("std::size_t x", "unsigned long x"),
+        ("const int x", "int y"),
+        ("const std::int32_t& x", "const int& y"),
+    ],
+)
+def test_an_override_that_spells_a_type_differently_is_the_same_method(
+    tmp_path: Path, base: str, derived: str
+) -> None:
+    code = f"""
+    namespace n {{
+    class A {{ public: A(); virtual ~A(); virtual void f({base}); }};
+    class B : public A {{ public: B(); void f({derived}) override; }};
+    }}
+    """
+    result = generate(tmp_path, code, "n_B")
+    assert vtable_of(result, "n_B").count("(*f)") == 1
+
+
+def test_what_differs_by_const_is_another_method(tmp_path: Path) -> None:
+    # Protected, so that they are not part of the API (which refuses such overloads).
+    result = generate(
+        tmp_path,
+        """
+        namespace n { class A { public: A(); virtual ~A(); protected:
+          virtual void g(); virtual void g() const; }; }
+        """,
+        "n_A",
+    )
+    assert vtable_of(result, "n_A").count("(*g") == 2
+
+
+def test_a_struct_of_another_header_in_a_constructor(tmp_path: Path) -> None:
+    config = "namespace hw { struct Config { std::int32_t baud; std::int32_t parity; }; }"
+    driver = (
+        '#include "config.h"\nnamespace hw { class Driver { public: explicit Driver(const Config&);'
+        " virtual ~Driver(); virtual std::int32_t write(std::int32_t b) = 0; }; }"
+    )
+    result = generate_files(tmp_path, {"config.h": config, "driver.h": driver}, "hw_Driver")
+    assert "hw_Driver_director_create(" in result.files["c/driver_c.h"]
+    assert '#include "config_c_internal.hpp"' in result.files["c/driver_c.cpp"]
+
+
+def test_a_virtual_method_named_like_the_member_that_calls_the_base(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n { class A { public: A(); virtual ~A();
+          virtual std::int32_t x(); virtual std::int32_t base_x(); }; }
+        """,
+        "n_A",
+    )
+    source = result.files["c/api_c.cpp"]
+    assert "bridgefex_base_x(Args&&... args)" in source
+    assert "bridgefex_base_base_x(Args&&... args)" in source
+    assert " base_x(Args&&" not in source
+
+
+def test_a_private_override_of_a_public_virtual_method_is_left_to_the_class(
+    tmp_path: Path,
+) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n {
+        class A { public: A(); virtual ~A(); virtual std::int32_t f() const;
+                                              virtual std::int32_t g() const;
+                                              virtual std::int32_t h() const; };
+        class B : public A { public: B(); private: std::int32_t f() const override;
+                                         std::int32_t g() const final; };
+        }
+        """,
+        "n_B",
+    )
+    vtable = vtable_of(result, "n_B")
+    assert "(*f)" not in vtable
+    assert "(*g)" not in vtable
+    assert "(*h)" in vtable
+
+
+def test_a_private_pure_virtual_method_has_to_be_implemented(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n { class A { public: A(); virtual ~A(); virtual std::int32_t f() const;
+                                private: virtual std::int32_t g(std::int32_t x) const = 0; }; }
+        """,
+        "n_A",
+    )
+    assert "(*g)(void*, int32_t, int32_t*)" in vtable_of(result, "n_A")
+    assert "vtable->g == nullptr" in result.files["c/api_c.cpp"]
+    assert "n_A_director_base_g" not in result.files["c/api_c.h"]  # nothing to call
+
+
+@pytest.mark.parametrize(
+    "declaration",
+    ["virtual int v() volatile;", "virtual const std::string v() const;"],
+)
+def test_a_virtual_method_that_a_generated_class_cannot_override_keeps_the_class(
+    tmp_path: Path, declaration: str
+) -> None:
+    result = generate(
+        tmp_path,
+        "namespace n { class A { public: A(); virtual ~A(); virtual int ok(); "
+        + declaration
+        + " }; }",
+        "n_A",
+    )
+    vtable = vtable_of(result, "n_A")
+    assert "(*ok)" in vtable
+    assert "(*v)" not in vtable
+
+
+def test_a_dynamic_exception_specification_keeps_the_class(tmp_path: Path) -> None:
+    result = generate_files(
+        tmp_path,
+        {
+            "api.h": "namespace n { class A { public: A(); virtual ~A(); virtual int ok();"
+            " virtual int e() const throw(int); }; }"
+        },
+        "n_A",
+        std="c++14",
+    )
+    vtable = vtable_of(result, "n_A")
+    assert "(*ok)" in vtable
+    assert "(*e)" not in vtable
+
+
+def test_a_pure_virtual_method_that_cannot_be_overridden_says_why(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        "namespace n { class A { public: A(); virtual ~A(); virtual int v() volatile = 0; }; }",
+        "n_A",
+    )
+    assert "the pure virtual method 'A::v' cannot be overridden from another language" in text
+    assert "volatile" in text
+
+
+def test_a_pure_virtual_overload_that_the_model_cannot_read_is_reported(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        #include <map>
+        namespace n { class A { public: A(); virtual ~A(); protected:
+          virtual void f(const std::map<int, int>& m);
+          virtual void f(const std::map<int, long>& m) = 0; }; }
+        """,
+        "n_A",
+    )
+    assert "the pure virtual method 'A::f' cannot be overridden from another language" in text
+    assert "std::map" in text
+
+
+def test_the_same_virtual_method_in_two_unrelated_bases_is_left_to_the_class(
+    tmp_path: Path,
+) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n {
+        class X { public: X(); virtual ~X(); virtual std::int32_t f() const; };
+        class Y { public: Y(); virtual ~Y(); virtual std::int32_t f() const;
+                                              virtual std::int32_t k() const; };
+        class Z : public X, public Y { public: Z();
+          std::int32_t k() const override; };
+        }
+        """,
+        "n_Z",
+    )
+    vtable = vtable_of(result, "n_Z")
+    assert "(*k)" in vtable
+    assert "(*f)" not in vtable  # ambiguous: Z::f() cannot be named
+
+
+def test_the_names_of_the_runtime_of_a_module_with_directors_are_reserved(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        namespace mod { class string_sink { public: string_sink(); int f() const; }; }
+        namespace n { class A { public: A(); virtual ~A(); virtual int f(); }; }
+        """,
+        "n_A",
+    )
+    assert "mod_string_sink" in text
+    assert "clashes" in text
+
+
+def test_the_parameters_of_the_functions_of_a_director_avoid_its_own(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n { class A { public: A(int vtable, int out_director, int director);
+          virtual ~A(); virtual int f(int director, int vtable); }; }
+        """,
+        "n_A",
+    )
+    header = result.files["c/api_c.h"]
+    assert "int vtable_, int out_director_, int director_" in header
+    assert "int director_, int vtable_" in header
+
+
+def test_a_pointer_to_a_class_that_is_not_wrapped_is_an_error_not_a_crash(
+    tmp_path: Path,
+) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        class K;
+        namespace n { class A { public: A(); virtual ~A(); virtual int f() const;
+          protected: explicit A(K* k); }; }
+        """,
+        "n_A",
+    )
+    assert "class 'K' is not a class of this module" in text
+
+
+def test_a_constructor_that_takes_a_unique_ptr_receives_it(tmp_path: Path) -> None:
+    result = generate_files(
+        tmp_path,
+        {
+            "api.h": "#include <memory>\nnamespace n { class Item { public: Item(); ~Item(); };"
+            " class A { public: explicit A(std::unique_ptr<Item> item); virtual ~A();"
+            " virtual int f(); }; }"
+        },
+        "n_A",
+    )
+    assert "n_A_director_create(" in result.files["c/api_c.h"]
+
+
+def test_the_director_is_final_and_its_vtable_is_copied(tmp_path: Path) -> None:
+    source = generate(tmp_path, SHAPE, "n_Shape").files["c/api_c.cpp"]
+    assert "class n_Shape_director_impl final : public ::n::Shape" in source
+    assert "n_Shape_vtable vt_;" in source  # a copy: the vtable of the caller may go away
+
+
+def test_a_struct_result_with_a_value_that_is_not_valid_gives_the_zero_value(
+    tmp_path: Path,
+) -> None:
+    source = generate(
+        tmp_path,
+        """
+        namespace n { enum Color { Red, Green = 5 }; struct P { std::int32_t x; Color c; };
+          class A { public: A(); virtual ~A(); virtual P p() const noexcept; }; }
+        """,
+        "n_A",
+    ).files["c/api_c.cpp"]
+    assert "catch (const mod_detail::argument_error&)" in source
+    assert "return ::n::P();" in source
+
+
+def test_a_class_without_a_constructor_that_a_derived_class_can_call(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        #include <map>
+        namespace n { class A { public: virtual ~A(); virtual int f() = 0;
+          protected: explicit A(const std::map<int, int>& m); }; }
+        """,
+        "n_A",
+    )
+    assert "no constructor that a derived class can call crosses the C boundary" in text
+    assert "std::map" in text
+
+
+def test_a_virtual_method_that_returns_a_reference_keeps_the_class(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        """
+        namespace n { class A { public: A(); virtual ~A(); virtual int ok();
+          virtual const int& r() const; virtual const std::string& s() const; }; }
+        """,
+        "n_A",
+    )
+    vtable = vtable_of(result, "n_A")
+    assert "(*ok)" in vtable
+    assert "(*r)" not in vtable
+    assert "(*s)" not in vtable

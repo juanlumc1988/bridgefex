@@ -432,10 +432,13 @@ class Method:
 
 class Access(Enum):
     """Where a class declares a member that code of another language may use or
-    override: not private ones, which no class can call."""
+    override. Private virtual methods are recorded too, only to tell what a derived
+    class cannot call: it cannot override one that has an implementation, because it
+    could not run that implementation, but it has to override a pure one."""
 
     PUBLIC = "public"
     PROTECTED = "protected"
+    PRIVATE = "private"
 
 
 @dataclass(frozen=True, slots=True)
@@ -453,6 +456,11 @@ class Hook:
     location: Location
     method: Method | None
     problems: tuple[Diagnostic, ...] = ()
+    key: str = ""
+    """What tells a virtual method from the others of its class and its bases: the name,
+    the types of the parameters as the compiler sees them (``int`` and ``std::int32_t``
+    are one) and whether it is ``const``. An override has the key of what it overrides.
+    Only used to compare, never written to the generated code."""
 
 
 @dataclass(frozen=True, slots=True)

@@ -91,6 +91,61 @@ def _dr1_Pair__from_c(raw):
     )
 
 
+class _dr1_Tagged(ctypes.Structure):
+    """C mirror of dr1::Tagged (dr1_Tagged)."""
+
+    _fields_ = [
+        ("kind", ctypes.c_int),
+        ("number", ctypes.c_int32),
+    ]
+
+
+def _dr1_Tagged__post_init(self):
+    _runtime.fill_defaults(self, _dr1_Tagged__default)
+
+
+dr1_Tagged = dataclasses.make_dataclass(
+    "Tagged",
+    [
+        ("kind", dr1_Kind, dataclasses.field(default=_runtime.DEFAULT)),
+        ("number", int, dataclasses.field(default=_runtime.DEFAULT)),
+    ],
+    namespace={"__post_init__": _dr1_Tagged__post_init},
+    slots=True,
+)
+dr1_Tagged.__module__ = _PACKAGE + ".base"
+dr1_Tagged.__qualname__ = "Tagged"
+dr1_Tagged.__doc__ = (
+    "Value of ``dr1::Tagged``. Omitted members take their value in a "
+    "default-constructed ``dr1::Tagged``, which loads the library."
+)
+
+
+def _dr1_Tagged__default():
+    raw = _dr1_Tagged()
+    _runtime.check(_bind().dr1_Tagged_init(raw))
+    return _dr1_Tagged__from_c(raw)
+
+
+def _dr1_Tagged__fill(raw, value, name):
+    _runtime.check_struct(value, dr1_Tagged, name)
+    raw.kind = _runtime.to_enum(value.kind, dr1_Kind, ctypes.c_int, name + ".kind", (0, 15))
+    raw.number = _runtime.to_int(value.number, ctypes.c_int32, name + ".number")
+
+
+def _dr1_Tagged__to_c(value, name):
+    raw = _dr1_Tagged()
+    _dr1_Tagged__fill(raw, value, name)
+    return raw
+
+
+def _dr1_Tagged__from_c(raw):
+    return dr1_Tagged(
+        _runtime.enum_result(dr1_Kind, raw.kind),
+        raw.number,
+    )
+
+
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
 # while _bind() declares the signatures, in the same thread.
@@ -108,5 +163,7 @@ def _bind():
         if _lib is None:
             lib.dr1_Pair_init.argtypes = [ctypes.POINTER(_dr1_Pair)]
             lib.dr1_Pair_init.restype = _runtime.Status
+            lib.dr1_Tagged_init.argtypes = [ctypes.POINTER(_dr1_Tagged)]
+            lib.dr1_Tagged_init.restype = _runtime.Status
             _lib = lib
     return _lib

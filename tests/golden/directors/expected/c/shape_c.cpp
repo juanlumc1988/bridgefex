@@ -117,7 +117,13 @@ public:
         }
         drc_Point _result{};
         vt_.center(ref_.user_data(), &_result);
-        return drc_detail::from_c(_result);
+        try {
+            return drc_detail::from_c(_result);
+        } catch (const drc_detail::argument_error&) {
+            // A member that is not valid (an enum out of range) gives the zero
+            // value, as it does when it is the result itself.
+            return ::drc::Point();
+        }
     }
 
     ::drc::Mode mode(::drc::Mode _arg1) const override
@@ -187,67 +193,61 @@ public:
     }
 
     template <typename... Args>
-    double base_area(Args&&... args) const
-    {
-        return this->::drc::Shape::area(static_cast<Args&&>(args)...);
-    }
-
-    template <typename... Args>
-    ::std::string base_name(Args&&... args) const
+    ::std::string bridgefex_base_name(Args&&... args) const
     {
         return this->::drc::Shape::name(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_sides(Args&&... args) const
+    int32_t bridgefex_base_sides(Args&&... args) const
     {
         return this->::drc::Shape::sides(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::drc::Point base_center(Args&&... args) const
+    ::drc::Point bridgefex_base_center(Args&&... args) const
     {
         return this->::drc::Shape::center(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::drc::Mode base_mode(Args&&... args) const
+    ::drc::Mode bridgefex_base_mode(Args&&... args) const
     {
         return this->::drc::Shape::mode(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    void base_scale(Args&&... args)
+    void bridgefex_base_scale(Args&&... args)
     {
         return this->::drc::Shape::scale(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_add_int32_int32(Args&&... args) const
+    int32_t bridgefex_base_add_int32_int32(Args&&... args) const
     {
         return this->::drc::Shape::add(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    double base_add_double_double(Args&&... args) const
+    double bridgefex_base_add_double_double(Args&&... args) const
     {
         return this->::drc::Shape::add(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::std::string base_greet(Args&&... args) const
+    ::std::string bridgefex_base_greet(Args&&... args) const
     {
         return this->::drc::Shape::greet(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_quiet(Args&&... args) const
+    int32_t bridgefex_base_quiet(Args&&... args) const
     {
         return this->::drc::Shape::quiet(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    void base_changed(Args&&... args)
+    void bridgefex_base_changed(Args&&... args)
     {
         return this->::drc::Shape::changed(static_cast<Args&&>(args)...);
     }
@@ -300,7 +300,13 @@ public:
         }
         drc_Point _result{};
         vt_.center(ref_.user_data(), &_result);
-        return drc_detail::from_c(_result);
+        try {
+            return drc_detail::from_c(_result);
+        } catch (const drc_detail::argument_error&) {
+            // A member that is not valid (an enum out of range) gives the zero
+            // value, as it does when it is the result itself.
+            return ::drc::Point();
+        }
     }
 
     ::drc::Mode mode(::drc::Mode _arg1) const override
@@ -370,67 +376,67 @@ public:
     }
 
     template <typename... Args>
-    double base_area(Args&&... args) const
+    double bridgefex_base_area(Args&&... args) const
     {
         return this->::drc::Circle::area(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::std::string base_name(Args&&... args) const
+    ::std::string bridgefex_base_name(Args&&... args) const
     {
         return this->::drc::Circle::name(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_sides(Args&&... args) const
+    int32_t bridgefex_base_sides(Args&&... args) const
     {
         return this->::drc::Circle::sides(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::drc::Point base_center(Args&&... args) const
+    ::drc::Point bridgefex_base_center(Args&&... args) const
     {
         return this->::drc::Circle::center(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::drc::Mode base_mode(Args&&... args) const
+    ::drc::Mode bridgefex_base_mode(Args&&... args) const
     {
         return this->::drc::Circle::mode(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    void base_scale(Args&&... args)
+    void bridgefex_base_scale(Args&&... args)
     {
         return this->::drc::Circle::scale(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_add_int32_int32(Args&&... args) const
+    int32_t bridgefex_base_add_int32_int32(Args&&... args) const
     {
         return this->::drc::Circle::add(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    double base_add_double_double(Args&&... args) const
+    double bridgefex_base_add_double_double(Args&&... args) const
     {
         return this->::drc::Circle::add(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    ::std::string base_greet(Args&&... args) const
+    ::std::string bridgefex_base_greet(Args&&... args) const
     {
         return this->::drc::Circle::greet(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    int32_t base_quiet(Args&&... args) const
+    int32_t bridgefex_base_quiet(Args&&... args) const
     {
         return this->::drc::Circle::quiet(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
-    void base_changed(Args&&... args)
+    void bridgefex_base_changed(Args&&... args)
     {
         return this->::drc::Circle::changed(static_cast<Args&&>(args)...);
     }
@@ -955,8 +961,6 @@ drc_status drc_Shape_director_create_void(drc_Shape_director** out_director, con
 drc_status drc_Shape_director_create_string_int32(drc_Shape_director** out_director, const drc_Shape_vtable* vtable, const char* label, size_t label_size, int32_t sides)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
-    static_assert(sizeof(decltype(static_cast<void>(drc_detail::drc_Shape_director_impl(*static_cast<drc_detail::callback_owner*>(nullptr), *static_cast<const drc_Shape_vtable*>(nullptr), std::string(), sides)))*) != 0,
-                  "'drc::Shape::Shape(const std::string& label, int32_t sides) of the director' must accept temporaries: it would keep a dangling reference");
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_create_string_int32: 'out_director' is NULL");
     }
@@ -993,7 +997,7 @@ drc_status drc_Shape_director_base_name(drc_Shape_director* director, char** out
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_name: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_name(), out_result, out_result_size); });
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_name(), out_result, out_result_size); });
 }
 
 // int32_t drc::Shape::sides() const
@@ -1005,7 +1009,7 @@ drc_status drc_Shape_director_base_sides(drc_Shape_director* director, int32_t* 
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_sides: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_sides(); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_sides(); });
 }
 
 // drc::Point drc::Shape::center() const
@@ -1017,7 +1021,7 @@ drc_status drc_Shape_director_base_center(drc_Shape_director* director, drc_Poin
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_center: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_center()); });
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_center()); });
 }
 
 // drc::Mode drc::Shape::mode(drc::Mode requested) const
@@ -1029,7 +1033,7 @@ drc_status drc_Shape_director_base_mode(drc_Shape_director* director, drc_Mode r
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_mode: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = static_cast<drc_Mode>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_mode(static_cast<::drc::Mode>(requested))); });
+    return drc_detail::guard([&]() { *out_result = static_cast<drc_Mode>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_mode(static_cast<::drc::Mode>(requested))); });
 }
 
 // void drc::Shape::scale(double factor)
@@ -1038,7 +1042,7 @@ drc_status drc_Shape_director_base_scale(drc_Shape_director* director, double fa
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_scale: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_scale(factor); });
+    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_scale(factor); });
 }
 
 // int32_t drc::Shape::add(int32_t a, int32_t b) const
@@ -1050,7 +1054,7 @@ drc_status drc_Shape_director_base_add_int32_int32(drc_Shape_director* director,
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_add_int32_int32: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_add_int32_int32(a, b); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_add_int32_int32(a, b); });
 }
 
 // double drc::Shape::add(double a, double b) const
@@ -1062,13 +1066,13 @@ drc_status drc_Shape_director_base_add_double_double(drc_Shape_director* directo
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_add_double_double: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_add_double_double(a, b); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_add_double_double(a, b); });
 }
 
 // std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const
 drc_status drc_Shape_director_base_greet(drc_Shape_director* director, const char* who, size_t who_size, const char* tag, size_t tag_size, const char* mark, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_greet(std::string(), std::string_view(drc_detail::string_data(tag), tag_size), mark)))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_greet(std::string(), std::string_view(drc_detail::string_data(tag), tag_size), mark)))*) != 0,
                   "'std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_greet: 'out_result' is NULL");
@@ -1090,7 +1094,7 @@ drc_status drc_Shape_director_base_greet(drc_Shape_director* director, const cha
     if (mark == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_greet: 'mark' is NULL");
     }
-    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_greet(static_cast<const std::string&>(std::string(drc_detail::string_data(who), who_size)), std::string_view(drc_detail::string_data(tag), tag_size), mark), out_result, out_result_size); });
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_greet(static_cast<const std::string&>(std::string(drc_detail::string_data(who), who_size)), std::string_view(drc_detail::string_data(tag), tag_size), mark), out_result, out_result_size); });
 }
 
 // int32_t drc::Shape::quiet() const
@@ -1102,7 +1106,7 @@ drc_status drc_Shape_director_base_quiet(drc_Shape_director* director, int32_t* 
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_quiet: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_quiet(); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_quiet(); });
 }
 
 // void drc::Shape::changed(int32_t reason)
@@ -1111,7 +1115,7 @@ drc_status drc_Shape_director_base_changed(drc_Shape_director* director, int32_t
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_changed: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->base_changed(reason); });
+    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_changed(reason); });
 }
 
 // drc::Circle::Circle(double radius) of the director
@@ -1143,7 +1147,7 @@ drc_status drc_Circle_director_base_area(drc_Circle_director* director, double* 
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_area: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_area(); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_area(); });
 }
 
 // std::string drc::Circle::name() const
@@ -1160,7 +1164,7 @@ drc_status drc_Circle_director_base_name(drc_Circle_director* director, char** o
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_name: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_name(), out_result, out_result_size); });
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_name(), out_result, out_result_size); });
 }
 
 // int32_t drc::Shape::sides() const
@@ -1172,7 +1176,7 @@ drc_status drc_Circle_director_base_sides(drc_Circle_director* director, int32_t
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_sides: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_sides(); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_sides(); });
 }
 
 // drc::Point drc::Shape::center() const
@@ -1184,7 +1188,7 @@ drc_status drc_Circle_director_base_center(drc_Circle_director* director, drc_Po
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_center: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_center()); });
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_center()); });
 }
 
 // drc::Mode drc::Shape::mode(drc::Mode requested) const
@@ -1196,7 +1200,7 @@ drc_status drc_Circle_director_base_mode(drc_Circle_director* director, drc_Mode
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_mode: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = static_cast<drc_Mode>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_mode(static_cast<::drc::Mode>(requested))); });
+    return drc_detail::guard([&]() { *out_result = static_cast<drc_Mode>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_mode(static_cast<::drc::Mode>(requested))); });
 }
 
 // void drc::Shape::scale(double factor)
@@ -1205,7 +1209,7 @@ drc_status drc_Circle_director_base_scale(drc_Circle_director* director, double 
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_scale: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_scale(factor); });
+    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_scale(factor); });
 }
 
 // int32_t drc::Shape::add(int32_t a, int32_t b) const
@@ -1217,7 +1221,7 @@ drc_status drc_Circle_director_base_add_int32_int32(drc_Circle_director* directo
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_add_int32_int32: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_add_int32_int32(a, b); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_add_int32_int32(a, b); });
 }
 
 // double drc::Shape::add(double a, double b) const
@@ -1229,13 +1233,13 @@ drc_status drc_Circle_director_base_add_double_double(drc_Circle_director* direc
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_add_double_double: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_add_double_double(a, b); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_add_double_double(a, b); });
 }
 
 // std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const
 drc_status drc_Circle_director_base_greet(drc_Circle_director* director, const char* who, size_t who_size, const char* tag, size_t tag_size, const char* mark, char** out_result, size_t* out_result_size)
 {
-    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_greet(std::string(), std::string_view(drc_detail::string_data(tag), tag_size), mark)))*) != 0,
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_greet(std::string(), std::string_view(drc_detail::string_data(tag), tag_size), mark)))*) != 0,
                   "'std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const' must accept temporaries: it would keep a dangling reference");
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_greet: 'out_result' is NULL");
@@ -1257,7 +1261,7 @@ drc_status drc_Circle_director_base_greet(drc_Circle_director* director, const c
     if (mark == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_greet: 'mark' is NULL");
     }
-    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_greet(static_cast<const std::string&>(std::string(drc_detail::string_data(who), who_size)), std::string_view(drc_detail::string_data(tag), tag_size), mark), out_result, out_result_size); });
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_greet(static_cast<const std::string&>(std::string(drc_detail::string_data(who), who_size)), std::string_view(drc_detail::string_data(tag), tag_size), mark), out_result, out_result_size); });
 }
 
 // int32_t drc::Shape::quiet() const
@@ -1269,7 +1273,7 @@ drc_status drc_Circle_director_base_quiet(drc_Circle_director* director, int32_t
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_quiet: 'out_result' is NULL");
     }
-    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_quiet(); });
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_quiet(); });
 }
 
 // void drc::Shape::changed(int32_t reason)
@@ -1278,7 +1282,7 @@ drc_status drc_Circle_director_base_changed(drc_Circle_director* director, int32
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_changed: 'director' is NULL");
     }
-    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->base_changed(reason); });
+    return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_changed(reason); });
 }
 
 }  // extern "C"

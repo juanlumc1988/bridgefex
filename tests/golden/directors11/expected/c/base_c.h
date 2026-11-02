@@ -28,6 +28,8 @@ typedef struct dr1_Base_vtable {
     void (*text)(void*, const char*, size_t, dr1_string_sink*);
     /* dr1::Pair dr1::Base::pair() const */
     void (*pair)(void*, dr1_Pair*);
+    /* dr1::Tagged dr1::Base::tagged() const */
+    void (*tagged)(void*, dr1_Tagged*);
     /* dr1::Kind dr1::Base::kind(dr1::Kind requested) const */
     void (*kind)(void*, dr1_Kind, dr1_Kind*);
     /* void dr1::Base::touch(int32_t amount, int32_t limit) */
@@ -61,6 +63,8 @@ typedef struct dr1_Derived_vtable {
     void (*text)(void*, const char*, size_t, dr1_string_sink*);
     /* dr1::Pair dr1::Base::pair() const */
     void (*pair)(void*, dr1_Pair*);
+    /* dr1::Tagged dr1::Base::tagged() const */
+    void (*tagged)(void*, dr1_Tagged*);
     /* dr1::Kind dr1::Base::kind(dr1::Kind requested) const */
     void (*kind)(void*, dr1_Kind, dr1_Kind*);
     /* void dr1::Base::touch(int32_t amount, int32_t limit) */
@@ -77,6 +81,9 @@ typedef struct dr1_Derived_vtable {
 /* dr1::Pair(): the value of a default-constructed dr1::Pair */
 DR1_NODISCARD DR1_API dr1_status dr1_Pair_init(dr1_Pair* out_result);
 
+/* dr1::Tagged(): the value of a default-constructed dr1::Tagged */
+DR1_NODISCARD DR1_API dr1_status dr1_Tagged_init(dr1_Tagged* out_result);
+
 /* dr1::Base::~Base() */
 DR1_API void dr1_Base_destroy(dr1_Base* self);
 
@@ -85,6 +92,9 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_text(const dr1_Base* self, const char*
 
 /* dr1::Pair dr1::Base::pair() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_pair(const dr1_Base* self, dr1_Pair* out_result);
+
+/* dr1::Tagged dr1::Base::tagged() const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_tagged(const dr1_Base* self, dr1_Tagged* out_result);
 
 /* dr1::Kind dr1::Base::kind(dr1::Kind requested) const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_kind(const dr1_Base* self, dr1_Kind requested, dr1_Kind* out_result);
@@ -100,6 +110,15 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_value_double(const dr1_Base* self, dou
 
 /* std::string dr1::Base::show() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_result_size);
+
+/* dr1::Tagged dr1::Base::show_tagged() const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_show_tagged(const dr1_Base* self, dr1_Tagged* out_result);
+
+/* dr1::Kind dr1::Base::show_kind(dr1::Kind requested) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_show_kind(const dr1_Base* self, dr1_Kind requested, dr1_Kind* out_result);
+
+/* int32_t dr1::Base::seed() const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_seed(const dr1_Base* self, int32_t* out_result);
 
 /* dr1::Derived::Derived() */
 DR1_NODISCARD DR1_API dr1_status dr1_Derived_create(dr1_Derived** out_self);
@@ -120,6 +139,10 @@ DR1_NODISCARD DR1_API dr1_status dr1_Derived_text(const dr1_Derived* self, const
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed);
 
+/* dr1::Base::Base(dr1::Kind kind, int32_t seed) of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed);
+
 /* dr1::Base::Base() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const dr1_Base_vtable* vtable);
@@ -130,6 +153,10 @@ DR1_NODISCARD DR1_API dr1_Base* dr1_Base_director_object(dr1_Base_director* dire
 /* dr1::Pair dr1::Base::pair() const
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_pair(dr1_Base_director* director, dr1_Pair* out_result);
+
+/* dr1::Tagged dr1::Base::tagged() const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_tagged(dr1_Base_director* director, dr1_Tagged* out_result);
 
 /* dr1::Kind dr1::Base::kind(dr1::Kind requested) const
  * calls the implementation of the class, without going through the vtable */
@@ -165,6 +192,10 @@ DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_text(dr1_Derived_dire
 /* dr1::Pair dr1::Base::pair() const
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_pair(dr1_Derived_director* director, dr1_Pair* out_result);
+
+/* dr1::Tagged dr1::Base::tagged() const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_tagged(dr1_Derived_director* director, dr1_Tagged* out_result);
 
 /* dr1::Kind dr1::Base::kind(dr1::Kind requested) const
  * calls the implementation of the class, without going through the vtable */

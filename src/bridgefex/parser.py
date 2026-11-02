@@ -456,11 +456,21 @@ def _array_type(clang_type: cindex.Type) -> cindex.Type:
     return clang_type
 
 
+def _exception_kind(function: cindex.Cursor) -> cindex.ExceptionSpecificationKind | None:
+    """The exception specification of a function, or None when the bindings do not know
+    it: an attribute such as ``nothrow`` (libclang 20 reports a kind that the clang
+    bindings of that version do not name) is not an exception specification."""
+    try:
+        return function.exception_specification_kind
+    except ValueError:
+        return None
+
+
 def _may_throw(function: cindex.Cursor) -> bool:
     """True unless the function cannot throw: no specification (a destructor's
     default), noexcept, noexcept(true) or throw(). libclang does not evaluate
     noexcept(expression): any other expression counts as one that may throw."""
-    kind = function.exception_specification_kind
+    kind = _exception_kind(function)
     if kind == cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
         return "noexcept(true)" not in str(function.type.spelling).replace(" ", "")
     return kind in (
@@ -473,7 +483,7 @@ def _cannot_throw(function: cindex.Cursor) -> bool:
     """True for ``noexcept``, ``noexcept(true)`` and ``throw()``: a function that
     overrides it must not throw either. (Any other ``noexcept(expression)`` is not
     evaluated: see :func:`_noexcept_is_computed`.)"""
-    kind = function.exception_specification_kind
+    kind = _exception_kind(function)
     if kind == cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
         return "noexcept(true)" in str(function.type.spelling).replace(" ", "")
     return kind in (
@@ -484,10 +494,39 @@ def _cannot_throw(function: cindex.Cursor) -> bool:
 
 def _noexcept_is_computed(function: cindex.Cursor) -> bool:
     """A ``noexcept(expression)`` that is not literally true or false."""
-    if function.exception_specification_kind != cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
+    if _exception_kind(function) != cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
         return False
     spelling = str(function.type.spelling).replace(" ", "")
     return "noexcept(true)" not in spelling and "noexcept(false)" not in spelling
+
+
+_VOLATILE_METHOD = re.compile(r"\)\s*(?:const\s+)?volatile\b")
+
+
+def _override_problem(cursor: cindex.Cursor) -> str | None:
+    """Why a virtual method cannot be overridden by a generated class, whatever the
+    types of its parameters: something in its declaration that the model does not keep."""
+    if _noexcept_is_computed(cursor):
+        return "a noexcept(expression) is not supported: an override has to say it"
+    if _exception_kind(cursor) in (
+        cindex.ExceptionSpecificationKind.DYNAMIC,
+        cindex.ExceptionSpecificationKind.MS_ANY,
+    ):
+        return "a dynamic exception specification (throw(Type)) is not supported"
+    if _VOLATILE_METHOD.search(str(cursor.type.spelling)):
+        return "a volatile method is not supported"
+    result = cursor.result_type
+    if result.is_const_qualified() and result.get_canonical().kind == TypeKind.RECORD:
+        return "it returns a const class: an override cannot declare the same type"
+    return None
+
+
+def _override_key(cursor: cindex.Cursor) -> str:
+    """The :attr:`Hook.key` of a virtual method."""
+    arguments = ", ".join(
+        str(argument.spelling) for argument in cursor.type.get_canonical().argument_types()
+    )
+    return f"{cursor.spelling}({arguments}){' const' if cursor.is_const_method() else ''}"
 
 
 def is_value_struct(definition: cindex.Cursor) -> bool:
@@ -1898,8 +1937,11 @@ class _Visitor:
                         found.methods.append(method)
                         if method.is_virtual:
                             found.hooks.append(self._hook(member, access, method, ()))
-                elif access == AccessSpecifier.PROTECTED and member.is_virtual_method():
-                    self._protected_hook(member, qualified, found.hooks)
+                elif member.is_virtual_method() and access in (
+                    AccessSpecifier.PROTECTED,
+                    AccessSpecifier.PRIVATE,
+                ):
+                    self._protected_hook(member, access, qualified, found.hooks)
             elif access not in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
                 self._reject_member(member, member_kind, qualified)
         return found
@@ -1925,12 +1967,21 @@ class _Visitor:
         if constructor is not None:
             usable.append(constructor)
 
-    def _protected_hook(self, cursor: cindex.Cursor, qualified: str, hooks: list[Hook]) -> None:
-        """A protected virtual method: not API, but a derived class can override it."""
+    def _protected_hook(
+        self, cursor: cindex.Cursor, access: AccessSpecifier, qualified: str, hooks: list[Hook]
+    ) -> None:
+        """A protected virtual method: not API, but a derived class can override it. A
+        private one is only recorded, and read when it is pure: a derived class has to
+        override it."""
         if self._unavailable(cursor):
             return
-        method, problems = self._silently(functools.partial(self._parse_method, cursor, qualified))
-        hooks.append(self._hook(cursor, AccessSpecifier.PROTECTED, method, problems))
+        method: Method | None = None
+        problems: tuple[Diagnostic, ...] = ()
+        if access == AccessSpecifier.PROTECTED or cursor.is_pure_virtual_method():
+            method, problems = self._silently(
+                functools.partial(self._parse_method, cursor, qualified)
+            )
+        hooks.append(self._hook(cursor, access, method, problems))
 
     def _silently(self, parse: Callable[[], _T]) -> tuple[_T | None, tuple[Diagnostic, ...]]:
         """What ``parse`` gives and the errors it would report, which are not: the
@@ -1950,24 +2001,25 @@ class _Visitor:
     ) -> Hook:
         location = _location(cursor.location)
         assert location is not None
-        if method is not None and _noexcept_is_computed(cursor):
-            problems = (
-                *problems,
-                Diagnostic(
-                    f"'{cursor.spelling}': a noexcept(expression) is not supported: "
-                    "an override has to say it",
-                    location,
-                ),
-            )
+        name = str(cursor.spelling)
+        reason = _override_problem(cursor)
+        if method is not None and reason is not None:
+            problems = (*problems, Diagnostic(f"'{name}': {reason}", location))
             method = None
+        kinds = {
+            AccessSpecifier.PUBLIC: Access.PUBLIC,
+            AccessSpecifier.PROTECTED: Access.PROTECTED,
+            AccessSpecifier.PRIVATE: Access.PRIVATE,
+        }
         return Hook(
-            name=str(cursor.spelling),
-            access=Access.PUBLIC if access == AccessSpecifier.PUBLIC else Access.PROTECTED,
+            name=name,
+            access=kinds[access],
             is_pure=bool(cursor.is_pure_virtual_method()),
             is_final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
             location=location,
             method=method,
             problems=problems,
+            key=_override_key(cursor),
         )
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
@@ -2023,6 +2075,6 @@ class _Visitor:
             is_virtual=bool(cursor.is_virtual_method()),
             is_pure=bool(cursor.is_pure_virtual_method()),
             is_final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
-            is_noexcept=_cannot_throw(cursor),
+            is_noexcept=bool(cursor.is_virtual_method()) and _cannot_throw(cursor),
             result_by_reference=cursor.result_type.get_canonical().kind == TypeKind.LVALUEREFERENCE,
         )

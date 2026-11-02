@@ -9,12 +9,14 @@ from . import _runtime, _types
 __all__ = [
     "Kind",
     "Pair",
+    "Tagged",
     "Base",
     "Derived",
 ]
 
 Kind = _types.dr1_Kind
 Pair = _types.dr1_Pair
+Tagged = _types.dr1_Tagged
 
 _lib = None
 # Reentrant: a finalizer or signal handler that calls into this module can run
@@ -37,6 +39,8 @@ def _bind():
             lib.dr1_Base_text.restype = _runtime.Status
             lib.dr1_Base_pair.argtypes = [_types._dr1_Base__p, ctypes.POINTER(_types._dr1_Pair)]
             lib.dr1_Base_pair.restype = _runtime.Status
+            lib.dr1_Base_tagged.argtypes = [_types._dr1_Base__p, ctypes.POINTER(_types._dr1_Tagged)]
+            lib.dr1_Base_tagged.restype = _runtime.Status
             lib.dr1_Base_kind.argtypes = [_types._dr1_Base__p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
             lib.dr1_Base_kind.restype = _runtime.Status
             lib.dr1_Base_touch.argtypes = [_types._dr1_Base__p, ctypes.c_int32, ctypes.c_int32]
@@ -47,6 +51,12 @@ def _bind():
             lib.dr1_Base_value_double.restype = _runtime.Status
             lib.dr1_Base_show.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.dr1_Base_show.restype = _runtime.Status
+            lib.dr1_Base_show_tagged.argtypes = [_types._dr1_Base__p, ctypes.POINTER(_types._dr1_Tagged)]
+            lib.dr1_Base_show_tagged.restype = _runtime.Status
+            lib.dr1_Base_show_kind.argtypes = [_types._dr1_Base__p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
+            lib.dr1_Base_show_kind.restype = _runtime.Status
+            lib.dr1_Base_seed.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.dr1_Base_seed.restype = _runtime.Status
             lib.dr1_Derived_create.argtypes = [ctypes.POINTER(_types._dr1_Derived__p)]
             lib.dr1_Derived_create.restype = _runtime.Status
             lib.dr1_Derived_destroy.argtypes = [_types._dr1_Derived__p]
@@ -209,6 +219,12 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_pair(self._ptr_dr1_Base(), _out))
         return _types._dr1_Pair__from_c(_out)
 
+    def tagged(self):
+        """Wraps ``dr1::Tagged dr1::Base::tagged() const``."""
+        _out = _types._dr1_Tagged()
+        _runtime.check(_bind().dr1_Base_tagged(self._ptr_dr1_Base(), _out))
+        return _types._dr1_Tagged__from_c(_out)
+
     def kind(self, requested):
         """Wraps ``dr1::Kind dr1::Base::kind(dr1::Kind requested) const``."""
         _out = ctypes.c_int()
@@ -247,6 +263,25 @@ class Base(_runtime.Object):
             if _out:
                 _lib.dr1_free(_out)
         return _runtime.decode(_out_data)
+
+    def show_tagged(self):
+        """Wraps ``dr1::Tagged dr1::Base::show_tagged() const``."""
+        _out = _types._dr1_Tagged()
+        _runtime.check(_bind().dr1_Base_show_tagged(self._ptr_dr1_Base(), _out))
+        return _types._dr1_Tagged__from_c(_out)
+
+    def show_kind(self, requested):
+        """Wraps ``dr1::Kind dr1::Base::show_kind(dr1::Kind requested) const``."""
+        _out = ctypes.c_int()
+        requested = _runtime.to_enum(requested, _types.dr1_Kind, ctypes.c_int, "requested", (0, 15))
+        _runtime.check(_bind().dr1_Base_show_kind(self._ptr_dr1_Base(), requested, _out))
+        return _runtime.enum_result(_types.dr1_Kind, _out.value)
+
+    def seed(self):
+        """Wraps ``int32_t dr1::Base::seed() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().dr1_Base_seed(self._ptr_dr1_Base(), _out))
+        return _out.value
 
 
 class Derived(Base):

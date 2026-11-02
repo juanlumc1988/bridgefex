@@ -14,17 +14,27 @@ struct Pair {
     std::int32_t second;
 };
 
+struct Tagged {
+    Kind kind;
+    std::int32_t number;
+};
+
 class Base {
 public:
     explicit Base(std::int32_t seed);
+    Base(Kind kind, std::int32_t seed);
     virtual ~Base();
     virtual std::string text(const std::string& prefix) const = 0;
     virtual Pair pair() const;
+    virtual Tagged tagged() const noexcept;
     virtual Kind kind(Kind requested) const noexcept;
     virtual void touch(std::int32_t amount, const std::int32_t& limit);
     virtual std::int32_t value(std::int32_t x) const;
     virtual double value(double x) const;
     std::string show() const;
+    Tagged show_tagged() const;
+    Kind show_kind(Kind requested) const;
+    std::int32_t seed() const;
 
 protected:
     Base();

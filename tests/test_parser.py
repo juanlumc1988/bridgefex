@@ -912,11 +912,19 @@ def test_hooks_are_the_virtual_methods_that_can_be_overridden(tmp_path: Path) ->
         )
     )
     hooks = {hook.name: hook for hook in cls.hooks}
-    assert list(hooks) == ["pub", "pure", "fixed", "quiet", "prot", "protPure"]
-    assert [hooks[name].access for name in hooks] == [Access.PUBLIC] * 4 + [Access.PROTECTED] * 2
+    assert list(hooks) == ["pub", "pure", "fixed", "quiet", "prot", "protPure", "priv"]
+    assert [hooks[name].access for name in hooks] == (
+        [Access.PUBLIC] * 4 + [Access.PROTECTED] * 2 + [Access.PRIVATE]
+    )
     assert {name for name, hook in hooks.items() if hook.is_pure} == {"pure", "protPure"}
     assert {name for name, hook in hooks.items() if hook.is_final} == {"fixed"}
-    assert all(hook.method is not None and not hook.problems for hook in hooks.values())
+    # A private one is only recorded (it is not pure): there is nothing to read in it.
+    assert hooks["priv"].method is None
+    assert all(
+        hook.method is not None and not hook.problems
+        for name, hook in hooks.items()
+        if name != "priv"
+    )
     quiet = hooks["quiet"].method
     assert quiet is not None
     assert (quiet.is_noexcept, quiet.is_virtual) == (True, True)
@@ -1047,3 +1055,123 @@ def test_final_classes_and_methods(tmp_path: Path) -> None:
     assert isinstance(a, Class)
     assert isinstance(b, Class)
     assert (a.final, b.final) == (False, True)
+
+
+# The compiler attribute nothrow is not an exception specification, and libclang 20 names
+# it with a kind that the Python bindings of that version do not know.
+@pytest.mark.parametrize(
+    "declaration",
+    [
+        "void h() __attribute__((nothrow));",
+        "[[gnu::nothrow]] int g() const;",
+        "static void s() __attribute__((nothrow));",
+        "virtual void v() __attribute__((nothrow));",
+    ],
+)
+def test_a_method_with_the_nothrow_attribute_is_a_method(tmp_path: Path, declaration: str) -> None:
+    cls = only_class(parse(tmp_path, f"class A {{ public: A(); virtual ~A(); {declaration} }};"))
+    assert len(cls.methods) == 1
+
+
+def test_a_protected_virtual_method_with_the_nothrow_attribute(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            "class A { public: A(); virtual ~A(); protected: "
+            "virtual void v() __attribute__((nothrow)); };",
+        )
+    )
+    (hook,) = cls.hooks
+    assert hook.method is not None
+    assert not hook.method.is_noexcept
+
+
+def test_the_key_of_a_virtual_method_is_what_an_override_has_in_common(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        class A { public: virtual ~A();
+          virtual void f(int x, unsigned y, std::size_t z, const int& w) const;
+          virtual void f(int x);
+          virtual void g() const;
+          virtual void g();
+          virtual void h(const int x);
+        };
+        class B : public A { public:
+          void f(std::int32_t a, unsigned int b, unsigned long c, const int& d) const override;
+          void f(std::int32_t) override;
+          void g() const override;
+          void h(int y) override;
+        };
+        """,
+    )
+    a, b = header.declarations
+    assert isinstance(a, Class)
+    assert isinstance(b, Class)
+    keys_a = [hook.key for hook in a.hooks]
+    keys_b = [hook.key for hook in b.hooks]
+    assert len(set(keys_a)) == len(keys_a)  # const and non-const are different methods
+    assert keys_b[0] == keys_a[0]  # int32_t is int, size_t is unsigned long (LP64 or not)
+    assert keys_b[1] == keys_a[1]
+    assert keys_b[2] == keys_a[2]
+    assert keys_b[3] == keys_a[4]  # a top-level const of a parameter is not part of the type
+
+
+def test_private_virtual_methods_are_recorded_for_what_they_hide(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            class A { public: A(); virtual ~A();
+            private: virtual int g(std::int32_t x) const = 0;
+                     virtual int p();
+            };
+            """,
+        )
+    )
+    pure, plain = cls.hooks
+    assert (pure.access, pure.is_pure) == (Access.PRIVATE, True)
+    assert pure.method is not None  # a pure one is read: a derived class has to override it
+    assert (plain.access, plain.is_pure) == (Access.PRIVATE, False)
+    assert plain.method is None
+    assert not plain.problems
+
+
+@pytest.mark.parametrize(
+    ("declaration", "reason"),
+    [
+        ("virtual int v() volatile;", "volatile"),
+        ("virtual int v() const volatile;", "volatile"),
+        ("virtual const std::string v() const;", "const class"),
+        ("virtual int v() const throw(int);", "dynamic exception specification"),
+    ],
+)
+def test_a_virtual_method_that_a_generated_class_could_not_override(
+    tmp_path: Path, declaration: str, reason: str
+) -> None:
+    std = "c++14" if "throw(int)" in declaration else "c++17"
+    cls = only_class(
+        parse(
+            tmp_path,
+            f"#include <string>\nclass A {{ public: A(); virtual ~A(); {declaration} }};",
+            std=std,
+        )
+    )
+    (hook,) = cls.hooks
+    assert hook.method is None
+    assert reason in hook.problems[0].message
+    assert [method.name for method in cls.methods] == ["v"]  # it is still part of the API
+
+
+def test_throw_nothing_is_noexcept(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            "class A { public: A(); virtual ~A(); virtual int a() const throw();"
+            " virtual int b() const noexcept(false); };",
+            std="c++14",
+        )
+    )
+    a, b = (method for method in cls.methods)
+    assert a.is_noexcept
+    assert not b.is_noexcept

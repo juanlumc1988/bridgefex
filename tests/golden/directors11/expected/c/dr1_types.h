@@ -32,6 +32,12 @@ typedef struct dr1_Pair {
     int32_t second;
 } dr1_Pair;
 
+/* dr1::Tagged */
+typedef struct dr1_Tagged {
+    dr1_Kind kind;
+    int32_t number;
+} dr1_Tagged;
+
 #pragma pack(pop)
 
 #endif /* DR1_TYPES_H */
