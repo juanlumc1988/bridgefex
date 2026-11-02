@@ -375,6 +375,11 @@ class Parameter:
 
     type: Type
 
+    by_reference: bool = False
+    """``const T&`` of a scalar or an enum, which the type does not say (it is copied
+    across the boundary). The other types keep it themselves. An override has to
+    declare the same parameter."""
+
 
 @dataclass(frozen=True, slots=True)
 class Function:
@@ -419,6 +424,10 @@ class Method:
 
     is_noexcept: bool = False
     """``noexcept`` or ``throw()``: an override must not throw either."""
+
+    result_by_reference: bool = False
+    """It returns a reference (``const T&``): an override cannot give one back from a
+    value that another language computed."""
 
 
 class Access(Enum):

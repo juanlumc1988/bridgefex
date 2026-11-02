@@ -45,12 +45,15 @@
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+{% if h.directors %}
+#pragma GCC diagnostic ignored "-Woverloaded-virtual"
+{% endif %}
 #if !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 #elif defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable : 4996)
+#pragma warning(disable : 4996{% if h.directors %} 4263 4264{% endif %})
 #endif
 {% for name in h.internal_includes %}
 {% if loop.first %}
@@ -101,9 +104,25 @@ static_assert(std::is_move_constructible<{{ cpp_name }}>::value,
 {% endfor %}
 #endif
 {% endif %}
+{% for d in h.directors %}
+{% if loop.first %}
+
+// The directors: classes derived from the wrapped ones, whose virtual methods call the
+// functions of a vtable.
+namespace {{ m.detail_namespace }} {
+{% endif %}
+
+{% for line in d.glue %}
+{{ line }}
+{% endfor %}
+{% if loop.last %}
+
+}  // namespace {{ m.detail_namespace }}
+{% endif %}
+{% endfor %}
 
 extern "C" {
-{% for f in h.c_functions %}
+{% for f in h.all_c_functions %}
 
 // {{ f.description }}
 {% if f.returns_status %}

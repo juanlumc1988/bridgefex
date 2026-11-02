@@ -60,6 +60,11 @@ typedef struct {{ m.string_type }} {
     const char* data;
     size_t size;
 } {{ m.string_type }};
+{% if m.has_directors %}
+
+/* The string that a function of a vtable gives back: see {{ m.string_sink_set }}(). */
+typedef struct {{ m.string_sink_type }} {{ m.string_sink_type }};
+{% endif %}
 
 /* Success. */
 #define {{ P }}_OK 0
@@ -124,6 +129,17 @@ extern "C" {
  */
 {{ P }}_API void {{ m.disable_callbacks }}(void (*release)(void*));
 {{ P }}_API void {{ m.enable_callbacks }}(void (*release)(void*));
+{% if m.has_directors %}
+
+/*
+ * Gives the string that a function of a vtable returns (a std::string result of
+ * a virtual method that another language overrides): call it once, from that
+ * function, with the characters, which may contain NULs. They are copied before
+ * it returns, so the caller keeps the memory. Not calling it gives the empty
+ * string. NULL is ignored.
+ */
+{{ P }}_API void {{ m.string_sink_set }}({{ m.string_sink_type }}* sink, const char* data, size_t size);
+{% endif %}
 
 #ifdef __cplusplus
 }

@@ -321,7 +321,7 @@ def _function_lines(
     definitions = {
         f"{plan.status_type if function.returns_status else function.c_return or 'void'} "
         f"{function.signature}": function
-        for function in header.c_functions
+        for function in header.all_c_functions
     }
     return [
         (number, definitions[line])

@@ -408,3 +408,22 @@ def unknown_functions(
             )
         )
     return problems
+
+
+def unknown_directors(
+    directors: Mapping[str, DirectorRequest], classes: Sequence[str]
+) -> list[Diagnostic]:
+    """The classes that the file asks a director for, and no wrapped class has."""
+    known = set(classes)
+    problems = []
+    for name, request in directors.items():
+        if name in known:
+            continue
+        close = difflib.get_close_matches(name, classes, n=3)
+        hint = f"; did you mean {', '.join(close)}?" if close else ""
+        problems.append(
+            Diagnostic(
+                f"{request.where()}: directors: '{name}' is not the C type of a wrapped class{hint}"
+            )
+        )
+    return problems

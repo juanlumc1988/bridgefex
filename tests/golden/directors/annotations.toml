@@ -1,0 +1,2 @@
+# The classes that other languages may derive from, overriding their virtual methods.
+directors = ["drc_Shape", "drc_Circle", "drc_Stage"]

@@ -1124,7 +1124,10 @@ class _Visitor:
             if type_ is None:
                 valid = False
             else:
-                parameters.append(Parameter(name, type_))
+                reference = argument.type.get_canonical().kind == TypeKind.LVALUEREFERENCE
+                parameters.append(
+                    Parameter(name, type_, reference and isinstance(type_, ScalarType | EnumRef))
+                )
         return tuple(parameters) if valid else None
 
     def _container(
@@ -2021,4 +2024,5 @@ class _Visitor:
             is_pure=bool(cursor.is_pure_virtual_method()),
             is_final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
             is_noexcept=_cannot_throw(cursor),
+            result_by_reference=cursor.result_type.get_canonical().kind == TypeKind.LVALUEREFERENCE,
         )
