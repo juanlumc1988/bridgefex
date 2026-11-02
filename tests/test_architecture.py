@@ -129,7 +129,7 @@ def _package_of(path: Path) -> str:
 
 
 def _name(path: Path) -> str:
-    return str(path.relative_to(SOURCE))
+    return path.relative_to(SOURCE).as_posix()
 
 
 def _sources() -> list[Path]:
