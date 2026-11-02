@@ -50,6 +50,9 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 
     __slots__ = ()
     _cxx_class = "{{ c.c_type }}"
+{% if c.views %}
+    _ancestors = ({% for view in c.views %}"{{ view.ptr }}",{{ " " if not loop.last }}{% endfor %})
+{% endif %}
 {% for e in c.enums %}
 {% if loop.first %}
 
@@ -241,8 +244,8 @@ import ctypes
 import threading
 
 from . import _runtime{{ ", _types" if "_types." in body else "" }}
-{% for stem in h.base_modules %}
-from . import {{ stem }} as _{{ stem }}
+{% for line in h.base_imports %}
+{{ line }}
 {% endfor %}
 
 {{ body }}

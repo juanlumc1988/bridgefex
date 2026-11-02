@@ -51,6 +51,12 @@ static_assert(alignof(::inh::Labeled) <= inh_detail::new_alignment,
               "inh::Labeled is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::inh::Widget) <= inh_detail::new_alignment,
               "inh::Widget is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::inh::Tagged) <= inh_detail::new_alignment,
+              "inh::Tagged is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::inh::Observer) <= inh_detail::new_alignment,
+              "inh::Observer is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::inh::Shelf) <= inh_detail::new_alignment,
+              "inh::Shelf is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::inh::Plain) <= inh_detail::new_alignment,
               "inh::Plain is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::inh::PlainDerived) <= inh_detail::new_alignment,
@@ -277,6 +283,137 @@ inh_status inh_name_of(const inh_Labeled* labeled, char** out_result, size_t* ou
         return inh_detail::null_argument("inh_name_of: 'labeled' is NULL");
     }
     return inh_detail::guard([&]() { inh_detail::return_string(::inh::name_of(reinterpret_cast<const ::inh::Labeled*>(labeled)), out_result, out_result_size); });
+}
+
+// inh::Tagged::Tagged()
+inh_status inh_Tagged_create(inh_Tagged** out_self)
+{
+    if (out_self == nullptr) {
+        return inh_detail::null_argument("inh_Tagged_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return inh_detail::guard([&]() { *out_self = reinterpret_cast<inh_Tagged*>(new ::inh::Tagged()); });
+}
+
+// inh::Tagged::~Tagged()
+void inh_Tagged_destroy(inh_Tagged* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    inh_detail::guard_silently([&]() { delete reinterpret_cast<::inh::Tagged*>(self); });
+}
+
+// int32_t inh::Tagged::tag() const
+inh_status inh_Tagged_tag(const inh_Tagged* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return inh_detail::null_argument("inh_Tagged_tag: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return inh_detail::null_argument("inh_Tagged_tag: 'out_result' is NULL");
+    }
+    return inh_detail::guard([&]() { *out_result = reinterpret_cast<const ::inh::Tagged*>(self)->tag(); });
+}
+
+// inh::Observer::Observer(inh::Counter& watched)
+inh_status inh_Observer_create(inh_Observer** out_self, inh_Counter* watched)
+{
+    if (out_self == nullptr) {
+        return inh_detail::null_argument("inh_Observer_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (watched == nullptr) {
+        return inh_detail::null_argument("inh_Observer_create: 'watched' is NULL");
+    }
+    return inh_detail::guard([&]() { *out_self = reinterpret_cast<inh_Observer*>(new ::inh::Observer(*reinterpret_cast<::inh::Counter*>(watched))); });
+}
+
+// inh::Observer::~Observer()
+void inh_Observer_destroy(inh_Observer* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    inh_detail::guard_silently([&]() { delete reinterpret_cast<::inh::Observer*>(self); });
+}
+
+// inh::Tagged* inh::Observer: the object as its base class
+inh_Tagged* inh_Observer_as_inh_Tagged(inh_Observer* self)
+{
+    return reinterpret_cast<inh_Tagged*>(static_cast<::inh::Tagged*>(reinterpret_cast<::inh::Observer*>(self)));
+}
+
+// const inh::Tagged* inh::Observer: the const object as its base class
+const inh_Tagged* inh_Observer_as_inh_Tagged_const(const inh_Observer* self)
+{
+    return reinterpret_cast<const inh_Tagged*>(static_cast<const ::inh::Tagged*>(reinterpret_cast<const ::inh::Observer*>(self)));
+}
+
+// inh::Labeled* inh::Observer: the object as its base class
+inh_Labeled* inh_Observer_as_inh_Labeled(inh_Observer* self)
+{
+    return reinterpret_cast<inh_Labeled*>(static_cast<::inh::Labeled*>(reinterpret_cast<::inh::Observer*>(self)));
+}
+
+// const inh::Labeled* inh::Observer: the const object as its base class
+const inh_Labeled* inh_Observer_as_inh_Labeled_const(const inh_Observer* self)
+{
+    return reinterpret_cast<const inh_Labeled*>(static_cast<const ::inh::Labeled*>(reinterpret_cast<const ::inh::Observer*>(self)));
+}
+
+// int32_t inh::Observer::watched() const
+inh_status inh_Observer_watched(const inh_Observer* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return inh_detail::null_argument("inh_Observer_watched: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return inh_detail::null_argument("inh_Observer_watched: 'out_result' is NULL");
+    }
+    return inh_detail::guard([&]() { *out_result = reinterpret_cast<const ::inh::Observer*>(self)->watched(); });
+}
+
+// inh::Shelf::Shelf()
+inh_status inh_Shelf_create(inh_Shelf** out_self)
+{
+    if (out_self == nullptr) {
+        return inh_detail::null_argument("inh_Shelf_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return inh_detail::guard([&]() { *out_self = reinterpret_cast<inh_Shelf*>(new ::inh::Shelf()); });
+}
+
+// inh::Shelf::~Shelf()
+void inh_Shelf_destroy(inh_Shelf* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    inh_detail::guard_silently([&]() { delete reinterpret_cast<::inh::Shelf*>(self); });
+}
+
+// void inh::Shelf::put(std::unique_ptr<inh::Labeled> item)
+inh_status inh_Shelf_put(inh_Shelf* self, inh_Labeled* item)
+{
+    inh_detail::transferred<::inh::Labeled> item_owner(reinterpret_cast<::inh::Labeled*>(item));
+    if (self == nullptr) {
+        return inh_detail::null_argument("inh_Shelf_put: 'self' is NULL");
+    }
+    if (item == nullptr) {
+        return inh_detail::null_argument("inh_Shelf_put: 'item' is NULL");
+    }
+    return inh_detail::guard([&]() { reinterpret_cast<::inh::Shelf*>(self)->put(item_owner.take<std::unique_ptr<::inh::Labeled>>()); });
+}
+
+// std::unique_ptr<inh::Observer> inh::Shelf::pop()
+inh_status inh_Shelf_pop(inh_Shelf* self, inh_Observer** out_result)
+{
+    if (out_result == nullptr) {
+        return inh_detail::null_argument("inh_Shelf_pop: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (self == nullptr) {
+        return inh_detail::null_argument("inh_Shelf_pop: 'self' is NULL");
+    }
+    return inh_detail::guard([&]() { *out_result = reinterpret_cast<inh_Observer*>(reinterpret_cast<::inh::Shelf*>(self)->pop().release()); });
 }
 
 // inh::Plain::Plain()

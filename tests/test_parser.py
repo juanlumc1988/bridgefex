@@ -862,3 +862,24 @@ def test_a_destructor_that_is_not_virtual_is_not_inherited_as_one(tmp_path: Path
     assert not classes["A"].virtual_destructor
     assert not classes["B"].virtual_destructor
     assert classes["B"].bases[0].qualified_name == "A"
+
+
+def test_a_template_base_gives_its_virtual_destructor(tmp_path: Path) -> None:
+    # The templates are in a header that is not wrapped.
+    (tmp_path / "templates.h").write_text(
+        "template <class T> class Obs { public: virtual ~Obs() {} };\n"
+        "template <class T> class Plain { public: ~Plain() {} };\n",
+        encoding="utf-8",
+    )
+    classes = classes_of(
+        parse(
+            tmp_path,
+            '#include "templates.h"\n'
+            "class D : private Obs<int> { public: D(); virtual void f(); int g() const; };"
+            " class P : private Plain<int> { public: P(); int h() const; };",
+        )
+    )
+    # Private bases are not part of the API, but their destructor is still virtual.
+    assert classes["D"].bases == ()
+    assert classes["D"].virtual_destructor
+    assert not classes["P"].virtual_destructor

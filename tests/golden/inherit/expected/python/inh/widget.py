@@ -13,6 +13,9 @@ __all__ = [
     "bump",
     "peek",
     "name_of",
+    "Tagged",
+    "Observer",
+    "Shelf",
     "Plain",
     "PlainDerived",
     "take_plain",
@@ -73,6 +76,34 @@ def _bind():
             lib.inh_peek.restype = _runtime.Status
             lib.inh_name_of.argtypes = [_types._inh_Labeled__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.inh_name_of.restype = _runtime.Status
+            lib.inh_Tagged_create.argtypes = [ctypes.POINTER(_types._inh_Tagged__p)]
+            lib.inh_Tagged_create.restype = _runtime.Status
+            lib.inh_Tagged_destroy.argtypes = [_types._inh_Tagged__p]
+            lib.inh_Tagged_destroy.restype = None
+            lib.inh_Tagged_tag.argtypes = [_types._inh_Tagged__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.inh_Tagged_tag.restype = _runtime.Status
+            lib.inh_Observer_create.argtypes = [ctypes.POINTER(_types._inh_Observer__p), _types._inh_Counter__p]
+            lib.inh_Observer_create.restype = _runtime.Status
+            lib.inh_Observer_destroy.argtypes = [_types._inh_Observer__p]
+            lib.inh_Observer_destroy.restype = None
+            lib.inh_Observer_as_inh_Tagged.argtypes = [_types._inh_Observer__p]
+            lib.inh_Observer_as_inh_Tagged.restype = _types._inh_Tagged__p
+            lib.inh_Observer_as_inh_Tagged_const.argtypes = [_types._inh_Observer__p]
+            lib.inh_Observer_as_inh_Tagged_const.restype = _types._inh_Tagged__p
+            lib.inh_Observer_as_inh_Labeled.argtypes = [_types._inh_Observer__p]
+            lib.inh_Observer_as_inh_Labeled.restype = _types._inh_Labeled__p
+            lib.inh_Observer_as_inh_Labeled_const.argtypes = [_types._inh_Observer__p]
+            lib.inh_Observer_as_inh_Labeled_const.restype = _types._inh_Labeled__p
+            lib.inh_Observer_watched.argtypes = [_types._inh_Observer__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.inh_Observer_watched.restype = _runtime.Status
+            lib.inh_Shelf_create.argtypes = [ctypes.POINTER(_types._inh_Shelf__p)]
+            lib.inh_Shelf_create.restype = _runtime.Status
+            lib.inh_Shelf_destroy.argtypes = [_types._inh_Shelf__p]
+            lib.inh_Shelf_destroy.restype = None
+            lib.inh_Shelf_put.argtypes = [_types._inh_Shelf__p, _types._inh_Labeled__p]
+            lib.inh_Shelf_put.restype = _runtime.Status
+            lib.inh_Shelf_pop.argtypes = [_types._inh_Shelf__p, ctypes.POINTER(_types._inh_Observer__p)]
+            lib.inh_Shelf_pop.restype = _runtime.Status
             lib.inh_Plain_create.argtypes = [ctypes.POINTER(_types._inh_Plain__p)]
             lib.inh_Plain_create.restype = _runtime.Status
             lib.inh_Plain_destroy.argtypes = [_types._inh_Plain__p]
@@ -415,6 +446,7 @@ class Widget(Counter, Labeled):
 
     __slots__ = ()
     _cxx_class = "inh_Widget"
+    _ancestors = ("_ptr_inh_Counter", "_ptr_inh_Labeled",)
 
     def __init__(self):
         """Wraps ``inh::Widget::Widget()``."""
@@ -582,6 +614,413 @@ def name_of(labeled):
     return _runtime.decode(_out_data)
 
 
+class Tagged(_runtime.Object):
+    """Wraps ``inh::Tagged``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "inh_Tagged"
+
+    def __init__(self):
+        """Wraps ``inh::Tagged::Tagged()``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Tagged object is already initialized")
+        _handle = self._watch()
+        _runtime.check(_bind().inh_Tagged_create(_handle))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._inh_Tagged__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._finalizer = _runtime.watch(self, handle, _bind().inh_Tagged_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "inh::Tagged: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().inh_Tagged_destroy, _types._inh_Tagged__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Tagged object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Tagged object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Tagged object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    # This class as itself: the handle that every function of the class (and of
+    # the functions that take it) reads. A class derived from it has the handle as
+    # this class, which is not that of its own.
+    _ptr_inh_Tagged = _ptr
+    _mptr_inh_Tagged = _mptr
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Tagged objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Tagged objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Tagged objects cannot be pickled")
+
+    def tag(self):
+        """Wraps ``int32_t inh::Tagged::tag() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().inh_Tagged_tag(self._ptr_inh_Tagged(), _out))
+        return _out.value
+
+
+class Observer(Tagged, Labeled):
+    """Wraps ``inh::Observer``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "inh_Observer"
+    _ancestors = ("_ptr_inh_Tagged", "_ptr_inh_Labeled",)
+
+    def __init__(self, watched):
+        """Wraps ``inh::Observer::Observer(inh::Counter& watched)``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Observer object is already initialized")
+        _runtime.check_object(watched, Counter, "watched")
+        _handle = self._watch()
+        _runtime.retain(self._retained, watched)
+        _runtime.check(_bind().inh_Observer_create(_handle, watched._mptr_inh_Counter()))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._inh_Observer__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._finalizer = _runtime.watch(self, handle, _bind().inh_Observer_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "inh::Observer: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().inh_Observer_destroy, _types._inh_Observer__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Observer object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Observer object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Observer object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _ptr_inh_Tagged(self):
+        return _bind().inh_Observer_as_inh_Tagged(self._ptr())
+
+    def _mptr_inh_Tagged(self):
+        return _bind().inh_Observer_as_inh_Tagged(self._mptr())
+
+    def _ptr_inh_Labeled(self):
+        return _bind().inh_Observer_as_inh_Labeled(self._ptr())
+
+    def _mptr_inh_Labeled(self):
+        return _bind().inh_Observer_as_inh_Labeled(self._mptr())
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Observer objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Observer objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Observer objects cannot be pickled")
+
+    def watched(self):
+        """Wraps ``int32_t inh::Observer::watched() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().inh_Observer_watched(self._ptr(), _out))
+        return _out.value
+
+
+class Shelf(_runtime.Object):
+    """Wraps ``inh::Shelf``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "inh_Shelf"
+
+    def __init__(self):
+        """Wraps ``inh::Shelf::Shelf()``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Shelf object is already initialized")
+        _handle = self._watch()
+        _runtime.check(_bind().inh_Shelf_create(_handle))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._inh_Shelf__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._finalizer = _runtime.watch(self, handle, _bind().inh_Shelf_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "inh::Shelf: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().inh_Shelf_destroy, _types._inh_Shelf__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Shelf object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Shelf object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Shelf object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Shelf objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Shelf objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Shelf objects cannot be pickled")
+
+    def put(self, item):
+        """Wraps ``void inh::Shelf::put(std::unique_ptr<inh::Labeled> item)``."""
+        _runtime.check_object(item, Labeled, "item")
+        _c = _bind().inh_Shelf_put
+        _h1 = self._mptr()
+        [_h2] = _runtime.take(self._retained, (item, "item", "_mptr_inh_Labeled"), keep=self)
+        _runtime.check(_c(_h1, _h2))
+
+    def pop(self):
+        """Wraps ``std::unique_ptr<inh::Observer> inh::Shelf::pop()``."""
+        _result = Observer.__new__(Observer)
+        _out = _result._watch()
+        _runtime.check(_bind().inh_Shelf_pop(self._mptr(), _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+
 class Plain(_runtime.Object):
     """Wraps ``inh::Plain``.
 
@@ -725,6 +1164,7 @@ class PlainDerived(Plain):
 
     __slots__ = ()
     _cxx_class = "inh_PlainDerived"
+    _ancestors = ("_ptr_inh_Plain",)
 
     def __init__(self):
         """Wraps ``inh::PlainDerived::PlainDerived()``."""

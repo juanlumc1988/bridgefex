@@ -520,7 +520,8 @@ def _on_thread(function: Callable[[], object], foreign: bool = False) -> object:
 
 
 def test_a_callback_error_goes_to_the_call_that_runs_it(runtime: ModuleType) -> None:
-    passed = runtime.CallScope()  # this thread is inside the call that passed it
+    passed = runtime.CallScope()
+    passed.begin()  # this thread is inside the call that passed it
     error = ValueError()
     assert runtime.fail_callback(passed, error)
     assert passed.error is error
@@ -534,6 +535,8 @@ def test_a_callback_error_goes_to_the_call_that_runs_it(runtime: ModuleType) -> 
     # In a call with callbacks: that call gets it, the innermost one.
     def in_calls() -> tuple[object, object, object]:
         outer, inner = runtime.CallScope(), runtime.CallScope()
+        outer.begin()
+        inner.begin()
         try:
             return runtime.fail_callback(passed, error), inner.error, outer.error
         finally:
@@ -570,7 +573,9 @@ def test_interrupts_go_to_the_innermost_call(fresh_runtime: Callable[[], ModuleT
     assert isinstance(hook, runtime._InterruptForwarder)
     assert hook.previous == seen.append
     outer = runtime.CallScope()
+    outer.begin()
     inner = runtime.CallScope()
+    inner.begin()
     interrupt = KeyboardInterrupt()
     hook(_unraisable(interrupt))
     assert inner.error is interrupt
@@ -613,15 +618,18 @@ def test_packages_share_one_hook(fresh_runtime: Callable[[], ModuleType]) -> Non
     sys.unraisablehook = seen.append
     first, second = fresh_runtime(), fresh_runtime()
     for _ in range(100):
-        first.CallScope().close()
-        second.CallScope().close()
+        for scope in (first.CallScope(), second.CallScope()):
+            scope.begin()
+            scope.close()
     hook = sys.unraisablehook
     assert isinstance(hook, first._InterruptForwarder)
     assert hook.previous == seen.append  # one hook for both
     assert first._scopes is second._scopes
     # The innermost call of the thread gets it, whatever its package.
     outer = first.CallScope()
+    outer.begin()
     inner = second.CallScope()
+    inner.begin()
     interrupt = KeyboardInterrupt()
     hook(_unraisable(interrupt))
     assert inner.error is interrupt
@@ -633,6 +641,21 @@ def test_packages_share_one_hook(fresh_runtime: Callable[[], ModuleType]) -> Non
     with pytest.raises(KeyboardInterrupt):
         second.check(second.OK)
     first.check(first.OK)
+
+
+def test_a_scope_is_on_the_stack_only_from_begin(runtime: ModuleType) -> None:
+    """A signal handler that raises between the creation of the scope and the
+    ``try`` whose ``finally`` closes it must leave nothing on the stack: a scope
+    that stays there would swallow the errors of every callback of the thread."""
+    stack = runtime._scopes.stack if hasattr(runtime._scopes, "stack") else []
+    before = list(stack)
+    abandoned = runtime.CallScope()
+    assert list(runtime._scopes.stack) == before
+    assert not runtime.fail_callback(None, ValueError())
+    abandoned.begin()
+    assert runtime._scopes.stack[-1] is abandoned
+    abandoned.close()
+    assert list(runtime._scopes.stack) == before
 
 
 def test_no_callbacks_after_exit(fresh_runtime: Callable[[], ModuleType]) -> None:
@@ -659,6 +682,8 @@ class FakeObject:
         "_retained",
         "collected",
     )
+
+    _ancestors: tuple[str, ...] = ()
 
     def _collected(self) -> bool:
         return getattr(self, "collected", False)
@@ -806,6 +831,73 @@ def test_what_a_taken_object_retained_comes_back_with_it(runtime: ModuleType) ->
     assert len(runtime._kept) == 1
     returned._retained.clear()
     assert len(runtime._kept) == 0  # nobody holds it any more: no entry to leak
+
+
+class MultiObject(FakeObject):
+    """An object whose base class is not at its address (several bases)."""
+
+    __slots__ = ()
+    _ancestors = ("_ptr_base",)
+
+    def _ptr_base(self) -> ctypes.c_void_p:
+        return ctypes.c_void_p(self._handle.value + 24)
+
+
+def test_a_taken_object_comes_back_as_any_class_it_may_be(runtime: ModuleType) -> None:
+    """The object is taken as its base class and handed back as itself (a pop that
+    knows what it stored), or the other way round: the addresses differ."""
+    kept_by_object = object()
+    taken = MultiObject()
+    taken._handle = ctypes.c_void_p(1000)
+    taken._owned = [(len, None)]
+    taken._owners = ()
+    taken._retained = {id(kept_by_object): kept_by_object}
+    taken._finalizer = type("Armed", (), {"_as_parameter_": None})()
+    owner_dict: dict[int, object] = {}
+    (handle,) = runtime.take(owner_dict, (taken, "taken", "_ptr_base"))
+    assert handle.value == 1024  # what the C++ code gets: the base class
+    for address in (1000, 1024):
+        returned = owned_object(ctypes.c_void_p(address))
+        runtime.recover(returned._retained, returned._handle)
+        assert [k.items for k in returned._retained.values()] == [
+            {id(kept_by_object): kept_by_object}
+        ], address
+    stranger = owned_object(ctypes.c_void_p(1012))
+    runtime.recover(stranger._retained, stranger._handle)
+    assert stranger._retained == {}
+
+
+def test_objects_of_a_user_class_that_mixes_wrapped_classes_are_refused(
+    runtime: ModuleType,
+) -> None:
+    class Circle(runtime.Object):
+        __slots__ = ()
+        _cxx_class = "m_Circle"
+
+    class Square(runtime.Object):
+        __slots__ = ()
+        _cxx_class = "m_Square"
+
+    class Mine(Circle):  # a class of the user extends one
+        pass
+
+    class Both(Circle, Square):  # as the generated classes of a C++ class with two bases
+        __slots__ = ()
+        _cxx_class = "m_Both"
+
+    class Mixin:
+        pass
+
+    class WithMixin(Circle, Mixin):
+        pass
+
+    assert Mine._cxx_class == "m_Circle"
+    assert issubclass(Both, Square)
+    assert WithMixin._cxx_class == "m_Circle"
+    with pytest.raises(TypeError, match=r"Fake derives .*\(m_Circle, m_Square\)"):
+
+        class Fake(Circle, Square):
+            pass
 
 
 def test_taking_objects_that_retain_nothing_leaves_no_trace(runtime: ModuleType) -> None:

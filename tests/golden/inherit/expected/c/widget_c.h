@@ -68,6 +68,51 @@ INH_NODISCARD INH_API inh_status inh_peek(const inh_Counter* counter, int32_t* o
 /* std::string inh::name_of(const inh::Labeled* labeled) */
 INH_NODISCARD INH_API inh_status inh_name_of(const inh_Labeled* labeled, char** out_result, size_t* out_result_size);
 
+/* inh::Tagged::Tagged() */
+INH_NODISCARD INH_API inh_status inh_Tagged_create(inh_Tagged** out_self);
+
+/* inh::Tagged::~Tagged() */
+INH_API void inh_Tagged_destroy(inh_Tagged* self);
+
+/* int32_t inh::Tagged::tag() const */
+INH_NODISCARD INH_API inh_status inh_Tagged_tag(const inh_Tagged* self, int32_t* out_result);
+
+/* inh::Observer::Observer(inh::Counter& watched)
+ * watched: the new object keeps a pointer to it; it must stay valid as long as it is used. */
+INH_NODISCARD INH_API inh_status inh_Observer_create(inh_Observer** out_self, inh_Counter* watched);
+
+/* inh::Observer::~Observer() */
+INH_API void inh_Observer_destroy(inh_Observer* self);
+
+/* inh::Tagged* inh::Observer: the object as its base class */
+INH_NODISCARD INH_API inh_Tagged* inh_Observer_as_inh_Tagged(inh_Observer* self);
+
+/* const inh::Tagged* inh::Observer: the const object as its base class */
+INH_NODISCARD INH_API const inh_Tagged* inh_Observer_as_inh_Tagged_const(const inh_Observer* self);
+
+/* inh::Labeled* inh::Observer: the object as its base class */
+INH_NODISCARD INH_API inh_Labeled* inh_Observer_as_inh_Labeled(inh_Observer* self);
+
+/* const inh::Labeled* inh::Observer: the const object as its base class */
+INH_NODISCARD INH_API const inh_Labeled* inh_Observer_as_inh_Labeled_const(const inh_Observer* self);
+
+/* int32_t inh::Observer::watched() const */
+INH_NODISCARD INH_API inh_status inh_Observer_watched(const inh_Observer* self, int32_t* out_result);
+
+/* inh::Shelf::Shelf() */
+INH_NODISCARD INH_API inh_status inh_Shelf_create(inh_Shelf** out_self);
+
+/* inh::Shelf::~Shelf() */
+INH_API void inh_Shelf_destroy(inh_Shelf* self);
+
+/* void inh::Shelf::put(std::unique_ptr<inh::Labeled> item)
+ * item: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+INH_NODISCARD INH_API inh_status inh_Shelf_put(inh_Shelf* self, inh_Labeled* item);
+
+/* std::unique_ptr<inh::Observer> inh::Shelf::pop()
+ * *out_result: owned by the caller (may be NULL); destroy it with inh_Observer_destroy. */
+INH_NODISCARD INH_API inh_status inh_Shelf_pop(inh_Shelf* self, inh_Observer** out_result);
+
 /* inh::Plain::Plain() */
 INH_NODISCARD INH_API inh_status inh_Plain_create(inh_Plain** out_self);
 

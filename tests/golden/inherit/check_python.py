@@ -145,6 +145,27 @@ with widget.Labeled.create_string("given") as labeled:
 expect(TypeError, widget.Widget.create_string, "x", message="constructs a Labeled, not a Widget")
 
 
+# An object that is taken as a base class that is not at its address, and handed back
+# as itself, still has what it retained: the Counter that the constructor kept.
+counter = widget.Counter()
+counter.next()
+observer = widget.Observer(counter)
+assert observer.tag() == 41 and observer.watched() == 1
+shelf = widget.Shelf()
+shelf.put(observer)  # taken as its Labeled part
+expect(ValueError, observer.watched, message="closed")
+del counter
+gc.collect()  # only what the object retained keeps the Counter now
+back = shelf.pop()
+assert type(back) is widget.Observer
+kept = [item for part in back._retained.values() for item in part.items.values()]
+assert [type(item) for item in kept] == [widget.Counter], kept
+assert back.watched() == 1  # (a use after free under AddressSanitizer if it was lost)
+assert back.label() == "unnamed"
+back.close()
+shelf.close()
+
+
 # Without a virtual destructor, C++ would destroy a derived object through the base
 # class: only an object of exactly that class (or a Python subclass of it) is accepted.
 class MyPlain(widget.Plain):

@@ -246,6 +246,11 @@ def _has_virtual_destructor(cursor: cindex.Cursor) -> bool:
     for kind, member in members:
         if kind == CursorKind.DESTRUCTOR:
             return bool(member.is_virtual_method())
+    if not any(kind == CursorKind.CXX_BASE_SPECIFIER for kind, _ in members):
+        # An implicit instantiation of a template shows no members: they are the
+        # template's.
+        template = libclang.specialized_template(cursor)
+        return template is not None and _has_virtual_destructor(template)
     for kind, member in members:
         if kind == CursorKind.CXX_BASE_SPECIFIER:
             definition = member.type.get_canonical().get_declaration().get_definition()

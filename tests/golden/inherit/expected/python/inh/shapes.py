@@ -126,6 +126,7 @@ class Circle(_shape.Shape):
 
     __slots__ = ()
     _cxx_class = "inh_Circle"
+    _ancestors = ("_ptr_inh_Shape", "_ptr_inh_Named",)
 
     def __init__(self, radius):
         """Wraps ``inh::Circle::Circle(double radius)``."""
@@ -295,6 +296,7 @@ class Square(_shape.Shape):
 
     __slots__ = ()
     _cxx_class = "inh_Square"
+    _ancestors = ("_ptr_inh_Shape", "_ptr_inh_Named",)
 
     def __init__(self, side):
         """Wraps ``inh::Square::Square(double side)``."""
@@ -451,6 +453,7 @@ class Ring(Circle):
 
     __slots__ = ()
     _cxx_class = "inh_Ring"
+    _ancestors = ("_ptr_inh_Circle", "_ptr_inh_Shape", "_ptr_inh_Named",)
 
     def __init__(self, outer, inner):
         """Wraps ``inh::Ring::Ring(double outer, double inner)``."""

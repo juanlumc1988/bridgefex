@@ -41,6 +41,15 @@ typedef struct inh_Labeled inh_Labeled;
 /* Opaque handle of inh::Widget. */
 typedef struct inh_Widget inh_Widget;
 
+/* Opaque handle of inh::Tagged. */
+typedef struct inh_Tagged inh_Tagged;
+
+/* Opaque handle of inh::Observer. */
+typedef struct inh_Observer inh_Observer;
+
+/* Opaque handle of inh::Shelf. */
+typedef struct inh_Shelf inh_Shelf;
+
 /* Opaque handle of inh::Plain. */
 typedef struct inh_Plain inh_Plain;
 

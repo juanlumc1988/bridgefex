@@ -95,6 +95,24 @@ int main(void)
     check(inh_Widget_both(widget, &number) == INH_OK && number == 209, "both: count and label");
     inh_Widget_destroy(widget);
 
+    /* The base that is not at the start of the object is not at its address either. */
+    inh_Counter* watched = NULL;
+    check(inh_Counter_create(&watched) == INH_OK, "Counter");
+    inh_Observer* observer = NULL;
+    check(inh_Observer_create(&observer, watched) == INH_OK, "Observer");
+    check((void*)inh_Observer_as_inh_Labeled(observer) != (void*)observer, "Labeled is not first");
+    check((void*)inh_Observer_as_inh_Tagged(observer) == (void*)observer, "Tagged is first");
+    inh_Shelf* shelf = NULL;
+    check(inh_Shelf_create(&shelf) == INH_OK, "Shelf");
+    check(inh_Shelf_put(shelf, inh_Observer_as_inh_Labeled(observer)) == INH_OK, "put");
+    inh_Observer* back = NULL;
+    check(inh_Shelf_pop(shelf, &back) == INH_OK && back == observer, "pop gives the same object");
+    check(inh_Counter_next(watched, &number) == INH_OK && number == 1, "next");
+    check(inh_Observer_watched(back, &number) == INH_OK && number == 1, "watched");
+    inh_Observer_destroy(back);
+    inh_Shelf_destroy(shelf);
+    inh_Counter_destroy(watched);
+
     /* Without a virtual destructor, only an object of exactly that class can be given. */
     inh_Plain* plain = NULL;
     check(inh_Plain_create(&plain) == INH_OK, "Plain");

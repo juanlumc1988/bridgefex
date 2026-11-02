@@ -195,6 +195,27 @@ def _skip_linkage_specs(cursor: cindex.Cursor | None) -> cindex.Cursor | None:
     return cursor
 
 
+def specialized_template(cursor: cindex.Cursor) -> cindex.Cursor | None:
+    """The class template that a class comes from if it is an instantiation or a
+    specialization of one (its members are those of the template: libclang shows
+    none for an implicit instantiation), else None."""
+    function = cindex.conf.lib.clang_getSpecializedCursorTemplate
+    function.argtypes = [cindex.Cursor]
+    function.restype = cindex.Cursor
+    result = function(cursor)
+    result._tu = cursor._tu
+    try:
+        kind = result.kind
+    except ValueError:
+        return None
+    if kind not in (
+        cindex.CursorKind.CLASS_TEMPLATE,
+        cindex.CursorKind.CLASS_TEMPLATE_PARTIAL_SPECIALIZATION,
+    ):
+        return None
+    return result
+
+
 def std_declaration_name(cursor: cindex.Cursor) -> str | None:
     """The name of a declaration of the standard library's namespace ``std``,
     or None for any other declaration. Requires :func:`load`.

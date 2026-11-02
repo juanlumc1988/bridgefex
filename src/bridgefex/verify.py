@@ -84,7 +84,12 @@ def verify(
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
     shadowing: dict[tuple[Path, str], None] = {}
-    identifiers = {name for content in c_files.values() for name in _IDENTIFIER.findall(content)}
+    # Of the code: a word of a comment, or of a message, is not replaced by a macro.
+    identifiers = {
+        name
+        for content in c_files.values()
+        for name in _IDENTIFIER.findall(_COMMENT_OR_LITERAL.sub(" ", content))
+    }
     with tempfile.TemporaryDirectory(prefix="bridgefex-", ignore_cleanup_errors=True) as temp:
         root = Path(temp)
         write_files(c_files, root)
@@ -327,8 +332,12 @@ def _parse(
 
 
 _IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+_COMMENT_OR_LITERAL = re.compile(
+    r"""//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'""", re.DOTALL
+)
 _GENERATED_VARIABLES = (
-    "_arg<N>, _owner<N>, _i<N>, _result, _callback, _user_data, _in, _out and _item"
+    "_arg<N>, _owner<N>, _i<N>, _result, _callback, _user_data, _in, _out, _item, self, "
+    "out_self, out_result and out_result_size"
 )
 
 

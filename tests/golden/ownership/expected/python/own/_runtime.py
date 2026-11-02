@@ -264,6 +264,28 @@ class Object:
         "_retained",
     )
 
+    _cxx_class = None
+    """The C type of its C++ class (the generated classes set it)."""
+
+    _ancestors = ()
+    """The names of the methods that give its handle as each ancestor."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A class that bridgefex generates names its own C++ class. A class of the
+        # user extends one: the object it makes has one handle.
+        if "_cxx_class" not in cls.__dict__:
+            classes = {
+                base._cxx_class
+                for base in cls.__bases__
+                if issubclass(base, Object) and base is not Object
+            }
+            if len(classes) > 1:
+                raise TypeError(
+                    f"{cls.__name__} derives from wrapped classes of different C++ classes "
+                    f"({', '.join(sorted(classes))}): an object has the handle of one"
+                )
+
 
 def check_object(value, cls, name, nullable=False):
     """Check that value is a cls object (or None, if nullable) before the call.
@@ -344,7 +366,7 @@ def take(retained, *arguments, keep=None):
     read = []
     for value, name, *view in arguments:
         if value is None:  # NULL, for a pointer that may be
-            read.append(None)
+            read.append((None, ()))
             continue
         other = seen.get(id(value))
         if other is not None:
@@ -363,10 +385,16 @@ def take(retained, *arguments, keep=None):
                 raise ValueError(
                     f"argument {name!r}: {type(value).__name__} object is no longer valid"
                 )
-        # Still open: the handle as the class that the C++ code takes it as.
-        read.append(getattr(value, view[0])() if view else value._handle)
+        # Still open: the handle as the class that the C++ code takes it as, and
+        # where the object is as each class that it may come back as.
+        handle = getattr(value, view[0])() if view else value._handle
+        addresses = ()
+        if value._retained:
+            addresses = {_address(value._handle)}
+            addresses.update(_address(getattr(value, name)()) for name in type(value)._ancestors)
+        read.append((handle, addresses))
     handles = []
-    for (value, *_), handle in zip(arguments, read, strict=True):
+    for (value, *_), (handle, addresses) in zip(arguments, read, strict=True):
         if value is None:
             handles.append(None)
             continue
@@ -380,7 +408,8 @@ def take(retained, *arguments, keep=None):
             kept = _Kept(value._retained)
             value._retained = {}  # the taken object does not keep them any more
             retained[id(kept)] = kept
-            _kept[_address(handle)] = kept
+            for address in addresses:
+                _kept[address] = kept
         handles.append(handle)
     return handles
 
@@ -395,8 +424,9 @@ class _Kept:
 
 
 _kept = weakref.WeakValueDictionary()
-"""By address: what the objects that were taken and may come back retained. An
-entry goes with the last owner that holds it."""
+"""By address: what the objects that were taken and may come back retained, at the
+address of the object as each class it may come back as (a base class is not at the
+same address with several bases). An entry goes with the last owner that holds it."""
 
 
 def _address(handle):
@@ -826,7 +856,13 @@ class CallScope:
         if stack is None:
             stack = _scopes.stack = []
         self._stack = stack
-        stack.append(self)
+
+    def begin(self):
+        """Make this the innermost call of the thread. The first statement of the
+        ``try`` whose ``finally`` closes the scope: an exception before it (a
+        signal handler that raises) leaves nothing on the stack for ever, which
+        would swallow the errors of every callback that the thread runs."""
+        self._stack.append(self)
 
     def callback(self, function, thunk, name):
         """The C arguments (callback, user_data, release) for ``function``."""

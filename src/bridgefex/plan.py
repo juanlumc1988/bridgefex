@@ -272,7 +272,7 @@ class PyCallable:
         """The ``from . import`` statements of the modules of other headers."""
         stems = dict.fromkeys(stem for arg in self.args for stem in arg.imports)
         stems.update(dict.fromkeys(self.result.imports))
-        return tuple(f"from . import {stem} as _{stem}" for stem in stems)
+        return tuple(f"from . import {stem} as {naming.module_alias(stem)}" for stem in stems)
 
     def retain_statements(self, owner: str = "self") -> tuple[str, ...]:
         """The statements that keep alive the arguments that the C++ code keeps a
@@ -356,7 +356,7 @@ class PyCallable:
         """
         pad = " " * indent
         inner = " " * (indent + 4)
-        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:"]
+        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:", f"{inner}_scope.begin()"]
         lines += [
             _python_call(f"{targets} = _scope.callback", arguments, indent + 4)
             for targets, arguments in self.registrations
@@ -790,6 +790,13 @@ class HeaderPlan:
     def base_modules(self) -> tuple[str, ...]:
         """The other header modules that the classes of this one derive from."""
         return tuple(dict.fromkeys(stem for cls in self.classes for stem in cls.base_modules))
+
+    @property
+    def base_imports(self) -> tuple[str, ...]:
+        """The imports of those, at module level (a base class is needed there)."""
+        return tuple(
+            f"from . import {stem} as {naming.module_alias(stem)}" for stem in self.base_modules
+        )
 
     @property
     def structs(self) -> tuple[StructPlan, ...]:
@@ -1307,7 +1314,7 @@ class _Builder:
         # of the others through their module.
         self._header: Header | None = None
         # A parameter named like the module alias of a header would hide it.
-        self._parameter_macros |= {f"_{header.stem}" for header in module.headers}
+        self._parameter_macros |= {naming.module_alias(header.stem) for header in module.headers}
         # The Python classes are named unqualified in the generated functions: a
         # parameter with the same name would hide them.
         self._parameter_macros |= {info.py_name for info in self._classes.values()}
@@ -1781,7 +1788,7 @@ class _Builder:
         for it when it belongs to another header."""
         if self._header is None or info.header is self._header:
             return info.py_name, ()
-        return f"_{info.header.stem}.{info.py_name}", (info.header.stem,)
+        return f"{naming.module_alias(info.header.stem)}.{info.py_name}", (info.header.stem,)
 
     # Lowering: how each type crosses the boundary --------------------------------
 
@@ -3136,7 +3143,7 @@ class _Builder:
             if base.header is info.header:
                 names.append(base.py_name)
             else:
-                names.append(f"_{base.header.stem}.{base.py_name}")
+                names.append(f"{naming.module_alias(base.header.stem)}.{base.py_name}")
                 modules.append(base.header.stem)
         return tuple(names), tuple(dict.fromkeys(modules))
 

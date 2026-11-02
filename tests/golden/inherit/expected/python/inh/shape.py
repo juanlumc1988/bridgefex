@@ -211,6 +211,7 @@ class Shape(Named):
 
     __slots__ = ()
     _cxx_class = "inh_Shape"
+    _ancestors = ("_ptr_inh_Named",)
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(

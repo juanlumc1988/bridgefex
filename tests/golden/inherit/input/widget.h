@@ -48,6 +48,42 @@ std::int32_t bump(Counter& counter);
 std::int32_t peek(Counter counter);
 std::string name_of(const Labeled* labeled);
 
+// Labeled is not at the start of an Observer: another polymorphic class comes first.
+class Tagged {
+public:
+    Tagged();
+    virtual ~Tagged();
+    virtual std::int32_t tag() const;
+
+private:
+    std::int32_t tag_;
+};
+
+// Keeps a reference to a Counter, which the constructor retains.
+class Observer : public Tagged, public Labeled {
+public:
+    explicit Observer(Counter& watched);
+    ~Observer() override;
+    // The count of the Counter it keeps.
+    std::int32_t watched() const;
+
+private:
+    Counter& watched_;
+};
+
+// Takes an object as a Labeled, which is not where the Observer starts, and gives it
+// back as the Observer that the caller knows it is.
+class Shelf {
+public:
+    Shelf();
+    ~Shelf();
+    void put(std::unique_ptr<Labeled> item);
+    std::unique_ptr<Observer> pop();
+
+private:
+    std::unique_ptr<Labeled> item_;
+};
+
 // A base class that is not polymorphic: its destructor is not virtual.
 class Plain {
 public:

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "widget.h"
 
+#include <utility>
+
 namespace inh {
 
 Counter::Counter() : count_(0), padding_{7, 7} {}
@@ -60,6 +62,38 @@ std::int32_t peek(Counter counter)
 std::string name_of(const Labeled* labeled)
 {
     return labeled != nullptr ? labeled->label() : std::string("none");
+}
+
+Tagged::Tagged() : tag_(41) {}
+
+Tagged::~Tagged() = default;
+
+std::int32_t Tagged::tag() const
+{
+    return tag_;
+}
+
+Observer::Observer(Counter& watched) : watched_(watched) {}
+
+Observer::~Observer() = default;
+
+std::int32_t Observer::watched() const
+{
+    return watched_.count();
+}
+
+Shelf::Shelf() = default;
+
+Shelf::~Shelf() = default;
+
+void Shelf::put(std::unique_ptr<Labeled> item)
+{
+    item_ = std::move(item);
+}
+
+std::unique_ptr<Observer> Shelf::pop()
+{
+    return std::unique_ptr<Observer>(static_cast<Observer*>(item_.release()));
 }
 
 Plain::Plain() = default;

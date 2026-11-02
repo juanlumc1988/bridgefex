@@ -65,6 +65,27 @@ class _inh_Widget(ctypes.Structure):
 _inh_Widget__p = ctypes.POINTER(_inh_Widget)
 
 
+class _inh_Tagged(ctypes.Structure):
+    """Opaque C handle of inh::Tagged."""
+
+
+_inh_Tagged__p = ctypes.POINTER(_inh_Tagged)
+
+
+class _inh_Observer(ctypes.Structure):
+    """Opaque C handle of inh::Observer."""
+
+
+_inh_Observer__p = ctypes.POINTER(_inh_Observer)
+
+
+class _inh_Shelf(ctypes.Structure):
+    """Opaque C handle of inh::Shelf."""
+
+
+_inh_Shelf__p = ctypes.POINTER(_inh_Shelf)
+
+
 class _inh_Plain(ctypes.Structure):
     """Opaque C handle of inh::Plain."""
 

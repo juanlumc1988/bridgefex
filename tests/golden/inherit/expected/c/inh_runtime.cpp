@@ -156,7 +156,7 @@ extern "C" const char* inh_last_error(void)
 
 extern "C" const char* inh_api_fingerprint(void)
 {
-    return "43d0f06b328353d3fc2c9c9ae3abaaa5";
+    return "f29eabbe5c12123617e65f671d98b162";
 }
 
 extern "C" void inh_free(void* memory)
