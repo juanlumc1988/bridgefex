@@ -1,0 +1,5 @@
+# Options passed to bridgefex for this case.
+module = "own"
+headers = ["node.h", "tree.h"]
+std = "c++17"
+annotations = ["annotations.toml"]

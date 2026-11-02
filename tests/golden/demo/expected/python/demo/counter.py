@@ -63,10 +63,20 @@ class Counter:
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
     when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed.
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
@@ -103,6 +113,10 @@ class Counter:
         handle = _types._demo_Counter__p()
         self._handle = None
         self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().demo_Counter_destroy)
         return handle
 
@@ -114,25 +128,46 @@ class Counter:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().demo_Counter_destroy, _types._demo_Counter__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Counter object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Counter object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
         return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Counter object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit.
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
         armed = self._finalizer
-        return armed() is None and armed._as_parameter_ is self._handle
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
-        """Destroy the C++ object now. Calling it again does nothing."""
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
             return
         if self._collected():
             self._handle = None
@@ -144,6 +179,10 @@ class Counter:
         # and this destruction must not be skipped.
         self._finalizer._as_parameter_ = null
         destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
 
     def __enter__(self):
         return self
@@ -162,17 +201,17 @@ class Counter:
 
     def increment(self):
         """Wraps ``void demo::Counter::increment()``."""
-        _runtime.check(_bind().demo_Counter_increment(self._ptr()))
+        _runtime.check(_bind().demo_Counter_increment(self._mptr()))
 
     def add_int32(self, delta):
         """Wraps ``void demo::Counter::add(int32_t delta)``."""
         delta = _runtime.to_int(delta, ctypes.c_int32, "delta")
-        _runtime.check(_bind().demo_Counter_add_int32(self._ptr(), delta))
+        _runtime.check(_bind().demo_Counter_add_int32(self._mptr(), delta))
 
     def add_double(self, delta):
         """Wraps ``void demo::Counter::add(double delta)``."""
         delta = _runtime.to_float(delta, ctypes.c_double, "delta")
-        _runtime.check(_bind().demo_Counter_add_double(self._ptr(), delta))
+        _runtime.check(_bind().demo_Counter_add_double(self._mptr(), delta))
 
     def value(self):
         """Wraps ``int32_t demo::Counter::value() const``."""
@@ -189,7 +228,7 @@ class Counter:
     def setLimit(self, limit):
         """Wraps ``void demo::Counter::setLimit(int64_t limit)``."""
         limit = _runtime.to_int(limit, ctypes.c_int64, "limit")
-        _runtime.check(_bind().demo_Counter_setLimit(self._ptr(), limit))
+        _runtime.check(_bind().demo_Counter_setLimit(self._mptr(), limit))
 
     def limit(self):
         """Wraps ``int64_t demo::Counter::limit() const``."""
@@ -200,7 +239,7 @@ class Counter:
     def reserve(self, bytes):
         """Wraps ``void demo::Counter::reserve(size_t bytes)``."""
         bytes = _runtime.to_int(bytes, ctypes.c_size_t, "bytes")
-        _runtime.check(_bind().demo_Counter_reserve(self._ptr(), bytes))
+        _runtime.check(_bind().demo_Counter_reserve(self._mptr(), bytes))
 
     def fail(self):
         """Wraps ``void demo::Counter::fail() const``."""

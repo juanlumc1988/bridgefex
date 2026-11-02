@@ -58,7 +58,7 @@ _COMMON_MACROS = frozenset(
 _GENERATED_PARAMETER_NAMES = frozenset(
     """
     self cls out_self out_result out_result_size ctypes weakref threading _builtins _runtime
-    _types _lib _bind _bind_lock _out _out_size _out_data _handle _self _item _scope _status
+    _types _lib _bind _bind_lock _out _out_size _out_data _handle _self _item _scope _status _result
     """.split()
 )
 
@@ -74,8 +74,8 @@ RESERVED_PARAMETER_NAMES = (
 # Members that every generated Python class defines.
 RESERVED_MEMBER_NAMES = frozenset(
     """
-    close _watch _adopt _ptr _collected _handle _finalizer _owned __init__ __enter__ __exit__
-    __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
+    close _watch _adopt _ptr _mptr _collected _handle _finalizer _owned _owners _readonly
+    _retained __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
     """.split()
 )
 

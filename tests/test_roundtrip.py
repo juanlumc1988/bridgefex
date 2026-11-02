@@ -15,6 +15,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import textwrap
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -565,7 +566,7 @@ print(counter.multiply_int32_int32(2, 3))
     assert completed.stdout.strip() == "6"
 
 
-_PENDING_SIGNALS = """
+_SIGNALS_TEMPLATE = """
 import faulthandler
 import gc
 import signal
@@ -573,7 +574,7 @@ import sys
 import threading
 import time
 
-from demo import sleeper
+#IMPORTS#
 
 faulthandler.dump_traceback_later(240, exit=True)
 scenario, rounds = sys.argv[1], int(sys.argv[2])
@@ -588,6 +589,7 @@ signal.signal(signal.SIGUSR1, interrupt)
 signal.signal(signal.SIGUSR2, signal.SIG_IGN)
 main = threading.main_thread().ident
 go, sent = threading.Event(), threading.Event()
+#SETUP#
 
 
 def shoot():
@@ -605,14 +607,7 @@ threading.Thread(target=shoot, daemon=True).start()
 
 
 def one_round():
-    if scenario == "constructor":
-        go.set()
-        sleeper.Sleeper(50)
-    else:
-        # Dropped while the exception unwinds, with a signal still pending.
-        napping = sleeper.Sleeper(0)
-        go.set()
-        napping.nap(50)
+#ROUND#
 
 
 interrupted = 0
@@ -636,9 +631,51 @@ for _ in range(rounds):
     sent.clear()
     interrupted += hit
 gc.collect()
-print("interrupted:", interrupted, "live:", sleeper.Sleeper.liveInstances())
+print("interrupted:", interrupted, "live:", #LIVE#)
 """
 
+
+_DEMO_ROUND = """
+if scenario == "constructor":
+    go.set()
+    sleeper.Sleeper(50)
+else:
+    # Dropped while the exception unwinds, with a signal still pending.
+    napping = sleeper.Sleeper(0)
+    go.set()
+    napping.nap(50)
+"""
+
+_PENDING_SIGNALS = (
+    _SIGNALS_TEMPLATE.replace("#IMPORTS#", "from demo import sleeper")
+    .replace("#ROUND#", textwrap.indent(_DEMO_ROUND.strip("\n"), "    "))
+    .replace("#SETUP#", "")
+    .replace("#LIVE#", "sleeper.Sleeper.liveInstances()")
+)
+
+_OWNERSHIP_ROUND = """
+if scenario == "unique_ptr":
+    go.set()
+    tree.slowMake(7, 50)
+elif scenario == "transfer":
+    # Taken by the C++ code before the signals are handled; the tree keeps it
+    # (and throws no exception: the ASan runtime cannot intercept one here).
+    item = Item(7)
+    go.set()
+    tree.slowAdopt(item, 50)
+else:
+    go.set()
+    tree.slowNode(7, 50)
+"""
+
+_OWNERSHIP_SIGNALS = (
+    _SIGNALS_TEMPLATE.replace(
+        "#IMPORTS#", "from own.node import Item, Node\nfrom own.tree import Tree"
+    )
+    .replace("#ROUND#", textwrap.indent(_OWNERSHIP_ROUND.strip("\n"), "    "))
+    .replace("#SETUP#", "baseline = Node.live() + Item.live()\ntree = Tree()")
+    .replace("#LIVE#", "(tree.close(), gc.collect(), Node.live() + Item.live() - baseline)[2]")
+)
 _SIGNAL_ROUNDS = 200
 
 
@@ -683,18 +720,24 @@ def demo_asan_build(
 
 
 def _run_signals(
-    library: Path, output: Path, scenario: str, preload: str | None = None
+    library: Path,
+    output: Path,
+    scenario: str,
+    preload: str | None = None,
+    *,
+    script: str | None = None,
+    library_variable: str = "DEMO_LIBRARY",
 ) -> subprocess.CompletedProcess[str]:
     environment = {
         **os.environ,
         "PYTHONPATH": str(output / "python"),
-        "DEMO_LIBRARY": str(library),
+        library_variable: str(library),
     }
     if preload is not None:
         environment["LD_PRELOAD"] = preload
         # The interpreter itself is not built for LeakSanitizer.
         environment["ASAN_OPTIONS"] = "detect_leaks=0:abort_on_error=0"
-    command = [sys.executable, "-X", "dev", "-W", "error", "-c", _PENDING_SIGNALS]
+    command = [sys.executable, "-X", "dev", "-W", "error", "-c", script or _PENDING_SIGNALS]
     return subprocess.run(
         [*command, scenario, str(_SIGNAL_ROUNDS)],
         env=environment,
@@ -744,6 +787,61 @@ def test_pending_signals_do_not_double_free(
 ) -> None:
     library, output, runtime = demo_asan_build
     completed = _run_signals(library, output, scenario, preload=runtime)
+    assert "AddressSanitizer" not in completed.stderr, completed.stderr
+    _check_no_leak(completed)
+
+
+@pytest.fixture(scope="module")
+def ownership_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path]:
+    """The ownership case built once: (library, output directory)."""
+    case = next(case for case in CASES if case.name == "ownership")
+    return build(case, toolchain, tmp_path_factory.mktemp("ownership"))
+
+
+@pytest.fixture(scope="module")
+def ownership_asan_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path, str]:
+    """The ownership case built with AddressSanitizer: (library, output dir, runtime)."""
+    runtime = _asan_runtime(toolchain)
+    if runtime is None:
+        pytest.skip("needs GCC with AddressSanitizer on Linux")
+    case = next(case for case in CASES if case.name == "ownership")
+    flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
+    library, output = build(case, toolchain, tmp_path_factory.mktemp("ownership_asan"), flags)
+    return library, output, runtime
+
+
+@_POSIX_SIGNALS
+@pytest.mark.parametrize("scenario", ["unique_ptr", "value", "transfer"])
+def test_pending_signals_do_not_leak_owned_results(
+    ownership_build: tuple[Path, Path], scenario: str
+) -> None:
+    """Two signals arrive while the C++ code sleeps before it returns a new
+    object: it must be destroyed, not abandoned by the exception."""
+    library, output = ownership_build
+    completed = _run_signals(
+        library, output, scenario, script=_OWNERSHIP_SIGNALS, library_variable="OWN_LIBRARY"
+    )
+    _check_no_leak(completed)
+
+
+@_POSIX_SIGNALS
+@pytest.mark.parametrize("scenario", ["unique_ptr", "value", "transfer"])
+def test_pending_signals_do_not_double_free_owned_results(
+    ownership_asan_build: tuple[Path, Path, str], scenario: str
+) -> None:
+    library, output, runtime = ownership_asan_build
+    completed = _run_signals(
+        library,
+        output,
+        scenario,
+        preload=runtime,
+        script=_OWNERSHIP_SIGNALS,
+        library_variable="OWN_LIBRARY",
+    )
     assert "AddressSanitizer" not in completed.stderr, completed.stderr
     _check_no_leak(completed)
 
@@ -825,6 +923,86 @@ def test_cyclic_object_is_closed_in_its_del(
     assert completed.returncode == 0, completed.stderr
     assert completed.stderr == ""
     assert completed.stdout.splitlines() == ["del: Counter object is closed", "live: 0"]
+
+
+_OWNERSHIP_CYCLES = """
+import gc
+from own.node import Item, Node
+from own.tree import Box, Tree, consume
+
+
+class Cyclic(Item):
+    def __del__(self):
+        try:
+            consume(self)  # takes it: the collection destroyed it already
+        except ValueError as error:
+            print("taken in __del__:", error)
+
+
+cyclic = Cyclic(7)
+cyclic.me = cyclic
+del cyclic
+gc.collect()
+
+
+class Parent(Tree):
+    def __del__(self):
+        try:
+            self.child.value()  # borrowed from self, which the collection destroyed
+        except ValueError as error:
+            print("borrowed in __del__:", error)
+
+
+parent = Parent()
+parent.child = parent.root()
+del parent
+gc.collect()
+print("live:", Item.live())
+
+# What a taken object retained is kept alive when it is given back.
+box, holder, pointee = Box(), Tree(), Node(88)
+holder.setCursor(pointee)
+box.put(holder)
+del pointee
+gc.collect()
+back = box.pop()
+box.close()
+gc.collect()
+print("cursor:", back.cursorValue())
+"""
+
+
+@pytest.mark.parametrize("sanitized", [False, True], ids=["plain", "asan"])
+def test_ownership_survives_cyclic_garbage_and_hand_backs(
+    request: pytest.FixtureRequest, sanitized: bool
+) -> None:
+    """Under AddressSanitizer a double free or a use after free would abort."""
+    environment = dict(os.environ)
+    if sanitized:
+        library, output, runtime = request.getfixturevalue("ownership_asan_build")
+        environment["LD_PRELOAD"] = runtime
+        environment["ASAN_OPTIONS"] = "detect_leaks=0"
+    else:
+        library, output = request.getfixturevalue("ownership_build")
+    environment["PYTHONPATH"] = str(output / "python")
+    environment["OWN_LIBRARY"] = str(library)
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", "-c", _OWNERSHIP_CYCLES],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stderr == ""
+    assert completed.stdout.splitlines() == [
+        "taken in __del__: argument 'item': Cyclic object is closed",
+        "borrowed in __del__: Node object is no longer valid: an object it was obtained from "
+        "is closed",
+        "live: 0",
+        "cursor: 88",
+    ]
 
 
 @pytest.fixture(scope="module")

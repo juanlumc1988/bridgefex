@@ -395,6 +395,39 @@ void guard_silently(const Function& function)
     }
 }
 
+// An object that a C function was given and the wrapped function takes (a
+// std::unique_ptr parameter): C owns it until then, whatever the status, so
+// it is deleted on every return that comes first. Deleted silently: a
+// destructor that throws cannot report it. Pointer is the std::unique_ptr
+// that take() makes, named by the generated source (which includes <memory>).
+template <typename T>
+class transferred {
+public:
+    explicit transferred(T* object) noexcept : object_(object) {}
+    transferred(const transferred&) = delete;
+    transferred& operator=(const transferred&) = delete;
+
+    // Not noexcept: a thread cancellation (see guard_silently) goes on.
+    ~transferred() noexcept(false)
+    {
+        T* object = object_;
+        if (object != nullptr) {
+            guard_silently([&]() { delete object; });
+        }
+    }
+
+    template <typename Pointer>
+    Pointer take() noexcept
+    {
+        T* object = object_;
+        object_ = nullptr;
+        return Pointer(object);
+    }
+
+private:
+    T* object_;
+};
+
 // Callbacks (see vals_runtime.h): a std::function parameter becomes
 // three C parameters, the callback, its user_data and its release function.
 
@@ -500,6 +533,19 @@ Function make_callback(Callback callback, callback_owner& owner, Invoke invoke)
         return Function();
     }
     return Function(bound_callback<Result, Callback, Invoke>(callback, callback_ref(owner), invoke));
+}
+
+// The address of an object, whatever its operator& does (std::addressof without
+// <memory>, which the headers of the user may not be able to include after
+// their own macros).
+template <typename T>
+T* object_address(T& value) noexcept
+{
+#if defined(_MSC_VER) || defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 7)
+    return __builtin_addressof(value);
+#else
+    return reinterpret_cast<T*>(&const_cast<char&>(reinterpret_cast<const volatile char&>(value)));
+#endif
 }
 
 // The address of a C struct for a callback: valid until the end of the full

@@ -5,15 +5,19 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
 
+from bridgefex.annotations import FunctionAnnotations
 from bridgefex.errors import ConfigurationError, GenerationError, Location
 from bridgefex.generator import render
 from bridgefex.model import (
     CallbackType,
     Class,
+    ClassForm,
+    ClassRef,
     Constructor,
     ContainerKind,
     ContainerType,
@@ -66,7 +70,8 @@ def klass(
     methods: tuple[Method, ...] = (),
     namespace: tuple[str, ...] = ("ns",),
 ) -> Class:
-    return Class(name, namespace, "class", constructors, methods, HERE)
+    usr = "c:" + "".join(f"@N@{part}" for part in namespace) + f"@S@{name}"
+    return Class(name, namespace, "class", constructors, methods, HERE, usr=usr)
 
 
 def header(*declarations: Class | Function, name: str = "test.h") -> Header:
@@ -294,8 +299,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 5
-PINNED_RUNTIME_SHA256 = "bf0ef7c6c788001e7f7524c014b0b868d8a9fdf24d556bb3d17c89bd53b38548"
+PINNED_CONVENTIONS = 6
+PINNED_RUNTIME_SHA256 = "cb23b9612fe43307d11a540339284dbb3f363e49406460008eb8094c83531169"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -900,9 +905,13 @@ def test_structs_that_no_wrapped_header_defines() -> None:
     elsewhere = StructRef("c:@N@ns@S@P", "ns::P", Location("other.h", 1, 1))
     with pytest.raises(GenerationError, match=r"defined in other\.h, which is not one of"):
         plan_for(enum_header(function("f", Parameter("p", elsewhere))))
+    # A class that the header only declares is a class, not an undefined struct.
     handle = StructRef("c:@N@ns@S@K", "ns::K", None)
-    with pytest.raises(GenerationError, match="classes passed by value are not supported yet"):
-        plan_for(enum_header(klass("K"), function("f", Parameter("p", handle))))
+    plan = plan_for(enum_header(klass("K"), function("f", Parameter("p", handle))))
+    assert plan.headers[0].c_functions[-1].signature == ("ns_f(const ns_K* p, int32_t* out_result)")
+    unknown = StructRef("c:@N@ns@S@U", "ns::U", None)
+    with pytest.raises(GenerationError, match="struct 'ns::U' has no definition"):
+        plan_for(enum_header(klass("K"), function("f", Parameter("p", unknown))))
 
 
 def test_nested_enum_of_a_struct_against_its_members() -> None:
@@ -1180,3 +1189,744 @@ def test_thunks_are_shared_by_the_headers() -> None:
     second = header(function("h", Parameter("g", callback(VOID, INT32))), name="b.h")
     plan = plan_for(first, second)
     assert [thunk.name for thunk in plan.thunks] == ["_callback__void__int32"]
+
+
+# Wrapped classes ---------------------------------------------------------------------
+
+
+def cref(name: str, form: ClassForm = ClassForm.CONST_REFERENCE, namespace: str = "ns") -> ClassRef:
+    return ClassRef(f"c:@N@{namespace}@S@{name}", f"{namespace}::{name}", HERE, form)
+
+
+def two_headers(tree: Class) -> tuple[Header, Header]:
+    node = klass("Node", methods=(method("value", is_const=True),))
+    return header(node, name="node.h"), header(tree, name="tree.h")
+
+
+def test_class_parameters() -> None:
+    forms = ClassForm
+    tree = klass(
+        "Tree",
+        methods=(
+            method(
+                "f",
+                Parameter("a", cref("Node", forms.CONST_REFERENCE)),
+                Parameter("b", cref("Node", forms.REFERENCE)),
+                Parameter("c", cref("Node", forms.CONST_POINTER)),
+                Parameter("d", cref("Node", forms.POINTER)),
+                Parameter("e", cref("Node", forms.VALUE)),
+                is_const=True,
+            ),
+        ),
+    )
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    (member,) = item.members
+    function = member.function
+    assert function.signature == (
+        "ns_Tree_f(const ns_Tree* self, const ns_Node* a, ns_Node* b, const ns_Node* c, "
+        "ns_Node* d, const ns_Node* e, int32_t* out_result)"
+    )
+    assert function.statement.startswith(
+        "*out_result = reinterpret_cast<const ::ns::Tree*>(self)->f("
+        "*reinterpret_cast<const ::ns::Node*>(a), *reinterpret_cast<::ns::Node*>(b), "
+        "reinterpret_cast<const ::ns::Node*>(c), reinterpret_cast<::ns::Node*>(d), "
+        "*reinterpret_cast<const ::ns::Node*>(e))"
+    )
+    assert [c.message for c in function.checks][:6] == [
+        "'self' is NULL",
+        "'a' is NULL",
+        "'b' is NULL",
+        "'c' is NULL",
+        "'d' is NULL",
+        "'e' is NULL",
+    ]
+    assert [p.ctypes_type for p in function.params[1:6]] == ["_types._ns_Node__p"] * 5
+    # Only a copy needs the class to be copyable.
+    (copyable,) = function.compile_checks
+    assert "std::is_copy_constructible<::ns::Node>" in copyable
+    assert "parameter 'e' takes ns::Node by value" in copyable
+    # Handles are read last, in the call; a non-const use needs a writable object.
+    assert member.call_args[:6] == (
+        "self._ptr()",
+        "a._ptr()",
+        "b._mptr()",
+        "c._ptr()",
+        "d._mptr()",
+        "e._ptr()",
+    )
+    assert [conversion for arg in member.args for conversion in arg.conversions] == [
+        f'_runtime.check_object({name}, _node.Node, "{name}")' for name in "abcde"
+    ]
+    # The class is that of another header, which is imported when the function runs.
+    assert member.imports == ("from . import node as _node",)
+    assert "from . import node as _node" in member.body(8)
+
+
+def test_classes_of_the_same_header_are_named_directly() -> None:
+    node = klass("Node")
+    tree = klass("Tree", methods=(method("f", Parameter("a", cref("Node", ClassForm.REFERENCE))),))
+    plan = plan_for(header(node, tree))
+    member = plan.headers[0].classes[1].members[0]
+    assert member.imports == ()
+    assert member.args[0].conversions == ('_runtime.check_object(a, Node, "a")',)
+    assert plan.headers[0].included_headers == ()
+
+
+def test_the_headers_of_the_classes_it_uses_are_included() -> None:
+    tree = klass("Tree", methods=(method("f", Parameter("a", cref("Node"))),))
+    node_header, tree_header = two_headers(tree)
+    plan = plan_for(node_header, tree_header)
+    assert [h.stem for h in plan.headers[1].foreign_class_headers] == ["node"]
+    assert [h.stem for h in plan.headers[1].included_headers] == ["node"]
+    assert plan.headers[0].included_headers == ()
+    files = render(plan)
+    assert '#include "node.h"' in files["c/tree_c.cpp"]
+    assert '#include "node.h"' not in files["c/node_c.cpp"].partition('#include "node_c.h"')[2]
+
+
+def test_a_class_declared_in_one_header_is_seen_as_a_struct_in_another() -> None:
+    """A header that only forward-declares a class sees it by value or by const
+    reference as an (undefined) struct."""
+    declared = StructRef("c:@N@ns@S@Node", "ns::Node", None, True)
+    by_value = StructRef("c:@N@ns@S@Node", "ns::Node", None, False)
+    tree = klass("Tree", methods=(method("f", Parameter("a", declared), Parameter("b", by_value)),))
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    function = item.members[0].function
+    assert function.signature.startswith(
+        "ns_Tree_f(ns_Tree* self, const ns_Node* a, const ns_Node* b, int32_t* out_result)"
+    )
+    assert len(function.compile_checks) == 1  # only b is a copy
+
+
+def test_class_overloads_get_distinct_names() -> None:
+    forms = [
+        ClassForm.VALUE,
+        ClassForm.REFERENCE,
+        ClassForm.CONST_POINTER,
+        ClassForm.POINTER,
+    ]
+    tree = klass("Tree", methods=tuple(method("f", Parameter("a", cref("Node", f))) for f in forms))
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    assert [m.function.name for m in item.members] == [
+        "ns_Tree_f_ns_Node",
+        "ns_Tree_f_ns_Node_ref",
+        "ns_Tree_f_ns_Node_cptr",
+        "ns_Tree_f_ns_Node_ptr",
+    ]
+
+
+def test_constructors_keep_the_references_and_pointers_they_get() -> None:
+    forms = ClassForm
+    tree = klass(
+        "Tree",
+        constructors=(
+            Constructor(
+                (
+                    Parameter("a", cref("Node", forms.REFERENCE)),
+                    Parameter("b", cref("Node", forms.CONST_POINTER)),
+                    Parameter("c", cref("Node", forms.VALUE)),
+                    Parameter("d", INT32),
+                ),
+                HERE,
+            ),
+        ),
+    )
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    (constructor,) = item.constructors
+    assert constructor.retain_statements("self") == (
+        "_runtime.retain(self._retained, a)",
+        "_runtime.retain(self._retained, b)",
+    )
+    # Methods keep nothing by default.
+    method_plan = plan_for(
+        *two_headers(
+            klass("Tree", methods=(method("f", Parameter("a", cref("Node", forms.REFERENCE))),))
+        )
+    )
+    (tree_item,) = [i for i in method_plan.headers[1].items if isinstance(i, ClassPlan)]
+    assert tree_item.members[0].retain_statements("self") == ()
+
+
+def test_non_const_methods_need_a_writable_object() -> None:
+    node = klass("Node", methods=(method("get", is_const=True), method("set")))
+    item = plan_for(header(node)).headers[0].items[0]
+    assert isinstance(item, ClassPlan)
+    assert [m.call_args[0] for m in item.members] == ["self._ptr()", "self._mptr()"]
+
+
+@pytest.mark.parametrize(
+    ("type_", "message"),
+    [
+        (
+            ClassRef(
+                "c:@N@other@S@X", "other::X", Location("elsewhere.h", 3, 1), ClassForm.POINTER
+            ),
+            r"class 'other::X' is not a class of this module: it is defined in elsewhere\.h, "
+            "which is not one of the wrapped headers",
+        ),
+        (
+            ClassRef("c:@N@other@S@X", "other::X", None, ClassForm.POINTER),
+            "class 'other::X' is not a class of this module: no wrapped header defines it",
+        ),
+        (
+            ClassRef("c:@N@other@S@X", "other::X", HERE, ClassForm.POINTER, system=True),
+            "class 'other::X' of a system header is not a class of this module",
+        ),
+    ],
+)
+def test_classes_that_the_module_does_not_wrap(type_: ClassRef, message: str) -> None:
+    model = function("f", Parameter("x", type_))
+    with pytest.raises(GenerationError, match=message):
+        plan_for(header(klass("Node"), model))
+
+
+def test_pointers_to_value_structs_that_a_header_only_declares() -> None:
+    pointer = ClassRef("c:@N@ns@S@Point", "ns::Point", None, ClassForm.POINTER)
+    with pytest.raises(GenerationError, match="'ns::Point' is a value struct"):
+        plan_for(header(POINT, function("f", Parameter("p", pointer))))  # type: ignore[arg-type]
+
+
+def class_results(*results: ClassRef, static: bool = False, params: tuple[Parameter, ...] = ()):  # type: ignore[no-untyped-def]
+    methods = tuple(
+        Method(f"m{index}", params, result, False, static, HERE)
+        for index, result in enumerate(results)
+    )
+    tree = klass("Tree", methods=methods)
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    return plan, item
+
+
+def test_results_by_value_and_unique_ptr_are_owned() -> None:
+    plan, item = class_results(cref("Node", ClassForm.VALUE), cref("Node", ClassForm.UNIQUE))
+    value, unique = item.members
+    assert value.function.signature == "ns_Tree_m0(ns_Tree* self, ns_Node** out_result)"
+    assert value.function.statement == (
+        "*out_result = reinterpret_cast<ns_Node*>(new ::ns::Node("
+        "reinterpret_cast<::ns::Tree*>(self)->m0()));"
+    )
+    assert unique.function.statement == (
+        "*out_result = reinterpret_cast<ns_Node*>("
+        "reinterpret_cast<::ns::Tree*>(self)->m1().release());"
+    )
+    for member in (value, unique):
+        function = member.function
+        # The output is NULL on every failure.
+        assert [c.condition for c in function.owned_checks] == ["out_result == nullptr"]
+        assert function.resets == ("*out_result = nullptr;",)
+        assert "owned by the caller" in function.notes[0]
+        assert "destroy it with ns_Node_destroy" in function.notes[0]
+        # The object exists before the call, and is destroyed by its collection.
+        assert member.result.setup == (
+            "_result = _node.Node.__new__(_node.Node)",
+            "_out = _result._watch()",
+        )
+        assert member.call_args[-1] == "_out"
+        assert member.imports == ("from . import node as _node",)
+    assert value.result.finish == ("_result._adopt(_out)",)
+    assert value.result.value == "_result"
+    assert "(may be NULL)" in unique.function.notes[0]
+    assert unique.result.finish == ("if _out:", "    _result._adopt(_out)")
+    assert unique.result.value == "_result if _out else None"
+    assert plan.headers[1].value_results == (("::ns::Node", "ns::Node"),)
+
+
+def test_results_by_reference_are_borrowed() -> None:
+    plan, item = class_results(
+        cref("Node", ClassForm.REFERENCE), cref("Node", ClassForm.CONST_REFERENCE)
+    )
+    mutable, constant = item.members
+    assert mutable.function.signature == "ns_Tree_m0(ns_Tree* self, ns_Node** out_result)"
+    assert constant.function.signature == "ns_Tree_m1(ns_Tree* self, const ns_Node** out_result)"
+    assert mutable.function.statement == (
+        "*out_result = reinterpret_cast<ns_Node*>("
+        "mod_detail::object_address(reinterpret_cast<::ns::Tree*>(self)->m0()));"
+    )
+    assert constant.function.statement == (
+        "*out_result = reinterpret_cast<const ns_Node*>("
+        "mod_detail::object_address(reinterpret_cast<::ns::Tree*>(self)->m1()));"
+    )
+    for member in (mutable, constant):
+        # Nothing is allocated: a plain output.
+        assert member.function.owned_checks == ()
+        assert [c.condition for c in member.function.checks][-1] == "out_result == nullptr"
+        assert member.function.notes == (
+            "*out_result: borrowed from self, never NULL; do not destroy it.",
+        )
+    assert mutable.result.value == "_runtime.borrow(_node.Node, _out, (self,), False)"
+    assert constant.result.value == "_runtime.borrow(_node.Node, _out, (self,), True)"
+    assert plan.headers[1].value_results == ()
+
+
+def test_what_a_function_returns_by_reference_is_borrowed_from_its_arguments() -> None:
+    forms = ClassForm
+    result = cref("Node", forms.REFERENCE)
+    arguments = (
+        Parameter("a", cref("Node", forms.REFERENCE)),
+        Parameter("n", INT32),
+        Parameter("b", cref("Node", forms.CONST_POINTER)),
+        Parameter("c", cref("Node", forms.VALUE)),
+    )
+    _, item = class_results(result, static=True, params=arguments)
+    assert item.members[0].result.value == "_runtime.borrow(_node.Node, _out, (a, b), False)"
+    _, only = class_results(result, static=True, params=arguments[:1])
+    assert only.members[0].result.value == "_runtime.borrow(_node.Node, _out, (a,), False)"
+    _, none = class_results(result, static=True)
+    assert none.members[0].result.value == "_runtime.borrow(_node.Node, _out, (), False)"
+    assert none.members[0].function.notes == (
+        "*out_result: borrowed, never NULL; do not destroy it.",
+    )
+
+
+def test_the_classes_a_header_creates_are_checked_before_cxx17() -> None:
+    plan, _ = class_results(cref("Node", ClassForm.VALUE))
+    tree_header = plan.headers[1]
+    # Its own class, and the class of another header that it returns by value.
+    assert tree_header.created_classes == (("::ns::Tree", "ns::Tree"), ("::ns::Node", "ns::Node"))
+    source = render(plan)["c/tree_c.cpp"]
+    assert "static_assert(alignof(::ns::Node) <= mod_detail::new_alignment" in source
+    assert "static_assert(std::is_move_constructible<::ns::Node>::value," in source
+    assert "_MSVC_LANG >= 201703L" in source
+    # No result by value, no check.
+    other, _ = class_results(cref("Node", ClassForm.REFERENCE))
+    assert "is_move_constructible" not in render(other)["c/tree_c.cpp"]
+
+
+def test_the_header_says_who_owns_what() -> None:
+    plan, _ = class_results(cref("Node", ClassForm.VALUE), cref("Node", ClassForm.REFERENCE))
+    header_text = render(plan)["c/tree_c.h"]
+    assert (
+        "/* int32_t ns::Tree::m0()\n"
+        " * *out_result: owned by the caller; destroy it with ns_Node_destroy. */"
+    ) not in header_text  # the description spells the result type
+    assert " * *out_result: owned by the caller; destroy it with ns_Node_destroy. */" in header_text
+    assert " * *out_result: borrowed from self, never NULL; do not destroy it. */" in header_text
+
+
+def test_the_ownership_of_a_result_is_part_of_the_api_fingerprint() -> None:
+    """The C signatures are the same, but who destroys the object is not."""
+
+    def fingerprint(form: ClassForm) -> str:
+        files = render(class_results(cref("Node", form))[0])
+        match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
+        assert match is not None
+        return match.group(1)
+
+    owned = fingerprint(ClassForm.UNIQUE)
+    assert owned != fingerprint(ClassForm.REFERENCE)
+    assert owned == fingerprint(ClassForm.UNIQUE)
+
+
+@pytest.mark.parametrize("form", [ClassForm.POINTER, ClassForm.CONST_POINTER])
+def test_raw_pointer_results_need_an_annotation(form: ClassForm) -> None:
+    model = Function("f", ("ns",), (), cref("Node", form), HERE)
+    with pytest.raises(
+        GenerationError, match=r"returns a raw pointer to a wrapped class.*\[ns_f\]"
+    ):
+        plan_for(header(klass("Node"), model))
+
+
+def test_a_parameter_cannot_take_the_name_of_a_module_alias() -> None:
+    tree = klass("Tree", methods=(method("f", Parameter("_node", cref("Node"))),))
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    assert item.members[0].function.params[1].name == "_node_"
+
+
+# std::unique_ptr parameters ---------------------------------------------------------
+
+
+def taking(*parameters: Parameter, static: bool = False, constructor: bool = False):  # type: ignore[no-untyped-def]
+    """A class Tree of the second header with a method or constructor that takes them."""
+    if constructor:
+        tree = klass("Tree", constructors=(Constructor(tuple(parameters), HERE),))
+    else:
+        tree = klass("Tree", methods=(method("m", *parameters, is_static=static),))
+    plan = plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    return plan, item
+
+
+def test_unique_ptr_parameters_are_owned_by_c_until_the_call() -> None:
+    unique = cref("Node", ClassForm.UNIQUE)
+    plan, item = taking(Parameter("item", unique), Parameter("tag", INT32), Parameter("b", unique))
+    member = item.members[0]
+    function = member.function
+    assert function.signature == (
+        "ns_Tree_m(ns_Tree* self, ns_Node* item, int32_t tag, ns_Node* b, int32_t* out_result)"
+    )
+    # Declared first, so that every return deletes what the function was given.
+    assert function.prologue == (
+        "mod_detail::transferred<::ns::Node> item_owner(reinterpret_cast<::ns::Node*>(item));",
+        "mod_detail::transferred<::ns::Node> b_owner(reinterpret_cast<::ns::Node*>(b));",
+    )
+    assert "->m(item_owner.take<std::unique_ptr<::ns::Node>>(), tag, b_owner.take<" in (
+        function.statement
+    )
+    assert [c.message for c in function.checks][:4] == [
+        "'self' is NULL",
+        "'item' is NULL",
+        "'b' is NULL",
+        "'out_result' is NULL",
+    ]
+    assert function.notes == (
+        "item, b: ownership is transferred, whatever the status: do not use or destroy them "
+        "afterwards.",
+    )
+    assert "memory" in plan.headers[1].std_includes
+    assert "memory" not in plan.headers[0].std_includes
+
+
+def test_the_note_of_a_single_object_taken() -> None:
+    _, item = taking(Parameter("x", cref("Node", ClassForm.UNIQUE)))
+    assert item.members[0].function.notes == (
+        "x: ownership is transferred, whatever the status: do not use or destroy it afterwards.",
+    )
+
+
+def test_python_gives_up_the_objects_last() -> None:
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(
+        Parameter("item", unique),
+        Parameter("tag", INT32),
+        Parameter("b", unique),
+        Parameter("c", cref("Node", ClassForm.REFERENCE)),
+    )
+    member = item.members[0]
+    assert member.transfers == (("item", "_h2"), ("b", "_h4"))
+    # The handles of the others are read first: a closed one must fail while
+    # nothing has been taken.
+    assert member.prepare == ("_h1 = self._mptr()", "_h5 = c._mptr()")
+    assert member.call_args == ("_h1", "_h2", "tag", "_h4", "_h5", "_out")
+    lines = member.body(8).splitlines()
+    take = [i for i, line in enumerate(lines) if "_runtime.take" in line]
+    assert len(take) == 1
+    assert lines[take[0]].strip() == (
+        '[_h2, _h4] = _runtime.take(self._retained, (item, "item"), (b, "b"), keep=self)'
+    )
+    assert [line.strip() for line in lines[take[0] - 3 : take[0]]] == [
+        "_c = _bind().ns_Tree_m",
+        "_h1 = self._mptr()",
+        "_h5 = c._mptr()",
+    ]
+    # The conversions, which run Python code, come before.
+    assert lines.index('        tag = _runtime.to_int(tag, ctypes.c_int32, "tag")') < take[0]
+    # The last statement before the return is the call.
+    assert lines[take[0] + 1].strip() == "_runtime.check(_c(_h1, _h2, tag, _h4, _h5, _out))"
+
+
+def test_who_keeps_alive_what_the_objects_taken_retained() -> None:
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, method_item = taking(Parameter("x", unique))
+    assert method_item.members[0].retained == "self._retained"
+    assert method_item.members[0].keep == "self"
+    _, static_item = taking(Parameter("x", unique), static=True)
+    assert static_item.members[0].retained == "_runtime.forever"
+    assert static_item.members[0].keep is None
+    assert 'take(_runtime.forever, (x, "x"))' in static_item.members[0].body(8)
+    _, constructor_item = taking(Parameter("x", unique), constructor=True)
+    constructor = constructor_item.constructors[0]
+    text = constructor.check_call(8, ("_handle = self._watch()",))
+    assert '[_h2] = _runtime.take(self._retained, (x, "x"), keep=self)' in text
+    assert text.index("self._watch()") < text.index("_runtime.take")
+    other = constructor.check_call(8, ("_handle = _self._watch()",), owner="_self")
+    assert '[_h2] = _runtime.take(_self._retained, (x, "x"), keep=_self)' in other
+
+
+def test_unique_ptr_and_callbacks_in_the_same_call() -> None:
+    _, item = taking(
+        Parameter("x", cref("Node", ClassForm.UNIQUE)), Parameter("g", callback(VOID, INT32))
+    )
+    lines = [line.strip() for line in item.members[0].body(8).splitlines()]
+    # The callbacks are registered, then the objects are given up, then the call.
+    registration = next(i for i, line in enumerate(lines) if "_scope.callback" in line)
+    take = next(i for i, line in enumerate(lines) if "_runtime.take" in line)
+    call = next(i for i, line in enumerate(lines) if "_scope.call(" in line)
+    assert lines.index("try:") < registration < take < call
+    assert lines[call].startswith("_status = _scope.call(_c, ")
+
+
+def test_the_locals_of_a_call_that_takes_objects_are_reserved() -> None:
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(
+        Parameter("_h1", INT32),
+        Parameter("_c", INT32),
+        Parameter("x", unique),
+        Parameter("x_owner", INT32),
+    )
+    params = item.members[0].function.params
+    assert [p.name for p in params][1:5] == ["_h1_", "_c_", "x", "x_owner"]
+    assert "transferred<::ns::Node> x_owner_(" in item.members[0].function.prologue[0]
+
+
+# Annotations -------------------------------------------------------------------------
+
+
+def annotate(**tables: dict[str, str | list[str]]) -> dict[str, FunctionAnnotations]:
+    """Annotations by function name, as the file would give them."""
+
+    def words(value: str | list[str]) -> frozenset[str]:
+        return frozenset([value] if isinstance(value, str) else value)
+
+    result: dict[str, FunctionAnnotations] = {}
+    for name, entries in tables.items():
+        parameters = {k: (words(v), 0) for k, v in entries.items() if k != "return"}
+        returned = words(entries["return"]) if "return" in entries else frozenset()
+        result[name] = FunctionAnnotations("notes.toml", 1, returned, parameters)
+    return result
+
+
+def annotated(
+    *methods: Method, annotations: dict[str, FunctionAnnotations], static_only: bool = False
+):  # type: ignore[no-untyped-def]
+    tree = klass("Tree", methods=methods)
+    plan = build_plan(Module("mod", two_headers(tree)), annotations)
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    return plan, item
+
+
+def pointer_method(name: str, result: ClassForm, *params: Parameter, **flags: bool) -> Method:
+    return Method(name, params, cref("Node", result), flags.get("is_const", False), False, HERE)
+
+
+def test_raw_pointer_results_are_owned_or_borrowed() -> None:
+    owned_case = annotate(ns_Tree_find={"return": "owned"}, ns_Tree_cfind={"return": "borrowed"})
+    _, item = annotated(
+        pointer_method("find", ClassForm.POINTER),
+        pointer_method("cfind", ClassForm.CONST_POINTER, is_const=True),
+        annotations=owned_case,
+    )
+    owned, borrowed = item.members
+    # Owned: like a std::unique_ptr, but the pointer is the result itself.
+    assert owned.function.statement == (
+        "*out_result = reinterpret_cast<ns_Node*>(reinterpret_cast<::ns::Tree*>(self)->find());"
+    )
+    assert [c.condition for c in owned.function.owned_checks] == ["out_result == nullptr"]
+    assert owned.function.resets == ("*out_result = nullptr;",)
+    assert owned.function.notes == (
+        "*out_result: owned by the caller (may be NULL); destroy it with ns_Node_destroy.",
+    )
+    assert owned.result.value == "_result if _out else None"
+    assert owned.result.finish == ("if _out:", "    _result._adopt(_out)")
+    # Borrowed: it may be NULL, and the Python object keeps its owner alive.
+    assert borrowed.function.statement == (
+        "*out_result = reinterpret_cast<const ns_Node*>("
+        "reinterpret_cast<const ::ns::Tree*>(self)->cfind());"
+    )
+    assert borrowed.function.owned_checks == ()
+    assert borrowed.function.notes == (
+        "*out_result: borrowed from self, may be NULL; do not destroy it.",
+    )
+    assert borrowed.result.value == "_runtime.borrow(_node.Node, _out, (self,), True)"
+    assert borrowed.function.params[-1].c_type == "const ns_Node**"
+
+
+def test_a_raw_pointer_result_without_an_annotation() -> None:
+    with pytest.raises(GenerationError) as raised:
+        annotated(pointer_method("find", ClassForm.POINTER), annotations={})
+    message = str(raised.value)
+    assert 'say who owns it with [ns_Tree_find] return = "owned"' in message
+    assert "method '::ns::Tree::find()'" in message
+
+
+def test_nullable_class_pointers() -> None:
+    pointer = Parameter("node", cref("Node", ClassForm.POINTER))
+    constant = Parameter("other", cref("Node", ClassForm.CONST_POINTER))
+    _, item = annotated(
+        method("m", pointer, constant),
+        annotations=annotate(ns_Tree_m={"node": "nullable"}),
+    )
+    member = item.members[0]
+    # NULL is checked for the other one only.
+    assert [c.message for c in member.function.checks][:3] == [
+        "'self' is NULL",
+        "'other' is NULL",
+        "'out_result' is NULL",
+    ]
+    assert member.args[0].conversions == (
+        '_runtime.check_object(node, _node.Node, "node", nullable=True)',
+    )
+    assert member.call_args[:3] == (
+        "self._mptr()",
+        "(node._mptr() if node is not None else None)",
+        "other._ptr()",
+    )
+    assert member.function.notes == ("node: may be NULL.",)
+    # The statement is the same: NULL goes to the wrapped function.
+    assert "(reinterpret_cast<::ns::Node*>(node)," in member.function.statement
+
+
+def test_nullable_strings() -> None:
+    text = StringType(StringKind.C_STRING)
+    _, item = annotated(
+        method("m", Parameter("label", text), Parameter("other", text)),
+        annotations=annotate(ns_Tree_m={"label": "nullable"}),
+    )
+    member = item.members[0]
+    assert "'label' is NULL" not in [c.message for c in member.function.checks]
+    assert "'other' is NULL" in [c.message for c in member.function.checks]
+    assert member.args[0].conversions == (
+        'label = None if label is None else _runtime.to_c_string(label, "label")',
+    )
+
+
+def test_taken_raw_pointers() -> None:
+    _, item = annotated(
+        method("m", Parameter("node", cref("Node", ClassForm.POINTER))),
+        annotations=annotate(ns_Tree_m={"node": "transfer"}),
+    )
+    member = item.members[0]
+    function = member.function
+    assert function.prologue == (
+        "mod_detail::transferred<::ns::Node> node_owner(reinterpret_cast<::ns::Node*>(node));",
+    )
+    assert "->m(node_owner.take<::ns::Node*>())" in function.statement
+    assert function.notes[0].startswith("node: ownership is transferred, whatever the status")
+    assert member.transfers == (("node", "_h2"),)
+    assert "memory" not in item.members[0].function.statement  # no std::unique_ptr involved
+
+
+def test_nullable_taken_objects() -> None:
+    unique = Parameter("item", cref("Node", ClassForm.UNIQUE))
+    _, item = annotated(method("m", unique), annotations=annotate(ns_Tree_m={"item": "nullable"}))
+    function = item.members[0].function
+    assert [c.message for c in function.checks] == ["'self' is NULL", "'out_result' is NULL"]
+    assert function.notes == (
+        "item: ownership is transferred, whatever the status: do not use or destroy it afterwards.",
+        "item: may be NULL.",
+    )
+
+
+def test_methods_keep_what_they_are_told_to() -> None:
+    reference = Parameter("node", cref("Node", ClassForm.REFERENCE))
+    _, item = annotated(
+        method("m", reference),
+        Method("s", (reference,), INT32, False, True, HERE),
+        annotations=annotate(ns_Tree_m={"node": "retain"}, ns_Tree_s={"node": "retain"}),
+    )
+    method_plan, static_plan = item.members
+    assert method_plan.args[0].retain
+    assert method_plan.retain_statements() == ("_runtime.retain(self._retained, node)",)
+    assert "_runtime.retain(self._retained, node)" in method_plan.body(8)
+    assert method_plan.function.notes == (
+        "node: self keeps a pointer to it; it must stay valid as long as it is used.",
+    )
+    # Without an object, the pointer is kept for as long as the library runs.
+    assert static_plan.retain_statements() == ("_runtime.retain(_runtime.forever, node)",)
+    assert static_plan.function.notes == (
+        "node: the library keeps a pointer to it; it must stay valid as long as it is used.",
+    )
+    # Before the call, as the C++ code may keep it even if the call fails.
+    lines = method_plan.body(8).splitlines()
+    retain = next(i for i, line in enumerate(lines) if "_runtime.retain" in line)
+    assert (
+        "own_Tree_m" in lines[retain + 1]
+        or "_c(" in lines[retain + 1]
+        or "check(" in lines[retain + 1]
+    )
+
+
+def test_constructors_keep_unless_they_only_read() -> None:
+    forms = ClassForm
+    parameters = (
+        Parameter("kept", cref("Node", forms.REFERENCE)),
+        Parameter("read", cref("Node", forms.CONST_REFERENCE)),
+    )
+    tree = klass("Tree", constructors=(Constructor(parameters, HERE),))
+    plan = build_plan(Module("mod", two_headers(tree)), annotate(ns_Tree_create={"read": "call"}))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    (constructor,) = item.constructors
+    assert constructor.retain_statements("self") == ("_runtime.retain(self._retained, kept)",)
+    assert constructor.function.notes == (
+        "kept: the new object keeps a pointer to it; it must stay valid as long as it is used.",
+    )
+
+
+def test_strings_as_bytes() -> None:
+    _, item = annotated(
+        Method("m", (), StringType(StringKind.STRING), True, False, HERE),
+        Method("c", (), StringType(StringKind.C_STRING), True, False, HERE),
+        annotations=annotate(ns_Tree_m={"return": "bytes"}),
+    )
+    text, cstring = item.members
+    assert text.result.value == "_out_data"
+    assert cstring.result.value == "None if _out_data is None else _runtime.decode(_out_data)"
+
+
+def test_annotations_are_checked_against_the_types() -> None:
+    with pytest.raises(GenerationError) as raised:
+        annotated(
+            method("m", Parameter("n", INT32)),
+            annotations=annotate(ns_Tree_m={"n": "nullable", "x": "retain"}),
+        )
+    message = str(raised.value)
+    assert "parameter 'n': 'nullable' does not apply to a value" in message
+    assert "there is no parameter 'x' (parameters: n)" in message
+    assert "method '::ns::Tree::m(int32_t n)'" in message
+    assert "notes.toml" in message
+
+
+def test_annotations_of_functions_that_do_not_exist() -> None:
+    with pytest.raises(GenerationError) as raised:
+        annotated(
+            method("find"),
+            annotations=annotate(ns_Tree_fnd={"return": "owned"}, ns_Tree_destroy={"x": "retain"}),
+        )
+    message = str(raised.value)
+    assert "[ns_Tree_fnd] is not a generated C function that can be annotated" in message
+    assert "did you mean ns_Tree_find" in message
+    # The destructor is generated, but not annotatable.
+    assert "[ns_Tree_destroy] is not a generated C function that can be annotated" in message
+
+
+def test_the_annotations_are_part_of_the_api_fingerprint() -> None:
+    """The C signatures are the same; who owns the result is not."""
+
+    def fingerprint(word: str) -> str:
+        _, _ = annotated(
+            pointer_method("find", ClassForm.POINTER),
+            annotations=annotate(ns_Tree_find={"return": word}),
+        )
+        plan = build_plan(
+            Module(
+                "mod",
+                two_headers(klass("Tree", methods=(pointer_method("find", ClassForm.POINTER),))),
+            ),
+            annotate(ns_Tree_find={"return": word}),
+        )
+        files = render(plan)
+        match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
+        assert match is not None
+        return match.group(1)
+
+    assert fingerprint("owned") != fingerprint("borrowed")
+    assert fingerprint("owned") == fingerprint("owned")
+
+
+def test_a_parameter_cannot_take_the_name_of_a_wrapped_class() -> None:
+    """The generated Python functions name the classes unqualified."""
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(Parameter("Node", cref("Node")), Parameter("Tree", unique))
+    names = [p.name for p in item.members[0].function.params]
+    assert names[1:3] == ["Node_", "Tree_"]
+    body = item.members[0].body(8)
+    assert '_runtime.check_object(Node_, _node.Node, "Node_")' in body
+
+
+def test_the_locals_of_the_call_are_reserved_for_every_argument() -> None:
+    """Each string adds a size to the arguments of the C call: _h13 is a local."""
+    strings = [Parameter(f"s{i}", StringType(StringKind.STRING)) for i in range(6)]
+    unique = cref("Node", ClassForm.UNIQUE)
+    _, item = taking(
+        *strings,
+        Parameter("n", cref("Node", ClassForm.REFERENCE)),
+        Parameter("u", unique),
+        Parameter("_h13", INT32),
+    )
+    function = item.members[0].function
+    assert "_h13_" in [p.name for p in function.params]
+    assert "_h13" in item.members[0].prepare[0] or "_h13" in " ".join(item.members[0].call_args)

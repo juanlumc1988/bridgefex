@@ -174,14 +174,24 @@ class Path:
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
     when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed.
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
 
     def __init__(self, start):
         """Wraps ``geo::Path::Path(const geo::Point& start)``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Path object is already initialized")
         start = _types._geo_Point__to_c(start, "start")
         _handle = self._watch()
@@ -198,6 +208,10 @@ class Path:
         handle = _types._geo_Path__p()
         self._handle = None
         self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().geo_Path_destroy)
         return handle
 
@@ -209,25 +223,46 @@ class Path:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().geo_Path_destroy, _types._geo_Path__p()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("Path object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Path object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
         return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Path object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit.
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
         armed = self._finalizer
-        return armed() is None and armed._as_parameter_ is self._handle
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
-        """Destroy the C++ object now. Calling it again does nothing."""
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
             return
         if self._collected():
             self._handle = None
@@ -239,6 +274,10 @@ class Path:
         # and this destruction must not be skipped.
         self._finalizer._as_parameter_ = null
         destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
 
     def __enter__(self):
         return self
@@ -258,7 +297,7 @@ class Path:
     def add(self, p):
         """Wraps ``void geo::Path::add(const geo::Point& p)``."""
         p = _types._geo_Point__to_c(p, "p")
-        _runtime.check(_bind().geo_Path_add(self._ptr(), p))
+        _runtime.check(_bind().geo_Path_add(self._mptr(), p))
 
     def last(self):
         """Wraps ``geo::Point geo::Path::last() const``."""

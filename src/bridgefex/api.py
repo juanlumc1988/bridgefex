@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import libclang, naming
+from .annotations import load as load_annotations
 from .errors import ConfigurationError, Diagnostic, GenerationError
 from .generator import LANGUAGES, render
 from .model import Header, Module
@@ -38,6 +39,10 @@ class Options:
     to. By default each header is included by its file name."""
 
     languages: tuple[str, ...] = LANGUAGES
+
+    annotations: tuple[Path, ...] = ()
+    """TOML files that say who owns the objects that cross the boundary (see
+    :mod:`bridgefex.annotations`)."""
 
     verify: bool = True
     """Compile the generated C layer with libclang before returning it (see
@@ -175,7 +180,7 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
         raise GenerationError(problems)
 
     module = Module(name=options.module, headers=tuple(parsed), system_names=system_names())
-    plan = build_plan(module)
+    plan = build_plan(module, load_annotations(options.annotations))
     files = render(plan, options.languages)
     if options.verify:
         warnings.extend(verify(plan, files, include_dirs, parse_options))

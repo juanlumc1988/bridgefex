@@ -10,6 +10,8 @@ import pytest
 from bridgefex.errors import ConfigurationError, GenerationError
 from bridgefex.model import (
     Class,
+    ClassForm,
+    ClassRef,
     ContainerType,
     Enumeration,
     EnumRef,
@@ -392,8 +394,13 @@ def test_a_namespace_std_that_is_not_the_global_one(tmp_path: Path) -> None:
         "#pragma once\n#include <other.h>\nnamespace s { void f(lib::std::basic_string a); }\n",
         encoding="utf-8",
     )
-    with pytest.raises(GenerationError, match="classes passed by value"):
-        parse_header(path, "input.h", ParseOptions(extra_args=("-isystem", str(system))))
+    # Not the standard library's string: a class of the user's code.
+    header = parse_header(
+        path, "input.h", ParseOptions(extra_args=("-isystem", str(system)))
+    ).header
+    (function,) = [d for d in header.declarations if isinstance(d, Function)]
+    assert isinstance(function.parameters[0].type, ClassRef)
+    assert function.parameters[0].type.qualified_name == "lib::std::basic_string"
 
 
 def enums_of(header: Header) -> dict[str, Enumeration]:
@@ -564,6 +571,57 @@ def test_value_structs(tmp_path: Path) -> None:
     types = [parameter.type for parameter in function.parameters]
     assert [t.by_reference for t in types] == [True, False, False]  # type: ignore[union-attr]
     assert [t.cpp_spelling for t in types] == ["const v::Point&", "v::Point", "v::Pair"]
+
+
+def test_class_forms(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        #include <memory>
+        namespace k {
+        class Node { public: Node(); };
+        using NodePtr = Node*;
+        using NodeUP = std::unique_ptr<Node>;
+        void f(Node a, const Node b, Node& c, const Node& d, Node* e, const Node* g, Node* const h,
+               NodePtr i, std::unique_ptr<Node> j, std::unique_ptr<Node>&& l, NodeUP m);
+        Node g1();
+        const Node& g2();
+        Node& g3();
+        Node* g4();
+        const Node* g5();
+        std::unique_ptr<Node> g6();
+        }
+        """,
+    )
+    function = next(d for d in header.declarations if isinstance(d, Function) and d.name == "f")
+    forms = [(p.type.form, p.type.cpp_spelling) for p in function.parameters]  # type: ignore[union-attr]
+    assert forms == [
+        (ClassForm.VALUE, "k::Node"),
+        (ClassForm.VALUE, "k::Node"),
+        (ClassForm.REFERENCE, "k::Node&"),
+        (ClassForm.CONST_REFERENCE, "const k::Node&"),
+        (ClassForm.POINTER, "k::Node*"),
+        (ClassForm.CONST_POINTER, "const k::Node*"),
+        (ClassForm.POINTER, "k::Node*"),
+        (ClassForm.POINTER, "k::Node*"),
+        (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
+        (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
+        (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
+    ]
+    node = next(d for d in header.declarations if isinstance(d, Class))
+    assert {p.type.usr for p in function.parameters} == {node.usr}  # type: ignore[union-attr]
+    results = {
+        d.name: d.result.cpp_spelling for d in header.declarations if isinstance(d, Function)
+    }
+    assert results == {
+        "f": "void",
+        "g1": "k::Node",
+        "g2": "const k::Node&",
+        "g3": "k::Node&",
+        "g4": "k::Node*",
+        "g5": "const k::Node*",
+        "g6": "std::unique_ptr<k::Node>",
+    }
 
 
 def test_struct_references_without_a_definition(tmp_path: Path) -> None:

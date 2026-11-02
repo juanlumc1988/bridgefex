@@ -105,7 +105,7 @@ extern "C" const char* scalars_last_error(void)
 
 extern "C" const char* scalars_api_fingerprint(void)
 {
-    return "ebec475a823ce2c020b84cd3f90701c5";
+    return "7f2e462973692cb9e8a202c4986be66d";
 }
 
 extern "C" void scalars_free(void* memory)

@@ -1,0 +1,49 @@
+# Who owns the objects that cross the boundary of the "ownership" case: the
+# header does not say, so the tables do. One table per generated C function.
+
+# Raw pointers that are results: the C++ class keeps owning them...
+[own_Tree_find]
+return = "borrowed"
+
+[own_Tree_cfind]
+return = "borrowed"
+
+# ...or the caller does.
+[own_Tree_detach]
+return = "owned"
+
+# A raw pointer that is taken.
+[own_Tree_adoptRaw]
+item = "transfer"
+
+# Pointers that may be NULL (None).
+[own_Tree_valueOf]
+node = "nullable"
+
+[own_Tree_both]
+first = "nullable"
+2 = "nullable"          # the same, by position
+
+[own_pickFirst]
+second = "nullable"
+
+[own_Tree_labelLength]
+label = "nullable"
+
+# What the C++ object keeps a pointer to.
+[own_Tree_setCursor]
+node = "retain"
+
+[own_Tree_setSharedCursor]
+node = "retain"
+
+[own_setGlobalNode]
+node = "retain"
+
+# A constructor keeps its references and pointers unless it says that it does not.
+[own_Peek_create]
+node = "call"
+
+# Binary data, not UTF-8 text.
+[own_Tree_signature]
+return = "bytes"

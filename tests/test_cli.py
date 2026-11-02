@@ -156,3 +156,50 @@ def test_missing_libclang_in_a_fresh_process(tmp_path: Path) -> None:
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert completed.returncode == 1
     assert "bridgefex: error: libclang not found at" in completed.stderr
+
+
+def test_annotations(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    header = tmp_path / "pool.h"
+    header.write_text(
+        "#pragma once\nnamespace p { class Item { public: Item(); };\n"
+        "class Pool { public: Pool(); Item* find(int id); void keep(Item* item); }; }\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "out"
+    command = ["-m", "pools", "-o", str(output), str(header)]
+    # Without them, the owner of a raw pointer is unknown.
+    assert main(command) == 1
+    error = capsys.readouterr().err
+    assert 'say who owns it with [p_Pool_find] return = "owned"' in error
+    # Two files, each with its part.
+    first = tmp_path / "first.toml"
+    first.write_text('[p_Pool_find]\nreturn = "borrowed"\n', encoding="utf-8")
+    second = tmp_path / "second.toml"
+    second.write_text('[p_Pool_keep]\nitem = "retain"\n', encoding="utf-8")
+    code = main([*command, "--annotations", str(first), "--annotations", str(second)])
+    assert code == 0, capsys.readouterr().err
+    declarations = (output / "c" / "pool_c.h").read_text(encoding="utf-8")
+    assert "borrowed from self, may be NULL" in declarations
+    assert "item: self keeps a pointer to it" in declarations
+
+
+def test_annotation_errors_are_reported_with_their_position(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    header = tmp_path / "api.h"
+    header.write_text("#pragma once\nint answer();\n", encoding="utf-8")
+    notes = tmp_path / "notes.toml"
+
+    def run(path: Path) -> str:
+        command = ["-m", "mod", "-o", str(tmp_path / "out"), "--annotations", str(path)]
+        assert main([*command, str(header)]) == 1
+        return capsys.readouterr().err
+
+    notes.write_text('[mod_answer]\nreturn = "owned"\n[mod_answr]\n', encoding="utf-8")
+    error = run(notes)
+    assert f"{notes}:3: [mod_answr] is not a generated C function" in error
+    assert "did you mean mod_answer" in error
+    assert f"({notes}:2)" in error  # the annotation that does not apply
+    assert "cannot read the annotations file" in run(tmp_path / "missing.toml")
+    notes.write_text("[mod_answer\n", encoding="utf-8")
+    assert f"{notes}:1:" in run(notes)

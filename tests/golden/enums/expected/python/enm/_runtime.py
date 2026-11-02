@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "ENM_LIBRARY"
 
-API_FINGERPRINT = "49165ad7cb4fca42c39954840eb9d072"
+API_FINGERPRINT = "ae37a8121bb779d128c30c16a12a094b"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -233,6 +233,151 @@ def watch(obj, handle, destroy):
     if _exiting:
         armed._as_parameter_ = type(handle)()
     return armed
+
+
+# Wrapped objects ---------------------------------------------------------------
+
+forever = {}
+"""Objects kept alive until the interpreter exits (by id): those that a free
+function or a static method retains, and those retained through a borrowed object
+that has no single owner. Like the ``_retained`` of an object, it holds each
+object once, however many times it is retained."""
+
+
+def check_object(value, cls, name, nullable=False):
+    """Check that value is a cls object (or None, if nullable) before the call.
+
+    It does not read the handle: the conversions of other arguments run Python
+    code that could close the object, so the handles are read last, in the call.
+    """
+    if value is None and nullable:
+        return
+    if not isinstance(value, cls):
+        raise TypeError(
+            f"argument {name!r} must be {cls.__qualname__}{' or None' if nullable else ''}, "
+            f"not {_type_name(value)}"
+        )
+
+
+def borrow(cls, handle, owners, readonly):
+    """A cls object for a C++ object that the C++ code keeps owning; None for NULL.
+
+    ``owners`` are the objects it was obtained from (self for a method; the
+    reference and pointer arguments of a static method or function, None
+    ignored): it stays valid while they are open, and keeps them alive. Closing
+    it destroys nothing, and it cannot be copied.
+    """
+    if not handle:
+        return None
+    # A nullable pointer argument that is None is nobody's owner.
+    owners = tuple(owner for owner in owners if owner is not None)
+    chain = []
+    for owner in owners:
+        chain.append(owner)
+        chain.extend(owner._owners)
+    obj = cls.__new__(cls)
+    obj._handle = handle
+    obj._owned = [(None, None)]
+    obj._owners = tuple(chain)
+    obj._readonly = readonly
+    # What it retains must live as long as the C++ object, whose lifetime is
+    # its owner's: with several possible owners (or none), forever.
+    obj._retained = owners[0]._retained if len(owners) == 1 else forever
+    obj._finalizer = None
+    return obj
+
+
+def take(retained, *arguments, keep=None):
+    """Give up Python's ownership of the (value, name) arguments, for the
+    parameters that the C++ code takes (std::unique_ptr), and return their handles.
+
+    Every argument is checked before any is taken, so a failure takes none;
+    ``keep`` (self) must not be one of them. It is called last before the C call,
+    which consumes the objects whatever its status: a Python object that still
+    owned one would destroy it again. What they retained is then retained by their
+    new owner (``retained``: its dict, or ``forever``).
+
+    A signal that arrives between this function and the C call leaks the objects
+    (it never destroys one twice).
+    """
+    seen = {}
+    if keep is not None:
+        seen[id(keep)] = "self"
+    for value, name in arguments:
+        if value is None:  # NULL, for a pointer that may be
+            continue
+        other = seen.get(id(value))
+        if other is not None:
+            raise ValueError(f"argument {name!r} is the same object as {other!r}")
+        seen[id(value)] = name
+        owned = value._owned
+        if not owned or value._collected():
+            raise ValueError(f"argument {name!r}: {type(value).__name__} object is closed")
+        if owned[-1][0] is None:
+            raise ValueError(
+                f"argument {name!r}: {type(value).__name__} object cannot be transferred: "
+                "it is borrowed from another object"
+            )
+        for owner in value._owners:
+            if not owner._owned or owner._collected():
+                raise ValueError(
+                    f"argument {name!r}: {type(value).__name__} object is no longer valid"
+                )
+    handles = []
+    for value, _name in arguments:
+        if value is None:
+            handles.append(None)
+            continue
+        _destroy, null = value._owned.pop()
+        handle = value._handle
+        value._handle = None
+        # The collection of the Python object must not destroy it any more.
+        value._finalizer._as_parameter_ = null
+        if value._retained:
+            # What it kept pointers to lives as long as its new owner, and as long
+            # as whoever gets the object back from it (see recover()).
+            kept = _Kept(value._retained)
+            value._retained = {}  # the taken object does not keep them any more
+            retained[id(kept)] = kept
+            _kept[_address(handle)] = kept
+        handles.append(handle)
+    return handles
+
+
+class _Kept:
+    """The objects that a taken object retained."""
+
+    __slots__ = ("__weakref__", "items")
+
+    def __init__(self, items):
+        self.items = items
+
+
+_kept = weakref.WeakValueDictionary()
+"""By address: what the objects that were taken and may come back retained. An
+entry goes with the last owner that holds it."""
+
+
+def _address(handle):
+    return ctypes.cast(handle, ctypes.c_void_p).value
+
+
+def recover(retained, handle):
+    """Keep alive what an object retained before it was taken, for a new Python
+    object of it: the C++ code gave it back (a pop, a release...) and it still
+    points to those objects, which the owner that took it may no longer keep."""
+    if _kept:
+        kept = _kept.get(_address(handle))
+        if kept is not None:
+            retained[id(kept)] = kept
+
+
+def retain(retained, value):
+    """Keep value alive while a C++ object may use it: ``retained`` is the dict of
+    that object (self._retained), or ``forever``; it holds each object once.
+    Called before the C call: on failure the C++ code may already have stored it."""
+    if value is not None:
+        retained[id(value)] = value
 
 
 def _leave_alone():

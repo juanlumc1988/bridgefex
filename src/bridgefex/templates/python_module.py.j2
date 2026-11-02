@@ -43,10 +43,20 @@ class {{ c.py_name }}:
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
     when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed.
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
     """
 
-    __slots__ = ("__weakref__", "_finalizer", "_handle", "_owned")
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
 {% for e in c.enums %}
 {% if loop.first %}
 
@@ -58,9 +68,9 @@ class {{ c.py_name }}:
 
     def __init__(self{{ ", " + ctor.parameter_list if ctor.args else "" }}):
         """Wraps ``{{ ctor.function.description }}``."""
-        if _builtins.getattr(self, "_finalizer", None) is not None:
+        if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
-{{ ctor.check_call(8, ("_handle = self._watch()",)) }}
+{{ ctor.check_call(8, ("_handle = self._watch()",) + ctor.retain_statements("self")) }}
         self._adopt(_handle)
 {% else %}
 
@@ -74,7 +84,7 @@ class {{ c.py_name }}:
     @_builtins.classmethod
     def {{ ctor.name }}(cls{{ ", " + ctor.parameter_list if ctor.args else "" }}):
         """Wraps ``{{ ctor.function.description }}``."""
-{{ ctor.check_call(8, ("_self = cls.__new__(cls)", "_handle = _self._watch()")) }}
+{{ ctor.check_call(8, ("_self = cls.__new__(cls)", "_handle = _self._watch()") + ctor.retain_statements("_self"), owner="_self") }}
         _self._adopt(_handle)
         return _self
 {% endfor %}
@@ -90,6 +100,10 @@ class {{ c.py_name }}:
         handle = {{ c.py_pointer }}()
         self._handle = None
         self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
         self._finalizer = _runtime.watch(self, handle, _bind().{{ c.destroy.name }})
         return handle
 
@@ -101,25 +115,46 @@ class {{ c.py_name }}:
         self._handle = handle
         # Whoever pops it destroys the object: close() is safe in several threads.
         self._owned.append((_bind().{{ c.destroy.name }}, {{ c.py_pointer }}()))
+        _runtime.recover(self._retained, handle)
 
     def _ptr(self):
         if not self._owned or self._collected():
             raise _builtins.ValueError("{{ c.py_name }} object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "{{ c.py_name }} object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
         return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "{{ c.py_name }} object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit.
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
         armed = self._finalizer
-        return armed() is None and armed._as_parameter_ is self._handle
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
 
     def close(self):
-        """Destroy the C++ object now. Calling it again does nothing."""
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
             return
         if self._collected():
             self._handle = None
@@ -131,6 +166,10 @@ class {{ c.py_name }}:
         # and this destruction must not be skipped.
         self._finalizer._as_parameter_ = null
         destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
 
     def __enter__(self):
         return self
