@@ -9,6 +9,7 @@ import pytest
 
 from bridgefex.errors import ConfigurationError, GenerationError
 from bridgefex.model import (
+    Access,
     Class,
     ClassForm,
     ClassRef,
@@ -883,3 +884,166 @@ def test_a_template_base_gives_its_virtual_destructor(tmp_path: Path) -> None:
     assert classes["D"].bases == ()
     assert classes["D"].virtual_destructor
     assert not classes["P"].virtual_destructor
+
+
+# What a derived class in another language could use: the virtual methods, public and
+# protected, and the constructors that it can call.
+def test_hooks_are_the_virtual_methods_that_can_be_overridden(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            class Base {
+            public:
+                virtual ~Base();
+                virtual std::int32_t pub(std::int32_t x) const;
+                virtual void pure() = 0;
+                virtual void fixed() final;
+                virtual void quiet() noexcept;
+                void plain();
+            protected:
+                virtual double prot(bool b);
+                virtual void protPure() = 0;
+                void protPlain();
+            private:
+                virtual void priv();
+            };
+            """,
+        )
+    )
+    hooks = {hook.name: hook for hook in cls.hooks}
+    assert list(hooks) == ["pub", "pure", "fixed", "quiet", "prot", "protPure"]
+    assert [hooks[name].access for name in hooks] == [Access.PUBLIC] * 4 + [Access.PROTECTED] * 2
+    assert {name for name, hook in hooks.items() if hook.is_pure} == {"pure", "protPure"}
+    assert {name for name, hook in hooks.items() if hook.is_final} == {"fixed"}
+    assert all(hook.method is not None and not hook.problems for hook in hooks.values())
+    quiet = hooks["quiet"].method
+    assert quiet is not None
+    assert (quiet.is_noexcept, quiet.is_virtual) == (True, True)
+    prot = hooks["prot"].method
+    assert prot is not None
+    assert [p.name for p in prot.parameters] == ["b"]
+    # The public ones are methods of the API as before; the protected ones are not.
+    assert {method.name for method in cls.methods} == {"pub", "pure", "fixed", "quiet", "plain"}
+
+
+def test_a_protected_virtual_method_with_an_unsupported_type_is_not_an_error(
+    tmp_path: Path,
+) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            #include <map>
+            class Base {
+            public:
+                virtual ~Base();
+            protected:
+                virtual void visit(const std::map<int, int>& table);
+                virtual void ok();
+            };
+            """,
+        )
+    )
+    visit, ok = cls.hooks
+    assert visit.method is None
+    assert "std::map" in visit.problems[0].message
+    assert ok.method is not None
+    assert not ok.problems
+
+
+def test_a_computed_noexcept_cannot_be_overridden(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            class Base {
+            public:
+                virtual ~Base();
+                virtual void a() noexcept(true);
+                virtual void b() noexcept(false);
+                virtual void c() noexcept(sizeof(int) == 4);
+            };
+            """,
+        )
+    )
+    a, b, c = cls.hooks
+    assert a.method is not None
+    assert a.method.is_noexcept
+    assert b.method is not None
+    assert not b.method.is_noexcept
+    assert c.method is None
+    assert "noexcept(expression)" in c.problems[0].message
+
+
+def test_the_constructors_that_a_derived_class_can_call(tmp_path: Path) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            class Base {
+            public:
+                Base();
+                virtual ~Base();
+                virtual void a() = 0;
+            protected:
+                explicit Base(std::int32_t seed);
+                Base(const Base&);
+            private:
+                Base(double hidden);
+            };
+            """,
+        )
+    )
+    assert cls.abstract
+    assert cls.constructors == ()  # nothing to instantiate in the API
+    assert [len(c.parameters) for c in cls.director_constructors] == [0, 1]
+    assert cls.director_problems == ()
+
+
+def test_an_abstract_class_without_constructors_has_the_implicit_one_for_derived_classes(
+    tmp_path: Path,
+) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            "class Base { public: virtual ~Base(); virtual void a() = 0; };",
+        )
+    )
+    assert [(c.parameters, c.implicit) for c in cls.director_constructors] == [((), True)]
+
+
+def test_a_protected_constructor_that_cannot_cross_the_boundary_is_a_problem(
+    tmp_path: Path,
+) -> None:
+    cls = only_class(
+        parse(
+            tmp_path,
+            """
+            #include <map>
+            class Base {
+            public:
+                Base();
+                virtual ~Base();
+            protected:
+                explicit Base(const std::map<int, int>& table);
+            };
+            """,
+        )
+    )
+    assert [len(c.parameters) for c in cls.director_constructors] == [0]
+    assert "std::map" in cls.director_problems[0].message
+
+
+def test_final_classes_and_methods(tmp_path: Path) -> None:
+    header = parse(
+        tmp_path,
+        """
+        class A { public: virtual ~A(); virtual void a(); };
+        class B final : public A { public: void a() override; };
+        """,
+    )
+    a, b = header.declarations
+    assert isinstance(a, Class)
+    assert isinstance(b, Class)
+    assert (a.final, b.final) == (False, True)

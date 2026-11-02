@@ -13,9 +13,10 @@ import dataclasses
 import functools
 import os
 import re
-from collections.abc import Iterator
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 from clang import cindex
 from clang.cindex import (
@@ -29,6 +30,7 @@ from clang.cindex import (
 from . import libclang, naming, typemap
 from .errors import ConfigurationError, Diagnostic, GenerationError, Location
 from .model import (
+    Access,
     BaseRef,
     CallbackArgument,
     CallbackType,
@@ -46,6 +48,7 @@ from .model import (
     FieldType,
     Function,
     Header,
+    Hook,
     Method,
     Parameter,
     ScalarType,
@@ -153,6 +156,25 @@ def _location(source_location: cindex.SourceLocation) -> Location | None:
     if file is None:
         return None
     return Location(str(file.name), int(source_location.line), int(source_location.column))
+
+
+_T = TypeVar("_T")
+
+
+@dataclass(slots=True)
+class _Members:
+    """What :meth:`_Visitor._parse_members` found in a class."""
+
+    constructors: list[Constructor] = field(default_factory=list)
+    methods: list[Method] = field(default_factory=list)
+    enums: list[Enumeration] = field(default_factory=list)
+    declares_constructor: bool = False
+    bases: list[BaseRef] = field(default_factory=list)
+    hooks: list[Hook] = field(default_factory=list)
+    derived_constructors: list[Constructor] = field(default_factory=list)
+    """The public and protected constructors, which a derived class can call."""
+
+    derived_problems: list[Diagnostic] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -445,6 +467,27 @@ def _may_throw(function: cindex.Cursor) -> bool:
         cindex.ExceptionSpecificationKind.DYNAMIC,
         cindex.ExceptionSpecificationKind.MS_ANY,
     )
+
+
+def _cannot_throw(function: cindex.Cursor) -> bool:
+    """True for ``noexcept``, ``noexcept(true)`` and ``throw()``: a function that
+    overrides it must not throw either. (Any other ``noexcept(expression)`` is not
+    evaluated: see :func:`_noexcept_is_computed`.)"""
+    kind = function.exception_specification_kind
+    if kind == cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
+        return "noexcept(true)" in str(function.type.spelling).replace(" ", "")
+    return kind in (
+        cindex.ExceptionSpecificationKind.BASIC_NOEXCEPT,
+        cindex.ExceptionSpecificationKind.DYNAMIC_NONE,
+    )
+
+
+def _noexcept_is_computed(function: cindex.Cursor) -> bool:
+    """A ``noexcept(expression)`` that is not literally true or false."""
+    if function.exception_specification_kind != cindex.ExceptionSpecificationKind.COMPUTED_NOEXCEPT:
+        return False
+    spelling = str(function.type.spelling).replace(" ", "")
+    return "noexcept(true)" not in spelling and "noexcept(false)" not in spelling
 
 
 def is_value_struct(definition: cindex.Cursor) -> bool:
@@ -1704,12 +1747,16 @@ class _Visitor:
         abstract = bool(cursor.is_abstract_record())
         self._check_virtual_destructor(cursor, qualified)
 
-        constructors, methods, enums, declares_constructor, bases = self._parse_members(
-            cursor, qualified, namespace
-        )
+        members = self._parse_members(cursor, qualified, namespace)
+        constructors, methods, enums = members.constructors, members.methods, members.enums
+        declares_constructor, bases = members.declares_constructor, members.bases
 
         location = _location(cursor.location)
         assert location is not None  # cursors of the target header always have one
+        derived_constructors = members.derived_constructors
+        if not declares_constructor:
+            # The implicit default constructor: public, so a derived class can call it.
+            derived_constructors = [Constructor((), location, implicit=True)]
         if abstract:
             # Nothing to instantiate: objects come from the functions that return them.
             constructors = []
@@ -1736,6 +1783,10 @@ class _Visitor:
             tuple(bases),
             abstract,
             _has_virtual_destructor(cursor),
+            final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
+            hooks=tuple(members.hooks),
+            director_constructors=tuple(derived_constructors),
+            director_problems=tuple(members.derived_problems),
         )
 
     def _check_virtual_destructor(self, cursor: cindex.Cursor, qualified: str) -> None:
@@ -1782,14 +1833,10 @@ class _Visitor:
 
     def _parse_members(
         self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
-    ) -> tuple[list[Constructor], list[Method], list[Enumeration], bool, list[BaseRef]]:
+    ) -> _Members:
         """Public constructors, methods and enums, whether any constructor is declared,
-        and the public base classes."""
-        constructors: list[Constructor] = []
-        methods: list[Method] = []
-        enums: list[Enumeration] = []
-        bases: list[BaseRef] = []
-        declares_constructor = False
+        the public base classes, and what a derived class could use (see :class:`Hook`)."""
+        found = _Members()
         for member in cursor.get_children():
             try:
                 member_kind = member.kind
@@ -1804,12 +1851,12 @@ class _Visitor:
                 if member.access_specifier == AccessSpecifier.PUBLIC:
                     enum = self._parse_enum(member, (str(cursor.spelling),), namespace)
                     if enum is not None:
-                        enums.append(enum)
+                        found.enums.append(enum)
                 continue
             if member_kind == CursorKind.FUNCTION_TEMPLATE and member.spelling == cursor.spelling:
                 # A constructor template, whatever its access, suppresses the
                 # implicit default constructor.
-                declares_constructor = True
+                found.declares_constructor = True
             access = member.access_specifier
             public = access == AccessSpecifier.PUBLIC
             if member_kind == CursorKind.CXX_BASE_SPECIFIER:
@@ -1817,9 +1864,9 @@ class _Visitor:
                 if public:
                     base = self._parse_base(member, qualified)
                     if base is not None:
-                        bases.append(base)
+                        found.bases.append(base)
             elif member_kind == CursorKind.CONSTRUCTOR:
-                declares_constructor = True
+                found.declares_constructor = True
                 if (
                     public
                     and not self._unavailable(member)
@@ -1828,7 +1875,12 @@ class _Visitor:
                 ):
                     constructor = self._parse_constructor(member, qualified)
                     if constructor is not None:
-                        constructors.append(constructor)
+                        found.constructors.append(constructor)
+                        found.derived_constructors.append(constructor)
+                elif access == AccessSpecifier.PROTECTED:
+                    self._protected_constructor(
+                        member, qualified, found.derived_constructors, found.derived_problems
+                    )
             elif member_kind == CursorKind.DESTRUCTOR:
                 if not public or self._unavailable(member):
                     self._error(
@@ -1840,10 +1892,80 @@ class _Visitor:
                 if public and not self._unavailable(member):
                     method = self._parse_method(member, qualified)
                     if method is not None:
-                        methods.append(method)
+                        found.methods.append(method)
+                        if method.is_virtual:
+                            found.hooks.append(self._hook(member, access, method, ()))
+                elif access == AccessSpecifier.PROTECTED and member.is_virtual_method():
+                    self._protected_hook(member, qualified, found.hooks)
             elif access not in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
                 self._reject_member(member, member_kind, qualified)
-        return constructors, methods, enums, declares_constructor, bases
+        return found
+
+    def _protected_constructor(
+        self,
+        cursor: cindex.Cursor,
+        qualified: str,
+        usable: list[Constructor],
+        problems: list[Diagnostic],
+    ) -> None:
+        """A protected constructor: a derived class can call it, so it counts."""
+        if (
+            self._unavailable(cursor)
+            or cursor.is_copy_constructor()
+            or cursor.is_move_constructor()
+        ):
+            return
+        constructor, found = self._silently(
+            functools.partial(self._parse_constructor, cursor, qualified)
+        )
+        problems.extend(found)
+        if constructor is not None:
+            usable.append(constructor)
+
+    def _protected_hook(self, cursor: cindex.Cursor, qualified: str, hooks: list[Hook]) -> None:
+        """A protected virtual method: not API, but a derived class can override it."""
+        if self._unavailable(cursor):
+            return
+        method, problems = self._silently(functools.partial(self._parse_method, cursor, qualified))
+        hooks.append(self._hook(cursor, AccessSpecifier.PROTECTED, method, problems))
+
+    def _silently(self, parse: Callable[[], _T]) -> tuple[_T | None, tuple[Diagnostic, ...]]:
+        """What ``parse`` gives and the errors it would report, which are not: the
+        member is not part of the API, and may never be used."""
+        before = len(self.errors)
+        result = parse()
+        problems = tuple(self.errors[before:])
+        del self.errors[before:]
+        return (result if not problems else None), problems
+
+    def _hook(
+        self,
+        cursor: cindex.Cursor,
+        access: AccessSpecifier,
+        method: Method | None,
+        problems: tuple[Diagnostic, ...],
+    ) -> Hook:
+        location = _location(cursor.location)
+        assert location is not None
+        if method is not None and _noexcept_is_computed(cursor):
+            problems = (
+                *problems,
+                Diagnostic(
+                    f"'{cursor.spelling}': a noexcept(expression) is not supported: "
+                    "an override has to say it",
+                    location,
+                ),
+            )
+            method = None
+        return Hook(
+            name=str(cursor.spelling),
+            access=Access.PUBLIC if access == AccessSpecifier.PUBLIC else Access.PROTECTED,
+            is_pure=bool(cursor.is_pure_virtual_method()),
+            is_final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
+            location=location,
+            method=method,
+            problems=problems,
+        )
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
         """Report a public member that bridgefex cannot expose."""
@@ -1897,4 +2019,6 @@ class _Visitor:
             location=location,
             is_virtual=bool(cursor.is_virtual_method()),
             is_pure=bool(cursor.is_pure_virtual_method()),
+            is_final=any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in _kinds(cursor)),
+            is_noexcept=_cannot_throw(cursor),
         )

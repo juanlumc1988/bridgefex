@@ -397,3 +397,52 @@ def test_a_table_without_a_header_has_no_line_zero(tmp_path: Path) -> None:
     message = config_error(tmp_path, 'f.x = "nulable"\n')
     assert "file0.toml" in message
     assert ":0:" not in message
+
+
+# The directors: classes that other languages may derive from.
+def test_directors_are_read_before_the_first_table(tmp_path: Path) -> None:
+    text = (
+        "# the classes\n"
+        'directors = [\n  "inh_Shape",\n  "inh_Widget",\n]\n\n'
+        '[own_Tree_find]\nreturn = "borrowed"\n'
+    )
+    path = write(tmp_path, text)
+    annotations = load([path])
+    assert list(annotations.directors) == ["inh_Shape", "inh_Widget"]
+    assert [request.line for request in annotations.directors.values()] == [3, 4]
+    assert annotations.directors["inh_Shape"].where() == f"{path}:3"
+    assert set(annotations) == {"own_Tree_find"}  # the list is not a function
+
+
+def test_a_file_without_directors_has_none(tmp_path: Path) -> None:
+    assert load([write(tmp_path, GOOD)]).directors == {}
+
+
+def test_directors_come_from_every_file(tmp_path: Path) -> None:
+    paths = [
+        write(tmp_path, 'directors = ["a_One"]\n', "one.toml"),
+        write(tmp_path, 'directors = ["a_Two"]\n', "two.toml"),
+    ]
+    assert list(load(paths).directors) == ["a_One", "a_Two"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        'directors = "inh_Shape"\n',
+        "directors = [1]\n",
+        'directors = [""]\n',
+        '[directors]\nname = "x"\n',
+    ],
+)
+def test_directors_must_be_a_list_of_names(tmp_path: Path, text: str) -> None:
+    message = config_error(tmp_path, text)
+    assert "directors: expected a list of class names" in message
+
+
+def test_a_director_asked_for_twice_is_an_error(tmp_path: Path) -> None:
+    message = config_error(tmp_path, 'directors = ["a_One", "a_Two", "a_One"]\n')
+    assert "directors: 'a_One' is also asked for in" in message
+    message = config_error(tmp_path, 'directors = ["a_One"]\n', 'directors = ["a_One"]\n')
+    assert "file1.toml:1: directors: 'a_One' is also asked for in" in message
+    assert "file0.toml:1" in message

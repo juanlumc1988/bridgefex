@@ -13,6 +13,11 @@ function (the name that the generated C header prints)::
     item = "transfer"             # a parameter, by its C++ name...
     2 = ["nullable", "retain"]    # ...or by its position, counted from 1
 
+A class that other languages may derive from, overriding its virtual methods (a
+*director*, see the README), is asked for by name before the first table::
+
+    directors = ["demo_Shape", "demo_Widget"]    # the C types of the classes
+
 Everything is checked: an unknown function (an overload that was added renames the
 C functions of the others), parameter or word, a word that does not apply to the
 type, or two that exclude each other, is an error.
@@ -59,6 +64,26 @@ class FunctionAnnotations:
         return f"{self.source}:{line}" if line else self.source
 
 
+@dataclass(frozen=True, slots=True)
+class DirectorRequest:
+    """A class that the file asks a director for."""
+
+    source: str
+    line: int = 0
+
+    def where(self) -> str:
+        return f"{self.source}:{self.line}" if self.line else self.source
+
+
+class Annotations(dict[str, FunctionAnnotations]):
+    """What the files say: the tables of the C functions (this mapping), and the
+    classes that ask for a director."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.directors: dict[str, DirectorRequest] = {}
+
+
 _QUOTE = "[\"']?"
 
 
@@ -93,14 +118,14 @@ def _words(
     return frozenset(items) & allowed
 
 
-def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
+def load(paths: Sequence[Path]) -> Annotations:
     """Read the annotation files and check their syntax.
 
     Raises:
         ConfigurationError: a file that cannot be read or is not valid, or the
             same function annotated twice.
     """
-    table: dict[str, FunctionAnnotations] = {}
+    table = Annotations()
     problems: list[str] = []
     for path in paths:
         try:
@@ -126,7 +151,11 @@ def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
             )
             for name in data
         ]
+        if "directors" in data:
+            _directors(path, lines, headers, data["directors"], table=table, problems=problems)
         for index, (function, header) in enumerate(headers):
+            if function == "directors":
+                continue
             entries = data[function]
             at = _at(path, header)
             if not isinstance(entries, dict):
@@ -162,6 +191,34 @@ def load(paths: Sequence[Path]) -> dict[str, FunctionAnnotations]:
     if problems:
         raise ConfigurationError("\n".join(problems))
     return table
+
+
+def _directors(
+    path: Path,
+    lines: Sequence[str],
+    headers: Sequence[tuple[str, int]],
+    entries: object,
+    *,
+    table: Annotations,
+    problems: list[str],
+) -> None:
+    """The ``directors`` list of a file."""
+    start = next(line for name, line in headers if name == "directors")
+    at = _at(path, start)
+    if not isinstance(entries, list) or not all(isinstance(item, str) and item for item in entries):
+        problems.append(
+            f'{at}: directors: expected a list of class names, e.g. directors = ["demo_Shape"]'
+        )
+        return
+    for name in entries:
+        line = _line_of(lines, rf"""[^#]*["']{re.escape(name)}["']""", max(start - 1, 0)) or start
+        if name in table.directors:
+            problems.append(
+                f"{_at(path, line)}: directors: '{name}' is also asked for in "
+                f"{table.directors[name].where()}"
+            )
+        else:
+            table.directors[name] = DirectorRequest(str(path), line)
 
 
 class Kind(Enum):
