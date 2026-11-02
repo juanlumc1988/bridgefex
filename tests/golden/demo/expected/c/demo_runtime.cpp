@@ -156,7 +156,7 @@ extern "C" const char* demo_last_error(void)
 
 extern "C" const char* demo_api_fingerprint(void)
 {
-    return "fa4dd1b7ca56ac241a0be472b9c82bed";
+    return "40e3edfbcff24a2332e913c1e9603d6e";
 }
 
 extern "C" void demo_free(void* memory)

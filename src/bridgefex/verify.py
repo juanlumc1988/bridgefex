@@ -368,7 +368,8 @@ def _function_lines(
 ) -> list[tuple[int, CFunction]]:
     """Line of the definition of every wrapper in a generated source, in order."""
     definitions = {
-        f"{plan.status_type if function.returns_status else 'void'} {function.signature}": function
+        f"{plan.status_type if function.returns_status else function.c_return or 'void'} "
+        f"{function.signature}": function
         for function in header.c_functions
     }
     return [

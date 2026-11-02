@@ -58,7 +58,7 @@ def _bind():
     return _lib
 
 
-class Counter:
+class Counter(_runtime.Object):
     """Wraps ``demo::Counter``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -68,15 +68,8 @@ class Counter:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "demo_Counter"
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
@@ -148,6 +141,7 @@ class Counter:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

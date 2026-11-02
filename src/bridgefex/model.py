@@ -410,6 +410,22 @@ class Method:
     is_const: bool
     is_static: bool
     location: Location
+    is_virtual: bool = False
+    """Declared ``virtual``, or overrides a virtual method: a call through a base
+    runs the override of the object's class."""
+
+    is_pure: bool = False
+    """Declared ``= 0``."""
+
+
+@dataclass(frozen=True, slots=True)
+class BaseRef:
+    """A public base class of a wrapped class. The plan finds its definition
+    (:class:`Class`) by USR, in any wrapped header."""
+
+    usr: str
+    qualified_name: str
+    location: Location
 
 
 @dataclass(frozen=True, slots=True)
@@ -427,6 +443,17 @@ class Class:
 
     usr: str = ""
     """What the uses of the class (:class:`ClassRef`) name it by."""
+
+    bases: tuple[BaseRef, ...] = ()
+    """Its public base classes, in declaration order. Private and protected
+    ones are an implementation detail: nothing is exposed through them."""
+
+    abstract: bool = False
+    """It has a pure virtual method that it does not override: it has no
+    constructor in the C API, and cannot be passed or returned by value."""
+
+    virtual_destructor: bool = False
+    """Its destructor is virtual (declared so, or inherited)."""
 
     @property
     def qualified_name(self) -> str:

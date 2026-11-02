@@ -175,7 +175,7 @@ def _bind():
     return _lib
 
 
-class Tree:
+class Tree(_runtime.Object):
     """Wraps ``own::Tree``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -185,15 +185,8 @@ class Tree:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Tree"
 
     def __init__(self):
         """Wraps ``own::Tree::Tree()``."""
@@ -248,6 +241,7 @@ class Tree:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
@@ -627,7 +621,7 @@ class Tree:
         return _result
 
 
-class Driver:
+class Driver(_runtime.Object):
     """Wraps ``own::Driver``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -637,15 +631,8 @@ class Driver:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Driver"
 
     def __init__(self, node):
         """Wraps ``own::Driver::Driver(own::Node& node)``."""
@@ -704,6 +691,7 @@ class Driver:
             )
         return self._ptr()
 
+
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
         # and destroyed the object, unless it was disarmed at exit. (A borrowed
@@ -761,7 +749,7 @@ class Driver:
         return _out.value
 
 
-class Pair:
+class Pair(_runtime.Object):
     """Wraps ``own::Pair``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -771,15 +759,8 @@ class Pair:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Pair"
 
     def __init__(self, first, second):
         """Wraps ``own::Pair::Pair(const own::Node* first, own::Node* second)``."""
@@ -839,6 +820,7 @@ class Pair:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
@@ -942,7 +924,7 @@ def pickFirst(first, second):
     return _runtime.borrow(_node.Node, _out, (first, second), False)
 
 
-class Pipeline:
+class Pipeline(_runtime.Object):
     """Wraps ``own::Pipeline``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -952,15 +934,8 @@ class Pipeline:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Pipeline"
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
@@ -1041,6 +1016,7 @@ class Pipeline:
             )
         return self._ptr()
 
+
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
         # and destroyed the object, unless it was disarmed at exit. (A borrowed
@@ -1109,7 +1085,7 @@ def consume(item):
     return _out.value
 
 
-class Box:
+class Box(_runtime.Object):
     """Wraps ``own::Box``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -1119,15 +1095,8 @@ class Box:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Box"
 
     def __init__(self):
         """Wraps ``own::Box::Box()``."""
@@ -1182,6 +1151,7 @@ class Box:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
@@ -1251,7 +1221,7 @@ class Box:
         return _result if _out else None
 
 
-class Peek:
+class Peek(_runtime.Object):
     """Wraps ``own::Peek``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -1261,15 +1231,8 @@ class Peek:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Peek"
 
     def __init__(self, node):
         """Wraps ``own::Peek::Peek(const own::Node& node)``."""
@@ -1326,6 +1289,7 @@ class Peek:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

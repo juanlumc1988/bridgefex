@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "CBX_LIBRARY"
 
-API_FINGERPRINT = "c209e72aa3fac4da5bf675a119f79163"
+API_FINGERPRINT = "df5d8e9850a7e209709625923e309edc"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -249,6 +249,22 @@ that has no single owner. Like the ``_retained`` of an object, it holds each
 object once, however many times it is retained."""
 
 
+class Object:
+    """Root of the wrapped classes. It holds the instance layout, so that a class
+    with several bases can exist: Python does not combine the layouts of
+    several bases that each add attributes."""
+
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
+
+
 def check_object(value, cls, name, nullable=False):
     """Check that value is a cls object (or None, if nullable) before the call.
 
@@ -261,6 +277,20 @@ def check_object(value, cls, name, nullable=False):
         raise TypeError(
             f"argument {name!r} must be {cls.__qualname__}{' or None' if nullable else ''}, "
             f"not {_type_name(value)}"
+        )
+
+
+def check_exact(value, cls, name, nullable=False):
+    """Check that value is an object of the C++ class of cls itself, not of a class
+    derived from it (a Python subclass is fine): for an object that the C++ code
+    destroys through cls, which has no virtual destructor."""
+    if value is None and nullable:
+        return
+    if value._cxx_class != cls._cxx_class:
+        raise TypeError(
+            f"argument {name!r}: {type(value).__name__} cannot be given as {cls.__qualname__}, "
+            f"which the C++ code destroys through {cls.__qualname__} and which has no "
+            "virtual destructor"
         )
 
 
@@ -296,6 +326,9 @@ def take(retained, *arguments, keep=None):
     """Give up Python's ownership of the (value, name) arguments, for the
     parameters that the C++ code takes (std::unique_ptr), and return their handles.
 
+    An argument is (value, name), or (value, name, view) for an object of a class
+    that others derive from, with the method that gives its handle as that class.
+
     Every argument is checked before any is taken, so a failure takes none;
     ``keep`` (self) must not be one of them. It is called last before the C call,
     which consumes the objects whatever its status: a Python object that still
@@ -308,8 +341,10 @@ def take(retained, *arguments, keep=None):
     seen = {}
     if keep is not None:
         seen[id(keep)] = "self"
-    for value, name in arguments:
+    read = []
+    for value, name, *view in arguments:
         if value is None:  # NULL, for a pointer that may be
+            read.append(None)
             continue
         other = seen.get(id(value))
         if other is not None:
@@ -328,13 +363,14 @@ def take(retained, *arguments, keep=None):
                 raise ValueError(
                     f"argument {name!r}: {type(value).__name__} object is no longer valid"
                 )
+        # Still open: the handle as the class that the C++ code takes it as.
+        read.append(getattr(value, view[0])() if view else value._handle)
     handles = []
-    for value, _name in arguments:
+    for (value, *_), handle in zip(arguments, read, strict=True):
         if value is None:
             handles.append(None)
             continue
         _destroy, null = value._owned.pop()
-        handle = value._handle
         value._handle = None
         # The collection of the Python object must not destroy it any more.
         value._finalizer._as_parameter_ = null

@@ -351,7 +351,7 @@ def log_at_exit(enable):
     _runtime.check(_bind().ev_log_at_exit(enable))
 
 
-class Timer:
+class Timer(_runtime.Object):
     """Wraps ``ev::Timer``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -361,15 +361,8 @@ class Timer:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "ev_Timer"
 
     def __init__(self, on_tick):
         """Wraps ``ev::Timer::Timer(std::function<void (int32_t)> on_tick)``."""
@@ -436,6 +429,7 @@ class Timer:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
@@ -560,7 +554,7 @@ class Timer:
         return _out.value
 
 
-class Watcher:
+class Watcher(_runtime.Object):
     """Wraps ``ev::Watcher``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -570,15 +564,8 @@ class Watcher:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "ev_Watcher"
 
     def __init__(self, name, at, on_notify):
         """Wraps ``ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)``."""
@@ -655,6 +642,7 @@ class Watcher:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

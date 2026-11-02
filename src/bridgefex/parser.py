@@ -29,6 +29,7 @@ from clang.cindex import (
 from . import libclang, naming, typemap
 from .errors import ConfigurationError, Diagnostic, GenerationError, Location
 from .model import (
+    BaseRef,
     CallbackArgument,
     CallbackType,
     Class,
@@ -224,6 +225,33 @@ def _defines_function_like_macro(cursor: cindex.Cursor) -> bool:
         and parenthesis.spelling == "("
         and parenthesis.extent.start.offset == name.extent.end.offset
     )
+
+
+def _kinds(cursor: cindex.Cursor) -> list[tuple[CursorKind, cindex.Cursor]]:
+    """The members of a class with their kinds, without those that the bindings
+    do not know (they cannot be any of the kinds that the callers look for)."""
+    members = []
+    for member in cursor.get_children():
+        try:
+            members.append((member.kind, member))
+        except ValueError:
+            continue
+    return members
+
+
+def _has_virtual_destructor(cursor: cindex.Cursor) -> bool:
+    """Whether the destructor of a class is virtual: declared so, or inherited
+    from a base class when the class declares none."""
+    members = _kinds(cursor)
+    for kind, member in members:
+        if kind == CursorKind.DESTRUCTOR:
+            return bool(member.is_virtual_method())
+    for kind, member in members:
+        if kind == CursorKind.CXX_BASE_SPECIFIER:
+            definition = member.type.get_canonical().get_declaration().get_definition()
+            if definition is not None and _has_virtual_destructor(definition):
+                return True
+    return False
 
 
 _C_TAG_KINDS = frozenset({CursorKind.STRUCT_DECL, CursorKind.UNION_DECL, CursorKind.ENUM_DECL})
@@ -1487,7 +1515,7 @@ class _Visitor:
             public = member.access_specifier == AccessSpecifier.PUBLIC
             member_name = f"'{qualified}::{member.spelling}'"
             if kind == CursorKind.CXX_BASE_SPECIFIER:
-                self._error(member, f"{where}: inheritance is not supported yet")
+                self._error(member, f"{where}: base classes are not supported in value structs")
             elif kind == CursorKind.CONSTRUCTOR:
                 declares_constructor = True
                 role = self._struct_constructor(member, where)
@@ -1668,16 +1696,19 @@ class _Visitor:
         if int(cursor.type.get_num_template_arguments()) > 0:
             self._error(cursor, f"template specialization '{qualified}' is not supported")
             return None
-        if cursor.is_abstract_record():
-            self._error(cursor, f"class '{qualified}' is abstract and cannot be instantiated")
+        abstract = bool(cursor.is_abstract_record())
+        self._check_virtual_destructor(cursor, qualified)
 
-        constructors, methods, enums, declares_constructor = self._parse_members(
+        constructors, methods, enums, declares_constructor, bases = self._parse_members(
             cursor, qualified, namespace
         )
 
         location = _location(cursor.location)
         assert location is not None  # cursors of the target header always have one
-        if not declares_constructor:
+        if abstract:
+            # Nothing to instantiate: objects come from the functions that return them.
+            constructors = []
+        elif not declares_constructor:
             constructors.append(Constructor((), location, implicit=True))
         elif not constructors and len(self.errors) == errors_before:
             self._error(
@@ -1697,27 +1728,68 @@ class _Visitor:
             location,
             tuple(enums),
             str(cursor.get_usr()),
+            tuple(bases),
+            abstract,
+            _has_virtual_destructor(cursor),
         )
+
+    def _check_virtual_destructor(self, cursor: cindex.Cursor, qualified: str) -> None:
+        """A class with virtual methods needs a virtual destructor, unless it is final:
+        'delete' through the C API would be flagged by -Wdelete-non-virtual-dtor."""
+        members = _kinds(cursor)
+        is_final = any(kind == CursorKind.CXX_FINAL_ATTR for kind, _ in members)
+        has_virtual_method = any(
+            kind == CursorKind.CXX_METHOD and member.is_virtual_method() for kind, member in members
+        )
+        if has_virtual_method and not is_final and not _has_virtual_destructor(cursor):
+            self._error(
+                cursor,
+                f"class '{qualified}' has virtual methods but no virtual destructor and is "
+                "not final; this is not supported",
+            )
+
+    def _parse_base(self, member: cindex.Cursor, qualified: str) -> BaseRef | None:
+        """A public base class: another wrapped class (the plan checks that)."""
+        where = f"class '{qualified}'"
+        base = f"'{member.type.spelling}'"
+        if member.is_virtual_base():
+            self._error(member, f"{where}: the virtual base class {base} is not supported")
+            return None
+        try:
+            record = _user_record(member.type)
+        except typemap.UnsupportedTypeError:
+            self._error(
+                member,
+                f"{where}: the base class {base} cannot be wrapped (a class of the standard "
+                "library, a template, a union...)",
+            )
+            return None
+        if record.is_struct:
+            self._error(
+                member,
+                f"{where}: the base class {base} is a value struct (public data members only), "
+                "which cannot be a base class",
+            )
+            return None
+        location = _location(member.location)
+        assert location is not None
+        return BaseRef(record.usr, record.qualified_name, location)
 
     def _parse_members(
         self, cursor: cindex.Cursor, qualified: str, namespace: tuple[str, ...]
-    ) -> tuple[list[Constructor], list[Method], list[Enumeration], bool]:
-        """Public constructors, methods and enums, and whether any constructor is declared."""
+    ) -> tuple[list[Constructor], list[Method], list[Enumeration], bool, list[BaseRef]]:
+        """Public constructors, methods and enums, whether any constructor is declared,
+        and the public base classes."""
         constructors: list[Constructor] = []
         methods: list[Method] = []
         enums: list[Enumeration] = []
+        bases: list[BaseRef] = []
         declares_constructor = False
-        has_virtual_method = False
-        virtual_destructor = False
-        is_final = False
         for member in cursor.get_children():
             try:
                 member_kind = member.kind
             except ValueError:
                 self._error(member, f"member of '{qualified}' of a kind unknown to the bindings")
-                continue
-            if member_kind == CursorKind.CXX_FINAL_ATTR:
-                is_final = True
                 continue
             if member_kind.is_attribute() or member_kind in _IGNORED_MEMBER_KINDS:
                 continue
@@ -1736,11 +1808,11 @@ class _Visitor:
             access = member.access_specifier
             public = access == AccessSpecifier.PUBLIC
             if member_kind == CursorKind.CXX_BASE_SPECIFIER:
-                self._error(
-                    member,
-                    f"class '{qualified}': inheritance is not supported yet "
-                    f"(base '{member.type.spelling}')",
-                )
+                # A private or protected base is an implementation detail.
+                if public:
+                    base = self._parse_base(member, qualified)
+                    if base is not None:
+                        bases.append(base)
             elif member_kind == CursorKind.CONSTRUCTOR:
                 declares_constructor = True
                 if (
@@ -1753,7 +1825,6 @@ class _Visitor:
                     if constructor is not None:
                         constructors.append(constructor)
             elif member_kind == CursorKind.DESTRUCTOR:
-                virtual_destructor = bool(member.is_virtual_method())
                 if not public or self._unavailable(member):
                     self._error(
                         member,
@@ -1761,22 +1832,13 @@ class _Visitor:
                         "bridgefex needs one to destroy objects",
                     )
             elif member_kind == CursorKind.CXX_METHOD:
-                has_virtual_method = has_virtual_method or bool(member.is_virtual_method())
                 if public and not self._unavailable(member):
                     method = self._parse_method(member, qualified)
                     if method is not None:
                         methods.append(method)
             elif access not in (AccessSpecifier.PRIVATE, AccessSpecifier.PROTECTED):
                 self._reject_member(member, member_kind, qualified)
-        if has_virtual_method and not virtual_destructor and not is_final:
-            # 'delete' through the C API would then be flagged by
-            # -Wdelete-non-virtual-dtor.
-            self._error(
-                cursor,
-                f"class '{qualified}' has virtual methods but no virtual destructor and is "
-                "not final; this is not supported",
-            )
-        return constructors, methods, enums, declares_constructor
+        return constructors, methods, enums, declares_constructor, bases
 
     def _reject_member(self, member: cindex.Cursor, kind: CursorKind, qualified: str) -> None:
         """Report a public member that bridgefex cannot expose."""
@@ -1812,9 +1874,6 @@ class _Visitor:
             return None
         if not self._check_name(cursor, name):
             return None
-        if cursor.is_virtual_method():
-            self._error(cursor, f"virtual method {where} is not supported yet")
-            return None
         if cursor.type.get_canonical().get_ref_qualifier() != RefQualifierKind.NONE:
             self._error(cursor, f"ref-qualified method {where} is not supported")
             return None
@@ -1831,4 +1890,6 @@ class _Visitor:
             is_const=bool(cursor.is_const_method()),
             is_static=bool(cursor.is_static_method()),
             location=location,
+            is_virtual=bool(cursor.is_virtual_method()),
+            is_pure=bool(cursor.is_pure_virtual_method()),
         )

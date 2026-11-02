@@ -54,7 +54,7 @@ def multiply_double_double(a, b):
     return _out.value
 
 
-class Circle:
+class Circle(_runtime.Object):
     """Wraps ``demo::geometry::Circle``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -64,15 +64,8 @@ class Circle:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "demo_geometry_Circle"
 
     def __init__(self, radius):
         """Wraps ``demo::geometry::Circle::Circle(double radius)``."""
@@ -128,6 +121,7 @@ class Circle:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

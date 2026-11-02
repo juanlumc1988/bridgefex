@@ -156,7 +156,7 @@ extern "C" const char* enm_last_error(void)
 
 extern "C" const char* enm_api_fingerprint(void)
 {
-    return "25fd4b16424acd988b7e14317672708d";
+    return "6a8e0607ce2c5a54c8bcf39460e4a8d8";
 }
 
 extern "C" void enm_free(void* memory)

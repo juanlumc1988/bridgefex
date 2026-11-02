@@ -130,7 +130,7 @@ def _bind():
     return _lib
 
 
-class Accumulator:
+class Accumulator(_runtime.Object):
     """Wraps ``Accumulator``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -140,15 +140,8 @@ class Accumulator:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "scalars_Accumulator"
 
     def __init__(self):
         """Wraps ``Accumulator::Accumulator()``."""
@@ -203,6 +196,7 @@ class Accumulator:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

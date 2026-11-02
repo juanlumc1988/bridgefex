@@ -89,7 +89,7 @@ def threading_():
     return _out.value
 
 
-class Registry:
+class Registry(_runtime.Object):
     """Wraps ``edge::Registry``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -99,15 +99,8 @@ class Registry:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "edge_Registry"
 
     def __init__(self):
         """Wraps ``edge::Registry::Registry()``."""
@@ -162,6 +155,7 @@ class Registry:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

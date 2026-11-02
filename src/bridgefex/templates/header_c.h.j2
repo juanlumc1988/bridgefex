@@ -15,6 +15,8 @@ extern "C" {
  * {{ note }}{% endfor %} */
 {% if f.returns_status %}
 {{ P }}_NODISCARD {{ P }}_API {{ m.status_type }} {{ f.signature }};
+{% elif f.c_return %}
+{{ P }}_NODISCARD {{ P }}_API {{ f.c_return }} {{ f.signature }};
 {% else %}
 {{ P }}_API void {{ f.signature }};
 {% endif %}

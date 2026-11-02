@@ -128,6 +128,11 @@ extern "C" {
 {% endfor %}
     return {{ m.detail_namespace }}::guard([&]() { {{ f.statement }} });
 }
+{% elif f.c_return %}
+{{ f.c_return }} {{ f.signature }}
+{
+    return {{ f.statement }};
+}
 {% else %}
 void {{ f.signature }}
 {

@@ -803,3 +803,62 @@ def test_callback_forms(tmp_path: Path) -> None:
         "std::function<c::E ()>",
         "std::function<void (const std::string&)>",
     ]
+
+
+def classes_of(header: Header) -> dict[str, Class]:
+    return {d.name: d for d in header.declarations if isinstance(d, Class)}
+
+
+def test_public_base_classes_virtual_and_abstract(tmp_path: Path) -> None:
+    classes = classes_of(
+        parse(
+            tmp_path,
+            """
+            namespace n {
+            class Named { public: virtual ~Named(); virtual int name() const = 0; };
+            class Shape : public Named {
+            public:
+                virtual double area() const = 0;
+                int sides() const;
+            };
+            class Circle : public Shape {
+            public:
+                Circle(double r);
+                double area() const override;
+                int name() const override;
+            };
+            struct Pair : Circle, private Named { Pair(); };
+            }
+            """,
+        )
+    )
+    named, shape, circle, pair = (classes[name] for name in ("Named", "Shape", "Circle", "Pair"))
+    assert [base.qualified_name for base in shape.bases] == ["n::Named"]
+    assert shape.bases[0].usr == named.usr
+    assert [base.qualified_name for base in circle.bases] == ["n::Shape"]
+    # A private base is an implementation detail; a struct derives publicly.
+    assert [base.qualified_name for base in pair.bases] == ["n::Circle"]
+    assert (named.abstract, shape.abstract, circle.abstract) == (True, True, False)
+    # No constructor to call, and nothing implicit.
+    assert named.constructors == ()
+    assert shape.constructors == ()
+    assert [c.parameters[0].name for c in circle.constructors] == ["r"]
+    # The destructor of Shape and Circle is virtual because Named's is.
+    assert (named.virtual_destructor, shape.virtual_destructor, circle.virtual_destructor) == (
+        True,
+        True,
+        True,
+    )
+    methods = {m.name: m for m in (*shape.methods, *circle.methods)}
+    assert (methods["area"].is_virtual, methods["area"].is_pure) == (True, False)
+    assert shape.methods[0].is_pure
+    assert not methods["sides"].is_virtual
+
+
+def test_a_destructor_that_is_not_virtual_is_not_inherited_as_one(tmp_path: Path) -> None:
+    classes = classes_of(
+        parse(tmp_path, "class A { public: ~A(); }; class B : public A { public: int f(); };")
+    )
+    assert not classes["A"].virtual_destructor
+    assert not classes["B"].virtual_destructor
+    assert classes["B"].bases[0].qualified_name == "A"

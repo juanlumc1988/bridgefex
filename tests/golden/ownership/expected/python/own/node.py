@@ -52,7 +52,7 @@ def _bind():
     return _lib
 
 
-class Node:
+class Node(_runtime.Object):
     """Wraps ``own::Node``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -62,15 +62,8 @@ class Node:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Node"
 
     def __init__(self, value):
         """Wraps ``own::Node::Node(int32_t value)``."""
@@ -126,6 +119,7 @@ class Node:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
@@ -208,7 +202,7 @@ class Node:
         return _runtime.borrow(Node, _out, (self,), True)
 
 
-class Item:
+class Item(_runtime.Object):
     """Wraps ``own::Item``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -218,15 +212,8 @@ class Item:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "own_Item"
 
     def __init__(self, id):
         """Wraps ``own::Item::Item(int32_t id)``."""
@@ -282,6 +269,7 @@ class Item:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
