@@ -12,7 +12,9 @@ std::int32_t Counter::next()
 
 std::int32_t Counter::count() const
 {
-    return count_;
+    // The padding is there to make a Counter big; reading it keeps Clang from
+    // warning that the private field is unused.
+    return count_ + static_cast<std::int32_t>(padding_[0] - padding_[1]);
 }
 
 Labeled::Labeled() : label_("unnamed") {}
