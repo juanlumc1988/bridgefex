@@ -156,7 +156,7 @@ Generation is all-or-nothing. If any header contains something unsupported, ever
 Rejected with an error, for now:
 
 - Templates.
-- Virtual and non-public base classes that are used through `using` declarations, base classes that are not wrapped (the standard library, templates, value structs), a class that inherits the same base twice, an abstract class passed or returned by value.
+- Virtual base classes, base classes that are not wrapped classes of the module (a class of the standard library, a template, a value struct), a class that inherits the same base twice, an abstract class passed or returned by value. Private and protected base classes are not part of the API: nothing is exposed through them, and a `using` declaration that makes one of their members public is ignored.
 - Operators and conversion functions.
 - Public data members, nested types other than enums.
 - Anonymous enums (`enum { kSize = 4 };`), enums that no wrapped header defines, `std::byte` and the other enums of the standard library.
