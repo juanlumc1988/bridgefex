@@ -417,6 +417,60 @@ class PyCallable:
 
 
 @dataclass(frozen=True, slots=True)
+class ElementSpec:
+    """The element type of a container, with what it refers to."""
+
+    type: ElementType
+    enum: EnumPlan | None = None
+    struct: StructPlan | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackPart:
+    """An argument or the result of a callback, with what it refers to."""
+
+    type: Type
+    enum: EnumPlan | None = None
+    struct: StructPlan | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackSpec:
+    arguments: tuple[CallbackPart, ...]
+    result: CallbackPart
+
+
+@dataclass(frozen=True, slots=True)
+class ParamSpec:
+    """A parameter of a wrapped function, as a language backend sees it: what it
+    is (the C++ type and what it refers to), what the annotations say about it
+    and the names of its C parameters. Everything a binding needs to lower it
+    without reading the generated C."""
+
+    name: str
+    """The name of the C parameter (of the callback, for a ``std::function``)."""
+
+    type: Type
+    """A class passed by reference or pointer is a :class:`ClassRef`, never a
+    :class:`StructRef`."""
+
+    words: frozenset[str] = frozenset()
+    """The annotations that apply, the implied ones included (``nullable``,
+    ``transfer``, ``retain``, ``call``)."""
+
+    size: str | None = None
+    """The C parameter that holds the size of a string or a vector."""
+
+    enum: EnumPlan | None = None
+    struct: StructPlan | None = None
+    cls: ClassInfo | None = None
+    element: ElementSpec | None = None
+    callback: CallbackSpec | None = None
+    user_data: str | None = None
+    release: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class LoweredParam:
     """A C++ parameter as the generated code passes it."""
 
@@ -450,6 +504,9 @@ class LoweredParam:
     words: frozenset[str] = frozenset()
     """The annotations that apply to this parameter, the implied ones included
     (``nullable``, ``transfer``, ``retain``, ``call``)."""
+
+    spec: ParamSpec | None = None
+    """What a language backend sees of the parameter."""
 
 
 def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
@@ -1035,7 +1092,7 @@ _INT_MAX = 2**31 - 1
 
 
 @dataclass(frozen=True, slots=True)
-class _ClassInfo:
+class ClassInfo:
     """A class of the module, as the uses of it in any header name it."""
 
     model: Class
@@ -1043,6 +1100,9 @@ class _ClassInfo:
     c_type: str
     py_name: str
     """Its name in the module of its header."""
+
+    is_base: bool = False
+    """Another class of the module derives from it."""
 
     @property
     def cpp_name(self) -> str:
@@ -1084,6 +1144,9 @@ class _Element:
 
     read_extra: str = ""
     """More arguments of ``py_read``."""
+
+    enum: EnumPlan | None = None
+    struct: StructPlan | None = None
 
 
 @dataclass(slots=True)
@@ -1288,14 +1351,14 @@ class _Builder:
         }
         self._structs = self._collect_structs(module)
         # Every class of the module, by USR: a header can use the classes of the others.
-        self._classes: dict[str, _ClassInfo] = {}
+        self._classes: dict[str, ClassInfo] = {}
         for header in module.headers:
             for declaration in header.declarations:
                 if isinstance(declaration, Class):
                     prefix = naming.c_prefix(declaration.namespace, module.name)
                     self._classes.setdefault(
                         declaration.usr,
-                        _ClassInfo(
+                        ClassInfo(
                             declaration,
                             header,
                             f"{prefix}_{declaration.name}",
@@ -1309,6 +1372,10 @@ class _Builder:
             for info in self._classes.values()
             for base in info.model.bases
             if base.usr in self._classes
+        }
+        self._classes = {
+            usr: dataclasses.replace(info, is_base=usr in self._base_usrs)
+            for usr, info in self._classes.items()
         }
         # The header being built: its classes are named directly in Python, those
         # of the others through their module.
@@ -1732,7 +1799,7 @@ class _Builder:
             return ClassRef(type_.usr, type_.qualified_name, type_.definition, form, type_.system)
         return None
 
-    def _class(self, ref: ClassRef, location: Location) -> _ClassInfo | None:
+    def _class(self, ref: ClassRef, location: Location) -> ClassInfo | None:
         """The class of a reference, or None (reported) if it is no class of the module."""
         info = self._classes.get(ref.usr)
         if info is not None and ref.form is ClassForm.VALUE and info.model.abstract:
@@ -1771,10 +1838,10 @@ class _Builder:
         self.errors.append(Diagnostic(message, location))
         return None
 
-    def _is_base(self, info: _ClassInfo) -> bool:
-        return info.model.usr in self._base_usrs
+    def _is_base(self, info: ClassInfo) -> bool:
+        return info.is_base
 
-    def _handle(self, info: _ClassInfo, obj: str, *, writable: bool) -> str:
+    def _handle(self, info: ClassInfo, obj: str, *, writable: bool) -> str:
         """The expression of the handle of ``obj`` as the class ``info``. A class that
         others derive from reads it through the method that its objects, whatever
         their class, give the handle of this one with (see :class:`ClassView`)."""
@@ -1783,7 +1850,7 @@ class _Builder:
             accessor += f"_{info.c_type}"
         return f"{obj}.{accessor}()"
 
-    def _py_class(self, info: _ClassInfo) -> tuple[str, tuple[str, ...]]:
+    def _py_class(self, info: ClassInfo) -> tuple[str, tuple[str, ...]]:
         """The Python expression of a class, and the module (stem) to import
         for it when it belongs to another header."""
         if self._header is None or info.header is self._header:
@@ -1846,19 +1913,32 @@ class _Builder:
                 data, release = user_data[position], releases[position]
                 assert data is not None
                 assert release is not None
-                lowered.append(
-                    self._lower_callback_param(
-                        (name, data, release, f"_owner{owners}"), type_, location
-                    )
+                callback = self._lower_callback_param(
+                    (name, data, release, f"_owner{owners}"), type_, location
                 )
+                self._check_python_lowering(callback)
+                lowered.append(callback)
             else:
                 words = policy.parameters[position]
                 param = self._lower_param(
                     name, sizes[position], type_, location, owner=owner_names[position], words=words
                 )
                 py = dataclasses.replace(param.py, retain="retain" in words)
-                lowered.append(dataclasses.replace(param, py=py, words=words))
+                spec = param.spec and dataclasses.replace(param.spec, words=words)
+                param = dataclasses.replace(param, py=py, words=words, spec=spec)
+                self._check_python_lowering(param)
+                lowered.append(param)
         return lowered
+
+    def _check_python_lowering(self, param: LoweredParam) -> None:
+        """Temporary: the Python backend lowers the parameter from its spec to what
+        this builder says (until the builder stops saying it)."""
+        from .backends.python.lower import lower_param  # noqa: PLC0415
+
+        if param.spec is None:  # reported
+            return
+        header = self._header.stem if self._header is not None else None
+        assert lower_param(param.spec, header) == (param.py, param.call_args), param.spec
 
     # Policies -------------------------------------------------------------------------
 
@@ -1917,15 +1997,24 @@ class _Builder:
     ) -> LoweredParam:
         assert not isinstance(type_, CallbackType)  # see _lower_callback_param
         if isinstance(type_, StringType):
-            return self._lower_string_param(name, size, type_, "nullable" in words)
+            lowered = self._lower_string_param(name, size, type_, "nullable" in words)
+            return dataclasses.replace(lowered, spec=ParamSpec(name, type_, size=size))
         if isinstance(type_, EnumRef):
-            return self._lower_enum_param(name, self._enum(type_, location))
+            enum = self._enum(type_, location)
+            lowered = self._lower_enum_param(name, enum)
+            if enum is None:  # reported
+                return lowered
+            return dataclasses.replace(lowered, spec=ParamSpec(name, type_, enum=enum))
         class_ref = self._as_class(type_)
         if class_ref is not None:
             return self._lower_class_param(name, class_ref, location, owner, words)
         assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
-            return self._lower_struct_param(name, type_, self._struct(type_, location))
+            struct = self._struct(type_, location)
+            lowered = self._lower_struct_param(name, type_, struct)
+            if struct is None:  # reported
+                return lowered
+            return dataclasses.replace(lowered, spec=ParamSpec(name, type_, struct=struct))
         if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
             return self._lower_array_param(name, type_, location)
         if isinstance(type_, ContainerType):
@@ -1938,6 +2027,7 @@ class _Builder:
             value_checks=(),
             py=PyArg(name, (f"{name} = {_conversion(name, type_)}",)),
             call_args=(name,),
+            spec=ParamSpec(name, type_),
         )
 
     def _lower_callback_param(
@@ -2030,7 +2120,26 @@ class _Builder:
             call_args=(name, user_data, release),
             prologue=(f"{detail}::callback_owner {owner}({release}, {user_data});",),
             probe=f"::std::function<{signature}>()",
+            spec=ParamSpec(
+                name,
+                type_,
+                callback=CallbackSpec(
+                    tuple(self._callback_part(part, location) for part in type_.arguments),
+                    self._callback_part(type_.result, location),
+                ),
+                user_data=user_data,
+                release=release,
+            ),
         )
+
+    def _callback_part(self, type_: Type, location: Location) -> CallbackPart:
+        """An argument or the result of a callback, with the enum or struct it names
+        (already checked: a callback that names an unknown one was reported)."""
+        if isinstance(type_, EnumRef):
+            return CallbackPart(type_, enum=self._enum(type_, location))
+        if isinstance(type_, StructRef):
+            return CallbackPart(type_, struct=self._struct(type_, location))
+        return CallbackPart(type_)
 
     def _callback_argument(
         self, type_: Type, local: str, location: Location
@@ -2220,7 +2329,8 @@ class _Builder:
         nullable = "nullable" in words
         if "transfer" in words:
             assert owner is not None
-            return self._lower_taken_param(name, info, owner, ref.form, nullable)
+            taken = self._lower_taken_param(name, info, owner, ref.form, nullable)
+            return dataclasses.replace(taken, spec=ParamSpec(name, ref, cls=info))
         constant = ref.form in (ClassForm.VALUE, ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
         qualifier = "const " if constant else ""
         pointer = f"reinterpret_cast<{qualifier}{info.cpp_name}*>({name})"
@@ -2260,10 +2370,11 @@ class _Builder:
             ),
             call_args=(handle,),
             compile_checks=tuple(checks),
+            spec=ParamSpec(name, ref, cls=info),
         )
 
     def _lower_taken_param(
-        self, name: str, info: _ClassInfo, owner: str, form: ClassForm, nullable: bool
+        self, name: str, info: ClassInfo, owner: str, form: ClassForm, nullable: bool
     ) -> LoweredParam:
         """A ``std::unique_ptr<T>`` or a ``T*`` that the function takes: the C
         function owns the object until the wrapped function takes it, whatever
@@ -2402,6 +2513,7 @@ class _Builder:
                 py_value=f"_runtime.enum_results({enum.py_type}, {{data}})",
                 to_cpp=to_cpp,
                 to_c=f"{detail}::cast_to<{enum.c_type}>()",
+                enum=enum,
             )
         if isinstance(type_, StructRef):
             struct = self._struct(type_, location)
@@ -2424,6 +2536,7 @@ class _Builder:
                     f"{{ return {detail}::to_c(_item); }}"
                 ),
                 read_extra=f", {mirror}__from_c",
+                struct=struct,
             )
         check = {TypeCategory.BOOL: "check_bool", TypeCategory.FLOATING: "check_float"}.get(
             type_.category, "check_int"
@@ -2497,6 +2610,12 @@ class _Builder:
             ),
             call_args=(name, size),
             temporary=f"{vector}()" if by_reference else None,
+            spec=ParamSpec(
+                name,
+                type_,
+                size=size,
+                element=ElementSpec(type_.element, element.enum, element.struct),
+            ),
         )
 
     def _lower_array_param(
@@ -2533,6 +2652,9 @@ class _Builder:
             py=PyArg(name, (f'{name} = _runtime.fixed({conversion}, {type_.length}, "{name}")',)),
             call_args=(name,),
             temporary=f"{array}()" if type_.by_reference else None,
+            spec=ParamSpec(
+                name, type_, element=ElementSpec(type_.element, element.enum, element.struct)
+            ),
         )
 
     def _lower_array_result(self, type_: ContainerType, location: Location) -> LoweredResult:
@@ -3115,11 +3237,11 @@ class _Builder:
             is_base=self._is_base(info),
         )
 
-    def _bases(self, info: _ClassInfo) -> list[_ClassInfo]:
+    def _bases(self, info: ClassInfo) -> list[ClassInfo]:
         """The public base classes of a class, which have to be classes of the module
         (reported otherwise)."""
         model = info.model
-        bases: list[_ClassInfo] = []
+        bases: list[ClassInfo] = []
         for ref in model.bases:
             base = self._classes.get(ref.usr)
             if base is None:
@@ -3135,7 +3257,7 @@ class _Builder:
                 bases.append(base)
         return bases
 
-    def _py_bases(self, info: _ClassInfo) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    def _py_bases(self, info: ClassInfo) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """The Python base classes of a class, and the modules to import for them."""
         names: list[str] = []
         modules: list[str] = []
@@ -3147,11 +3269,11 @@ class _Builder:
                 modules.append(base.header.stem)
         return tuple(names), tuple(dict.fromkeys(modules))
 
-    def _ancestors(self, info: _ClassInfo) -> list[_ClassInfo]:
+    def _ancestors(self, info: ClassInfo) -> list[ClassInfo]:
         """Every base class of a class, the bases of its bases too, each once."""
-        found: dict[str, _ClassInfo] = {}
+        found: dict[str, ClassInfo] = {}
 
-        def visit(current: _ClassInfo) -> None:
+        def visit(current: ClassInfo) -> None:
             for base in self._known_bases(current):
                 if base.model.usr in found:
                     self.errors.append(
@@ -3169,12 +3291,12 @@ class _Builder:
         visit(info)
         return list(found.values())
 
-    def _known_bases(self, info: _ClassInfo) -> list[_ClassInfo]:
+    def _known_bases(self, info: ClassInfo) -> list[ClassInfo]:
         return [self._classes[ref.usr] for ref in info.model.bases if ref.usr in self._classes]
 
     def _views(
         self,
-        info: _ClassInfo,
+        info: ClassInfo,
         self_param: Callable[[bool], CParam],
         cast_self: Callable[[bool], str],
     ) -> tuple[ClassView, ...]:
@@ -3309,9 +3431,9 @@ class _Builder:
             value_results=tuple((i.cpp_name, i.model.qualified_name) for i in by_value),
         )
 
-    def _classes_returned_by_value(self, header: Header) -> list[_ClassInfo]:
+    def _classes_returned_by_value(self, header: Header) -> list[ClassInfo]:
         """The classes of the module that the functions of a header return by value."""
-        found: dict[str, _ClassInfo] = {}
+        found: dict[str, ClassInfo] = {}
         for declaration in header.declarations:
             results: list[Type] = []
             if isinstance(declaration, Function):
