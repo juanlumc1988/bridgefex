@@ -6,65 +6,30 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 
-import jinja2
+from .backends import registry
+from .plan import ModulePlan, api_fingerprint
+from .rendering import Renderer
 
-from .plan import ClassPlan, EnumPlan, ModulePlan, StructPlan, api_fingerprint
-
-LANGUAGES = ("python",)
+LANGUAGES = tuple(registry())
 """Languages that bindings can be generated for, on top of the C layer."""
 
 _TEMPLATES = Path(__file__).parent / "templates"
-
-
-def _is_class_plan(value: object) -> bool:
-    return isinstance(value, ClassPlan)
-
-
-def _is_enum_plan(value: object) -> bool:
-    return isinstance(value, EnumPlan)
-
-
-def _is_struct_plan(value: object) -> bool:
-    return isinstance(value, StructPlan)
-
-
-def _environment() -> jinja2.Environment:
-    environment = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(_TEMPLATES)),
-        # A typo in a template must fail loudly instead of rendering nothing.
-        undefined=jinja2.StrictUndefined,
-        trim_blocks=True,
-        lstrip_blocks=True,
-        keep_trailing_newline=True,
-        autoescape=False,
-    )
-    environment.tests["class_plan"] = _is_class_plan
-    environment.tests["enum_plan"] = _is_enum_plan
-    environment.tests["struct_plan"] = _is_struct_plan
-    return environment
-
-
-def _tidy(text: str) -> str:
-    """Remove trailing whitespace and end the text with exactly one newline."""
-    lines = [line.rstrip() for line in text.split("\n")]
-    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, str]:
     """Generate every file of a module.
 
     Returns a mapping from relative POSIX paths (``c/...`` and
-    ``python/<module>/...``) to file contents. The result depends only on
-    the plan, so it is the same on every platform.
+    ``<language>/...``) to file contents. The result depends only on the plan,
+    so it is the same on every platform.
     """
-    unknown = sorted(set(languages) - set(LANGUAGES))
+    backends = registry()
+    unknown = sorted(set(languages) - set(backends))
     if unknown:
         raise ValueError(f"unknown languages: {', '.join(unknown)}")
-    environment = _environment()
     files: dict[str, str] = {}
-
-    def put(path: str, template: str, **context: object) -> None:
-        files[path] = _tidy(environment.get_template(template).render(m=plan, **context))
+    renderer = Renderer(_TEMPLATES, plan, files)
+    put = renderer.put
 
     # The public headers first: the fingerprint is their hash.
     put(f"c/{plan.runtime_header}", "runtime.h.j2")
@@ -80,13 +45,8 @@ def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, 
         if header.structs:
             put(f"c/{header.c_internal_header}", "source_c_internal.hpp.j2", h=header)
 
-    if "python" in languages:
-        package = f"python/{plan.name}"
-        put(f"{package}/__init__.py", "python_init.py.j2")
-        put(f"{package}/_runtime.py", "python_runtime.py.j2", fingerprint=fingerprint)
-        put(f"{package}/_types.py", "python_types.py.j2")
-        for header in plan.headers:
-            put(f"{package}/{header.stem}.py", "python_module.py.j2", h=header)
+    for language in languages:
+        files.update(backends[language].render(plan, fingerprint))
     return files
 
 
