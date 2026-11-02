@@ -347,11 +347,12 @@ Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/
 
 1. Prototype: classes, functions and scalar types; C layer and Python bindings; golden and round-trip tests. *(done)*
 2. More types: strings, enums, POD structs, containers, callbacks, and wrapped classes across headers with ownership annotations. *(done)*
-3. Python complete: the loose ends of the callbacks *(done)*, inheritance and virtual methods called from Python *(done)*, and Python classes that override the virtual methods of C++ ones.
+3. Python complete: the loose ends of the callbacks, and inheritance and virtual methods called from Python. *(done)*
 4. Language-neutral architecture: one plan with one backend per language, and a conformance suite that every backend runs on the same golden headers.
-5. C# (P/Invoke), on that common base.
-6. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.
-7. Rust (`extern "C"` with safe wrappers).
+5. Classes of the target language that override the virtual methods of C++ ones. The part that is not Python's, a generated C++ subclass that calls back through a table of callbacks, belongs to the shared C layer, so it comes after the split of step 4.
+6. C# (P/Invoke), on that common base.
+7. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.
+8. Rust (`extern "C"` with safe wrappers).
 
 ## The name
 
