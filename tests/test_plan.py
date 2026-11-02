@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from bridgefex.annotations import FunctionAnnotations
+from bridgefex.backends.python.module import PyClass, PyFunction, PyHandle, PyModule, lower
 from bridgefex.errors import ConfigurationError, GenerationError, Location
 from bridgefex.generator import render
 from bridgefex.model import (
@@ -83,6 +84,11 @@ def plan_for(*headers: Header, module: str = "mod"):  # type: ignore[no-untyped-
     return build_plan(Module(module, tuple(headers)))
 
 
+def py_plan_for(*headers: Header, module: str = "mod"):  # type: ignore[no-untyped-def]
+    """The Python view of the plan: the names, bodies and thunks of the backend."""
+    return lower(build_plan(Module(module, tuple(headers))))
+
+
 def test_class_functions_and_signatures() -> None:
     model = klass(
         "Counter",
@@ -93,8 +99,8 @@ def test_class_functions_and_signatures() -> None:
             method("count", is_static=True),
         ),
     )
-    item = plan_for(header(model)).headers[0].items[0]
-    assert isinstance(item, ClassPlan)
+    item = py_plan_for(header(model)).headers[0].items[0]
+    assert isinstance(item, PyClass)
     assert item.c_type == "ns_Counter"
     signatures = [f.signature for f in item.c_functions]
     assert signatures == [
@@ -129,8 +135,8 @@ def test_class_functions_and_signatures() -> None:
 
 def test_void_function_has_no_out_parameter() -> None:
     model = Function("reset", ("ns",), (), VOID, HERE)
-    item = plan_for(header(model)).headers[0].items[0]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(header(model)).headers[0].items[0]
+    assert isinstance(item, PyFunction)
     assert item.c_function.signature == "ns_reset(void)"
     assert item.c_function.statement == "::ns::reset();"
     assert item.py.result.value is None
@@ -147,8 +153,8 @@ def test_overloads_get_suffixes_only_when_overloaded() -> None:
             method("value"),
         ),
     )
-    item = plan_for(header(model)).headers[0].items[0]
-    assert isinstance(item, ClassPlan)
+    item = py_plan_for(header(model)).headers[0].items[0]
+    assert isinstance(item, PyClass)
     names = [f.name for f in item.c_functions]
     assert names == [
         "ns_Counter_create_void",
@@ -172,8 +178,8 @@ def test_overload_set_across_headers() -> None:
 
 def test_private_python_names_of_classes_do_not_clash() -> None:
     """The pointer type of X must not be the mirror of a class named X_p."""
-    plan = plan_for(header(klass("Circle"), klass("Circle_p")))
-    circle, circle_p = plan.headers[0].classes
+    plan = py_plan_for(header(klass("Circle"), klass("Circle_p")))
+    circle, circle_p = (PyHandle(item.plan) for item in plan.headers[0].classes)
     names = [circle.struct_name, circle.pointer_name, circle_p.struct_name, circle_p.pointer_name]
     assert names == ["_ns_Circle", "_ns_Circle__p", "_ns_Circle_p", "_ns_Circle_p__p"]
 
@@ -207,24 +213,24 @@ def test_collision_between_class_function_and_free_function() -> None:
 def test_python_name_collisions_are_reported() -> None:
     clash = header(klass("Box", namespace=("a",)), klass("Box", namespace=("b",)))
     with pytest.raises(GenerationError, match="Python name 'Box'"):
-        plan_for(clash)
+        py_plan_for(clash)
 
 
 def test_python_reserved_member_names_are_renamed() -> None:
     model = klass("Box", methods=(method("close"), method("from")))
-    item = plan_for(header(model)).headers[0].items[0]
-    assert isinstance(item, ClassPlan)
+    item = py_plan_for(header(model)).headers[0].items[0]
+    assert isinstance(item, PyClass)
     assert [m.name for m in item.members] == ["close_", "from_"]
 
 
 def test_python_member_name_clash_after_renaming() -> None:
     model = klass("Box", methods=(method("close"), method("close_")))
     with pytest.raises(GenerationError, match="Python name 'close_'"):
-        plan_for(header(model))
+        py_plan_for(header(model))
 
 
 def test_module_level_python_names_avoid_generated_globals() -> None:
-    plan = plan_for(
+    plan = py_plan_for(
         header(function("ctypes"), function("threading"), function("weakref"), klass("Box"))
     )
     assert plan.headers[0].py_exports == ("ctypes_", "threading_", "weakref_", "Box")
@@ -237,7 +243,7 @@ def test_names_starting_with_underscore_give_reserved_c_names() -> None:
 
 def test_python_name_clash_after_renaming_is_reported() -> None:
     with pytest.raises(GenerationError, match="Python name 'ctypes_'"):
-        plan_for(header(function("ctypes"), function("ctypes_")))
+        py_plan_for(header(function("ctypes"), function("ctypes_")))
 
 
 def test_duplicate_header_names() -> None:
@@ -252,8 +258,8 @@ def test_invalid_header_name() -> None:
 
 def test_python_conversions() -> None:
     model = function("f", Parameter("a", INT32), Parameter("b", DOUBLE), Parameter("c", BOOL))
-    item = plan_for(header(model)).headers[0].items[0]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(header(model)).headers[0].items[0]
+    assert isinstance(item, PyFunction)
     assert [arg.conversions for arg in item.py.args] == [
         ('a = _runtime.to_int(a, ctypes.c_int32, "a")',),
         ('b = _runtime.to_float(b, ctypes.c_double, "b")',),
@@ -283,7 +289,7 @@ def test_fingerprint_is_stable_and_tracks_declarations() -> None:
 
 def test_fingerprint_is_in_the_runtime_files() -> None:
     plan = plan_for(header(function("f", Parameter("a", INT32))), module="m")
-    files = render(plan)
+    files = render(plan.plan if hasattr(plan, "plan") else plan)
     expected = fingerprint(plan)
     assert f'return "{expected}";' in files["c/m_runtime.cpp"]
     assert f'API_FINGERPRINT = "{expected}"' in files["python/m/_runtime.py"]
@@ -315,8 +321,8 @@ def test_runtime_changes_are_pinned_to_the_conventions() -> None:
 
 def test_long_python_calls_are_wrapped() -> None:
     params = tuple(Parameter(f"argument_{index}", INT32) for index in range(6))
-    item = plan_for(header(function("f", *params))).headers[0].items[0]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(header(function("f", *params))).headers[0].items[0]
+    assert isinstance(item, PyFunction)
     lines = item.py.body(4).splitlines()
     # The conversions come first, then the call, which does not fit in one line.
     conversion = '    {0} = _runtime.to_int({0}, ctypes.c_int32, "{0}")'
@@ -398,9 +404,9 @@ VIEW = StringType(StringKind.STRING_VIEW)
 C_STRING = StringType(StringKind.C_STRING)
 
 
-def only_function(plan: ModulePlan) -> FunctionPlan:
+def only_function(plan: PyModule | ModulePlan) -> PyFunction | FunctionPlan:
     (item,) = plan.headers[0].items
-    assert isinstance(item, FunctionPlan)
+    assert isinstance(item, PyFunction | FunctionPlan)
     return item
 
 
@@ -412,7 +418,7 @@ def test_string_parameters() -> None:
         VOID,
         HERE,
     )
-    item = only_function(plan_for(header(model)))
+    item = only_function(py_plan_for(header(model)))
     function = item.c_function
     assert function.signature == (
         "ns_f(const char* a, size_t a_size, const char* b, size_t b_size, const char* c)"
@@ -464,8 +470,8 @@ def test_string_parameters() -> None:
 def test_string_results(result: StringType, helper: str) -> None:
     get = dataclasses.replace(method("get", Parameter("s", STRING), is_const=True), result=result)
     model = klass("Text", methods=(get,))
-    (item,) = plan_for(header(model)).headers[0].items
-    assert isinstance(item, ClassPlan)
+    (item,) = py_plan_for(header(model)).headers[0].items
+    assert isinstance(item, PyClass)
     py = item.members[0]
     function = py.function
     assert function.signature == (
@@ -675,9 +681,9 @@ COLOR = EnumRef("c:@N@ns@E@Color", "ns::Color", HERE)
 
 def test_enum_parameters_and_results() -> None:
     model = Function("f", ("ns",), (Parameter("c", COLOR),), COLOR, HERE)
-    plan = plan_for(enum_header(color(), model))
+    plan = py_plan_for(enum_header(color(), model))
     item = plan.headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    assert isinstance(item, PyFunction)
     function = item.c_function
     assert function.signature == "ns_f(ns_Color c, ns_Color* out_result)"
     assert function.statement == (
@@ -698,8 +704,8 @@ def test_enums_without_a_fixed_type_are_range_checked() -> None:
         enumerators=(Enumerator("A", -3), Enumerator("B", 2)),
     )
     model = Function("f", ("ns",), (Parameter("c", COLOR),), VOID, HERE)
-    item = plan_for(enum_header(unfixed, model)).headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(enum_header(unfixed, model)).headers[0].items[1]
+    assert isinstance(item, PyFunction)
     (check,) = item.c_function.checks
     assert check.condition == "c < -4 || c > 3"
     assert check.helper == "invalid_argument"
@@ -709,13 +715,13 @@ def test_enums_without_a_fixed_type_are_range_checked() -> None:
     )
     # No check at the limits of int itself.
     full = dataclasses.replace(unfixed, enumerators=(Enumerator("A", -(2**31)), Enumerator("B", 0)))
-    item = plan_for(enum_header(full, model)).headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(enum_header(full, model)).headers[0].items[1]
+    assert isinstance(item, PyFunction)
     assert item.c_function.checks == ()
 
 
 def test_enum_constants_and_names() -> None:
-    plan = plan_for(enum_header(color()))
+    plan = py_plan_for(enum_header(color()))
     (enum,) = plan.headers[0].enums
     assert enum.c_type == "ns_Color"
     assert [(e.macro, e.literal) for e in enum.enumerators] == [
@@ -740,12 +746,12 @@ def test_enum_overload_tokens_are_their_c_type() -> None:
 
 def test_enums_of_other_headers() -> None:
     user = function("f", Parameter("c", COLOR))
-    plan = plan_for(enum_header(user, name="a.h"), enum_header(color(), name="b.h"))
+    plan = py_plan_for(enum_header(user, name="a.h"), enum_header(color(), name="b.h"))
     assert plan.headers[0].foreign_enums[0].c_type == "ns_Color"
     assert plan.headers[1].foreign_enums == ()
     assert plan.headers[1].enums[0].py_module == "mod.b"
     # Without a fixed underlying type, the user sees the definition: nothing to check.
-    plan = plan_for(enum_header(user, name="a.h"), enum_header(color(False), name="b.h"))
+    plan = py_plan_for(enum_header(user, name="a.h"), enum_header(color(False), name="b.h"))
     assert plan.headers[0].foreign_enums == ()
 
 
@@ -762,15 +768,15 @@ def test_enums_that_no_wrapped_header_defines() -> None:
 
 def test_enum_names_are_reserved_and_clash_checked() -> None:
     with pytest.raises(GenerationError, match="'ns_Color_Red' of function"):
-        plan_for(enum_header(color(), function("Color_Red")))
+        py_plan_for(enum_header(color(), function("Color_Red")))
     with pytest.raises(GenerationError, match="'ns_Color' of function"):
-        plan_for(enum_header(color(), function("Color")))
+        py_plan_for(enum_header(color(), function("Color")))
     # A parameter named like an enumerator constant would be replaced by it.
-    item = plan_for(enum_header(color(), function("f", Parameter("ns_Color_Red", INT32))))
+    item = py_plan_for(enum_header(color(), function("f", Parameter("ns_Color_Red", INT32))))
     assert item.headers[0].c_functions[0].params[0].name == "ns_Color_Red_"
     same = dataclasses.replace(color(), enumerators=(Enumerator("None", 0), Enumerator("None_", 1)))
     with pytest.raises(GenerationError, match="get the same Python name 'None_'"):
-        plan_for(enum_header(same))
+        py_plan_for(enum_header(same))
 
 
 def test_nested_enums() -> None:
@@ -779,11 +785,11 @@ def test_nested_enums() -> None:
     )
     lamp = dataclasses.replace(klass("Lamp", methods=(method("close_"),)), enums=(nested,))
     with pytest.raises(GenerationError, match="two members of '::ns::Lamp' get the Python name"):
-        plan_for(enum_header(lamp))
+        py_plan_for(enum_header(lamp))
     lamp = dataclasses.replace(klass("Lamp"), enums=(dataclasses.replace(nested, name="Mode"),))
-    plan = plan_for(enum_header(lamp))
+    plan = py_plan_for(enum_header(lamp))
     (item,) = plan.headers[0].items
-    assert isinstance(item, ClassPlan)
+    assert isinstance(item, PyClass)
     (enum,) = item.enums
     assert enum.c_type == "ns_Lamp_Mode"
     assert enum.py_qualname == "Lamp.Mode"
@@ -810,9 +816,9 @@ POINT = struct("Point", field("x", DOUBLE_T), field("y", DOUBLE_T))
 
 def test_struct_parameters_and_results() -> None:
     model = Function("mid", ("ns",), (Parameter("a", ref("Point", True)),), ref("Point"), HERE)
-    plan = plan_for(enum_header(POINT, model))
+    plan = py_plan_for(enum_header(POINT, model))
     item = plan.headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    assert isinstance(item, PyFunction)
     function = item.c_function
     assert function.signature == "ns_mid(const ns_Point* a, ns_Point* out_result)"
     assert function.statement == (
@@ -864,7 +870,7 @@ def test_struct_member_names() -> None:
         field("_fields_", INT32),
         field("self", INT32),
     )
-    (plan,) = plan_for(enum_header(names)).structs
+    (plan,) = py_plan_for(enum_header(names)).structs
     # A renamed member never takes the name of another one.
     assert [f.name for f in plan.fields] == [
         "from_",
@@ -919,7 +925,7 @@ def test_nested_enum_of_a_struct_against_its_members() -> None:
     mode = dataclasses.replace(color(), name="x", scope=("S",), usr="c:@N@ns@S@S@E@x")
     bad = dataclasses.replace(struct("S", field("x", INT32)), enums=(mode,))
     with pytest.raises(GenerationError, match="get the Python name 'x'"):
-        plan_for(enum_header(bad))
+        py_plan_for(enum_header(bad))
 
 
 def test_sources_include_the_headers_of_the_structs_they_use() -> None:
@@ -937,7 +943,7 @@ def vector(element: object, by_reference: bool = False) -> ContainerType:
 
 def test_vector_parameters_and_results() -> None:
     model = Function("scale", ("ns",), (Parameter("v", vector(INT32, True)),), vector(INT32), HERE)
-    item = only_function(plan_for(header(model)))
+    item = only_function(py_plan_for(header(model)))
     function = item.c_function
     assert function.signature == (
         "ns_scale(const int32_t* v, size_t v_size, int32_t** out_result, size_t* out_result_size)"
@@ -961,7 +967,7 @@ def test_vector_parameters_and_results() -> None:
 
 def test_vector_elements() -> None:
     strings = only_function(
-        plan_for(header(Function("f", ("ns",), (Parameter("w", vector(STRING)),), VOID, HERE)))
+        py_plan_for(header(Function("f", ("ns",), (Parameter("w", vector(STRING)),), VOID, HERE)))
     ).c_function
     assert strings.signature == "ns_f(const mod_string* w, size_t w_size)"
     assert strings.checks[1].condition == "mod_detail::has_null_string(w, w_size)"
@@ -970,8 +976,8 @@ def test_vector_elements() -> None:
         color(fixed=False), underlying=BUILTIN_TYPES["INT"], enumerators=(Enumerator("A", 0),)
     )
     model = Function("g", ("ns",), (Parameter("c", vector(COLOR)),), vector(COLOR), HERE)
-    item = plan_for(enum_header(unfixed, model)).headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(enum_header(unfixed, model)).headers[0].items[1]
+    assert isinstance(item, PyFunction)
     assert (
         """mod_detail::enum_in<::ns::Color>{0, 1, "an element of 'c' is not a value of """
         """ns::Color (0..1)"}""" in item.c_function.statement
@@ -979,8 +985,8 @@ def test_vector_elements() -> None:
     assert "mod_detail::cast_to<ns_Color>()" in item.c_function.statement
     assert item.py.result.value == "_runtime.enum_results(_types.ns_Color, _out_data)"
     model = Function("h", ("ns",), (Parameter("p", vector(ref("Point"))),), VOID, HERE)
-    item = plan_for(enum_header(POINT, model)).headers[0].items[1]
-    assert isinstance(item, FunctionPlan)
+    item = py_plan_for(enum_header(POINT, model)).headers[0].items[1]
+    assert isinstance(item, PyFunction)
     assert "[](const ns_Point& _item) { return mod_detail::from_c(_item); }" in (
         item.c_function.statement
     )
@@ -1059,7 +1065,7 @@ def callback(result: object, *arguments: object, references: tuple[bool, ...] = 
 def test_callback_parameters() -> None:
     f = callback(INT32, INT32, references=(True,))
     model = Function("sum", ("ns",), (Parameter("f", f),), INT32, HERE)
-    item = only_function(plan_for(header(model)))
+    item = only_function(py_plan_for(header(model)))
     function = item.c_function
     assert function.signature == (
         "ns_sum(void (*f)(void*, int32_t, int32_t*), void* f_user_data, "
@@ -1089,7 +1095,7 @@ def test_callback_parameters() -> None:
 def test_callback_arguments_and_thunks() -> None:
     sink = callback(VOID, COLOR, ref("Point", True), STRING_REF, VIEW, C_STRING)
     model = Function("each", ("ns",), (Parameter("f", sink),), VOID, HERE)
-    plan = plan_for(enum_header(color(), POINT, model))
+    plan = py_plan_for(enum_header(color(), POINT, model))
     function = plan.headers[0].c_functions[-1]
     assert function.signature.startswith(
         "ns_each(void (*f)(void*, ns_Color, const ns_Point*, const char*, size_t, "
@@ -1128,7 +1134,7 @@ def test_callback_results() -> None:
         color(fixed=False), underlying=BUILTIN_TYPES["INT"], enumerators=(Enumerator("A", 0),)
     )
     model = Function("g", ("ns",), (Parameter("f", callback(COLOR)),), VOID, HERE)
-    plan = plan_for(enum_header(unfixed, model))
+    plan = py_plan_for(enum_header(unfixed, model))
     statement = plan.headers[0].c_functions[-1].statement
     # 0 is always a value: an invalid result becomes the default.
     assert (
@@ -1188,7 +1194,7 @@ def test_callback_overload_tokens() -> None:
 def test_thunks_are_shared_by_the_headers() -> None:
     first = header(function("f", Parameter("g", callback(VOID, INT32))), name="a.h")
     second = header(function("h", Parameter("g", callback(VOID, INT32))), name="b.h")
-    plan = plan_for(first, second)
+    plan = py_plan_for(first, second)
     assert [thunk.name for thunk in plan.thunks] == ["_callback__void__int32"]
 
 
@@ -1220,8 +1226,8 @@ def test_class_parameters() -> None:
             ),
         ),
     )
-    plan = plan_for(*two_headers(tree))
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    plan = py_plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, PyClass)]
     (member,) = item.members
     function = member.function
     assert function.signature == (
@@ -1267,7 +1273,7 @@ def test_class_parameters() -> None:
 def test_classes_of_the_same_header_are_named_directly() -> None:
     node = klass("Node")
     tree = klass("Tree", methods=(method("f", Parameter("a", cref("Node", ClassForm.REFERENCE))),))
-    plan = plan_for(header(node, tree))
+    plan = py_plan_for(header(node, tree))
     member = plan.headers[0].classes[1].members[0]
     assert member.imports == ()
     assert member.args[0].conversions == ('_runtime.check_object(a, Node, "a")',)
@@ -1281,7 +1287,7 @@ def test_the_headers_of_the_classes_it_uses_are_included() -> None:
     assert [h.stem for h in plan.headers[1].foreign_class_headers] == ["node"]
     assert [h.stem for h in plan.headers[1].included_headers] == ["node"]
     assert plan.headers[0].included_headers == ()
-    files = render(plan)
+    files = render(plan.plan if hasattr(plan, "plan") else plan)
     assert '#include "node.h"' in files["c/tree_c.cpp"]
     assert '#include "node.h"' not in files["c/node_c.cpp"].partition('#include "node_c.h"')[2]
 
@@ -1335,27 +1341,27 @@ def test_constructors_keep_the_references_and_pointers_they_get() -> None:
             ),
         ),
     )
-    plan = plan_for(*two_headers(tree))
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    plan = py_plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, PyClass)]
     (constructor,) = item.constructors
     assert constructor.retain_statements("self") == (
         "_runtime.retain(self._retained, a)",
         "_runtime.retain(self._retained, b)",
     )
     # Methods keep nothing by default.
-    method_plan = plan_for(
+    method_plan = py_plan_for(
         *two_headers(
             klass("Tree", methods=(method("f", Parameter("a", cref("Node", forms.REFERENCE))),))
         )
     )
-    (tree_item,) = [i for i in method_plan.headers[1].items if isinstance(i, ClassPlan)]
+    (tree_item,) = [i for i in method_plan.headers[1].items if isinstance(i, PyClass)]
     assert tree_item.members[0].retain_statements("self") == ()
 
 
 def test_non_const_methods_need_a_writable_object() -> None:
     node = klass("Node", methods=(method("get", is_const=True), method("set")))
-    item = plan_for(header(node)).headers[0].items[0]
-    assert isinstance(item, ClassPlan)
+    item = py_plan_for(header(node)).headers[0].items[0]
+    assert isinstance(item, PyClass)
     assert [m.call_args[0] for m in item.members] == ["self._ptr()", "self._mptr()"]
 
 
@@ -1397,8 +1403,8 @@ def class_results(*results: ClassRef, static: bool = False, params: tuple[Parame
         for index, result in enumerate(results)
     )
     tree = klass("Tree", methods=methods)
-    plan = plan_for(*two_headers(tree))
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    plan = py_plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, PyClass)]
     return plan, item
 
 
@@ -1488,18 +1494,18 @@ def test_the_classes_a_header_creates_are_checked_before_cxx17() -> None:
     tree_header = plan.headers[1]
     # Its own class, and the class of another header that it returns by value.
     assert tree_header.created_classes == (("::ns::Tree", "ns::Tree"), ("::ns::Node", "ns::Node"))
-    source = render(plan)["c/tree_c.cpp"]
+    source = render(plan.plan)["c/tree_c.cpp"]
     assert "static_assert(alignof(::ns::Node) <= mod_detail::new_alignment" in source
     assert "static_assert(std::is_move_constructible<::ns::Node>::value," in source
     assert "_MSVC_LANG >= 201703L" in source
     # No result by value, no check.
     other, _ = class_results(cref("Node", ClassForm.REFERENCE))
-    assert "is_move_constructible" not in render(other)["c/tree_c.cpp"]
+    assert "is_move_constructible" not in render(other.plan)["c/tree_c.cpp"]
 
 
 def test_the_header_says_who_owns_what() -> None:
     plan, _ = class_results(cref("Node", ClassForm.VALUE), cref("Node", ClassForm.REFERENCE))
-    header_text = render(plan)["c/tree_c.h"]
+    header_text = render(plan.plan)["c/tree_c.h"]
     assert (
         "/* int32_t ns::Tree::m0()\n"
         " * *out_result: owned by the caller; destroy it with ns_Node_destroy. */"
@@ -1512,7 +1518,7 @@ def test_the_ownership_of_a_result_is_part_of_the_api_fingerprint() -> None:
     """The C signatures are the same, but who destroys the object is not."""
 
     def fingerprint(form: ClassForm) -> str:
-        files = render(class_results(cref("Node", form))[0])
+        files = render(class_results(cref("Node", form))[0].plan)
         match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
         assert match is not None
         return match.group(1)
@@ -1547,8 +1553,8 @@ def taking(*parameters: Parameter, static: bool = False, constructor: bool = Fal
         tree = klass("Tree", constructors=(Constructor(tuple(parameters), HERE),))
     else:
         tree = klass("Tree", methods=(method("m", *parameters, is_static=static),))
-    plan = plan_for(*two_headers(tree))
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    plan = py_plan_for(*two_headers(tree))
+    (item,) = [i for i in plan.headers[1].items if isinstance(i, PyClass)]
     return plan, item
 
 
@@ -1686,7 +1692,7 @@ def annotated(
 ):  # type: ignore[no-untyped-def]
     tree = klass("Tree", methods=methods)
     plan = build_plan(Module("mod", two_headers(tree)), annotations)
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    (item,) = [i for i in lower(plan).headers[1].items if isinstance(i, PyClass)]
     return plan, item
 
 
@@ -1839,7 +1845,7 @@ def test_constructors_keep_unless_they_only_read() -> None:
     )
     tree = klass("Tree", constructors=(Constructor(parameters, HERE),))
     plan = build_plan(Module("mod", two_headers(tree)), annotate(ns_Tree_create={"read": "call"}))
-    (item,) = [i for i in plan.headers[1].items if isinstance(i, ClassPlan)]
+    (item,) = [i for i in lower(plan).headers[1].items if isinstance(i, PyClass)]
     (constructor,) = item.constructors
     assert constructor.retain_statements("self") == ("_runtime.retain(self._retained, kept)",)
     assert constructor.function.notes == (
@@ -1899,7 +1905,7 @@ def test_the_annotations_are_part_of_the_api_fingerprint() -> None:
             ),
             annotate(ns_Tree_find={"return": word}),
         )
-        files = render(plan)
+        files = render(plan.plan if hasattr(plan, "plan") else plan)
         match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
         assert match is not None
         return match.group(1)
@@ -1956,12 +1962,12 @@ def derived(
     )
 
 
-def classes_of(plan: ModulePlan) -> dict[str, ClassPlan]:
+def classes_of(plan: PyModule) -> dict[str, PyClass]:
     return {
         item.model.name: item
         for header_plan in plan.headers
         for item in header_plan.items
-        if isinstance(item, ClassPlan)
+        if isinstance(item, PyClass)
     }
 
 
@@ -1969,7 +1975,7 @@ def test_every_ancestor_has_a_conversion_and_a_view() -> None:
     base = klass("Base", methods=(method("a", is_const=True),))
     mid = derived("Mid", base, methods=(method("b"),))
     leaf = derived("Leaf", mid)
-    plan = classes_of(plan_for(header(base, mid, leaf)))
+    plan = classes_of(py_plan_for(header(base, mid, leaf)))
     assert plan["Base"].py_bases == ()
     assert plan["Base"].views == ()
     assert plan["Mid"].py_bases == ("Base",)
@@ -1979,12 +1985,15 @@ def test_every_ancestor_has_a_conversion_and_a_view() -> None:
     assert [view.c_type for view in plan["Leaf"].views] == ["ns_Mid", "ns_Base"]
     view = plan["Leaf"].views[1]
     assert (view.ptr, view.mptr) == ("_ptr_ns_Base", "_mptr_ns_Base")
-    assert view.upcast.signature == "ns_Leaf_as_ns_Base(ns_Leaf* self)"
-    assert view.const_upcast.signature == "ns_Leaf_as_ns_Base_const(const ns_Leaf* self)"
-    assert view.upcast.c_return == "ns_Base*"
-    assert view.const_upcast.c_return == "const ns_Base*"
-    assert view.upcast.ctypes_restype == "_types._ns_Base__p"
-    assert "static_cast<::ns::Base*>(reinterpret_cast<::ns::Leaf*>(self))" in view.upcast.statement
+    plan_view = plan["Leaf"].plan.views[1]
+    assert plan_view.upcast.signature == "ns_Leaf_as_ns_Base(ns_Leaf* self)"
+    assert plan_view.const_upcast.signature == "ns_Leaf_as_ns_Base_const(const ns_Leaf* self)"
+    assert plan_view.upcast.c_return == "ns_Base*"
+    assert plan_view.const_upcast.c_return == "const ns_Base*"
+    assert plan_view.upcast.ctypes_restype == "_types._ns_Base__p"
+    assert "static_cast<::ns::Base*>(reinterpret_cast<::ns::Leaf*>(self))" in (
+        plan_view.upcast.statement
+    )
     functions = [f.name for f in plan["Leaf"].c_functions]
     assert functions[:6] == [
         "ns_Leaf_create",
@@ -1999,7 +2008,7 @@ def test_every_ancestor_has_a_conversion_and_a_view() -> None:
 def test_methods_read_their_handle_through_the_view_of_a_base_class() -> None:
     base = klass("Base", methods=(method("a", Parameter("x", cref("Base", ClassForm.REFERENCE))),))
     leaf = derived("Leaf", base, methods=(method("b"),))
-    plan = classes_of(plan_for(header(base, leaf)))
+    plan = classes_of(py_plan_for(header(base, leaf)))
     # Any object of a derived class may be the self of a method of its base...
     assert plan["Base"].members[0].call_args[:2] == ("self._mptr_ns_Base()", "x._mptr_ns_Base()")
     # ... but nothing derives from Leaf.
@@ -2011,7 +2020,7 @@ def test_taking_an_object_as_its_base_class_reads_the_view() -> None:
     base = dataclasses.replace(klass("Base"), virtual_destructor=True)
     leaf = derived("Leaf", base)
     taker = klass("Taker", methods=(method("m", Parameter("x", cref("Base", ClassForm.UNIQUE))),))
-    item = classes_of(plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
+    item = classes_of(py_plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
     member = item.members[0]
     assert member.transfers == (("x", "_h2", "_mptr_ns_Base"),)
     code = member.body(4)
@@ -2024,18 +2033,18 @@ def test_without_a_virtual_destructor_only_the_class_itself_can_be_given() -> No
     base = dataclasses.replace(klass("Base"), virtual_destructor=False)
     leaf = derived("Leaf", base, virtual_destructor=False)
     taker = klass("Taker", methods=(method("m", Parameter("x", cref("Base", ClassForm.UNIQUE))),))
-    item = classes_of(plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
+    item = classes_of(py_plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
     assert '_runtime.check_exact(x, _test.Base, "x")' in item.members[0].body(4)
     # A class nobody derives from has nothing to check.
     leaf_taker = klass("T2", methods=(method("m", Parameter("x", cref("Leaf", ClassForm.UNIQUE))),))
-    other = classes_of(plan_for(header(base, leaf), header(leaf_taker, name="t2.h")))["T2"]
+    other = classes_of(py_plan_for(header(base, leaf), header(leaf_taker, name="t2.h")))["T2"]
     assert "check_exact" not in other.members[0].body(4)
 
 
 def test_a_base_class_from_another_header_is_imported() -> None:
     base = klass("Base")
     leaf = derived("Leaf", base)
-    plan = plan_for(header(base, name="base.h"), header(leaf, name="leaf.h"))
+    plan = py_plan_for(header(base, name="base.h"), header(leaf, name="leaf.h"))
     item = classes_of(plan)["Leaf"]
     assert item.py_bases == ("_base.Base",)
     assert item.base_modules == ("base",)
@@ -2046,7 +2055,7 @@ def test_a_base_class_from_another_header_is_imported() -> None:
 def test_several_bases_have_a_view_each() -> None:
     first, second = klass("First"), klass("Second")
     both = derived("Both", first, second)
-    item = classes_of(plan_for(header(first, second, both)))["Both"]
+    item = classes_of(py_plan_for(header(first, second, both)))["Both"]
     assert item.py_bases == ("First", "Second")
     assert [view.c_type for view in item.views] == ["ns_First", "ns_Second"]
 
@@ -2071,7 +2080,7 @@ def test_a_class_that_inherits_one_base_twice_is_reported() -> None:
 
 def test_an_abstract_class_has_no_constructor_and_is_not_copied() -> None:
     shape = derived("Shape", abstract=True)
-    item = classes_of(plan_for(header(shape)))["Shape"]
+    item = classes_of(py_plan_for(header(shape)))["Shape"]
     assert item.constructors == ()
     assert [f.name for f in item.c_functions] == ["ns_Shape_destroy"]
     user = klass("User", methods=(method("m", Parameter("x", cref("Shape", ClassForm.VALUE))),))

@@ -7,6 +7,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from ... import naming
 from ...errors import Diagnostic, GenerationError, Location
@@ -27,6 +28,7 @@ from ...plan import (
     CFunction,
     ClassPlan,
     ClassView,
+    EnumeratorPlan,
     EnumPlan,
     FieldPlan,
     FunctionPlan,
@@ -44,17 +46,31 @@ from .lower import (
 )
 from .model import PyCallable, python_call
 
+
+class PlanView:
+    """A Python view of an object of the plan: what the view does not say is the plan's,
+    so the C layer and the Python layer of an item are read from the same place."""
+
+    plan: Any
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "plan":  # not set yet
+            raise AttributeError(name)
+        return getattr(self.plan, name)
+
+
 # Enums and structs -------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class PyEnumerator:
+class PyEnumerator(PlanView):
+    plan: EnumeratorPlan
     py_name: str
     value: int
 
 
 @dataclass(frozen=True, slots=True)
-class PyEnum:
+class PyEnum(PlanView):
     plan: EnumPlan
     py_name: str
     """Its name in the header module, or the class attribute of a nested enum."""
@@ -95,7 +111,7 @@ class PyField:
 
 
 @dataclass(frozen=True, slots=True)
-class PyStruct:
+class PyStruct(PlanView):
     plan: StructPlan
     py_name: str
     py_qualname: str
@@ -126,7 +142,7 @@ class PyStruct:
 
 
 @dataclass(frozen=True, slots=True)
-class PyHandle:
+class PyHandle(PlanView):
     """The opaque C handle of a wrapped class, in ``_types.py``."""
 
     plan: ClassPlan
@@ -157,13 +173,14 @@ class PyHandle:
 class PyView:
     """How a class object gives its handle as one of its ancestors."""
 
+    c_type: str
     ptr: str
     mptr: str
     upcast: CFunction
 
 
 @dataclass(frozen=True, slots=True)
-class PyClass:
+class PyClass(PlanView):
     plan: ClassPlan
     py_name: str
     py_bases: tuple[str, ...]
@@ -203,18 +220,30 @@ class PyClass:
     def single_constructor(self) -> bool:
         return len(self.constructors) == 1
 
+    @property
+    def c_functions(self) -> tuple[CFunction, ...]:
+        return self.plan.c_functions
+
 
 @dataclass(frozen=True, slots=True)
-class PyFunction:
+class PyFunction(PlanView):
     plan: FunctionPlan
     py: PyCallable
+
+    @property
+    def model(self) -> object:
+        return self.plan.model
+
+    @property
+    def c_function(self) -> CFunction:
+        return self.plan.c_function
 
 
 PyItem = PyEnum | PyStruct | PyClass | PyFunction
 
 
 @dataclass(frozen=True, slots=True)
-class PyHeader:
+class PyHeader(PlanView):
     plan: HeaderPlan
     items: tuple[PyItem, ...]
     types: tuple[PyHandle | PyEnum, ...]
@@ -235,6 +264,19 @@ class PyHeader:
     @property
     def struct_inits(self) -> tuple[CFunction, ...]:
         return self.plan.struct_inits
+
+    @property
+    def classes(self) -> tuple[PyClass, ...]:
+        return tuple(item for item in self.items if isinstance(item, PyClass))
+
+    @property
+    def enums(self) -> tuple[PyEnum, ...]:
+        """The enums this header defines, nested ones included."""
+        return tuple(item for item in self.types if isinstance(item, PyEnum))
+
+    @property
+    def foreign_enums(self) -> tuple[EnumPlan, ...]:
+        return self.plan.foreign_enums
 
     @property
     def py_exports(self) -> tuple[str, ...]:
@@ -373,7 +415,7 @@ def thunk(callback: CallbackSpec) -> PyThunk:
 
 
 @dataclass(frozen=True, slots=True)
-class PyModule:
+class PyModule(PlanView):
     plan: ModulePlan
     headers: tuple[PyHeader, ...]
     structs: tuple[PyStruct, ...]
@@ -492,7 +534,7 @@ class _Lowering:
                     )
                 )
             names[py_name] = enumerator.model_name
-            enumerators.append(PyEnumerator(py_name, enumerator.value))
+            enumerators.append(PyEnumerator(enumerator, py_name, enumerator.value))
         return PyEnum(
             plan,
             name,
@@ -702,7 +744,7 @@ class _Lowering:
 
 
 def _view(view: ClassView) -> PyView:
-    return PyView(f"_ptr_{view.c_type}", f"_mptr_{view.c_type}", view.upcast)
+    return PyView(view.c_type, f"_ptr_{view.c_type}", f"_mptr_{view.c_type}", view.upcast)
 
 
 __all__ = ["ContainerType", "PyModule", "lower"]
