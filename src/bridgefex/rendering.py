@@ -4,6 +4,7 @@ and the backends."""
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import jinja2
@@ -23,8 +24,11 @@ def _is_struct_plan(value: object) -> bool:
     return isinstance(value, StructPlan)
 
 
-def environment(directory: Path) -> jinja2.Environment:
-    """An environment for the templates of ``directory``."""
+def environment(
+    directory: Path, tests: Mapping[str, Callable[[object], bool]] | None = None
+) -> jinja2.Environment:
+    """An environment for the templates of ``directory``, with the Jinja ``tests``
+    (``item is name``) that a backend adds."""
     result = jinja2.Environment(
         loader=jinja2.FileSystemLoader(str(directory)),
         # A typo in a template must fail loudly instead of rendering nothing.
@@ -37,6 +41,7 @@ def environment(directory: Path) -> jinja2.Environment:
     result.tests["class_plan"] = _is_class_plan
     result.tests["enum_plan"] = _is_enum_plan
     result.tests["struct_plan"] = _is_struct_plan
+    result.tests.update(tests or {})
     return result
 
 
@@ -49,11 +54,19 @@ def tidy(text: str) -> str:
 class Renderer:
     """Renders the templates of one directory for a module, into ``files``."""
 
-    def __init__(self, directory: Path, plan: ModulePlan, files: dict[str, str]) -> None:
-        self._environment = environment(directory)
+    def __init__(
+        self,
+        directory: Path,
+        plan: ModulePlan,
+        files: dict[str, str],
+        tests: Mapping[str, Callable[[object], bool]] | None = None,
+    ) -> None:
+        self._environment = environment(directory, tests)
         self._plan = plan
         self.files = files
 
     def put(self, path: str, template: str, **context: object) -> None:
-        text = self._environment.get_template(template).render(m=self._plan, **context)
-        self.files[path] = tidy(text)
+        """Render ``template`` into ``files[path]``; ``m`` is the plan unless the
+        context says another module object."""
+        context.setdefault("m", self._plan)
+        self.files[path] = tidy(self._environment.get_template(template).render(**context))

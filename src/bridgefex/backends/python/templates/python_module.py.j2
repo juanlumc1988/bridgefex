@@ -5,7 +5,7 @@ __all__ = [
     "{{ name }}",
 {% endfor %}
 ]
-{% for item in h.items if item is enum_plan or item is struct_plan %}
+{% for item in h.items if item is py_enum or item is py_struct %}
 {% if loop.first %}
 
 {% endif %}
@@ -34,7 +34,7 @@ def _bind():
             _lib = lib
     return _lib
 {% for item in h.items %}
-{% if item is class_plan %}
+{% if item is py_class %}
 {% set c = item %}
 
 
@@ -223,7 +223,7 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         """Wraps ``{{ py.function.description }}``."""
 {{ py.body(8) }}
 {% endfor %}
-{% elif item is not enum_plan and item is not struct_plan %}
+{% elif item is py_function %}
 {% set py = item.py %}
 
 

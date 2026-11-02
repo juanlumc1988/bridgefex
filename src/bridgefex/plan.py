@@ -169,251 +169,15 @@ class CFunction:
         return "[" + ", ".join(param.ctypes_type for param in self.params) + "]"
 
 
-@dataclass(frozen=True, slots=True)
-class PyArg:
-    name: str
-    conversions: tuple[str, ...]
-    """Statements that check and convert the argument, rebinding its name (and
-    computing derived locals), before the call."""
+class CallableKind(Enum):
+    FUNCTION = "function"
+    """A free function."""
 
-    registration: tuple[str, tuple[str, ...]] | None = None
-    """For a callback: the targets and the arguments of the statement that
-    registers it in the call's scope, after every conversion (which may fail)
-    and right before the call."""
+    STATIC = "static"
+    """A static method."""
 
-    imports: tuple[str, ...] = ()
-    """The header modules (stems) of other headers whose classes the conversions
-    name, as ``_<stem>``: imported when the function runs, so that header modules
-    never import each other at module level."""
-
-    retain: bool = False
-    """The C++ object keeps a pointer to this argument (a wrapped object): the
-    Python object that owns the C++ one keeps the argument alive."""
-
-    borrowable: bool = False
-    """A reference or a pointer to a wrapped object: what a function without
-    ``self`` returns by reference is borrowed from its arguments."""
-
-    transfer: bool = False
-    """The C++ code takes the object (a std::unique_ptr): the Python object
-    gives it up, last before the call (see :func:`_runtime.take`)."""
-
-    view: str | None = None
-    """For a transferred object of a class that others derive from: the method that
-    gives its handle as that class, which is not the handle of its own class."""
-
-
-@dataclass(frozen=True, slots=True)
-class PyResult:
-    """How a Python function gets the result of its C function."""
-
-    setup: tuple[str, ...] = ()
-    """Statements that create the output locals, before the conversions."""
-
-    value: str | None = None
-    """Expression returned after the call, or None for ``void``."""
-
-    read: str | None = None
-    """For outputs that the C function allocates: statement that copies them
-    into Python objects (``_out_data``) right after the call. The call and the
-    copy then run in a ``try`` whose ``finally`` runs ``cleanup``."""
-
-    cleanup: tuple[str, ...] = ()
-    """Statements that release the allocated outputs, inline: a Python function
-    call before the release would let a second pending signal (Ctrl-C) raise
-    first and leak them."""
-
-    imports: tuple[str, ...] = ()
-    """Like :attr:`PyArg.imports`, for the class of a result."""
-
-    finish: tuple[str, ...] = ()
-    """Statements after the call, before the value is returned: they hand the
-    object that the C function created to the Python object that owns it."""
-
-
-_NO_RESULT = PyResult()
-
-
-@dataclass(frozen=True, slots=True)
-class PyCallable:
-    name: str
-    function: CFunction
-    args: tuple[PyArg, ...]
-    call_args: tuple[str, ...]
-    """Arguments of the C call, in order."""
-
-    result: PyResult = _NO_RESULT
-    is_static: bool = False
-
-    prepare: tuple[str, ...] = ()
-    """With transfers: the statements that read the handles into locals, before
-    the objects are given up (a closed or read-only object must fail first)."""
-
-    transfers: tuple[tuple[str, str, str | None], ...] = ()
-    """The (parameter, local, view) of each object that the call takes."""
-
-    retained: str = "_runtime.forever"
-    """The list that keeps alive what the objects taken retained (``{owner}``:
-    self, or _self in a factory of a constructor)."""
-
-    keep: str | None = None
-    """The object that must not be one of those taken."""
-
-    @property
-    def parameter_list(self) -> str:
-        return ", ".join(arg.name for arg in self.args)
-
-    @property
-    def registrations(self) -> tuple[tuple[str, tuple[str, ...]], ...]:
-        return tuple(arg.registration for arg in self.args if arg.registration is not None)
-
-    @property
-    def imports(self) -> tuple[str, ...]:
-        """The ``from . import`` statements of the modules of other headers."""
-        stems = dict.fromkeys(stem for arg in self.args for stem in arg.imports)
-        stems.update(dict.fromkeys(self.result.imports))
-        return tuple(f"from . import {stem} as {naming.module_alias(stem)}" for stem in stems)
-
-    def retain_statements(self, owner: str = "self") -> tuple[str, ...]:
-        """The statements that keep alive the arguments that the C++ code keeps a
-        pointer to (in the list of ``owner``, ``self`` or ``_self``, or ``forever``),
-        before the call: on failure the C++ code may already have stored them."""
-        retained = self.retained.format(owner=owner)
-        return tuple(f"_runtime.retain({retained}, {arg.name})" for arg in self.args if arg.retain)
-
-    def check_call(
-        self,
-        indent: int,
-        before_call: Sequence[str] = (),
-        *,
-        with_imports: bool = True,
-        owner: str = "self",
-    ) -> str:
-        """The imports (``with_imports``), the argument conversions, the
-        ``before_call`` statements, then the C call wrapped in
-        ``_runtime.check``, indented by ``indent`` spaces.
-
-        The conversions run Python code (``__index__``, ``__float__``), which
-        could close the object: they come before ``self._ptr()``, after which
-        only local variables are read before the call (ctypes passes ``_out``
-        by reference itself, without a call to ``ctypes.byref``).
-        """
-        pad = " " * indent
-        lines = [f"{pad}{line}" for line in self.imports if with_imports]
-        lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
-        if self.registrations:
-            lines.append(self._scoped_call(indent, before_call, owner=owner))
-            return "\n".join(lines)
-        lines += [pad + statement for statement in before_call]
-        lines += self._take(indent, owner)
-        lines.append(self._call(indent))
-        return "\n".join(lines)
-
-    def _take(self, indent: int, owner: str) -> list[str]:
-        """With transfers, the last statements before the call: bind the C
-        function, read the handles, then give up the objects that the call takes.
-        Nothing after that may fail, except a signal (which leaks the objects)."""
-        if not self.transfers:
-            return []
-        pad = " " * indent
-        lines = [f"{pad}_c = _bind().{self.function.name}"]
-        lines += [pad + statement for statement in self.prepare]
-        targets = ", ".join(local for _, local, _ in self.transfers)
-        arguments = [
-            f'({name}, "{name}", "{view}")' if view else f'({name}, "{name}")'
-            for name, _, view in self.transfers
-        ]
-        if self.keep is not None:
-            arguments.append(f"keep={self.keep.format(owner=owner)}")
-        lines.append(
-            _python_call(
-                f"[{targets}] = _runtime.take",
-                [self.retained.format(owner=owner), *arguments],
-                indent,
-            )
-        )
-        return lines
-
-    @property
-    def _callee(self) -> str:
-        return "_c" if self.transfers else f"_bind().{self.function.name}"
-
-    def _scoped_call(
-        self,
-        indent: int,
-        before_call: Sequence[str] = (),
-        read: str | None = None,
-        cleanup: Sequence[str] = (),
-        owner: str = "self",
-    ) -> str:
-        """The call of a function with callbacks, in a scope that keeps the
-        errors of its callbacks (see _runtime.CallScope).
-
-        The callbacks are registered last, right before the call: if anything
-        before the call fails, the scope drops them, since C++ will never
-        release them (_scope.call marks the call). The release of allocated
-        outputs comes first in the ``finally``, inline (see PyResult.cleanup).
-        """
-        pad = " " * indent
-        inner = " " * (indent + 4)
-        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:", f"{inner}_scope.begin()"]
-        lines += [
-            _python_call(f"{targets} = _scope.callback", arguments, indent + 4)
-            for targets, arguments in self.registrations
-        ]
-        lines += [inner + statement for statement in before_call]
-        lines += self._take(indent + 4, owner)
-        lines.append(
-            _python_call("_status = _scope.call", (self._callee, *self.call_args), indent + 4)
-        )
-        lines.append(f"{inner}_scope.close()")
-        lines.append(f"{inner}_scope.check(_status)")
-        if read is not None:
-            lines.append(inner + read)
-        lines.append(f"{pad}finally:")
-        lines += [inner + line for line in cleanup]
-        lines.append(f"{inner}_scope.close()")
-        return "\n".join(lines)
-
-    def _call(self, indent: int) -> str:
-        pad = " " * indent
-        head = f"_runtime.check({self._callee}("
-        one_line = f"{pad}{head}{', '.join(self.call_args)}))"
-        if len(one_line) <= _MAX_LINE_LENGTH:
-            return one_line
-        lines = [pad + head]
-        lines += [f"{pad}    {argument}," for argument in self.call_args]
-        lines.append(f"{pad}))")
-        return "\n".join(lines)
-
-    def body(self, indent: int) -> str:
-        """Statements of a method or function that calls the C function."""
-        pad = " " * indent
-        result = self.result
-        lines = [f"{pad}{line}" for line in (*self.imports, *result.setup)]
-        retains = self.retain_statements()
-        if self.registrations:
-            lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
-            lines.append(
-                self._scoped_call(indent, retains, read=result.read, cleanup=result.cleanup)
-            )
-        elif result.read is None:
-            lines.append(self.check_call(indent, retains, with_imports=False))
-        else:
-            # The conversions stay out of the 'try': nothing is allocated yet.
-            inner = " " * (indent + 4)
-            lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]
-            lines.append(f"{pad}try:")
-            lines += [f"{inner}{statement}" for statement in retains]
-            lines += self._take(indent + 4, "self")
-            lines.append(self._call(indent + 4))
-            lines.append(f"{inner}{result.read}")
-            lines.append(f"{pad}finally:")
-            lines += [f"{inner}{line}" for line in result.cleanup]
-        lines += [f"{pad}{line}" for line in result.finish]
-        if result.value is not None:
-            lines.append(f"{pad}return {result.value}")
-        return "\n".join(lines)
+    METHOD = "method"
+    CONSTRUCTOR = "constructor"
 
 
 @dataclass(frozen=True, slots=True)
@@ -489,6 +253,26 @@ class ResultSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class CallablePlan:
+    """A C function with what a language backend needs to bind it: the semantic
+    description of its parameters and its result."""
+
+    kind: CallableKind
+    name: str
+    """The C++ name of the function or method (of the class, for a constructor)."""
+
+    suffix: str
+    """The overload suffix of its C name (empty if it is not overloaded)."""
+
+    function: CFunction
+    params: tuple[ParamSpec, ...]
+    result: ResultSpec | None
+    location: Location
+    is_const: bool = False
+    """A method that can be called on a const object."""
+
+
+@dataclass(frozen=True, slots=True)
 class LoweredParam:
     """A C++ parameter as the generated code passes it."""
 
@@ -498,9 +282,6 @@ class LoweredParam:
 
     null_checks: tuple[Precondition, ...]
     value_checks: tuple[Precondition, ...]
-    py: PyArg
-    call_args: tuple[str, ...]
-    """Arguments of the C call, in Python."""
 
     temporary: str | None = None
     """A temporary (prvalue) of the parameter's type, when ``argument`` passes
@@ -527,23 +308,28 @@ class LoweredParam:
     """What a language backend sees of the parameter."""
 
 
+def _param_name(param: LoweredParam) -> str:
+    assert param.spec is not None
+    return param.spec.name
+
+
 def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
     """What the C header says about the objects that the function is given: which
     it takes, which may be NULL and which it keeps a pointer to (``keeper`` is who
     keeps it: self, the new object, the library)."""
     notes: list[str] = []
-    taken = [param.py.name for param in params if param.transfers]
+    taken = [_param_name(param) for param in params if param.transfers]
     if taken:
         pronoun = "it" if len(taken) == 1 else "them"
         notes.append(
             f"{', '.join(taken)}: ownership is transferred, whatever the status: do not use or "
             f"destroy {pronoun} afterwards."
         )
-    nullable = [param.py.name for param in params if "nullable" in param.words]
+    nullable = [_param_name(param) for param in params if "nullable" in param.words]
     if nullable:
         notes.append(f"{', '.join(nullable)}: may be NULL.")
     notes += [
-        f"{param.py.name}: {keeper} a pointer to it; it must stay valid as long as it is used."
+        f"{_param_name(param)}: {keeper} a pointer to it; it must stay valid as long as it is used."
         for param in params
         if "retain" in param.words
     ]
@@ -585,8 +371,6 @@ class LoweredResult:
     null_checks: tuple[Precondition, ...]
     """NULL checks of the caller's storage for the result."""
 
-    py: PyResult
-    call_args: tuple[str, ...]
     owned_checks: tuple[Precondition, ...] = ()
     """NULL checks of the outputs that the function allocates."""
 
@@ -648,7 +432,6 @@ class EnumeratorPlan:
     model_name: str
     macro: str
     literal: str
-    py_name: str
     value: int
     deprecated: bool
 
@@ -658,11 +441,6 @@ class EnumPlan:
     model: Enumeration
     c_type: str
     enumerators: tuple[EnumeratorPlan, ...]
-    py_name: str
-    """Its name in the header module, or the class attribute of a nested enum."""
-
-    py_qualname: str
-    py_module: str
 
     @property
     def cpp_name(self) -> str:
@@ -671,11 +449,6 @@ class EnumPlan:
     @property
     def ctypes_type(self) -> str:
         return f"ctypes.{self.model.underlying.ctypes_name}"
-
-    @property
-    def py_type(self) -> str:
-        """The IntEnum, as the generated header modules name it."""
-        return f"_types.{self.c_type}"
 
     @property
     def comment(self) -> str:
@@ -689,21 +462,9 @@ class EnumPlan:
 class FieldPlan:
     model: Field
     name: str
-    """In the C mirror and the Python dataclass."""
-
-    ctypes_name: str
-    """In the ctypes mirror, where a few names are taken by ctypes itself."""
+    """In the C struct (a backend may rename it for its own language)."""
 
     c_declaration: str
-    ctypes_type: str
-    py_annotation: str
-    """The type of the dataclass field, as _types.py names it."""
-
-    fill: tuple[str, ...]
-    """Statements of _<c_type>__fill that check the value and store it in ``raw``."""
-
-    read: str
-    """Expression of _<c_type>__from_c that reads it from ``raw``."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -712,9 +473,6 @@ class StructPlan:
     c_type: str
     fields: tuple[FieldPlan, ...]
     init: CFunction
-    py_name: str
-    py_qualname: str
-    py_module: str
     enums: tuple[EnumPlan, ...] = ()
     """Nested enums."""
 
@@ -735,18 +493,12 @@ class StructPlan:
     def mirror(self) -> str:
         return f"_{self.c_type}"
 
-    @property
-    def py_type(self) -> str:
-        """The dataclass, as the generated header modules name it."""
-        return f"_types.{self.c_type}"
-
 
 @dataclass(frozen=True, slots=True)
 class ClassView:
     """A wrapped class seen as one of its ancestors. A pointer to a class is not
     always the pointer to its base (with several bases it is not), so the C API has
-    a conversion for each ancestor and the Python object a method for each, which
-    every function that takes the ancestor calls to read the handle."""
+    a conversion for each ancestor."""
 
     c_type: str
     """The C type of the ancestor."""
@@ -754,36 +506,21 @@ class ClassView:
     upcast: CFunction
     const_upcast: CFunction
 
-    @property
-    def ptr(self) -> str:
-        return f"_ptr_{self.c_type}"
-
-    @property
-    def mptr(self) -> str:
-        return f"_mptr_{self.c_type}"
-
 
 @dataclass(frozen=True, slots=True)
 class ClassPlan:
     model: Class
     c_type: str
-    py_name: str
-    struct_name: str
-    pointer_name: str
-    constructors: tuple[PyCallable, ...]
+    constructors: tuple[CallablePlan, ...]
     destroy: CFunction
-    members: tuple[PyCallable, ...]
+    members: tuple[CallablePlan, ...]
     """Methods and static methods, in source order."""
 
     enums: tuple[EnumPlan, ...] = ()
     """Nested enums."""
 
-    py_bases: tuple[str, ...] = ()
-    """The Python classes it derives from (its public base classes), as the module
-    of its header names them."""
-
-    base_modules: tuple[str, ...] = ()
-    """The stems of the other headers that define those, imported at module level."""
+    bases: tuple[ClassInfo, ...] = ()
+    """Its public base classes (wrapped classes of the module), in declaration order."""
 
     views: tuple[ClassView, ...] = ()
     """How to see it as each of its ancestors (see :class:`ClassView`)."""
@@ -794,20 +531,6 @@ class ClassPlan:
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
-
-    @property
-    def self_view(self) -> str:
-        """The name of the method that gives its handle as its own class."""
-        return f"_ptr_{self.c_type}"
-
-    @property
-    def py_pointer(self) -> str:
-        """The ctypes pointer type, as the generated header modules name it."""
-        return f"_types.{self.pointer_name}"
-
-    @property
-    def single_constructor(self) -> bool:
-        return len(self.constructors) == 1
 
     @property
     def c_functions(self) -> tuple[CFunction, ...]:
@@ -822,11 +545,11 @@ class ClassPlan:
 @dataclass(frozen=True, slots=True)
 class FunctionPlan:
     model: Function
-    py: PyCallable
+    callable: CallablePlan
 
     @property
     def c_function(self) -> CFunction:
-        return self.py.function
+        return self.callable.function
 
 
 @dataclass(frozen=True, slots=True)
@@ -863,18 +586,6 @@ class HeaderPlan:
         """The other wrapped headers that the generated source includes."""
         others = {plan.stem: plan for plan in (*self.foreign_headers, *self.foreign_class_headers)}
         return tuple(others.values())
-
-    @property
-    def base_modules(self) -> tuple[str, ...]:
-        """The other header modules that the classes of this one derive from."""
-        return tuple(dict.fromkeys(stem for cls in self.classes for stem in cls.base_modules))
-
-    @property
-    def base_imports(self) -> tuple[str, ...]:
-        """The imports of those, at module level (a base class is needed there)."""
-        return tuple(
-            f"from . import {stem} as {naming.module_alias(stem)}" for stem in self.base_modules
-        )
 
     @property
     def structs(self) -> tuple[StructPlan, ...]:
@@ -934,12 +645,6 @@ class HeaderPlan:
             elif isinstance(item, StructPlan):
                 functions.append(item.init)
         return tuple(functions)
-
-    @property
-    def py_exports(self) -> tuple[str, ...]:
-        return tuple(
-            item.py.name if isinstance(item, FunctionPlan) else item.py_name for item in self.items
-        )
 
     @property
     def std_includes(self) -> tuple[str, ...]:
@@ -1002,45 +707,11 @@ def _header_types(header: Header, *, fields: bool = True) -> Iterable[Type]:
 
 
 @dataclass(frozen=True, slots=True)
-class ThunkPlan:
-    """The Python function that C++ calls for the callbacks of one C signature."""
-
-    name: str
-    ctypes_args: tuple[str, ...]
-    """The ctypes types of the C parameters, user_data first."""
-
-    params: tuple[str, ...]
-    arguments: tuple[str, ...]
-    """The Python values of the arguments of ``_function``."""
-
-    check: tuple[str, ...] | None
-    """The check of the result ``_value``, as the head and the arguments of a
-    call, or None for ``void``."""
-
-    @property
-    def body(self) -> str:
-        """The statements that call ``_function`` and write the checked result,
-        indented for the thunk's ``try``."""
-        if self.check is None:
-            return _python_call("_function", self.arguments, 8)
-        call = _python_call("_value = _function", self.arguments, 8)
-        head, *arguments = self.check
-        return f"{call}\n{_python_call(f'_out_result[0] = {head}', arguments, 8)}"
-
-    @property
-    def type_name(self) -> str:
-        return f"{self.name}__type"
-
-
-@dataclass(frozen=True, slots=True)
 class ModulePlan:
     name: str
     headers: tuple[HeaderPlan, ...]
     structs: tuple[StructPlan, ...] = ()
     """Every value struct, each after the structs it contains."""
-
-    thunks: tuple[ThunkPlan, ...] = ()
-    """The callback thunks of every header, by name."""
 
     @property
     def macro_prefix(self) -> str:
@@ -1147,24 +818,12 @@ class _Element:
     token: str
     ctypes_in: str
     ctypes_out: str
-    py_in: str
-    """Python expression that converts the argument ``{name}`` to a ctypes array."""
-
-    py_read: str
-    """Python function that copies the elements of a result out of the C block."""
-
-    py_value: str
-    """Python expression of the result from the copy ``{data}``."""
-
     to_cpp: str | None = None
     """C++ converter of a C element to C++, or None if they are the same type
     (``{name}``: the parameter, for messages)."""
 
     to_c: str | None = None
     """C++ converter of a C++ element to C, or None if they are the same type."""
-
-    read_extra: str = ""
-    """More arguments of ``py_read``."""
 
     enum: EnumPlan | None = None
     struct: StructPlan | None = None
@@ -1177,26 +836,6 @@ class _Copies:
     to_c: list[str] = dataclasses.field(default_factory=list)
     from_c: list[str] = dataclasses.field(default_factory=list)
     extents: dict[str, int] = dataclasses.field(default_factory=dict)
-
-
-# Longest line written in one piece in the generated Python code.
-_MAX_LINE_LENGTH = 99
-
-
-def _python_call(head: str, arguments: Sequence[str], indent: int) -> str:
-    """``head(arguments)`` indented by ``indent`` spaces: on one line if it fits,
-    else with the arguments on the next line, else one per line."""
-    pad = " " * indent
-    one_line = f"{pad}{head}({', '.join(arguments)})"
-    if len(one_line) <= _MAX_LINE_LENGTH:
-        return one_line
-    inner = f"{pad}    {', '.join(arguments)}"
-    if len(inner) <= _MAX_LINE_LENGTH:
-        return f"{pad}{head}(\n{inner}\n{pad})"
-    lines = [f"{pad}{head}("]
-    lines += [f"{pad}    {argument}," for argument in arguments]
-    lines.append(f"{pad})")
-    return "\n".join(lines)
 
 
 def _spelling(type_: Type) -> str:
@@ -1409,7 +1048,6 @@ class _Builder:
         # Per header stem, the headers whose structs or classes its functions use.
         self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
         self.foreign_class_headers: dict[str, tuple[Header, ...]] = {}
-        self.thunks: dict[str, ThunkPlan] = {}
 
     # Bookkeeping -------------------------------------------------------------
 
@@ -1480,7 +1118,6 @@ class _Builder:
         what = f"enum '{model.qualified_name}'"
         self._reserve_c_name(c_type, f"the type of {what}", model.location)
         enumerators: list[EnumeratorPlan] = []
-        py_names: dict[str, str] = {}
         for enumerator in model.enumerators:
             macro = f"{c_type}_{enumerator.name}"
             self._reserve_c_name(
@@ -1488,37 +1125,16 @@ class _Builder:
                 f"the constant of '{model.qualified_name}::{enumerator.name}'",
                 model.location,
             )
-            py_name = naming.enum_member_name(enumerator.name)
-            if py_name in py_names:
-                self.errors.append(
-                    Diagnostic(
-                        f"enumerators '{py_names[py_name]}' and '{enumerator.name}' of {what} get "
-                        f"the same Python name '{py_name}'",
-                        model.location,
-                    )
-                )
-            py_names[py_name] = enumerator.name
             enumerators.append(
                 EnumeratorPlan(
                     model_name=enumerator.name,
                     macro=macro,
                     literal=c_literal(enumerator.value, model.underlying.c_name),
-                    py_name=py_name,
                     value=enumerator.value,
                     deprecated=enumerator.deprecated,
                 )
             )
-        # Nested: the class attribute; the class name is final once the header
-        # module's names are assigned (see build_header).
-        py_name = naming.member_name(model.name) if scope else naming.python_name(model.name)
-        return EnumPlan(
-            model=model,
-            c_type=c_type,
-            enumerators=tuple(enumerators),
-            py_name=py_name,
-            py_qualname=py_name,
-            py_module=f"{self.module.name}.{header.stem}",
-        )
+        return EnumPlan(model=model, c_type=c_type, enumerators=tuple(enumerators))
 
     # Value structs -----------------------------------------------------------------
 
@@ -1554,12 +1170,11 @@ class _Builder:
         self._reserve_c_name(init_name, f"the default value function of {what}", model.location)
         cpp_names = [field.name for field in model.fields]
         names = naming.field_names(cpp_names, self._parameter_macros)
-        ctypes_names = naming.ctypes_field_names(names)
         generated = self._macros | {
             enumerator.macro for enum in self._enums.values() for enumerator in enum.enumerators
         }
         fields: list[FieldPlan] = []
-        for field, name, ctypes_name in zip(model.fields, names, ctypes_names, strict=True):
+        for field, name in zip(model.fields, names, strict=True):
             if field.name in generated:
                 # The generated sources would see the macro in place of the member.
                 self.errors.append(
@@ -1570,7 +1185,7 @@ class _Builder:
                     )
                 )
                 continue
-            plan = self._field_plan(field, name, ctypes_name)
+            plan = self._field_plan(field, name)
             if plan is not None:
                 fields.append(plan)
         detail = f"{self.module.name}_detail"
@@ -1590,104 +1205,35 @@ class _Builder:
             checks=(_null_check("out_result"),),
             location=model.location,
         )
-        py_name = naming.python_name(model.name)
         return StructPlan(
             model=model,
             c_type=c_type,
             fields=tuple(fields),
             init=init,
-            py_name=py_name,
-            py_qualname=py_name,
-            py_module=f"{self.module.name}.{header.stem}",
             enums=tuple(self._enums[enum.usr] for enum in model.enums),
         )
 
-    def _field_plan(self, field: Field, name: str, ctypes_name: str) -> FieldPlan | None:
-        """How a member crosses: C declaration, ctypes type, Python checks."""
+    def _field_plan(self, field: Field, name: str) -> FieldPlan | None:
+        """How a member crosses: its C declaration."""
         type_ = field.type
-        length = field.length
-        value = f"value.{name}"
-        path = f'name + ".{name}"'
         if isinstance(type_, EnumRef):
             enum = self._enum(type_, field.location)
             if enum is None:
                 return None
-            c_type, ctypes_element, annotation = enum.c_type, enum.ctypes_type, enum.c_type
-            valid = enum.model.valid_range
-            extra = f", ({valid[0]}, {valid[1]})" if valid is not None else ""
-
-            def check(item: str, where: str) -> str:
-                return (
-                    f"_runtime.to_enum({item}, {enum.c_type}, {enum.ctypes_type}, {where}{extra})"
-                )
-
-            def read(item: str) -> str:
-                return f"_runtime.enum_result({enum.c_type}, {item})"
-
+            c_type = enum.c_type
         elif isinstance(type_, StructRef):
             nested = self._struct_c_types.get(type_.usr)
             if nested is None:
                 self._struct_missing(type_, field.location)
                 return None
-            c_type, ctypes_element, annotation = nested, f"_{nested}", nested
-
-            def check(item: str, where: str) -> str:  # unused: structs are filled in place
-                raise AssertionError
-
-            def read(item: str) -> str:
-                return f"_{nested}__from_c({item})"
-
+            c_type = nested
         else:
-            c_type, ctypes_element = type_.c_name, f"ctypes.{type_.ctypes_name}"
-            annotation = {
-                TypeCategory.BOOL: "bool",
-                TypeCategory.FLOATING: "float",
-            }.get(type_.category, "int")
-            scalar = type_
-
-            def check(item: str, where: str) -> str:
-                return _checked(item, scalar, where)
-
-            def read(item: str) -> str:
-                return item
-
-        if length is None:
-            if isinstance(type_, StructRef):
-                fill = (f"_{c_type}__fill(raw.{ctypes_name}, {value}, {path})",)
-            else:
-                fill = (f"raw.{ctypes_name} = {check(value, path)}",)
-            return FieldPlan(
-                model=field,
-                name=name,
-                ctypes_name=ctypes_name,
-                c_declaration=f"{c_type} {name}",
-                ctypes_type=ctypes_element,
-                py_annotation=annotation,
-                fill=fill,
-                read=read(f"raw.{ctypes_name}"),
-            )
-        # Bytes for the arrays of bytes only: b"ab" is no list of int16.
-        is_bytes = isinstance(type_, ScalarType) and type_.c_name in ("uint8_t", "unsigned char")
-        where = f'f"{{name}}.{name}[{{i}}]"'
-        items = f"_runtime.to_items({value}, {length}, {path}{', True' if is_bytes else ''})"
-        if isinstance(type_, StructRef):
-            body = f"_{c_type}__fill(raw.{ctypes_name}[i], item, {where})"
+            c_type = type_.c_name
+        if field.length is None:
+            declaration = f"{c_type} {name}"
         else:
-            body = f"raw.{ctypes_name}[i] = {check('item', where)}"
-        if isinstance(type_, ScalarType):
-            reading = f"raw.{ctypes_name}[:]"
-        else:
-            reading = f"[{read('item')} for item in raw.{ctypes_name}]"
-        return FieldPlan(
-            model=field,
-            name=name,
-            ctypes_name=ctypes_name,
-            c_declaration=f"{c_type} {name}[{length}]",
-            ctypes_type=f"{ctypes_element} * {length}",
-            py_annotation="list",
-            fill=(f"for i, item in enumerate({items}):", f"    {body}"),
-            read=reading,
-        )
+            declaration = f"{c_type} {name}[{field.length}]"
+        return FieldPlan(model=field, name=name, c_declaration=declaration)
 
     def _struct_copies(
         self,
@@ -1862,22 +1408,6 @@ class _Builder:
     def _is_base(self, info: ClassInfo) -> bool:
         return info.is_base
 
-    def _handle(self, info: ClassInfo, obj: str, *, writable: bool) -> str:
-        """The expression of the handle of ``obj`` as the class ``info``. A class that
-        others derive from reads it through the method that its objects, whatever
-        their class, give the handle of this one with (see :class:`ClassView`)."""
-        accessor = "_mptr" if writable else "_ptr"
-        if self._is_base(info):
-            accessor += f"_{info.c_type}"
-        return f"{obj}.{accessor}()"
-
-    def _py_class(self, info: ClassInfo) -> tuple[str, tuple[str, ...]]:
-        """The Python expression of a class, and the module (stem) to import
-        for it when it belongs to another header."""
-        if self._header is None or info.header is self._header:
-            return info.py_name, ()
-        return f"{naming.module_alias(info.header.stem)}.{info.py_name}", (info.header.stem,)
-
     # Lowering: how each type crosses the boundary --------------------------------
 
     def _lower_params(
@@ -1934,53 +1464,19 @@ class _Builder:
                 data, release = user_data[position], releases[position]
                 assert data is not None
                 assert release is not None
-                callback = self._lower_callback_param(
-                    (name, data, release, f"_owner{owners}"), type_, location
+                lowered.append(
+                    self._lower_callback_param(
+                        (name, data, release, f"_owner{owners}"), type_, location
+                    )
                 )
-                self._check_python_lowering(callback)
-                lowered.append(callback)
             else:
                 words = policy.parameters[position]
                 param = self._lower_param(
                     name, sizes[position], type_, location, owner=owner_names[position], words=words
                 )
-                py = dataclasses.replace(param.py, retain="retain" in words)
                 spec = param.spec and dataclasses.replace(param.spec, words=words)
-                param = dataclasses.replace(param, py=py, words=words, spec=spec)
-                self._check_python_lowering(param)
-                lowered.append(param)
+                lowered.append(dataclasses.replace(param, words=words, spec=spec))
         return lowered
-
-    def _check_python_result(
-        self, result: LoweredResult, params: Sequence[LoweredParam], *, is_method: bool
-    ) -> None:
-        """Temporary: like :meth:`_check_python_lowering`, for the result."""
-        from .backends.python.lower import lower_result  # noqa: PLC0415
-
-        if result.spec is None and not result.c_params:  # void, or reported
-            return
-        specs = [param.spec for param in params]
-        if any(spec is None for spec in specs):  # reported
-            return
-        header = self._header.stem if self._header is not None else None
-        python = lower_result(
-            result.spec,
-            [spec for spec in specs if spec is not None],
-            module=self.module.name,
-            is_method=is_method,
-            header_stem=header,
-        )
-        assert python == (result.py, result.call_args), result.spec
-
-    def _check_python_lowering(self, param: LoweredParam) -> None:
-        """Temporary: the Python backend lowers the parameter from its spec to what
-        this builder says (until the builder stops saying it)."""
-        from .backends.python.lower import lower_param  # noqa: PLC0415
-
-        if param.spec is None:  # reported
-            return
-        header = self._header.stem if self._header is not None else None
-        assert lower_param(param.spec, header) == (param.py, param.call_args), param.spec
 
     # Policies -------------------------------------------------------------------------
 
@@ -2067,8 +1563,6 @@ class _Builder:
             argument=name,
             null_checks=(),
             value_checks=(),
-            py=PyArg(name, (f"{name} = {_conversion(name, type_)}",)),
-            call_args=(name,),
             spec=ParamSpec(name, type_),
         )
 
@@ -2082,34 +1576,26 @@ class _Builder:
         c_args = ["void*"]
         lambda_params = [f"decltype({name}) _callback", "void* _user_data"]
         passed = ["_user_data"]
-        ctypes_args = ["ctypes.c_void_p"]
-        py_params = ["_user_data"]
-        py_args: list[str] = []
         tokens: list[str] = []
         for position, part in enumerate(type_.arguments, start=1):
             local = f"_arg{position}"
             lowered = self._callback_argument(part, local, location)
             if lowered is None:  # reported
-                return LoweredParam((), name, (), (), PyArg(name, ()), ())
-            cpp, c_types, pass_c, ctypes_types, py_value, token = lowered
+                return LoweredParam((), name, (), ())
+            cpp, c_types, pass_c, token = lowered
             lambda_params.append(f"{cpp} {local}")
             c_args += c_types
             passed += pass_c
-            ctypes_args += ctypes_types
-            py_params += [local, f"{local}_size"] if len(c_types) == 2 else [local]
-            py_args.append(py_value)
             tokens.append(token)
         result = self._callback_result(type_.result, location)
         if result is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
-        result_cpp, result_c, result_ctypes, check, result_token = result
+            return LoweredParam((), name, (), ())
+        result_cpp, result_c, result_token = result
         call = f"_callback({', '.join(passed)}"
         if result_c is None:
             body = f"{call});"
         else:
             c_args.append(f"{result_c}*")
-            ctypes_args.append(f"ctypes.POINTER({result_ctypes})")
-            py_params.append("_out_result")
             back = "_result" if result_cpp == result_c else f"static_cast<{result_cpp}>(_result)"
             valid = self._valid_range(type_.result, location)
             if valid is not None:
@@ -2127,22 +1613,16 @@ class _Builder:
             f"{detail}::make_callback<::std::function<{signature}>, {result_cpp}>("
             f"{name}, {owner}, {invoke})"
         )
-        thunk = ThunkPlan(
-            name="_callback__" + "__".join([result_token, *tokens]),
-            ctypes_args=tuple(ctypes_args),
-            params=tuple(py_params),
-            arguments=tuple(py_args),
-            check=check,
-        )
-        known = self.thunks.setdefault(thunk.name, thunk)
-        assert known == thunk, (known, thunk)
+        # The Python type of the C function pointer, by the signature (see the Python
+        # backend, which makes the thunks).
+        thunk_type = "_callback__" + "__".join([result_token, *tokens]) + "__type"
         return LoweredParam(
             c_params=(
                 CParam(
                     name,
                     "void",
                     Role.INPUT,
-                    f"_types.{thunk.type_name}",
+                    f"_types.{thunk_type}",
                     function_params=", ".join(c_args),
                 ),
                 CParam(user_data, "void*", Role.INPUT, "ctypes.c_void_p"),
@@ -2151,15 +1631,6 @@ class _Builder:
             argument=argument,
             null_checks=(),
             value_checks=(),
-            py=PyArg(
-                name,
-                (f'{name} = _runtime.to_callback({name}, "{name}")',),
-                registration=(
-                    f"{name}, {user_data}, {release}",
-                    (name, f"_types.{thunk.name}", f'"{name}"'),
-                ),
-            ),
-            call_args=(name, user_data, release),
             prologue=(f"{detail}::callback_owner {owner}({release}, {user_data});",),
             probe=f"::std::function<{signature}>()",
             spec=ParamSpec(
@@ -2185,21 +1656,13 @@ class _Builder:
 
     def _callback_argument(
         self, type_: Type, local: str, location: Location
-    ) -> tuple[str, list[str], list[str], list[str], str, str] | None:
+    ) -> tuple[str, list[str], list[str], str] | None:
         """How a callback argument crosses to C: (the C++ parameter of the invoke
-        lambda, its C types, the C arguments, their ctypes types, the Python
-        value, the token of the thunk name)."""
+        lambda, its C types, the C arguments, the token of the signature name)."""
         detail = f"{self.module.name}_detail"
         if isinstance(type_, StringType):
             if type_.kind is StringKind.C_STRING:
-                return (
-                    "const char*",
-                    ["const char*"],
-                    [local],
-                    ["ctypes.c_void_p"],
-                    f"_runtime.callback_c_string({local})",
-                    "cstr",
-                )
+                return "const char*", ["const char*"], [local], "cstr"
             cpp = (
                 "const ::std::string&" if type_.kind is StringKind.STRING else "::std::string_view"
             )
@@ -2207,8 +1670,6 @@ class _Builder:
                 cpp,
                 ["const char*", "size_t"],
                 [f"{local}.data()", f"{local}.size()"],
-                ["ctypes.c_void_p", "ctypes.c_size_t"],
-                f"_runtime.callback_string({local}, {local}_size)",
                 "string",
             )
         if isinstance(type_, EnumRef):
@@ -2219,8 +1680,6 @@ class _Builder:
                 enum.cpp_name,
                 [enum.c_type],
                 [f"static_cast<{enum.c_type}>({local})"],
-                [enum.ctypes_type],
-                f"_runtime.enum_result({enum.c_type}, {local})",
                 enum.c_type,
             )
         if isinstance(type_, StructRef):
@@ -2231,52 +1690,24 @@ class _Builder:
                 f"const {struct.cpp_name}&",
                 [f"const {struct.c_type}*"],
                 [f"{detail}::address_of({detail}::to_c({local}))"],
-                [f"ctypes.POINTER({struct.mirror})"],
-                f"{struct.mirror}__from_c({local}.contents)",
                 struct.c_type,
             )
         assert isinstance(type_, ScalarType)
-        return (
-            type_.c_name,
-            [type_.c_name],
-            [local],
-            [f"ctypes.{type_.ctypes_name}"],
-            local,
-            type_.token,
-        )
+        return type_.c_name, [type_.c_name], [local], type_.token
 
     def _callback_result(
         self, type_: ScalarType | EnumRef, location: Location
-    ) -> tuple[str, str | None, str, tuple[str, ...] | None, str] | None:
-        """How a callback result crosses from C: (its C++ type, its C type or
-        None for void, its ctypes type, the Python check of ``_value`` as the
-        head and arguments of a call, the token of the thunk name)."""
-        what = 'what="the result of callback"'
+    ) -> tuple[str, str | None, str] | None:
+        """How a callback result crosses from C: (its C++ type, its C type or None
+        for void, the token of the signature name)."""
         if isinstance(type_, EnumRef):
             enum = self._enum(type_, location)
             if enum is None:
                 return None
-            valid = enum.model.valid_range
-            check: tuple[str, ...] = (
-                "_runtime.to_enum",
-                "_value",
-                enum.c_type,
-                enum.ctypes_type,
-                "_name",
-                "None" if valid is None else f"({valid[0]}, {valid[1]})",
-                what,
-            )
-            return enum.cpp_name, enum.c_type, enum.ctypes_type, check, enum.c_type
+            return enum.cpp_name, enum.c_type, enum.c_type
         if type_.is_void:
-            return "void", None, "None", None, "void"
-        ctypes_type = f"ctypes.{type_.ctypes_name}"
-        if type_.category is TypeCategory.BOOL:
-            check = ("_runtime.to_bool", "_value", "_name", what)
-        elif type_.category is TypeCategory.FLOATING:
-            check = ("_runtime.to_float", "_value", ctypes_type, "_name", what)
-        else:
-            check = ("_runtime.to_int", "_value", ctypes_type, "_name", what)
-        return type_.c_name, type_.c_name, ctypes_type, check, type_.token
+            return "void", None, "void"
+        return type_.c_name, type_.c_name, type_.token
 
     def _valid_range(self, type_: Type, location: Location) -> tuple[int, int] | None:
         """The values of an enum without a fixed underlying type, else None."""
@@ -2327,8 +1758,6 @@ class _Builder:
                 argument=name,
                 null_checks=() if nullable else (_null_check(name),),
                 value_checks=(),
-                py=PyArg(name, (f"{name} = {conversion}",)),
-                call_args=(name,),
             )
         constructor = "std::string" if type_.kind is StringKind.STRING else "std::string_view"
         detail = f"{self.module.name}_detail"
@@ -2346,14 +1775,6 @@ class _Builder:
             value_checks=(),
             # The size of the exact bytes object: before self._ptr(), so that
             # nothing runs between it and the call.
-            py=PyArg(
-                name,
-                (
-                    f'{name} = _runtime.to_bytes({name}, "{name}")',
-                    f"{size} = _builtins.len({name})",
-                ),
-            ),
-            call_args=(name, size),
         )
 
     def _lower_class_param(
@@ -2367,7 +1788,7 @@ class _Builder:
         """A wrapped class: a handle, which is a copy for ``T``, else the object itself."""
         info = self._class(ref, location)
         if info is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            return LoweredParam((), name, (), ())
         nullable = "nullable" in words
         if "transfer" in words:
             assert owner is not None
@@ -2388,10 +1809,6 @@ class _Builder:
                 f"static_assert(std::is_copy_constructible<{info.cpp_name}>::value,\n"
                 f'                  "{message}");'
             )
-        py_class, imports = self._py_class(info)
-        handle = self._handle(info, name, writable=not constant)
-        if nullable:
-            handle = f"({handle} if {name} is not None else None)"
         return LoweredParam(
             c_params=(
                 CParam(
@@ -2404,13 +1821,6 @@ class _Builder:
             argument=pointer if is_pointer else f"*{pointer}",
             null_checks=() if nullable else (_null_check(name),),
             value_checks=(),
-            py=PyArg(
-                name,
-                (_check_object(name, py_class, nullable),),
-                imports=imports,
-                borrowable=ref.form is not ClassForm.VALUE,
-            ),
-            call_args=(handle,),
             compile_checks=tuple(checks),
             spec=ParamSpec(name, ref, cls=info),
         )
@@ -2422,28 +1832,13 @@ class _Builder:
         function owns the object until the wrapped function takes it, whatever
         the status (``transferred`` deletes it on every return that comes first)."""
         detail = f"{self.module.name}_detail"
-        py_class, imports = self._py_class(info)
         taken = f"{info.cpp_name}*" if form is ClassForm.POINTER else None
         taken = taken or f"std::unique_ptr<{info.cpp_name}>"
-        checks: tuple[str, ...] = (_check_object(name, py_class, nullable),)
-        if self._is_base(info) and not info.model.virtual_destructor:
-            # The C++ code destroys the object through the base class, which is
-            # only defined for an object of exactly that class.
-            suffix = ", nullable=True" if nullable else ""
-            checks += (f'_runtime.check_exact({name}, {py_class}, "{name}"{suffix})',)
         return LoweredParam(
             c_params=(CParam(name, f"{info.c_type}*", Role.INPUT, f"_types.{info.pointer_name}"),),
             argument=f"{owner}.take<{taken}>()",
             null_checks=() if nullable else (_null_check(name),),
             value_checks=(),
-            py=PyArg(
-                name,
-                checks,
-                imports=imports,
-                transfer=True,
-                view=f"_mptr_{info.c_type}" if self._is_base(info) else None,
-            ),
-            call_args=(f"{name}._mptr()",),
             prologue=(
                 f"{detail}::transferred<{info.cpp_name}> {owner}"
                 f"(reinterpret_cast<{info.cpp_name}*>({name}));",
@@ -2453,12 +1848,9 @@ class _Builder:
 
     def _lower_enum_param(self, name: str, enum: EnumPlan | None) -> LoweredParam:
         if enum is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            return LoweredParam((), name, (), ())
         checks: list[Precondition] = []
         valid = enum.model.valid_range
-        conversion = (
-            f'{name} = _runtime.to_enum({name}, {enum.py_type}, {enum.ctypes_type}, "{name}"'
-        )
         if valid is not None:
             # Other values are undefined behaviour for an enum without a fixed
             # underlying type. int needs no check at its own limits.
@@ -2473,21 +1865,18 @@ class _Builder:
                         f"'{name}' is not a value of {enum.model.qualified_name} ({low}..{high})",
                     )
                 )
-            conversion += f", ({low}, {high})"
         return LoweredParam(
             c_params=(CParam(name, enum.c_type, Role.INPUT, enum.ctypes_type),),
             argument=f"static_cast<{enum.cpp_name}>({name})",
             null_checks=(),
             value_checks=tuple(checks),
-            py=PyArg(name, (conversion + ")",)),
-            call_args=(name,),
         )
 
     def _lower_struct_param(
         self, name: str, ref: StructRef, struct: StructPlan | None
     ) -> LoweredParam:
         if struct is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            return LoweredParam((), name, (), ())
         detail = f"{self.module.name}_detail"
         temporary = f"{detail}::from_c(*{name})"
         # As for strings: a const reference gets an lvalue (see _temporaries_check).
@@ -2506,8 +1895,6 @@ class _Builder:
             argument=argument,
             null_checks=(_null_check(name),),
             value_checks=(),
-            py=PyArg(name, (f'{name} = _types.{struct.mirror}__to_c({name}, "{name}")',)),
-            call_args=(name,),
             temporary=f"{struct.cpp_name}()" if ref.by_reference else None,
         )
 
@@ -2521,16 +1908,12 @@ class _Builder:
                 token="string",
                 ctypes_in="_runtime.StringIn",
                 ctypes_out="_runtime.String",
-                py_in='_runtime.to_string_array({name}, "{name}")',
-                py_read="_runtime.string_items",
-                py_value="_runtime.decode_all({data})",
             )
         if isinstance(type_, EnumRef):
             enum = self._enum(type_, location)
             if enum is None:
                 return None
             valid = enum.model.valid_range
-            extra = ""
             to_cpp = f"{detail}::cast_to<{enum.cpp_name}>()"
             if valid is not None:
                 message = (
@@ -2540,19 +1923,12 @@ class _Builder:
                 to_cpp = (
                     f'{detail}::enum_in<{enum.cpp_name}>{{{valid[0]}, {valid[1]}, "{message}"}}'
                 )
-                extra = f", ({valid[0]}, {valid[1]})"
             return _Element(
                 c_type=enum.c_type,
                 cpp=enum.cpp_name,
                 token=enum.c_type,
                 ctypes_in=enum.ctypes_type,
                 ctypes_out=enum.ctypes_type,
-                py_in=(
-                    f"_runtime.to_enum_array({{name}}, {enum.py_type}, {enum.ctypes_type}, "
-                    f'"{{name}}"{extra})'
-                ),
-                py_read="_runtime.array_items",
-                py_value=f"_runtime.enum_results({enum.py_type}, {{data}})",
                 to_cpp=to_cpp,
                 to_c=f"{detail}::cast_to<{enum.c_type}>()",
                 enum=enum,
@@ -2568,34 +1944,20 @@ class _Builder:
                 token=struct.c_type,
                 ctypes_in=mirror,
                 ctypes_out=mirror,
-                py_in=f'_runtime.to_struct_array({{name}}, {mirror}, {mirror}__fill, "{{name}}")',
-                py_read="_runtime.struct_items",
-                py_value="{data}",
                 # Not noexcept: building the C++ struct may throw.
                 to_cpp=f"[](const {struct.c_type}& _item) {{ return {detail}::from_c(_item); }}",
                 to_c=(
                     f"[](const {struct.cpp_name}& _item) noexcept "
                     f"{{ return {detail}::to_c(_item); }}"
                 ),
-                read_extra=f", {mirror}__from_c",
                 struct=struct,
             )
-        check = {TypeCategory.BOOL: "check_bool", TypeCategory.FLOATING: "check_float"}.get(
-            type_.category, "check_int"
-        )
-        is_bytes = type_.c_name in ("uint8_t", "unsigned char")
         return _Element(
             c_type=type_.c_name,
             cpp=type_.c_name,
             token=type_.token,
             ctypes_in=f"ctypes.{type_.ctypes_name}",
             ctypes_out=f"ctypes.{type_.ctypes_name}",
-            py_in=(
-                f'_runtime.to_array({{name}}, ctypes.{type_.ctypes_name}, "{{name}}", '
-                f"_runtime.{check}{', True' if is_bytes else ''})"
-            ),
-            py_read="_runtime.array_items",
-            py_value="{data}",
         )
 
     def _lower_vector_param(
@@ -2603,7 +1965,7 @@ class _Builder:
     ) -> LoweredParam:
         element = self._element(type_.element, location)
         if element is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            return LoweredParam((), name, (), ())
         detail = f"{self.module.name}_detail"
         vector = f"std::vector<{element.cpp}>"
         checks = [_sized_null_check(name, size)]
@@ -2643,14 +2005,6 @@ class _Builder:
             value_checks=(),
             # The size of the ctypes array: before self._ptr(), so that nothing
             # runs between it and the call.
-            py=PyArg(
-                name,
-                (
-                    f"{name} = {element.py_in.replace('{name}', name)}",
-                    f"{size} = _builtins.len({name})",
-                ),
-            ),
-            call_args=(name, size),
             temporary=f"{vector}()" if by_reference else None,
             spec=ParamSpec(
                 name,
@@ -2665,7 +2019,7 @@ class _Builder:
     ) -> LoweredParam:
         element = self._element(type_.element, location)
         if element is None:  # reported
-            return LoweredParam((), name, (), (), PyArg(name, ()), ())
+            return LoweredParam((), name, (), ())
         detail = f"{self.module.name}_detail"
         array = f"std::array<{element.cpp}, {type_.length}>"
         converter = "" if element.to_cpp is None else ", " + element.to_cpp.replace("{name}", name)
@@ -2677,7 +2031,6 @@ class _Builder:
             argument = f"static_cast<{reference}>({heap})"
         else:
             argument = f"{detail}::array_in<{array}>({name}{converter})"
-        conversion = element.py_in.replace("{name}", name)
         return LoweredParam(
             c_params=(
                 CParam(
@@ -2691,8 +2044,6 @@ class _Builder:
             argument=argument,
             null_checks=(_null_check(name),),
             value_checks=(),
-            py=PyArg(name, (f'{name} = _runtime.fixed({conversion}, {type_.length}, "{name}")',)),
-            call_args=(name,),
             temporary=f"{array}()" if type_.by_reference else None,
             spec=ParamSpec(
                 name, type_, element=ElementSpec(type_.element, element.enum, element.struct)
@@ -2702,11 +2053,10 @@ class _Builder:
     def _lower_array_result(self, type_: ContainerType, location: Location) -> LoweredResult:
         element = self._element(type_.element, location)
         if element is None:  # reported
-            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+            return LoweredResult((), "{call};", ())
         detail = f"{self.module.name}_detail"
         converter = "" if element.to_c is None else f", {element.to_c}"
         array = f"std::array<{element.cpp}, {type_.length}>"
-        items = f"{element.py_read}(_out, {type_.length}{element.read_extra})"
         return LoweredResult(
             c_params=(
                 CParam(
@@ -2722,11 +2072,6 @@ class _Builder:
             # checks the type, so that it cannot write past the caller's array.
             statement=f"{detail}::copy_to<{array}>({{call}}, out_result{converter});",
             null_checks=(_null_check("out_result"),),
-            py=PyResult(
-                setup=(f"_out = ({element.ctypes_out} * {type_.length})()",),
-                value=element.py_value.replace("{data}", items),
-            ),
-            call_args=("_out",),
             spec=ResultSpec(
                 type_, element=ElementSpec(type_.element, element.enum, element.struct)
             ),
@@ -2735,7 +2080,7 @@ class _Builder:
     def _lower_vector_result(self, type_: ContainerType, location: Location) -> LoweredResult:
         element = self._element(type_.element, location)
         if element is None:  # reported
-            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+            return LoweredResult((), "{call};", ())
         detail = f"{self.module.name}_detail"
         if isinstance(type_.element, StringType):
             statement = f"{detail}::copy_out_strings({{call}}, out_result, out_result_size);"
@@ -2759,17 +2104,6 @@ class _Builder:
             ),
             statement=statement,
             null_checks=(),
-            py=PyResult(
-                setup=(
-                    f"_out = ctypes.POINTER({element.ctypes_out})()",
-                    "_out_size = ctypes.c_size_t()",
-                ),
-                # The elements are copied out of the block before it is released.
-                read=(f"_out_data = {element.py_read}(_out, _out_size.value{element.read_extra})"),
-                value=element.py_value.replace("{data}", "_out_data"),
-                cleanup=("if _out:", f"    _lib.{self.module.name}_free(_out)"),
-            ),
-            call_args=("_out", "_out_size"),
             owned_checks=(_null_check("out_result"), _null_check("out_result_size")),
             resets=("*out_result = nullptr;", "*out_result_size = 0;"),
             spec=ResultSpec(
@@ -2779,7 +2113,7 @@ class _Builder:
 
     def _lower_struct_result(self, struct: StructPlan | None) -> LoweredResult:
         if struct is None:  # reported
-            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+            return LoweredResult((), "{call};", ())
         detail = f"{self.module.name}_detail"
         return LoweredResult(
             c_params=(
@@ -2794,18 +2128,12 @@ class _Builder:
             # after the call.
             statement=f"*out_result = {detail}::to_c({{call}});",
             null_checks=(_null_check("out_result"),),
-            py=PyResult(
-                setup=(f"_out = _types.{struct.mirror}()",),
-                value=f"_types.{struct.mirror}__from_c(_out)",
-            ),
-            call_args=("_out",),
         )
 
     def _lower_class_result(
         self,
         ref: ClassRef,
         location: Location,
-        owners: str,
         is_method: bool,
         ownership: str | None,
     ) -> LoweredResult:
@@ -2817,13 +2145,12 @@ class _Builder:
         and when it is missing, which the policy reported).
         """
         info = self._class(ref, location)
-        placeholder = LoweredResult((), "{call};", (), _NO_RESULT, ())
+        placeholder = LoweredResult((), "{call};", ())
         if info is None:  # reported
             return placeholder
         pointer_form = ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER)
         if pointer_form and ownership is None:  # reported by the policy
             return placeholder
-        py_class, imports = self._py_class(info)
         pointer = f"_types.{info.pointer_name}"
         destroy = f"{info.c_type}_destroy"
         borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
@@ -2853,12 +2180,6 @@ class _Builder:
                 ),
                 statement=statement,
                 null_checks=(_null_check("out_result"),),
-                py=PyResult(
-                    setup=(f"_out = {pointer}()",),
-                    value=f"_runtime.borrow({py_class}, _out, {owners}, {constant})",
-                    imports=imports,
-                ),
-                call_args=("_out",),
                 notes=(f"*out_result: borrowed{origin}, {nullability}; do not destroy it.",),
                 spec=ResultSpec(ref, cls=info, ownership=ownership),
             )
@@ -2866,7 +2187,6 @@ class _Builder:
         # exists before the call, and from the moment the C function writes the
         # handle, its collection destroys the object (see ClassPlan.watch).
         nullable = ref.form is not ClassForm.VALUE
-        finish: tuple[str, ...]
         if ref.form is ClassForm.UNIQUE:
             statement = f"*out_result = reinterpret_cast<{info.c_type}*>({{call}}.release());"
         elif pointer_form:
@@ -2876,12 +2196,8 @@ class _Builder:
                 f"*out_result = reinterpret_cast<{info.c_type}*>(new {info.cpp_name}({{call}}));"
             )
         if nullable:
-            finish = ("if _out:", "    _result._adopt(_out)")
-            value = "_result if _out else None"
             note = f"*out_result: owned by the caller (may be NULL); destroy it with {destroy}."
         else:
-            finish = ("_result._adopt(_out)",)
-            value = "_result"
             note = f"*out_result: owned by the caller; destroy it with {destroy}."
         return LoweredResult(
             c_params=(
@@ -2894,13 +2210,6 @@ class _Builder:
             ),
             statement=statement,
             null_checks=(),
-            py=PyResult(
-                setup=(f"_result = {py_class}.__new__({py_class})", "_out = _result._watch()"),
-                value=value,
-                finish=finish,
-                imports=imports,
-            ),
-            call_args=("_out",),
             owned_checks=(_null_check("out_result"),),
             resets=("*out_result = nullptr;",),
             notes=(note,),
@@ -2909,7 +2218,7 @@ class _Builder:
 
     def _lower_enum_result(self, enum: EnumPlan | None) -> LoweredResult:
         if enum is None:  # reported
-            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+            return LoweredResult((), "{call};", ())
         return LoweredResult(
             c_params=(
                 CParam(
@@ -2921,11 +2230,6 @@ class _Builder:
             ),
             statement=f"*out_result = static_cast<{enum.c_type}>({{call}});",
             null_checks=(_null_check("out_result"),),
-            py=PyResult(
-                setup=(f"_out = {enum.ctypes_type}()",),
-                value=f"_runtime.enum_result({enum.py_type}, _out.value)",
-            ),
-            call_args=("_out",),
         )
 
     def _lower_result(
@@ -2933,16 +2237,13 @@ class _Builder:
         type_: Type,
         location: Location,
         policy: Resolved,
-        owners: str = "()",
         is_method: bool = False,
     ) -> LoweredResult:
-        """``owners``: the Python tuple of the objects that a reference result
-        is borrowed from."""
         assert not isinstance(type_, CallbackType)  # the parser rejects them
         if type_.is_void:
-            return LoweredResult((), "{call};", (), _NO_RESULT, ())
+            return LoweredResult((), "{call};", ())
         if isinstance(type_, StringType):
-            lowered = self._lower_string_result(type_, policy.result_bytes)
+            lowered = self._lower_string_result(type_)
             return dataclasses.replace(
                 lowered, spec=ResultSpec(type_, as_bytes=policy.result_bytes)
             )
@@ -2954,7 +2255,7 @@ class _Builder:
             return dataclasses.replace(lowered, spec=ResultSpec(type_, enum=enum))
         class_ref = self._as_class(type_)
         if class_ref is not None:
-            return self._lower_class_result(class_ref, location, owners, is_method, policy.result)
+            return self._lower_class_result(class_ref, location, is_method, policy.result)
         assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
             struct = self._struct(type_, location)
@@ -2977,26 +2278,12 @@ class _Builder:
             ),
             statement="*out_result = {call};",
             null_checks=(_null_check("out_result"),),
-            py=PyResult(setup=(f"_out = ctypes.{type_.ctypes_name}()",), value="_out.value"),
-            call_args=("_out",),
             spec=ResultSpec(type_),
         )
 
-    def _lower_string_result(self, type_: StringType, as_bytes: bool = False) -> LoweredResult:
-        """``as_bytes``: the bytes as they are, not decoded as UTF-8."""
+    def _lower_string_result(self, type_: StringType) -> LoweredResult:
         detail = f"{self.module.name}_detail"
         helper = "return_string" if type_.sized else "return_c_string"
-        if type_.sized:
-            read = "_out_data = _runtime.string_at(_out, _out_size.value)"
-            value = "_out_data" if as_bytes else "_runtime.decode(_out_data)"
-        else:
-            # A NULL const char* is None.
-            read = "_out_data = _runtime.string_at(_out, _out_size.value) if _out else None"
-            value = (
-                "_out_data"
-                if as_bytes
-                else "None if _out_data is None else _runtime.decode(_out_data)"
-            )
         return LoweredResult(
             c_params=(
                 CParam("out_result", "char**", Role.OUT_RESULT, "ctypes.POINTER(ctypes.c_void_p)"),
@@ -3009,13 +2296,6 @@ class _Builder:
             ),
             statement=f"{detail}::{helper}({{call}}, out_result, out_result_size);",
             null_checks=(),
-            py=PyResult(
-                setup=("_out = ctypes.c_void_p()", "_out_size = ctypes.c_size_t()"),
-                value=value,
-                read=read,
-                cleanup=("if _out:", f"    _lib.{self.module.name}_free(_out)"),
-            ),
-            call_args=("_out", "_out_size"),
             owned_checks=(_null_check("out_result"), _null_check("out_result_size")),
             resets=("*out_result = nullptr;", "*out_result_size = 0;"),
         )
@@ -3037,15 +2317,7 @@ class _Builder:
 
         ``call`` is the wrapped call, with ``{arguments}`` where the arguments go.
         """
-        # A reference that a function returns is valid while the objects it
-        # was obtained from are: self, else the objects it was given.
-        if self_param is not None:
-            owners = "(self,)"
-        else:
-            names = [param.py.name for param in params if param.py.borrowable]
-            owners = "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
-        lowered = self._lower_result(result, location, policy, owners, self_param is not None)
-        self._check_python_result(lowered, params, is_method=self_param is not None)
+        lowered = self._lower_result(result, location, policy, self_param is not None)
         leading = (self_param,) if self_param is not None else ()
         null_checks = [_null_check(param.name) for param in leading]
         for param in params:
@@ -3076,110 +2348,35 @@ class _Builder:
         )
         return function, lowered
 
-    def _python_callable(
-        self,
-        name: str,
-        function: CFunction,
-        params: Sequence[LoweredParam],
-        result: LoweredResult | None,
-        *,
-        leading: Sequence[str] = (),
-        kind: str = "static",
-    ) -> PyCallable:
-        legacy = self._legacy_python_callable(
-            name, function, params, result, leading=leading, kind=kind
-        )
-        self._check_python_callable(legacy, params, result, leading, kind)
-        return legacy
-
-    def _check_python_callable(
-        self,
-        legacy: PyCallable,
-        params: Sequence[LoweredParam],
-        result: LoweredResult | None,
-        leading: Sequence[str],
-        kind: str,
-    ) -> None:
-        """Temporary: the Python backend assembles the same function."""
-        from .backends.python.lower import build_callable  # noqa: PLC0415
-
-        specs = [param.spec for param in params]
-        if any(spec is None for spec in specs) or (
-            result is not None and result.c_params and result.spec is None
-        ):
-            return  # reported
-        header = self._header.stem if self._header is not None else None
-        expected = build_callable(
-            legacy.name,
-            legacy.function,
-            [spec for spec in specs if spec is not None],
-            result.spec if result is not None else None,
-            leading=leading,
-            kind=kind,
-            module=self.module.name,
-            header_stem=header,
-        )
-        assert expected == legacy, (expected, legacy)
-
     @staticmethod
-    def _legacy_python_callable(
+    def _callable(
+        kind: CallableKind,
         name: str,
+        suffix: str,
         function: CFunction,
+        *,
         params: Sequence[LoweredParam],
         result: LoweredResult | None,
-        *,
-        leading: Sequence[str] = (),
-        kind: str = "static",
-    ) -> PyCallable:
-        """``leading`` are the call arguments before the parameters (self._ptr()...).
-
-        ``kind`` is how the function belongs to its class: ``method``,
-        ``constructor`` or ``static`` (also a free function): the object that
-        keeps alive what the objects taken retained.
-        """
-        call_args = [*leading]
-        transfers: list[tuple[str, str, str | None]] = []
-        for param in params:
-            for arg in param.call_args:
-                if param.py.transfer:
-                    # Given up last, so that every failure comes first.
-                    transfers.append((param.py.name, f"_h{len(call_args) + 1}", param.py.view))
-                call_args.append(arg)
-        if result is not None:
-            call_args += result.call_args
-        prepare: list[str] = []
-        if transfers:
-            # Every handle is read before any object is given up: a closed or
-            # read-only object must fail while nothing has been taken.
-            taken = {int(local[2:]) for _, local, _ in transfers}
-            for position, arg in enumerate(call_args, start=1):
-                if position not in taken and "(" in arg:
-                    prepare.append(f"_h{position} = {arg}")
-                    call_args[position - 1] = f"_h{position}"
-            for position in taken:
-                call_args[position - 1] = f"_h{position}"
-        retained, keep = {
-            "method": ("self._retained", "self"),
-            "constructor": ("{owner}._retained", "{owner}"),
-            "static": ("_runtime.forever", None),
-        }[kind]
-        return PyCallable(
-            name,
-            function,
-            tuple(param.py for param in params),
-            tuple(call_args),
-            result.py if result is not None else _NO_RESULT,
-            prepare=tuple(prepare),
-            transfers=tuple(transfers),
-            retained=retained,
-            keep=keep,
+        location: Location,
+        is_const: bool = False,
+    ) -> CallablePlan:
+        # A parameter that could not be lowered was reported: the plan is not built.
+        return CallablePlan(
+            kind=kind,
+            name=name,
+            suffix=suffix,
+            function=function,
+            params=tuple(param.spec for param in params if param.spec is not None),
+            result=result.spec if result is not None else None,
+            location=location,
+            is_const=is_const,
         )
 
     # Declarations ------------------------------------------------------------
 
     def _constructor_plan(
         self, model: Class, constructor: Constructor, c_type: str, pointer_name: str
-    ) -> PyCallable:
+    ) -> CallablePlan:
         cpp_name = "::" + model.qualified_name
         key = (*model.namespace, model.name)
         suffix = self._suffix(("constructor", *key), constructor.parameters)
@@ -3221,9 +2418,14 @@ class _Builder:
             prologue=tuple(line for param in params for line in param.prologue),
             notes=_parameter_notes(params, "the new object keeps"),
         )
-        py_name = "create" + suffix if len(model.constructors) > 1 else "__init__"
-        return self._python_callable(
-            py_name, function, params, None, leading=("_handle",), kind="constructor"
+        return self._callable(
+            CallableKind.CONSTRUCTOR,
+            model.name,
+            suffix,
+            function,
+            params=params,
+            result=None,
+            location=constructor.location,
         )
 
     def build_class(self, model: Class) -> ClassPlan:
@@ -3265,13 +2467,10 @@ class _Builder:
         )
 
         info = self._classes[model.usr]
-        py_bases, base_modules = self._py_bases(info)
+        bases = self._bases(info)
         views = self._views(info, self_param, cast_self)
 
-        factory_names = {item.name for item in constructors}
-        members: list[PyCallable] = []
-        py_names: dict[str, Location] = {}
-        enums = self._nested_enums(model, factory_names, py_names)
+        members: list[CallablePlan] = []
         for method in model.methods:
             suffix = self._suffix(("method", *key, method.name), method.parameters)
             name = f"{c_type}_{method.name}{suffix}"
@@ -3295,7 +2494,6 @@ class _Builder:
                     location=method.location,
                     policy=policy,
                 )
-                leading: tuple[str, ...] = ()
             else:
                 function, result = self._status_function(
                     name,
@@ -3308,39 +2506,27 @@ class _Builder:
                     self_param=self_param(method.is_const),
                     keeper="self keeps",
                 )
-                leading = (self._handle(info, "self", writable=not method.is_const),)
-            py_name = naming.member_name(method.name + suffix, reserved=factory_names)
-            if py_name in py_names:
-                self.errors.append(
-                    Diagnostic(
-                        f"two members of '{cpp_name}' get the Python name '{py_name}' "
-                        f"(the other one is declared at {py_names[py_name]})",
-                        method.location,
-                    )
+            members.append(
+                self._callable(
+                    CallableKind.STATIC if method.is_static else CallableKind.METHOD,
+                    method.name,
+                    suffix,
+                    function,
+                    params=params,
+                    result=result,
+                    location=method.location,
+                    is_const=method.is_const,
                 )
-            py_names[py_name] = method.location
-            member = self._python_callable(
-                py_name,
-                function,
-                params,
-                result,
-                leading=leading,
-                kind="static" if method.is_static else "method",
             )
-            members.append(dataclasses.replace(member, is_static=method.is_static))
 
         return ClassPlan(
             model=model,
             c_type=c_type,
-            py_name=naming.python_name(model.name),
-            struct_name=f"_{c_type}",
-            pointer_name=pointer_name,
             constructors=tuple(constructors),
             destroy=destroy,
             members=tuple(members),
-            enums=enums,
-            py_bases=py_bases,
-            base_modules=base_modules,
+            enums=tuple(self._enums[enum.usr] for enum in model.enums),
+            bases=tuple(bases),
             views=views,
             is_base=self._is_base(info),
         )
@@ -3364,18 +2550,6 @@ class _Builder:
             else:
                 bases.append(base)
         return bases
-
-    def _py_bases(self, info: ClassInfo) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """The Python base classes of a class, and the modules to import for them."""
-        names: list[str] = []
-        modules: list[str] = []
-        for base in self._bases(info):
-            if base.header is info.header:
-                names.append(base.py_name)
-            else:
-                names.append(f"{naming.module_alias(base.header.stem)}.{base.py_name}")
-                modules.append(base.header.stem)
-        return tuple(names), tuple(dict.fromkeys(modules))
 
     def _ancestors(self, info: ClassInfo) -> list[ClassInfo]:
         """Every base class of a class, the bases of its bases too, each once."""
@@ -3446,18 +2620,6 @@ class _Builder:
             views.append(ClassView(ancestor.c_type, functions[0], functions[1]))
         return tuple(views)
 
-    def _nested_enums(
-        self, model: Class, factory_names: set[str], py_names: dict[str, Location]
-    ) -> tuple[EnumPlan, ...]:
-        """The plans of the enums nested in a class, with their attribute names
-        (added to ``py_names``, which the methods must not take)."""
-        enums: list[EnumPlan] = []
-        for enum in model.enums:
-            py_name = naming.member_name(enum.name, reserved=factory_names)
-            py_names[py_name] = enum.location
-            enums.append(dataclasses.replace(self._enums[enum.usr], py_name=py_name))
-        return tuple(enums)
-
     def build_function(self, model: Function) -> FunctionPlan:
         prefix = naming.c_prefix(model.namespace, self.module.name)
         suffix = self._suffix(("function", *model.namespace, model.name), model.parameters)
@@ -3479,8 +2641,18 @@ class _Builder:
             location=model.location,
             policy=policy,
         )
-        py_name = naming.python_name(model.name + suffix)
-        return FunctionPlan(model, self._python_callable(py_name, function, params, result))
+        return FunctionPlan(
+            model,
+            self._callable(
+                CallableKind.FUNCTION,
+                model.name,
+                suffix,
+                function,
+                params=params,
+                result=result,
+                location=model.location,
+            ),
+        )
 
     def build_header(self, header: Header) -> HeaderPlan:
         stem = naming.check_header_stem(header.stem)
@@ -3502,7 +2674,7 @@ class _Builder:
             elif isinstance(declaration, Function):
                 items.append(self.build_function(declaration))
             elif isinstance(declaration, Struct):
-                items.append(self._struct_with_names(self._structs[declaration.usr]))
+                items.append(self._structs[declaration.usr])
             else:
                 items.append(self._enums[declaration.usr])
         owners: dict[str, Header] = {}
@@ -3533,7 +2705,7 @@ class _Builder:
             c_header=f"{stem}_c.h",
             c_source=f"{stem}_c.cpp",
             guard=guard,
-            items=self._assign_module_names(items),
+            items=tuple(items),
             foreign_enums=tuple(foreign.values()),
             created_classes=tuple((i.cpp_name, i.model.qualified_name) for i in created.values()),
             value_results=tuple((i.cpp_name, i.model.qualified_name) for i in by_value),
@@ -3553,66 +2725,6 @@ class _Builder:
                 if ref is not None and ref.form is ClassForm.VALUE and ref.usr in self._classes:
                     found.setdefault(ref.usr, self._classes[ref.usr])
         return list(found.values())
-
-    def _struct_with_names(self, struct: StructPlan) -> StructPlan:
-        """The Python names of a struct's nested enums, which must not take the
-        name of a field."""
-        fields = {field.name: field.model.location for field in struct.fields}
-        enums: list[EnumPlan] = []
-        for enum in struct.enums:
-            py_name = naming.member_name(enum.model.name)
-            if py_name in fields:
-                self.errors.append(
-                    Diagnostic(
-                        f"enum '{enum.model.qualified_name}' and a member of "
-                        f"'{struct.model.qualified_name}' get the Python name '{py_name}'",
-                        enum.model.location,
-                    )
-                )
-            enums.append(dataclasses.replace(enum, py_name=py_name))
-        return dataclasses.replace(struct, enums=tuple(enums))
-
-    def _assign_module_names(
-        self, items: Sequence[ClassPlan | FunctionPlan | EnumPlan | StructPlan]
-    ) -> tuple[ClassPlan | FunctionPlan | EnumPlan | StructPlan, ...]:
-        """Give classes, functions, enums and structs Python names that do not hide
-        generated globals, and nested enums their final qualified name."""
-        renamed: list[ClassPlan | FunctionPlan | EnumPlan | StructPlan] = []
-        seen: dict[str, Location] = {}
-        for item in items:
-            if isinstance(item, (ClassPlan, StructPlan)):
-                name = naming.module_level_name(item.py_name)
-                location = item.model.location
-                enums = tuple(
-                    dataclasses.replace(enum, py_qualname=f"{name}.{enum.py_name}")
-                    for enum in item.enums
-                )
-                if isinstance(item, StructPlan):
-                    renamed.append(
-                        dataclasses.replace(item, py_name=name, py_qualname=name, enums=enums)
-                    )
-                else:
-                    renamed.append(dataclasses.replace(item, py_name=name, enums=enums))
-            elif isinstance(item, EnumPlan):
-                name = naming.module_level_name(item.py_name)
-                location = item.model.location
-                renamed.append(dataclasses.replace(item, py_name=name, py_qualname=name))
-            else:
-                name = naming.module_level_name(item.py.name)
-                location = item.model.location
-                renamed.append(
-                    dataclasses.replace(item, py=dataclasses.replace(item.py, name=name))
-                )
-            if name in seen:
-                self.errors.append(
-                    Diagnostic(
-                        f"two declarations get the Python name '{name}' "
-                        f"(the other one is declared at {seen[name]})",
-                        location,
-                    )
-                )
-            seen[name] = location
-        return tuple(renamed)
 
 
 # Conventions of the generated C API that its headers do not show (the
@@ -3743,7 +2855,6 @@ def build_plan(
         name=module.name,
         headers=tuple(headers),
         structs=_structs_in_order(headers),
-        thunks=tuple(builder.thunks[name] for name in sorted(builder.thunks)),
     )
 
 

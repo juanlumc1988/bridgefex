@@ -4,7 +4,7 @@
 _PACKAGE = __name__.rpartition(".")[0]
 {% for h in m.headers %}
 {% for t in h.types %}
-{% if t is class_plan %}
+{% if t is py_handle %}
 
 
 class {{ t.struct_name }}(ctypes.Structure):

@@ -31,12 +31,30 @@ from ...plan import (
     CFunction,
     ClassInfo,
     ElementSpec,
+    EnumPlan,
     ParamSpec,
-    PyArg,
-    PyCallable,
-    PyResult,
     ResultSpec,
+    StructPlan,
 )
+from .model import PyArg, PyCallable, PyResult
+
+
+def enum_type(enum: EnumPlan) -> str:
+    """The IntEnum of an enum, as the generated header modules name it."""
+    return f"_types.{enum.c_type}"
+
+
+def enum_ctypes(enum: EnumPlan) -> str:
+    return f"ctypes.{enum.model.underlying.ctypes_name}"
+
+
+def struct_mirror(struct: StructPlan) -> str:
+    """The ctypes mirror of a value struct, as the generated header modules name it."""
+    return f"_types.{_mirror(struct)}"
+
+
+def _mirror(struct: StructPlan) -> str:
+    return f"_{struct.c_type}"
 
 
 def scalar_check(value: str, scalar: ScalarType, name: str) -> str:
@@ -67,13 +85,13 @@ def py_class(info: ClassInfo, header_stem: str | None) -> tuple[str, tuple[str, 
     return f"{naming.module_alias(info.header.stem)}.{info.py_name}", (info.header.stem,)
 
 
-def handle(info: ClassInfo, obj: str, *, writable: bool) -> str:
-    """The expression of the handle of ``obj`` as the class ``info``. A class that
+def handle(c_type: str, is_base: bool, obj: str, *, writable: bool) -> str:
+    """The expression of the handle of ``obj`` as the class ``c_type``. A class that
     others derive from reads it through the method that its objects, whatever
     their class, give the handle of this one with (see ``ClassView``)."""
     accessor = "_mptr" if writable else "_ptr"
-    if info.is_base:
-        accessor += f"_{info.c_type}"
+    if is_base:
+        accessor += f"_{c_type}"
     return f"{obj}.{accessor}()"
 
 
@@ -115,17 +133,17 @@ def element(spec: ElementSpec) -> PyElement:
             extra = f", ({valid[0]}, {valid[1]})"
         return PyElement(
             py_in=(
-                f"_runtime.to_enum_array({{name}}, {enum.py_type}, {enum.ctypes_type}, "
+                f"_runtime.to_enum_array({{name}}, {enum_type(enum)}, {enum_ctypes(enum)}, "
                 f'"{{name}}"{extra})'
             ),
             py_read="_runtime.array_items",
-            py_value=f"_runtime.enum_results({enum.py_type}, {{data}})",
-            ctypes_out=enum.ctypes_type,
+            py_value=f"_runtime.enum_results({enum_type(enum)}, {{data}})",
+            ctypes_out=enum_ctypes(enum),
         )
     if isinstance(type_, StructRef):
         struct = spec.struct
         assert struct is not None
-        mirror = f"_types.{struct.mirror}"
+        mirror = struct_mirror(struct)
         return PyElement(
             py_in=f'_runtime.to_struct_array({{name}}, {mirror}, {mirror}__fill, "{{name}}")',
             py_read="_runtime.struct_items",
@@ -208,7 +226,7 @@ def _lower(spec: ParamSpec, header_stem: str | None) -> tuple[PyArg, tuple[str, 
     if isinstance(type_, StructRef):
         assert spec.struct is not None
         struct = spec.struct
-        arg = PyArg(name, (f'{name} = _types.{struct.mirror}__to_c({name}, "{name}")',))
+        arg = PyArg(name, (f'{name} = _types.{_mirror(struct)}__to_c({name}, "{name}")',))
         return arg, (name,)
     if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
         return _array(spec, type_)
@@ -243,7 +261,9 @@ def _enum(spec: ParamSpec) -> tuple[PyArg, tuple[str, ...]]:
     enum = spec.enum
     assert enum is not None
     valid = enum.model.valid_range
-    conversion = f'{name} = _runtime.to_enum({name}, {enum.py_type}, {enum.ctypes_type}, "{name}"'
+    conversion = (
+        f'{name} = _runtime.to_enum({name}, {enum_type(enum)}, {enum_ctypes(enum)}, "{name}"'
+    )
     if valid is not None:
         low, high = valid
         conversion += f", ({low}, {high})"
@@ -274,7 +294,7 @@ def _object(
         )
         return arg, (f"{name}._mptr()",)
     constant = ref.form in (ClassForm.VALUE, ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
-    expression = handle(info, name, writable=not constant)
+    expression = handle(info.c_type, info.is_base, name, writable=not constant)
     if nullable:
         expression = f"({expression} if {name} is not None else None)"
     arg = PyArg(
@@ -362,8 +382,8 @@ def lower_result(
         enum = spec.enum
         assert enum is not None
         result = PyResult(
-            setup=(f"_out = {enum.ctypes_type}()",),
-            value=f"_runtime.enum_result({enum.py_type}, _out.value)",
+            setup=(f"_out = {enum_ctypes(enum)}()",),
+            value=f"_runtime.enum_result({enum_type(enum)}, _out.value)",
         )
         return result, ("_out",)
     if isinstance(type_, ClassRef):
@@ -377,8 +397,8 @@ def lower_result(
         struct = spec.struct
         assert struct is not None
         result = PyResult(
-            setup=(f"_out = _types.{struct.mirror}()",),
-            value=f"_types.{struct.mirror}__from_c(_out)",
+            setup=(f"_out = _types.{_mirror(struct)}()",),
+            value=f"_types.{_mirror(struct)}__from_c(_out)",
         )
         return result, ("_out",)
     if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
