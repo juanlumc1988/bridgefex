@@ -9,6 +9,7 @@ and conversions before the call, and the arguments of the call.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Sequence
 
 from ... import naming
 from ...model import (
@@ -31,6 +32,8 @@ from ...plan import (
     ElementSpec,
     ParamSpec,
     PyArg,
+    PyResult,
+    ResultSpec,
 )
 
 
@@ -79,11 +82,28 @@ class PyElement:
     py_in: str
     """Python expression that converts the argument ``{name}`` to a ctypes array."""
 
+    py_read: str
+    """Python function that copies the elements of a result out of the C block."""
+
+    py_value: str
+    """Python expression of the result from the copy ``{data}``."""
+
+    ctypes_out: str
+    """The ctypes type of an element of a result."""
+
+    read_extra: str = ""
+    """More arguments of ``py_read``."""
+
 
 def element(spec: ElementSpec) -> PyElement:
     type_ = spec.type
     if isinstance(type_, StringType):
-        return PyElement(py_in='_runtime.to_string_array({name}, "{name}")')
+        return PyElement(
+            py_in='_runtime.to_string_array({name}, "{name}")',
+            py_read="_runtime.string_items",
+            py_value="_runtime.decode_all({data})",
+            ctypes_out="_runtime.String",
+        )
     if isinstance(type_, EnumRef):
         enum = spec.enum
         assert enum is not None
@@ -95,14 +115,21 @@ def element(spec: ElementSpec) -> PyElement:
             py_in=(
                 f"_runtime.to_enum_array({{name}}, {enum.py_type}, {enum.ctypes_type}, "
                 f'"{{name}}"{extra})'
-            )
+            ),
+            py_read="_runtime.array_items",
+            py_value=f"_runtime.enum_results({enum.py_type}, {{data}})",
+            ctypes_out=enum.ctypes_type,
         )
     if isinstance(type_, StructRef):
         struct = spec.struct
         assert struct is not None
         mirror = f"_types.{struct.mirror}"
         return PyElement(
-            py_in=f'_runtime.to_struct_array({{name}}, {mirror}, {mirror}__fill, "{{name}}")'
+            py_in=f'_runtime.to_struct_array({{name}}, {mirror}, {mirror}__fill, "{{name}}")',
+            py_read="_runtime.struct_items",
+            py_value="{data}",
+            ctypes_out=mirror,
+            read_extra=f", {mirror}__from_c",
         )
     assert isinstance(type_, ScalarType)
     check = {TypeCategory.BOOL: "check_bool", TypeCategory.FLOATING: "check_float"}.get(
@@ -113,7 +140,10 @@ def element(spec: ElementSpec) -> PyElement:
         py_in=(
             f'_runtime.to_array({{name}}, ctypes.{type_.ctypes_name}, "{{name}}", '
             f"_runtime.{check}{', True' if is_bytes else ''})"
-        )
+        ),
+        py_read="_runtime.array_items",
+        py_value="{data}",
+        ctypes_out=f"ctypes.{type_.ctypes_name}",
     )
 
 
@@ -293,3 +323,149 @@ def _callback(spec: ParamSpec) -> tuple[PyArg, tuple[str, ...]]:
         ),
     )
     return arg, (name, user_data, release)
+
+
+# Results -----------------------------------------------------------------------
+
+_NO_RESULT = PyResult()
+
+
+def borrowable(spec: ParamSpec) -> bool:
+    """A reference or a pointer to a wrapped object that the function does not
+    take: what a function without ``self`` returns by reference is borrowed from
+    these."""
+    return (
+        isinstance(spec.type, ClassRef)
+        and "transfer" not in spec.words
+        and spec.type.form is not ClassForm.VALUE
+    )
+
+
+def lower_result(
+    spec: ResultSpec | None,
+    params: Sequence[ParamSpec],
+    *,
+    module: str,
+    is_method: bool,
+    header_stem: str | None,
+) -> tuple[PyResult, tuple[str, ...]]:
+    """The Python side of a result: the output locals, how the value is read after
+    the call, and the arguments that the call passes for them."""
+    if spec is None:
+        return _NO_RESULT, ()
+    type_ = spec.type
+    if isinstance(type_, StringType):
+        return _string_result(spec, type_, module)
+    if isinstance(type_, EnumRef):
+        enum = spec.enum
+        assert enum is not None
+        result = PyResult(
+            setup=(f"_out = {enum.ctypes_type}()",),
+            value=f"_runtime.enum_result({enum.py_type}, _out.value)",
+        )
+        return result, ("_out",)
+    if isinstance(type_, ClassRef):
+        if is_method:
+            owners = "(self,)"
+        else:
+            names = [param.name for param in params if borrowable(param)]
+            owners = "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
+        return _object_result(spec, type_, owners, header_stem)
+    if isinstance(type_, StructRef):
+        struct = spec.struct
+        assert struct is not None
+        result = PyResult(
+            setup=(f"_out = _types.{struct.mirror}()",),
+            value=f"_types.{struct.mirror}__from_c(_out)",
+        )
+        return result, ("_out",)
+    if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
+        assert spec.element is not None
+        py = element(spec.element)
+        items = f"{py.py_read}(_out, {type_.length}{py.read_extra})"
+        result = PyResult(
+            setup=(f"_out = ({py.ctypes_out} * {type_.length})()",),
+            value=py.py_value.replace("{data}", items),
+        )
+        return result, ("_out",)
+    if isinstance(type_, ContainerType):
+        assert spec.element is not None
+        py = element(spec.element)
+        result = PyResult(
+            setup=(
+                f"_out = ctypes.POINTER({py.ctypes_out})()",
+                "_out_size = ctypes.c_size_t()",
+            ),
+            # The elements are copied out of the block before it is released.
+            read=f"_out_data = {py.py_read}(_out, _out_size.value{py.read_extra})",
+            value=py.py_value.replace("{data}", "_out_data"),
+            cleanup=("if _out:", f"    _lib.{module}_free(_out)"),
+        )
+        return result, ("_out", "_out_size")
+    assert isinstance(type_, ScalarType)
+    result = PyResult(setup=(f"_out = ctypes.{type_.ctypes_name}()",), value="_out.value")
+    return result, ("_out",)
+
+
+def _string_result(
+    spec: ResultSpec, type_: StringType, module: str
+) -> tuple[PyResult, tuple[str, ...]]:
+    if type_.sized:
+        read = "_out_data = _runtime.string_at(_out, _out_size.value)"
+        value = "_out_data" if spec.as_bytes else "_runtime.decode(_out_data)"
+    else:
+        # A NULL const char* is None.
+        read = "_out_data = _runtime.string_at(_out, _out_size.value) if _out else None"
+        value = (
+            "_out_data"
+            if spec.as_bytes
+            else "None if _out_data is None else _runtime.decode(_out_data)"
+        )
+    result = PyResult(
+        setup=("_out = ctypes.c_void_p()", "_out_size = ctypes.c_size_t()"),
+        value=value,
+        read=read,
+        cleanup=("if _out:", f"    _lib.{module}_free(_out)"),
+    )
+    return result, ("_out", "_out_size")
+
+
+def _object_result(
+    spec: ResultSpec, ref: ClassRef, owners: str, header_stem: str | None
+) -> tuple[PyResult, tuple[str, ...]]:
+    info = spec.cls
+    assert info is not None
+    class_expression, imports = py_class(info, header_stem)
+    pointer = f"_types.{info.pointer_name}"
+    borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
+        spec.ownership == "borrowed"
+    )
+    if borrowed:
+        constant = ref.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
+        result = PyResult(
+            setup=(f"_out = {pointer}()",),
+            value=f"_runtime.borrow({class_expression}, _out, {owners}, {constant})",
+            imports=imports,
+        )
+        return result, ("_out",)
+    # An object that the caller owns: the Python object that will own it exists
+    # before the call, and from the moment the C function writes the handle, its
+    # collection destroys the object.
+    nullable = ref.form is not ClassForm.VALUE
+    finish: tuple[str, ...]
+    if nullable:
+        finish = ("if _out:", "    _result._adopt(_out)")
+        value = "_result if _out else None"
+    else:
+        finish = ("_result._adopt(_out)",)
+        value = "_result"
+    result = PyResult(
+        setup=(
+            f"_result = {class_expression}.__new__({class_expression})",
+            "_out = _result._watch()",
+        ),
+        value=value,
+        finish=finish,
+        imports=imports,
+    )
+    return result, ("_out",)

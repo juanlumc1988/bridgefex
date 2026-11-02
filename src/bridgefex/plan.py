@@ -471,6 +471,24 @@ class ParamSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class ResultSpec:
+    """The result of a wrapped function, as a language backend sees it."""
+
+    type: Type
+    """A class returned by value, reference or pointer is a :class:`ClassRef`."""
+
+    enum: EnumPlan | None = None
+    struct: StructPlan | None = None
+    cls: ClassInfo | None = None
+    element: ElementSpec | None = None
+    ownership: str | None = None
+    """For a raw pointer to a class: ``owned`` or ``borrowed``, as the annotations say."""
+
+    as_bytes: bool = False
+    """A string result the annotations want as bytes, not decoded."""
+
+
+@dataclass(frozen=True, slots=True)
 class LoweredParam:
     """A C++ parameter as the generated code passes it."""
 
@@ -577,6 +595,9 @@ class LoweredResult:
 
     notes: tuple[str, ...] = ()
     """For the C header: who owns the result (see :attr:`CFunction.notes`)."""
+
+    spec: ResultSpec | None = None
+    """What a language backend sees of the result (None for ``void``)."""
 
 
 # How each C type spells its constants: a suffix, or a macro of <stdint.h>.
@@ -1930,6 +1951,27 @@ class _Builder:
                 lowered.append(param)
         return lowered
 
+    def _check_python_result(
+        self, result: LoweredResult, params: Sequence[LoweredParam], *, is_method: bool
+    ) -> None:
+        """Temporary: like :meth:`_check_python_lowering`, for the result."""
+        from .backends.python.lower import lower_result  # noqa: PLC0415
+
+        if result.spec is None and not result.c_params:  # void, or reported
+            return
+        specs = [param.spec for param in params]
+        if any(spec is None for spec in specs):  # reported
+            return
+        header = self._header.stem if self._header is not None else None
+        python = lower_result(
+            result.spec,
+            [spec for spec in specs if spec is not None],
+            module=self.module.name,
+            is_method=is_method,
+            header_stem=header,
+        )
+        assert python == (result.py, result.call_args), result.spec
+
     def _check_python_lowering(self, param: LoweredParam) -> None:
         """Temporary: the Python backend lowers the parameter from its spec to what
         this builder says (until the builder stops saying it)."""
@@ -2685,6 +2727,9 @@ class _Builder:
                 value=element.py_value.replace("{data}", items),
             ),
             call_args=("_out",),
+            spec=ResultSpec(
+                type_, element=ElementSpec(type_.element, element.enum, element.struct)
+            ),
         )
 
     def _lower_vector_result(self, type_: ContainerType, location: Location) -> LoweredResult:
@@ -2727,6 +2772,9 @@ class _Builder:
             call_args=("_out", "_out_size"),
             owned_checks=(_null_check("out_result"), _null_check("out_result_size")),
             resets=("*out_result = nullptr;", "*out_result_size = 0;"),
+            spec=ResultSpec(
+                type_, element=ElementSpec(type_.element, element.enum, element.struct)
+            ),
         )
 
     def _lower_struct_result(self, struct: StructPlan | None) -> LoweredResult:
@@ -2812,6 +2860,7 @@ class _Builder:
                 ),
                 call_args=("_out",),
                 notes=(f"*out_result: borrowed{origin}, {nullability}; do not destroy it.",),
+                spec=ResultSpec(ref, cls=info, ownership=ownership),
             )
         # An object that the caller owns: the Python object that will own it
         # exists before the call, and from the moment the C function writes the
@@ -2855,6 +2904,7 @@ class _Builder:
             owned_checks=(_null_check("out_result"),),
             resets=("*out_result = nullptr;",),
             notes=(note,),
+            spec=ResultSpec(ref, cls=info, ownership=ownership),
         )
 
     def _lower_enum_result(self, enum: EnumPlan | None) -> LoweredResult:
@@ -2892,15 +2942,26 @@ class _Builder:
         if type_.is_void:
             return LoweredResult((), "{call};", (), _NO_RESULT, ())
         if isinstance(type_, StringType):
-            return self._lower_string_result(type_, policy.result_bytes)
+            lowered = self._lower_string_result(type_, policy.result_bytes)
+            return dataclasses.replace(
+                lowered, spec=ResultSpec(type_, as_bytes=policy.result_bytes)
+            )
         if isinstance(type_, EnumRef):
-            return self._lower_enum_result(self._enum(type_, location))
+            enum = self._enum(type_, location)
+            lowered = self._lower_enum_result(enum)
+            if enum is None:  # reported
+                return lowered
+            return dataclasses.replace(lowered, spec=ResultSpec(type_, enum=enum))
         class_ref = self._as_class(type_)
         if class_ref is not None:
             return self._lower_class_result(class_ref, location, owners, is_method, policy.result)
         assert not isinstance(type_, ClassRef)  # _as_class
         if isinstance(type_, StructRef):
-            return self._lower_struct_result(self._struct(type_, location))
+            struct = self._struct(type_, location)
+            lowered = self._lower_struct_result(struct)
+            if struct is None:  # reported
+                return lowered
+            return dataclasses.replace(lowered, spec=ResultSpec(type_, struct=struct))
         if isinstance(type_, ContainerType) and type_.kind is ContainerKind.ARRAY:
             return self._lower_array_result(type_, location)
         if isinstance(type_, ContainerType):
@@ -2918,6 +2979,7 @@ class _Builder:
             null_checks=(_null_check("out_result"),),
             py=PyResult(setup=(f"_out = ctypes.{type_.ctypes_name}()",), value="_out.value"),
             call_args=("_out",),
+            spec=ResultSpec(type_),
         )
 
     def _lower_string_result(self, type_: StringType, as_bytes: bool = False) -> LoweredResult:
@@ -2983,6 +3045,7 @@ class _Builder:
             names = [param.py.name for param in params if param.py.borrowable]
             owners = "(" + ", ".join(names) + ("," if len(names) == 1 else "") + ")"
         lowered = self._lower_result(result, location, policy, owners, self_param is not None)
+        self._check_python_result(lowered, params, is_method=self_param is not None)
         leading = (self_param,) if self_param is not None else ()
         null_checks = [_null_check(param.name) for param in leading]
         for param in params:
