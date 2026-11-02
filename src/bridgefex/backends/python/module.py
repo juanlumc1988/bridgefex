@@ -276,10 +276,6 @@ class PyHeader(PlanView):
         return self.plan.c_functions
 
     @property
-    def struct_inits(self) -> tuple[CFunction, ...]:
-        return self.plan.struct_inits
-
-    @property
     def bindings(self) -> tuple[PyBinding, ...]:
         """The signatures of the C functions of this header (the init functions of
         the value structs are declared in ``_types.py``)."""

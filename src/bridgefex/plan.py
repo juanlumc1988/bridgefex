@@ -816,6 +816,10 @@ class ModulePlan:
     structs: tuple[StructPlan, ...] = ()
     """Every value struct, each after the structs it contains."""
 
+    reservations: Reservations = NO_RESERVATIONS
+    """What the plan left alone for the backends: a backend can only render a plan that
+    was built with its own reservations."""
+
     @property
     def macro_prefix(self) -> str:
         return self.name.upper()
@@ -1843,8 +1847,6 @@ class _Builder:
             temporary=f"{constructor}()" if type_.by_reference else None,
             null_checks=(_sized_null_check(name, size),),
             value_checks=(),
-            # The size of the exact bytes object: before self._ptr(), so that
-            # nothing runs between it and the call.
         )
 
     def _lower_class_param(
@@ -2853,7 +2855,9 @@ def build_plan(
 
     ``annotations`` are the annotation files, loaded (see :mod:`bridgefex.annotations`).
     ``reservations`` are the names that the language backends need left alone (see
-    :func:`bridgefex.backends.reservations`).
+    :func:`bridgefex.backends.reservations`). Without them the plan serves the C layer
+    only: the names of the C parameters may then be keywords or locals of a language,
+    and :func:`bridgefex.generator.render` refuses to give such a plan to a backend.
 
     Raises:
         ConfigurationError: invalid module or header names.
@@ -2924,6 +2928,7 @@ def build_plan(
         name=module.name,
         headers=tuple(headers),
         structs=_structs_in_order(headers),
+        reservations=reservations or NO_RESERVATIONS,
     )
 
 

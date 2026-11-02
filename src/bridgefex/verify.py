@@ -67,7 +67,7 @@ def verify(
     options: ParseOptions,
 ) -> tuple[Diagnostic, ...]:
     """Compile the C layer in ``files`` with libclang, and let each backend check
-    its own files (the Python one compiles and imports its package).
+    its own files (for example, compile and load what it generated).
 
     ``include_dirs`` maps each header stem to the directory its generated
     source needs on the include path. Returns the warnings found in the

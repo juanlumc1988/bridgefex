@@ -10,6 +10,7 @@ import pytest
 import bridgefex
 from bridgefex import libclang
 from bridgefex.api import include_spelling
+from bridgefex.backends import reservations
 from bridgefex.errors import (
     ConfigurationError,
     Diagnostic,
@@ -55,7 +56,8 @@ def test_options_are_validated() -> None:
 def test_render_is_tidy_and_platform_independent() -> None:
     int32 = STANDARD_TYPEDEFS["int32_t"].type
     model = Function("answer", ("n",), (), int32, Location("a.h", 1, 1))
-    plan = build_plan(Module("mod", (Header(Path("a.h"), "a.h", (model,)),)))
+    module = Module("mod", (Header(Path("a.h"), "a.h", (model,)),))
+    plan = build_plan(module, None, reservations())
     files = render(plan)
     assert sorted(files) == [
         "c/a_c.cpp",

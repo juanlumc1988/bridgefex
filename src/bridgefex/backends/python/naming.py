@@ -123,7 +123,7 @@ def module_problem(name: str) -> str | None:
 def header_problem(stem: str) -> str | None:
     """Why a header called ``stem`` cannot have a module of the package, or None."""
     if keyword.iskeyword(stem):
-        return "its Python module could not be imported: the name is a keyword"
+        return "it is a keyword of Python, and it names the generated Python module"
     if stem in PACKAGE_NAMES:
         return f"its Python module would replace '{stem}' of the generated package"
     return None

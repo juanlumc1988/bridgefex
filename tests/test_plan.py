@@ -313,7 +313,7 @@ PINNED_RUNTIME_SHA256 = "479d28d27e4c8f52f7d77e55948a1b22841f5d16d5f30db960c3f95
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
-    files = render(build_plan(Module("m", ())))
+    files = render(build_plan(Module("m", ()), None, reservations()))
     digest = hashlib.sha256()
     for path in sorted(files):
         if "_runtime" in path:
@@ -1908,8 +1908,9 @@ def test_the_annotations_are_part_of_the_api_fingerprint() -> None:
                 two_headers(klass("Tree", methods=(pointer_method("find", ClassForm.POINTER),))),
             ),
             annotate(ns_Tree_find={"return": word}),
+            reservations(),
         )
-        files = render(plan.plan if hasattr(plan, "plan") else plan)
+        files = render(plan)
         match = re.search(r'API_FINGERPRINT = "(\w+)"', files["python/mod/_runtime.py"])
         assert match is not None
         return match.group(1)

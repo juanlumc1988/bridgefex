@@ -33,12 +33,13 @@ def test_invalid_module_names(name: str, reason: str) -> None:
         naming.check_module_name(name)
 
 
-@pytest.mark.parametrize("stem", ["counter", "Counter", "my_header2"])
+# A header name is only a file name: C++ keywords are fine (register.h, new.h, export.h).
+@pytest.mark.parametrize("stem", ["counter", "Counter", "my_header2", "register", "union", "class"])
 def test_valid_header_stems(stem: str) -> None:
     assert naming.check_header_stem(stem) == stem
 
 
-@pytest.mark.parametrize("stem", ["my-header", "2d", "class", "_private", "a.b", "int"])
+@pytest.mark.parametrize("stem", ["my-header", "2d", "_private", "_Alignas", "a.b", ""])
 def test_invalid_header_stems(stem: str) -> None:
     with pytest.raises(ConfigurationError):
         naming.check_header_stem(stem)

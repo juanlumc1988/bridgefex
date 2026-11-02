@@ -31,12 +31,15 @@ headers ──parser (libclang)──▶ model.Module ──build_plan──▶ 
 | A language | `backends/<name>/` | the plan, and that language only |
 | The checks | `verify` | libclang, and the checks the backends provide |
 
-`tests/test_architecture.py` enforces the layering by reading the source: the
-model, the plan, the naming rules and the templates of the C layer contain no word
-that names a language, no neutral module imports `bridgefex.backends`, and a
-backend imports nothing but the plan, the model, `naming`, `typemap`, `errors`,
-`rendering` and itself. A backend never calls the parser, the generator or another
-backend.
+`tests/test_architecture.py` enforces the layering by reading the source. The
+model, the plan, the naming rules, the templates of the C layer and the internals of
+the pipeline contain no word that names a language (`python`, `ctypes`, `jni`...),
+import nothing that only some languages have (`keyword`, `ctypes`), and import no
+backend; no module is imported by a computed name. A backend imports nothing but
+the plan, the model, `naming`, `typemap`, `errors`, `rendering`, the base that the
+backends share (`backends.base`) and itself: it never calls the parser, the
+generator or another backend. The checks are themselves tested on sources that
+break the rules.
 
 ## The plan
 
@@ -88,10 +91,17 @@ is the same whichever languages are generated. So each backend declares, in
   a name the package defines...).
 
 `api.generate` passes the union of **all** registered backends to `build_plan`,
-whichever languages are selected, so the C API never depends on that choice. A
-backend can also rename in its own lowering (a keyword of its language becomes
-`@event` or `r#type`) and declare nothing: the reservations are for names that the
-C API shares with the bindings, like the keyword arguments of the Python bindings.
+whichever languages are selected, so the C API does not depend on that choice. The
+plan records what it reserved (`ModulePlan.reservations`), and `generator.render`
+refuses to give a backend a plan that was built without that backend's words.
+
+What does change the C API is the set of registered backends: a new backend with
+`words={"event"}` renames every C parameter called `event` for all users, whatever
+language they generate, and so changes the API fingerprint of their libraries.
+Declare only what the C API must share with the bindings. A backend can rename in
+its own lowering instead (a keyword of its language becomes `@event` or `r#type`),
+which needs no reservation: Python reserves its keywords because its bindings take
+the C parameter names as keyword arguments.
 
 ## A backend
 
@@ -114,11 +124,15 @@ To add a language:
    `lower.py` and `module.py`: it turns each `CallablePlan` into the parameters,
    the checks, the call and the result of one function), then render templates
    with `rendering.Renderer`. Errors that only the language has (a name that
-   collides in it) are `GenerationError`s raised from `render`.
+   collides in it) are `GenerationError`s raised from `render`, so they appear
+   after the errors of the plan and only when that language is generated. A backend
+   writes below `<name>/` only (`generator.render` checks it), and its name is
+   a lowercase identifier other than `c`.
 3. Output must be deterministic and independent of the platform: a golden test
    compares it byte by byte.
-4. Add the golden files (`tests/golden/<case>/expected/<name>/`) and a runner of
-   the conformance scenarios (see below).
+4. Add the golden files (`tests/golden/<case>/expected/<name>/`). Registering a
+   backend can change the C parameter names of the existing goldens (see above):
+   regenerate them and check that the C files only change in that.
 
 The Python backend is the reference: `backends/python/ffi.py` maps `Ffi` to ctypes,
 `lower.py` lowers parameters and results, `module.py` builds the modules, classes,

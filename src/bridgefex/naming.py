@@ -120,14 +120,15 @@ def c_identifier_problem(name: str) -> str | None:
 def check_header_stem(stem: str, problem: Callable[[str], str | None] | None = None) -> str:
     """Validate a header file name (without extension).
 
-    It names the generated files, so it must be an identifier; and the bindings
+    It names the generated files and goes into the include guard, so it must be an
+    identifier (a keyword is fine: the name is never used as one); and the bindings
     must be able to give a module to it: ``problem`` says why they cannot (see
     :class:`bridgefex.plan.Reservations`).
     """
-    if not _IDENTIFIER.fullmatch(stem) or stem in KEYWORDS:
+    if not _IDENTIFIER.fullmatch(stem):
         raise ConfigurationError(
             f"cannot use header name '{stem}': it must be a valid identifier "
-            "(letters, digits and '_') that is not a keyword"
+            "(letters, digits and '_')"
         )
     if stem.startswith("_"):
         raise ConfigurationError(f"cannot use header name '{stem}': it must not start with '_'")

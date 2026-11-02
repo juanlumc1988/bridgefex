@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,3 +28,10 @@ class Backend:
     """``check(plan, files, scratch)``: verifies the files of this backend before they
     are written (compiles them, imports them...), writing what it needs below the
     scratch directory. Returns the errors found."""
+
+    def __post_init__(self) -> None:
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", self.name) or self.name == "c":
+            raise ValueError(
+                f"invalid backend name {self.name!r}: lowercase letters, digits and '_', "
+                "and not 'c', which is the directory of the C layer"
+            )

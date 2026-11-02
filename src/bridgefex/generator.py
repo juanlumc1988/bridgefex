@@ -48,5 +48,18 @@ def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, 
             put(f"c/{header.c_internal_header}", "source_c_internal.hpp.j2", h=header)
 
     for language in languages:
-        files.update(backends[language].render(plan, fingerprint))
+        backend = backends[language]
+        reserved = plan.reservations
+        if (backend.reservations.words - reserved.words) or (
+            backend.reservations.parameter_words - reserved.parameter_words
+        ):
+            raise ValueError(
+                f"the plan was built without the reservations of the {language} backend: "
+                "pass bridgefex.backends.reservations() to build_plan"
+            )
+        produced = backend.render(plan, fingerprint)
+        stray = sorted(path for path in produced if not path.startswith(f"{language}/"))
+        if stray:
+            raise ValueError(f"the {language} backend wrote outside of {language}/: {stray}")
+        files.update(produced)
     return files
