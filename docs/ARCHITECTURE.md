@@ -64,6 +64,19 @@ is a tree of frozen dataclasses:
   to each ancestor (`<class>_as_<ancestor>`), because with several bases the
   address changes.
 
+- `ClassPlan.director` (only for the classes that the annotations file lists in
+  `directors`) describes a generated subclass whose virtual methods call back through
+  a table of functions: a `DirectorEntry` for each overridable virtual method, with
+  its signature seen as for a `std::function` (`CallbackSpec`, `thunk_key`), whether
+  it is pure and its base call (a `CallablePlan` of kind `DIRECTOR_BASE`), and the
+  functions that create the director (`DIRECTOR_CONSTRUCTOR`, one per constructor
+  that a derived class can call). The C++ of the subclass belongs to the shared C
+  layer (`DirectorPlan.glue`), so every language gets the same one; a backend
+  implements the table: it builds the functions of the vtable from its own
+  overrides, keeps what they need alive until `release`, and calls the base
+  variants for `super()`. `HeaderPlan.c_functions` is what the bindings call;
+  `HeaderPlan.director_functions` is the rest of what the C header declares.
+
 The plan never says how a language spells any of it. The C layer is rendered from
 it by `generator.render`, with the templates in `src/bridgefex/templates/`.
 
