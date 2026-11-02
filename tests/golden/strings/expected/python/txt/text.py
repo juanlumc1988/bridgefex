@@ -88,7 +88,7 @@ def _bind():
     return _lib
 
 
-class Person:
+class Person(_runtime.Object):
     """Wraps ``text::Person``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -98,15 +98,8 @@ class Person:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "text_Person"
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
@@ -181,6 +174,7 @@ class Person:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

@@ -30,6 +30,12 @@ static void release(void* user_data)
     ((counter*)user_data)->releases++;
 }
 
+/* The release function of a second language runtime that shares the library. */
+static void release_other(void* user_data)
+{
+    ((counter*)user_data)->releases++;
+}
+
 static void twice(void* user_data, int32_t value, int32_t* out_result)
 {
     ((counter*)user_data)->calls++;
@@ -211,7 +217,27 @@ int main(void)
     check(a.calls == 1, "disabled: not called");
     check(ev_sum(2, twice, &a, release, &total) == CBX_OK && total == 0, "disabled: default");
     check(ev_set_log_handler(NULL, NULL, NULL) == CBX_OK && a.releases == 0, "not released");
+
+    /* Several runtimes share the library: disabling a second release function
+     * does not enable the first, NULL changes nothing, and enabling undoes it
+     * for that function only. */
+    b.calls = 0;
+    b.releases = 0;
+    cbx_disable_callbacks(release_other);
+    cbx_disable_callbacks(release_other);
     cbx_disable_callbacks(NULL);
+    cbx_enable_callbacks(NULL);
+    check(ev_sum(3, twice, &a, release, &total) == CBX_OK && total == 0, "first still disabled");
+    check(ev_sum(3, twice, &b, release_other, &total) == CBX_OK && total == 0, "second disabled");
+    check(a.releases == 0 && b.releases == 0, "neither released");
+    cbx_enable_callbacks(release);
+    check(ev_sum(3, twice, &a, release, &total) == CBX_OK && total == 6, "enabled again");
+    check(a.releases == 1, "released once enabled");
+    check(ev_sum(3, twice, &b, release_other, &total) == CBX_OK && total == 0, "second kept");
+    cbx_enable_callbacks(release_other);
+    cbx_enable_callbacks(release_other);
+    check(ev_sum(3, twice, &b, release_other, &total) == CBX_OK && total == 6, "second enabled");
+    check(b.releases == 1, "second released");
 
     if (failures != 0) {
         return 1;

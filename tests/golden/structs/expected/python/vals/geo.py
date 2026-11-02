@@ -169,7 +169,7 @@ def area_geo_Wide(w):
     return _out.value
 
 
-class Path:
+class Path(_runtime.Object):
     """Wraps ``geo::Path``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -179,15 +179,8 @@ class Path:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "geo_Path"
 
     def __init__(self, start):
         """Wraps ``geo::Path::Path(const geo::Point& start)``."""
@@ -243,6 +236,7 @@ class Path:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

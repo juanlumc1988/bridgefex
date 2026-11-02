@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "EDGE_LIBRARY"
 
-API_FINGERPRINT = "0a5b8611d56a4683babe8aff829e11d3"
+API_FINGERPRINT = "3d59c8be588a54f0e2f1750e150c7660"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -145,6 +145,11 @@ def load(path=None):
         library.edge_free.restype = None
         library.edge_disable_callbacks.argtypes = [Release]
         library.edge_disable_callbacks.restype = None
+        library.edge_enable_callbacks.argtypes = [Release]
+        library.edge_enable_callbacks.restype = None
+        # An earlier interpreter of the process may have disabled a release
+        # function at the address of this one (ctypes reuses freed closures).
+        library.edge_enable_callbacks(release)
         library_path = os.path.abspath(path) if _has_directory(path) else path
         if _library is None:
             _library, _library_path = library, library_path
@@ -244,6 +249,44 @@ that has no single owner. Like the ``_retained`` of an object, it holds each
 object once, however many times it is retained."""
 
 
+class Object:
+    """Root of the wrapped classes. It holds the instance layout, so that a class
+    with several bases can exist: Python does not combine the layouts of
+    several bases that each add attributes."""
+
+    __slots__ = (
+        "__weakref__",
+        "_finalizer",
+        "_handle",
+        "_owned",
+        "_owners",
+        "_readonly",
+        "_retained",
+    )
+
+    _cxx_class = None
+    """The C type of its C++ class (the generated classes set it)."""
+
+    _ancestors = ()
+    """The names of the methods that give its handle as each ancestor."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # A class that bridgefex generates names its own C++ class. A class of the
+        # user extends one: the object it makes has one handle.
+        if "_cxx_class" not in cls.__dict__:
+            classes = {
+                base._cxx_class
+                for base in cls.__bases__
+                if issubclass(base, Object) and base is not Object
+            }
+            if len(classes) > 1:
+                raise TypeError(
+                    f"{cls.__name__} derives from wrapped classes of different C++ classes "
+                    f"({', '.join(sorted(classes))}): an object has the handle of one"
+                )
+
+
 def check_object(value, cls, name, nullable=False):
     """Check that value is a cls object (or None, if nullable) before the call.
 
@@ -256,6 +299,20 @@ def check_object(value, cls, name, nullable=False):
         raise TypeError(
             f"argument {name!r} must be {cls.__qualname__}{' or None' if nullable else ''}, "
             f"not {_type_name(value)}"
+        )
+
+
+def check_exact(value, cls, name, nullable=False):
+    """Check that value is an object of the C++ class of cls itself, not of a class
+    derived from it (a Python subclass is fine): for an object that the C++ code
+    destroys through cls, which has no virtual destructor."""
+    if value is None and nullable:
+        return
+    if value._cxx_class != cls._cxx_class:
+        raise TypeError(
+            f"argument {name!r}: {type(value).__name__} cannot be given as {cls.__qualname__}, "
+            f"which the C++ code destroys through {cls.__qualname__} and which has no "
+            "virtual destructor"
         )
 
 
@@ -291,6 +348,9 @@ def take(retained, *arguments, keep=None):
     """Give up Python's ownership of the (value, name) arguments, for the
     parameters that the C++ code takes (std::unique_ptr), and return their handles.
 
+    An argument is (value, name), or (value, name, view) for an object of a class
+    that others derive from, with the method that gives its handle as that class.
+
     Every argument is checked before any is taken, so a failure takes none;
     ``keep`` (self) must not be one of them. It is called last before the C call,
     which consumes the objects whatever its status: a Python object that still
@@ -303,8 +363,10 @@ def take(retained, *arguments, keep=None):
     seen = {}
     if keep is not None:
         seen[id(keep)] = "self"
-    for value, name in arguments:
+    read = []
+    for value, name, *view in arguments:
         if value is None:  # NULL, for a pointer that may be
+            read.append((None, ()))
             continue
         other = seen.get(id(value))
         if other is not None:
@@ -323,13 +385,20 @@ def take(retained, *arguments, keep=None):
                 raise ValueError(
                     f"argument {name!r}: {type(value).__name__} object is no longer valid"
                 )
+        # Still open: the handle as the class that the C++ code takes it as, and
+        # where the object is as each class that it may come back as.
+        handle = getattr(value, view[0])() if view else value._handle
+        addresses = ()
+        if value._retained:
+            addresses = {_address(value._handle)}
+            addresses.update(_address(getattr(value, name)()) for name in type(value)._ancestors)
+        read.append((handle, addresses))
     handles = []
-    for value, _name in arguments:
+    for (value, *_), (handle, addresses) in zip(arguments, read, strict=True):
         if value is None:
             handles.append(None)
             continue
         _destroy, null = value._owned.pop()
-        handle = value._handle
         value._handle = None
         # The collection of the Python object must not destroy it any more.
         value._finalizer._as_parameter_ = null
@@ -339,7 +408,8 @@ def take(retained, *arguments, keep=None):
             kept = _Kept(value._retained)
             value._retained = {}  # the taken object does not keep them any more
             retained[id(kept)] = kept
-            _kept[_address(handle)] = kept
+            for address in addresses:
+                _kept[address] = kept
         handles.append(handle)
     return handles
 
@@ -354,8 +424,9 @@ class _Kept:
 
 
 _kept = weakref.WeakValueDictionary()
-"""By address: what the objects that were taken and may come back retained. An
-entry goes with the last owner that holds it."""
+"""By address: what the objects that were taken and may come back retained, at the
+address of the object as each class it may come back as (a base class is not at the
+same address with several bases). An entry goes with the last owner that holds it."""
 
 
 def _address(handle):
@@ -767,10 +838,11 @@ class CallScope:
     """A call of the bindings that passes callbacks.
 
     An exception raised by one of its callbacks while the call runs, on any
-    thread, is raised by the call when it returns; its remaining callbacks are
-    then skipped (C++ gets their default result). Once the call has returned,
-    an exception raised by a callback that C++ kept goes to sys.unraisablehook,
-    as for any ctypes callback.
+    thread that no other call runs on, is raised by the call when it returns;
+    its remaining callbacks are then skipped (C++ gets their default result).
+    Once the call has returned, an exception raised by a callback that C++ kept
+    goes to sys.unraisablehook, as for any ctypes callback; see fail_callback
+    for who gets the exception of a callback that another call runs.
     """
 
     __slots__ = ("_active", "_called", "_keys", "_stack", "error")
@@ -784,7 +856,13 @@ class CallScope:
         if stack is None:
             stack = _scopes.stack = []
         self._stack = stack
-        stack.append(self)
+
+    def begin(self):
+        """Make this the innermost call of the thread. The first statement of the
+        ``try`` whose ``finally`` closes the scope: an exception before it (a
+        signal handler that raises) leaves nothing on the stack for ever, which
+        would swallow the errors of every callback that the thread runs."""
+        self._stack.append(self)
 
     def callback(self, function, thunk, name):
         """The C arguments (callback, user_data, release) for ``function``."""
@@ -856,6 +934,36 @@ class CallScope:
                 )
             raise error
         check(status)
+
+
+_DummyThread = threading._DummyThread
+"""What ``threading`` makes of a thread that it did not start (a C++ thread)."""
+
+
+def _is_foreign_thread():
+    """True if the calling thread is not one of Python: C++ (or another
+    library) started it, so no call of the bindings can run on it."""
+    ident = threading.get_ident()
+    for thread in threading.enumerate():
+        if thread.ident == ident:
+            return isinstance(thread, _DummyThread)
+    return True
+
+
+def fail_callback(scope, error):
+    """Give the exception of a callback to the call that runs it; False if
+    there is none, and the exception goes to sys.unraisablehook.
+
+    The call that runs a callback is the innermost call with callbacks of the
+    thread, which is not always the one that passed it: C++ can store a
+    callback and run it in an unrelated call, on another thread. Only a thread
+    that Python did not start (a C++ thread, which runs no call of ours) gives
+    the exception to the call that passed the callback, if it still runs.
+    """
+    stack = getattr(_scopes, "stack", None)
+    if stack:
+        return stack[-1].fail(error)
+    return scope is not None and _is_foreign_thread() and scope.fail(error)
 
 
 class _InterruptForwarder:

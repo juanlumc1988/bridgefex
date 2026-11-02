@@ -623,7 +623,10 @@ for _ in range(rounds):
     # pending handlers itself: no signal is left for the next round.
     while True:
         try:
-            sent.wait()
+            # Not sent.wait(): a signal that lands inside the pure Python code of
+            # threading leaves its lock unlocked ('release unlocked lock').
+            while not sent.is_set():
+                time.sleep(0.001)
             signal.raise_signal(signal.SIGUSR2)
             break
         except KeyboardInterrupt:
@@ -812,6 +815,45 @@ def ownership_asan_build(
     flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
     library, output = build(case, toolchain, tmp_path_factory.mktemp("ownership_asan"), flags)
     return library, output, runtime
+
+
+@pytest.fixture(scope="module")
+def inherit_asan_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path, str]:
+    """The inherit case built with AddressSanitizer: (library, output dir, runtime)."""
+    runtime = _asan_runtime(toolchain)
+    if runtime is None:
+        pytest.skip("needs GCC with AddressSanitizer on Linux")
+    case = next(case for case in CASES if case.name == "inherit")
+    flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
+    library, output = build(case, toolchain, tmp_path_factory.mktemp("inherit_asan"), flags)
+    return library, output, runtime
+
+
+def test_inheritance_under_asan(inherit_asan_build: tuple[Path, Path, str]) -> None:
+    """Objects seen as a base class, given up as one and destroyed through it
+    touch no memory that is not theirs (a wrong base address would)."""
+    library, output, runtime = inherit_asan_build
+    case = next(case for case in CASES if case.name == "inherit")
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "INH_LIBRARY": str(library),
+        "LD_PRELOAD": runtime,
+        "ASAN_OPTIONS": "detect_leaks=0",
+    }
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", str(case.check_python)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert "AddressSanitizer" not in completed.stderr, completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "inherit: Python round trip OK" in completed.stdout
 
 
 @_POSIX_SIGNALS
@@ -1034,3 +1076,37 @@ def test_callbacks_are_disabled_at_exit(callbacks_build: tuple[Path, Path], disa
     elif sys.platform != "win32":
         # Windows ends the process differently: the call may not crash there.
         assert completed.returncode != 0
+
+
+def test_a_new_runtime_enables_the_callbacks_at_its_release_function(
+    callbacks_build: tuple[Path, Path],
+) -> None:
+    """An earlier interpreter of the process disabled its release function when it
+    exited. The next one gets a function at the same address (ctypes reuses
+    freed closures): loading the library must enable it, or its callbacks would
+    never run."""
+    library, output = callbacks_build
+    code = """
+import ctypes
+from cbx import _runtime, events
+
+assert events.sum(3, lambda i: i) == 3
+_runtime._disable_callbacks()  # the first interpreter exits
+assert _runtime._disabled
+_runtime._disabled = False
+assert events.sum(3, lambda i: i) == 0  # the stale address is still disabled
+_runtime._library = _runtime._library_path = None  # a new interpreter loads it
+_runtime.load()
+assert events.sum(3, lambda i: i) == 3
+print("enabled")
+"""
+    environment = {**os.environ, "PYTHONPATH": str(output / "python"), "CBX_LIBRARY": str(library)}
+    completed = subprocess.run(
+        [sys.executable, "-W", "error", "-c", code],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout == "enabled\n"

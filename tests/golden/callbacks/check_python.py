@@ -11,6 +11,7 @@ import os
 import signal
 import sys
 import threading
+import time
 
 
 def after_disable():
@@ -203,6 +204,53 @@ assert events.fire(21) == 42
 events.store_and_sleep(None, 0)
 assert registered() == 0
 assert events.fire(21) == -1
+
+
+# A stored callback that an unrelated call runs on another thread, while the
+# call that stored it still runs: the error is not the error of that call (which
+# returns normally and whose callback goes on), and the call that ran it passes
+# no callbacks, so it is unraisable. The callbacks of C++ threads (parallel above)
+# do belong to the call that passed them.
+failures = []
+
+
+def failing(value):
+    failures.append(value)
+    raise ValueError(value)
+
+
+outcome = []
+
+
+def store():
+    try:
+        events.store_and_sleep(failing, 500)
+        outcome.append("returned")
+    except BaseException as error:
+        outcome.append(error)
+
+
+reported = []
+previous = sys.unraisablehook
+sys.unraisablehook = reported.append
+try:
+    storing = threading.Thread(target=store)
+    storing.start()
+    deadline = time.monotonic() + 30
+    while not failures:
+        assert time.monotonic() < deadline, "the callback was not stored"
+        events.fire(1)
+        time.sleep(0.005)
+    count = len(failures)
+    events.fire(2)  # not skipped, as it was when the storing call took the error
+    assert len(failures) == count + 1
+    storing.join()
+finally:
+    sys.unraisablehook = previous
+assert outcome == ["returned"], outcome
+assert [type(item.exc_value) for item in reported] == [ValueError] * len(failures), reported
+events.store_and_sleep(None, 0)
+assert registered() == 0
 
 
 # Ctrl-C in a stored callback that a call without callbacks runs: raised once

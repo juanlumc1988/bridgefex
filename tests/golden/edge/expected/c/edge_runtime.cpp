@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 namespace edge_detail {
 
@@ -43,8 +44,50 @@ void set_last_error(const char* message) noexcept
 
 namespace {
 
-// The release function given to edge_disable_callbacks(), or NULL.
-std::atomic<void (*)(void*)> disabled_release{nullptr};
+// A release function given to edge_disable_callbacks(). The list of them only
+// grows and its nodes are never freed: a callback that runs on a C++ thread, or
+// a destructor that runs at exit, reads it without a lock, and nothing here
+// has a destructor that could run before them.
+struct disabled_node {
+    disabled_node(void (*function)(void*), disabled_node* following) noexcept
+        : release(function), next(following), disabled(true)
+    {
+    }
+
+    void (*const release)(void*);
+    disabled_node* next;
+    std::atomic<bool> disabled;
+};
+
+std::atomic<disabled_node*> disabled_nodes{nullptr};
+
+// Disables or enables the callbacks given with this release function.
+void set_callbacks_disabled(void (*release)(void*), bool disabled) noexcept
+{
+    if (release == nullptr) {
+        return;
+    }
+    bool found = false;
+    for (disabled_node* node = disabled_nodes.load(); node != nullptr; node = node->next) {
+        if (node->release == release) {
+            node->disabled.store(disabled);
+            found = true;
+        }
+    }
+    if (found || !disabled) {
+        return;
+    }
+    // A new function. Two threads that disable the same one at once can add two
+    // nodes, which does no harm. Out of memory here is fatal: a callback that
+    // stays enabled would call into a runtime that has gone.
+    disabled_node* created = new (std::nothrow) disabled_node(release, nullptr);
+    if (created == nullptr) {
+        std::abort();
+    }
+    created->next = disabled_nodes.load();
+    while (!disabled_nodes.compare_exchange_weak(created->next, created)) {
+    }
+}
 
 }  // namespace
 
@@ -61,7 +104,15 @@ struct callback_state {
 
 bool callbacks_disabled(void (*release)(void*)) noexcept
 {
-    return release != nullptr && release == disabled_release.load();
+    if (release == nullptr) {
+        return false;
+    }
+    for (const disabled_node* node = disabled_nodes.load(); node != nullptr; node = node->next) {
+        if (node->release == release && node->disabled.load()) {
+            return true;
+        }
+    }
+    return false;
 }
 
 callback_state* new_callback_state(void (*release)(void*), void* user_data)
@@ -105,7 +156,7 @@ extern "C" const char* edge_last_error(void)
 
 extern "C" const char* edge_api_fingerprint(void)
 {
-    return "0a5b8611d56a4683babe8aff829e11d3";
+    return "3d59c8be588a54f0e2f1750e150c7660";
 }
 
 extern "C" void edge_free(void* memory)
@@ -115,5 +166,10 @@ extern "C" void edge_free(void* memory)
 
 extern "C" void edge_disable_callbacks(void (*release)(void*))
 {
-    edge_detail::disabled_release.store(release);
+    edge_detail::set_callbacks_disabled(release, true);
+}
+
+extern "C" void edge_enable_callbacks(void (*release)(void*))
+{
+    edge_detail::set_callbacks_disabled(release, false);
 }

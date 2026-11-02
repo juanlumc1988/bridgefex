@@ -14,6 +14,7 @@ from bridgefex.annotations import FunctionAnnotations
 from bridgefex.errors import ConfigurationError, GenerationError, Location
 from bridgefex.generator import render
 from bridgefex.model import (
+    BaseRef,
     CallbackType,
     Class,
     ClassForm,
@@ -299,8 +300,8 @@ def test_fingerprint_hashes_the_conventions_and_each_header_separately() -> None
 # templates fails this test: if it changes a convention (the out-parameter
 # contract, how memory is returned...), bump C_API_CONVENTIONS; then update the
 # hash here.
-PINNED_CONVENTIONS = 6
-PINNED_RUNTIME_SHA256 = "cb23b9612fe43307d11a540339284dbb3f363e49406460008eb8094c83531169"
+PINNED_CONVENTIONS = 8
+PINNED_RUNTIME_SHA256 = "479d28d27e4c8f52f7d77e55948a1b22841f5d16d5f30db960c3f95a6c466151"
 
 
 def test_runtime_changes_are_pinned_to_the_conventions() -> None:
@@ -1597,7 +1598,7 @@ def test_python_gives_up_the_objects_last() -> None:
         Parameter("c", cref("Node", ClassForm.REFERENCE)),
     )
     member = item.members[0]
-    assert member.transfers == (("item", "_h2"), ("b", "_h4"))
+    assert member.transfers == (("item", "_h2", None), ("b", "_h4", None))
     # The handles of the others are read first: a closed one must fail while
     # nothing has been taken.
     assert member.prepare == ("_h1 = self._mptr()", "_h5 = c._mptr()")
@@ -1786,7 +1787,7 @@ def test_taken_raw_pointers() -> None:
     )
     assert "->m(node_owner.take<::ns::Node*>())" in function.statement
     assert function.notes[0].startswith("node: ownership is transferred, whatever the status")
-    assert member.transfers == (("node", "_h2"),)
+    assert member.transfers == (("node", "_h2", None),)
     assert "memory" not in item.members[0].function.statement  # no std::unique_ptr involved
 
 
@@ -1930,3 +1931,158 @@ def test_the_locals_of_the_call_are_reserved_for_every_argument() -> None:
     function = item.members[0].function
     assert "_h13_" in [p.name for p in function.params]
     assert "_h13" in item.members[0].prepare[0] or "_h13" in " ".join(item.members[0].call_args)
+
+
+# Inheritance -------------------------------------------------------------------
+
+
+def derived(
+    name: str,
+    *bases: Class,
+    methods: tuple[Method, ...] = (),
+    abstract: bool = False,
+    virtual_destructor: bool = True,
+) -> Class:
+    """A class that derives publicly from ``bases`` (all in namespace ns)."""
+    refs = tuple(BaseRef(base.usr, base.qualified_name, HERE) for base in bases)
+    model = klass(name, methods=methods)
+    constructors = () if abstract else model.constructors
+    return dataclasses.replace(
+        model,
+        bases=refs,
+        constructors=constructors,
+        abstract=abstract,
+        virtual_destructor=virtual_destructor,
+    )
+
+
+def classes_of(plan: ModulePlan) -> dict[str, ClassPlan]:
+    return {
+        item.model.name: item
+        for header_plan in plan.headers
+        for item in header_plan.items
+        if isinstance(item, ClassPlan)
+    }
+
+
+def test_every_ancestor_has_a_conversion_and_a_view() -> None:
+    base = klass("Base", methods=(method("a", is_const=True),))
+    mid = derived("Mid", base, methods=(method("b"),))
+    leaf = derived("Leaf", mid)
+    plan = classes_of(plan_for(header(base, mid, leaf)))
+    assert plan["Base"].py_bases == ()
+    assert plan["Base"].views == ()
+    assert plan["Mid"].py_bases == ("Base",)
+    assert plan["Leaf"].py_bases == ("Mid",)
+    # Base and Mid have a class derived from them.
+    assert [name for name, item in plan.items() if item.is_base] == ["Base", "Mid"]
+    assert [view.c_type for view in plan["Leaf"].views] == ["ns_Mid", "ns_Base"]
+    view = plan["Leaf"].views[1]
+    assert (view.ptr, view.mptr) == ("_ptr_ns_Base", "_mptr_ns_Base")
+    assert view.upcast.signature == "ns_Leaf_as_ns_Base(ns_Leaf* self)"
+    assert view.const_upcast.signature == "ns_Leaf_as_ns_Base_const(const ns_Leaf* self)"
+    assert view.upcast.c_return == "ns_Base*"
+    assert view.const_upcast.c_return == "const ns_Base*"
+    assert view.upcast.ctypes_restype == "_types._ns_Base__p"
+    assert "static_cast<::ns::Base*>(reinterpret_cast<::ns::Leaf*>(self))" in view.upcast.statement
+    functions = [f.name for f in plan["Leaf"].c_functions]
+    assert functions[:6] == [
+        "ns_Leaf_create",
+        "ns_Leaf_destroy",
+        "ns_Leaf_as_ns_Mid",
+        "ns_Leaf_as_ns_Mid_const",
+        "ns_Leaf_as_ns_Base",
+        "ns_Leaf_as_ns_Base_const",
+    ]
+
+
+def test_methods_read_their_handle_through_the_view_of_a_base_class() -> None:
+    base = klass("Base", methods=(method("a", Parameter("x", cref("Base", ClassForm.REFERENCE))),))
+    leaf = derived("Leaf", base, methods=(method("b"),))
+    plan = classes_of(plan_for(header(base, leaf)))
+    # Any object of a derived class may be the self of a method of its base...
+    assert plan["Base"].members[0].call_args[:2] == ("self._mptr_ns_Base()", "x._mptr_ns_Base()")
+    # ... but nothing derives from Leaf.
+    assert plan["Leaf"].members[0].call_args[0] == "self._mptr()"
+    assert not plan["Leaf"].is_base
+
+
+def test_taking_an_object_as_its_base_class_reads_the_view() -> None:
+    base = dataclasses.replace(klass("Base"), virtual_destructor=True)
+    leaf = derived("Leaf", base)
+    taker = klass("Taker", methods=(method("m", Parameter("x", cref("Base", ClassForm.UNIQUE))),))
+    item = classes_of(plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
+    member = item.members[0]
+    assert member.transfers == (("x", "_h2", "_mptr_ns_Base"),)
+    code = member.body(4)
+    assert '_runtime.take(self._retained, (x, "x", "_mptr_ns_Base"), keep=self)' in code
+    # Base has a virtual destructor: any derived object can be given.
+    assert "check_exact" not in code
+
+
+def test_without_a_virtual_destructor_only_the_class_itself_can_be_given() -> None:
+    base = dataclasses.replace(klass("Base"), virtual_destructor=False)
+    leaf = derived("Leaf", base, virtual_destructor=False)
+    taker = klass("Taker", methods=(method("m", Parameter("x", cref("Base", ClassForm.UNIQUE))),))
+    item = classes_of(plan_for(header(base, leaf), header(taker, name="taker.h")))["Taker"]
+    assert '_runtime.check_exact(x, _test.Base, "x")' in item.members[0].body(4)
+    # A class nobody derives from has nothing to check.
+    leaf_taker = klass("T2", methods=(method("m", Parameter("x", cref("Leaf", ClassForm.UNIQUE))),))
+    other = classes_of(plan_for(header(base, leaf), header(leaf_taker, name="t2.h")))["T2"]
+    assert "check_exact" not in other.members[0].body(4)
+
+
+def test_a_base_class_from_another_header_is_imported() -> None:
+    base = klass("Base")
+    leaf = derived("Leaf", base)
+    plan = plan_for(header(base, name="base.h"), header(leaf, name="leaf.h"))
+    item = classes_of(plan)["Leaf"]
+    assert item.py_bases == ("_base.Base",)
+    assert item.base_modules == ("base",)
+    assert plan.headers[1].base_modules == ("base",)
+    assert plan.headers[0].base_modules == ()
+
+
+def test_several_bases_have_a_view_each() -> None:
+    first, second = klass("First"), klass("Second")
+    both = derived("Both", first, second)
+    item = classes_of(plan_for(header(first, second, both)))["Both"]
+    assert item.py_bases == ("First", "Second")
+    assert [view.c_type for view in item.views] == ["ns_First", "ns_Second"]
+
+
+def test_a_base_class_that_is_not_wrapped_is_reported() -> None:
+    base = klass("Base")
+    leaf = derived("Leaf", base)
+    with pytest.raises(GenerationError) as raised:
+        plan_for(header(leaf))
+    message = str(raised.value)
+    assert "the base class 'ns::Base' of 'ns::Leaf' is not a class of this module" in message
+    assert "wrap the header that defines it" in message
+
+
+def test_a_class_that_inherits_one_base_twice_is_reported() -> None:
+    top = klass("Top")
+    left, right = derived("Left", top), derived("Right", top)
+    bottom = derived("Bottom", left, right)
+    with pytest.raises(GenerationError, match="'ns::Bottom' inherits 'ns::Top' more than once"):
+        plan_for(header(top, left, right, bottom))
+
+
+def test_an_abstract_class_has_no_constructor_and_is_not_copied() -> None:
+    shape = derived("Shape", abstract=True)
+    item = classes_of(plan_for(header(shape)))["Shape"]
+    assert item.constructors == ()
+    assert [f.name for f in item.c_functions] == ["ns_Shape_destroy"]
+    user = klass("User", methods=(method("m", Parameter("x", cref("Shape", ClassForm.VALUE))),))
+    with pytest.raises(GenerationError, match="abstract class 'ns::Shape' cannot be passed"):
+        plan_for(header(shape), header(user, name="user.h"))
+    # By reference, by pointer and in a std::unique_ptr, it can.
+    ok = klass(
+        "Ok",
+        methods=(
+            method("r", Parameter("x", cref("Shape", ClassForm.REFERENCE))),
+            method("u", Parameter("y", cref("Shape", ClassForm.UNIQUE))),
+        ),
+    )
+    plan_for(header(shape), header(ok, name="ok.h"))

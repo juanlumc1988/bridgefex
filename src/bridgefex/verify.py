@@ -15,6 +15,7 @@ from __future__ import annotations
 import functools
 import itertools
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -83,6 +84,12 @@ def verify(
     errors: list[Diagnostic] = []
     warnings: list[Diagnostic] = []
     shadowing: dict[tuple[Path, str], None] = {}
+    # Of the code: a word of a comment, or of a message, is not replaced by a macro.
+    identifiers = {
+        name
+        for content in c_files.values()
+        for name in _IDENTIFIER.findall(_COMMENT_OR_LITERAL.sub(" ", content))
+    }
     with tempfile.TemporaryDirectory(prefix="bridgefex-", ignore_cleanup_errors=True) as temp:
         root = Path(temp)
         write_files(c_files, root)
@@ -116,6 +123,7 @@ def verify(
                 index, source, args, cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
             )
             functions = _function_lines(plan, header, c_files[f"c/{header.c_source}"])
+            failed = len(errors)
             for diagnostic in unit.diagnostics:
                 _report(
                     diagnostic,
@@ -125,6 +133,8 @@ def verify(
                     errors=errors,
                     warnings=warnings,
                 )
+            if len(errors) > failed:
+                errors += _macros_in_generated_code(unit, identifiers, root)
             directory = include_dirs[header.stem]
             shadowing.update(
                 ((directory, name), None) for name in _shadowing_files(unit, directory)
@@ -321,12 +331,54 @@ def _parse(
         ) from None
 
 
+_IDENTIFIER = re.compile(r"[A-Za-z_]\w*")
+_COMMENT_OR_LITERAL = re.compile(
+    r"""//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'""", re.DOTALL
+)
+_GENERATED_VARIABLES = (
+    "_arg<N>, _owner<N>, _i<N>, _result, _callback, _user_data, _in, _out, _item, self, "
+    "out_self, out_result and out_result_size"
+)
+
+
+def _macros_in_generated_code(
+    unit: cindex.TranslationUnit, used: set[str], root: Path
+) -> list[Diagnostic]:
+    """The macros of the wrapped headers that have the name of an identifier of the
+    generated C++ code (``used``), which they replace: the likely cause of the
+    errors in it, since the compiler only shows what the macro made of the code.
+    The wrappers declare variables such as ``_arg1``, ``_result`` and ``_callback``."""
+    generated = root.resolve()
+    found: dict[str, Diagnostic] = {}
+    for cursor in unit.cursor.get_children():
+        if cursor.kind != cindex.CursorKind.MACRO_DEFINITION or cursor.spelling not in used:
+            continue
+        location = cursor.location
+        if location.file is None or location.is_in_system_header:
+            continue
+        file = Path(str(location.file.name)).resolve()
+        if file.is_relative_to(generated):
+            continue  # the macros of the generated headers
+        name = str(cursor.spelling)
+        found.setdefault(
+            name,
+            Diagnostic(
+                f"the macro '{name}' replaces an identifier of the generated code and may be "
+                f"the cause of the errors above: the wrappers declare variables named "
+                f"{_GENERATED_VARIABLES}; rename or undefine the macro",
+                Location(str(file), location.line, location.column),
+            ),
+        )
+    return list(found.values())
+
+
 def _function_lines(
     plan: ModulePlan, header: HeaderPlan, source: str
 ) -> list[tuple[int, CFunction]]:
     """Line of the definition of every wrapper in a generated source, in order."""
     definitions = {
-        f"{plan.status_type if function.returns_status else 'void'} {function.signature}": function
+        f"{plan.status_type if function.returns_status else function.c_return or 'void'} "
+        f"{function.signature}": function
         for function in header.c_functions
     }
     return [

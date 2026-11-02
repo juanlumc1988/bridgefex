@@ -1,0 +1,3 @@
+module = "inh"
+headers = ["shape.h", "shapes.h", "widget.h"]
+std = "c++17"

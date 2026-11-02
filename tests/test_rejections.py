@@ -40,9 +40,23 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("int operator+(int, struct Q);\nstruct Q {};", "operator function"),
         ("int sum(int count, ...);", "variadic functions are not supported"),
         # Classes.
-        ("class Base {}; class D : public Base { public: int f(); };", "inheritance"),
-        ("class A { public: virtual int f(); };", "virtual method 'A::f'"),
-        ("class A { public: virtual int f() = 0; };", "abstract and cannot be instantiated"),
+        (
+            "class V { public: virtual ~V(); }; class D : public virtual V { public: int f(); };",
+            "the virtual base class 'V' is not supported",
+        ),
+        (
+            "#include <exception>\nclass E : public std::exception { public: int f(); };",
+            "the base class 'std::exception' cannot be wrapped",
+        ),
+        (
+            "struct P { int x; }; class D : public P { public: D(); int f(); };",
+            "the base class 'P' is a value struct",
+        ),
+        (
+            "template <typename T> class B { public: int f(); };\n"
+            "class D : public B<int> { public: D(); };",
+            "the base class 'B<int>' cannot be wrapped",
+        ),
         ("class A { public: A operator+(int) const; };", "operator 'A::operator+'"),
         ("class A { public: operator int() const; };", "conversion operator of 'A'"),
         ("class A { public: template <typename T> void f(T); };", "member template 'A::f'"),
@@ -77,7 +91,10 @@ def errors_for(tmp_path: Path, code: str) -> list[str]:
         ("struct S { int a[0]; int b; };", "arrays of size 0 are not supported"),
         ("union U { int a; float b; }; void f(U u);", "unions are not supported"),
         ("struct S { int x; virtual ~S(); };", "needs a public, non-virtual destructor"),
-        ("struct B {}; struct S : B { int x; };", "inheritance is not supported yet"),
+        (
+            "struct B {}; struct S : B { int x; };",
+            "base classes are not supported in value structs",
+        ),
         ("struct S { int x; operator int() const; };", "conversion operators are not supported"),
         ("struct S { int x; bool operator==(const S&) const; };", "methods are not supported yet"),
         ("struct S { int x : 3; };", "bit-fields are not supported yet"),

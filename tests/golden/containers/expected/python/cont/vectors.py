@@ -319,7 +319,7 @@ def sum_levels(levels):
     return _out.value
 
 
-class Bag:
+class Bag(_runtime.Object):
     """Wraps ``vec::Bag``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -329,15 +329,8 @@ class Bag:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "vec_Bag"
 
     def __init__(self, items):
         """Wraps ``vec::Bag::Bag(const std::vector<std::string>& items)``."""
@@ -394,6 +387,7 @@ class Bag:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

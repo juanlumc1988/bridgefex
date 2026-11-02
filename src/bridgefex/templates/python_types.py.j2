@@ -122,8 +122,8 @@ def _bind():
 
 
 def {{ t.name }}({{ t.params | join(", ") }}):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -131,7 +131,7 @@ def {{ t.name }}({{ t.params | join(", ") }}):
             return
 {{ t.body }}
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 

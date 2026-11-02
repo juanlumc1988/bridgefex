@@ -112,6 +112,7 @@ def sum(n, f):
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__int32, "f")
         _status = _scope.call(_bind().ev_sum, n, f, f_user_data, f_release, _out)
         _scope.close()
@@ -128,6 +129,7 @@ def count_if(n, predicate):
     predicate = _runtime.to_callback(predicate, "predicate")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         predicate, predicate_user_data, predicate_release = _scope.callback(
             predicate, _types._callback__bool__int64, "predicate"
         )
@@ -147,6 +149,7 @@ def is_empty(f):
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(f, _types._callback__void, "f")
         _status = _scope.call(_bind().ev_is_empty, f, f_user_data, f_release, _out)
         _scope.close()
@@ -163,6 +166,7 @@ def classify(value, classifier):
     classifier = _runtime.to_callback(classifier, "classifier")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         classifier, classifier_user_data, classifier_release = _scope.callback(
             classifier, _types._callback__ev_Level__int32, "classifier"
         )
@@ -182,6 +186,7 @@ def pick(chooser):
     chooser = _runtime.to_callback(chooser, "chooser")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         chooser, chooser_user_data, chooser_release = _scope.callback(
             chooser, _types._callback__ev_Mode, "chooser"
         )
@@ -202,6 +207,7 @@ def integrate(f, a, b, steps):
     steps = _runtime.to_int(steps, ctypes.c_int32, "steps")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(f, _types._callback__double__double, "f")
         _status = _scope.call(_bind().ev_integrate, f, f_user_data, f_release, a, b, steps, _out)
         _scope.close()
@@ -217,6 +223,7 @@ def walk(visit):
     visit = _runtime.to_callback(visit, "visit")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         visit, visit_user_data, visit_release = _scope.callback(
             visit, _types._callback__double__ev_Point__cstr, "visit"
         )
@@ -233,6 +240,7 @@ def shift(sink):
     sink = _runtime.to_callback(sink, "sink")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         sink, sink_user_data, sink_release = _scope.callback(
             sink, _types._callback__void__ev_Point__ev_Mode, "sink"
         )
@@ -248,6 +256,7 @@ def strings(f):
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(
             f, _types._callback__void__string__string__string, "f"
         )
@@ -265,6 +274,7 @@ def parallel(threads, n, f):
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(f, _types._callback__void__int32, "f")
         _status = _scope.call(_bind().ev_parallel, threads, n, f, f_user_data, f_release)
         _scope.close()
@@ -281,6 +291,7 @@ def prefixed(prefix, f):
     f = _runtime.to_callback(f, "f")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__string, "f")
         _status = _scope.call(
             _bind().ev_prefixed, prefix, prefix_size, f, f_user_data, f_release, _out
@@ -298,6 +309,7 @@ def store_and_sleep(handler, ms):
     ms = _runtime.to_int(ms, ctypes.c_int32, "ms")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         handler, handler_user_data, handler_release = _scope.callback(
             handler, _types._callback__int32__int32, "handler"
         )
@@ -323,6 +335,7 @@ def set_log_handler(handler):
     handler = _runtime.to_callback(handler, "handler")
     _scope = _runtime.CallScope()
     try:
+        _scope.begin()
         handler, handler_user_data, handler_release = _scope.callback(
             handler, _types._callback__void__ev_Level__string, "handler"
         )
@@ -351,7 +364,7 @@ def log_at_exit(enable):
     _runtime.check(_bind().ev_log_at_exit(enable))
 
 
-class Timer:
+class Timer(_runtime.Object):
     """Wraps ``ev::Timer``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -361,15 +374,8 @@ class Timer:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "ev_Timer"
 
     def __init__(self, on_tick):
         """Wraps ``ev::Timer::Timer(std::function<void (int32_t)> on_tick)``."""
@@ -378,6 +384,7 @@ class Timer:
         on_tick = _runtime.to_callback(on_tick, "on_tick")
         _scope = _runtime.CallScope()
         try:
+            _scope.begin()
             on_tick, on_tick_user_data, on_tick_release = _scope.callback(
                 on_tick, _types._callback__void__int32, "on_tick"
             )
@@ -437,6 +444,7 @@ class Timer:
             )
         return self._ptr()
 
+
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference
         # and destroyed the object, unless it was disarmed at exit. (A borrowed
@@ -492,6 +500,7 @@ class Timer:
         on_tick = _runtime.to_callback(on_tick, "on_tick")
         _scope = _runtime.CallScope()
         try:
+            _scope.begin()
             on_tick, on_tick_user_data, on_tick_release = _scope.callback(
                 on_tick, _types._callback__void__int32, "on_tick"
             )
@@ -526,6 +535,7 @@ class Timer:
         f = _runtime.to_callback(f, "f")
         _scope = _runtime.CallScope()
         try:
+            _scope.begin()
             f, f_user_data, f_release = _scope.callback(f, _types._callback__void__int32, "f")
             _status = _scope.call(
                 _bind().ev_Timer_each,
@@ -551,6 +561,7 @@ class Timer:
         f = _runtime.to_callback(f, "f")
         _scope = _runtime.CallScope()
         try:
+            _scope.begin()
             f, f_user_data, f_release = _scope.callback(f, _types._callback__int32__int32, "f")
             _status = _scope.call(_bind().ev_Timer_apply, value, f, f_user_data, f_release, _out)
             _scope.close()
@@ -560,7 +571,7 @@ class Timer:
         return _out.value
 
 
-class Watcher:
+class Watcher(_runtime.Object):
     """Wraps ``ev::Watcher``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -570,15 +581,8 @@ class Watcher:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "ev_Watcher"
 
     def __init__(self, name, at, on_notify):
         """Wraps ``ev::Watcher::Watcher(const std::string& name, const ev::Point& at, std::function<void (const std::string&, ev::Point)> on_notify)``."""
@@ -590,6 +594,7 @@ class Watcher:
         on_notify = _runtime.to_callback(on_notify, "on_notify")
         _scope = _runtime.CallScope()
         try:
+            _scope.begin()
             on_notify, on_notify_user_data, on_notify_release = _scope.callback(
                 on_notify, _types._callback__void__string__ev_Point, "on_notify"
             )
@@ -655,6 +660,7 @@ class Watcher:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

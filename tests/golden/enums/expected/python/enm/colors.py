@@ -204,7 +204,7 @@ def f_int(i):
     return _out.value
 
 
-class Lamp:
+class Lamp(_runtime.Object):
     """Wraps ``colors::Lamp``.
 
     The C++ object is destroyed by close(), at the end of a ``with`` block or
@@ -214,15 +214,8 @@ class Lamp:
     while the objects it was obtained from are open.
     """
 
-    __slots__ = (
-        "__weakref__",
-        "_finalizer",
-        "_handle",
-        "_owned",
-        "_owners",
-        "_readonly",
-        "_retained",
-    )
+    __slots__ = ()
+    _cxx_class = "colors_Lamp"
 
     State = _types.colors_Lamp_State
     Level = _types.colors_Lamp_Level
@@ -281,6 +274,7 @@ class Lamp:
                 "reference or pointer"
             )
         return self._ptr()
+
 
     def _collected(self):
         # Cyclic garbage, in a __del__: the collection cleared the reference

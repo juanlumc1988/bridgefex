@@ -10,7 +10,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 from collections import Counter
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -150,6 +150,10 @@ class CFunction:
     """What the C header says besides the declaration: who owns the objects that
     cross (they are part of the API, so they are part of its fingerprint)."""
 
+    c_return: str = ""
+    """For a plain function (no status, no exception guard) that returns a value,
+    the C type of it; ``statement`` is then the expression returned."""
+
     @property
     def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
         """Each NULL check of an output that the function allocates, with its reset."""
@@ -193,6 +197,10 @@ class PyArg:
     transfer: bool = False
     """The C++ code takes the object (a std::unique_ptr): the Python object
     gives it up, last before the call (see :func:`_runtime.take`)."""
+
+    view: str | None = None
+    """For a transferred object of a class that others derive from: the method that
+    gives its handle as that class, which is not the handle of its own class."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -241,8 +249,8 @@ class PyCallable:
     """With transfers: the statements that read the handles into locals, before
     the objects are given up (a closed or read-only object must fail first)."""
 
-    transfers: tuple[tuple[str, str], ...] = ()
-    """The (parameter, local) of each object that the call takes."""
+    transfers: tuple[tuple[str, str, str | None], ...] = ()
+    """The (parameter, local, view) of each object that the call takes."""
 
     retained: str = "_runtime.forever"
     """The list that keeps alive what the objects taken retained (``{owner}``:
@@ -264,7 +272,7 @@ class PyCallable:
         """The ``from . import`` statements of the modules of other headers."""
         stems = dict.fromkeys(stem for arg in self.args for stem in arg.imports)
         stems.update(dict.fromkeys(self.result.imports))
-        return tuple(f"from . import {stem} as _{stem}" for stem in stems)
+        return tuple(f"from . import {stem} as {naming.module_alias(stem)}" for stem in stems)
 
     def retain_statements(self, owner: str = "self") -> tuple[str, ...]:
         """The statements that keep alive the arguments that the C++ code keeps a
@@ -310,8 +318,11 @@ class PyCallable:
         pad = " " * indent
         lines = [f"{pad}_c = _bind().{self.function.name}"]
         lines += [pad + statement for statement in self.prepare]
-        targets = ", ".join(local for _, local in self.transfers)
-        arguments = [f'({name}, "{name}")' for name, _ in self.transfers]
+        targets = ", ".join(local for _, local, _ in self.transfers)
+        arguments = [
+            f'({name}, "{name}", "{view}")' if view else f'({name}, "{name}")'
+            for name, _, view in self.transfers
+        ]
         if self.keep is not None:
             arguments.append(f"keep={self.keep.format(owner=owner)}")
         lines.append(
@@ -345,7 +356,7 @@ class PyCallable:
         """
         pad = " " * indent
         inner = " " * (indent + 4)
-        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:"]
+        lines = [f"{pad}_scope = _runtime.CallScope()", f"{pad}try:", f"{inner}_scope.begin()"]
         lines += [
             _python_call(f"{targets} = _scope.callback", arguments, indent + 4)
             for targets, arguments in self.registrations
@@ -653,6 +664,28 @@ class StructPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class ClassView:
+    """A wrapped class seen as one of its ancestors. A pointer to a class is not
+    always the pointer to its base (with several bases it is not), so the C API has
+    a conversion for each ancestor and the Python object a method for each, which
+    every function that takes the ancestor calls to read the handle."""
+
+    c_type: str
+    """The C type of the ancestor."""
+
+    upcast: CFunction
+    const_upcast: CFunction
+
+    @property
+    def ptr(self) -> str:
+        return f"_ptr_{self.c_type}"
+
+    @property
+    def mptr(self) -> str:
+        return f"_mptr_{self.c_type}"
+
+
+@dataclass(frozen=True, slots=True)
 class ClassPlan:
     model: Class
     c_type: str
@@ -667,9 +700,27 @@ class ClassPlan:
     enums: tuple[EnumPlan, ...] = ()
     """Nested enums."""
 
+    py_bases: tuple[str, ...] = ()
+    """The Python classes it derives from (its public base classes), as the module
+    of its header names them."""
+
+    base_modules: tuple[str, ...] = ()
+    """The stems of the other headers that define those, imported at module level."""
+
+    views: tuple[ClassView, ...] = ()
+    """How to see it as each of its ancestors (see :class:`ClassView`)."""
+
+    is_base: bool = False
+    """Another class of the module derives from it: it has a view of itself too."""
+
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
+
+    @property
+    def self_view(self) -> str:
+        """The name of the method that gives its handle as its own class."""
+        return f"_ptr_{self.c_type}"
 
     @property
     def py_pointer(self) -> str:
@@ -685,6 +736,7 @@ class ClassPlan:
         return (
             *(item.function for item in self.constructors),
             self.destroy,
+            *(function for view in self.views for function in (view.upcast, view.const_upcast)),
             *(item.function for item in self.members),
         )
 
@@ -733,6 +785,18 @@ class HeaderPlan:
         """The other wrapped headers that the generated source includes."""
         others = {plan.stem: plan for plan in (*self.foreign_headers, *self.foreign_class_headers)}
         return tuple(others.values())
+
+    @property
+    def base_modules(self) -> tuple[str, ...]:
+        """The other header modules that the classes of this one derive from."""
+        return tuple(dict.fromkeys(stem for cls in self.classes for stem in cls.base_modules))
+
+    @property
+    def base_imports(self) -> tuple[str, ...]:
+        """The imports of those, at module level (a base class is needed there)."""
+        return tuple(
+            f"from . import {stem} as {naming.module_alias(stem)}" for stem in self.base_modules
+        )
 
     @property
     def structs(self) -> tuple[StructPlan, ...]:
@@ -931,6 +995,10 @@ class ModulePlan:
     @property
     def disable_callbacks(self) -> str:
         return f"{self.name}_disable_callbacks"
+
+    @property
+    def enable_callbacks(self) -> str:
+        return f"{self.name}_enable_callbacks"
 
     @property
     def public_headers(self) -> tuple[str, ...]:
@@ -1166,6 +1234,7 @@ class _Builder:
             ("api_fingerprint", "the API fingerprint function"),
             ("free", "the function that releases returned memory"),
             ("disable_callbacks", "the function that disables the callbacks"),
+            ("enable_callbacks", "the function that enables the callbacks"),
             ("detail", "the namespace of the generated C++ helpers"),
         ):
             self._reserve_c_name(f"{module.name}_{name}", what, None)
@@ -1234,11 +1303,18 @@ class _Builder:
                         ),
                     )
         self._class_c_types = {usr: info.c_type for usr, info in self._classes.items()}
+        # The classes that another class of the module derives from.
+        self._base_usrs = {
+            base.usr
+            for info in self._classes.values()
+            for base in info.model.bases
+            if base.usr in self._classes
+        }
         # The header being built: its classes are named directly in Python, those
         # of the others through their module.
         self._header: Header | None = None
         # A parameter named like the module alias of a header would hide it.
-        self._parameter_macros |= {f"_{header.stem}" for header in module.headers}
+        self._parameter_macros |= {naming.module_alias(header.stem) for header in module.headers}
         # The Python classes are named unqualified in the generated functions: a
         # parameter with the same name would hide them.
         self._parameter_macros |= {info.py_name for info in self._classes.values()}
@@ -1659,6 +1735,15 @@ class _Builder:
     def _class(self, ref: ClassRef, location: Location) -> _ClassInfo | None:
         """The class of a reference, or None (reported) if it is no class of the module."""
         info = self._classes.get(ref.usr)
+        if info is not None and ref.form is ClassForm.VALUE and info.model.abstract:
+            self.errors.append(
+                Diagnostic(
+                    f"abstract class '{ref.qualified_name}' cannot be passed or returned by "
+                    "value (it cannot be copied): use a reference, a pointer or std::unique_ptr",
+                    location,
+                )
+            )
+            return None
         if info is not None:
             return info
         name = ref.qualified_name
@@ -1686,12 +1771,24 @@ class _Builder:
         self.errors.append(Diagnostic(message, location))
         return None
 
+    def _is_base(self, info: _ClassInfo) -> bool:
+        return info.model.usr in self._base_usrs
+
+    def _handle(self, info: _ClassInfo, obj: str, *, writable: bool) -> str:
+        """The expression of the handle of ``obj`` as the class ``info``. A class that
+        others derive from reads it through the method that its objects, whatever
+        their class, give the handle of this one with (see :class:`ClassView`)."""
+        accessor = "_mptr" if writable else "_ptr"
+        if self._is_base(info):
+            accessor += f"_{info.c_type}"
+        return f"{obj}.{accessor}()"
+
     def _py_class(self, info: _ClassInfo) -> tuple[str, tuple[str, ...]]:
         """The Python expression of a class, and the module (stem) to import
         for it when it belongs to another header."""
         if self._header is None or info.header is self._header:
             return info.py_name, ()
-        return f"_{info.header.stem}.{info.py_name}", (info.header.stem,)
+        return f"{naming.module_alias(info.header.stem)}.{info.py_name}", (info.header.stem,)
 
     # Lowering: how each type crosses the boundary --------------------------------
 
@@ -2140,8 +2237,7 @@ class _Builder:
                 f'                  "{message}");'
             )
         py_class, imports = self._py_class(info)
-        accessor = "_ptr" if constant else "_mptr"
-        handle = f"{name}.{accessor}()"
+        handle = self._handle(info, name, writable=not constant)
         if nullable:
             handle = f"({handle} if {name} is not None else None)"
         return LoweredParam(
@@ -2176,6 +2272,12 @@ class _Builder:
         py_class, imports = self._py_class(info)
         taken = f"{info.cpp_name}*" if form is ClassForm.POINTER else None
         taken = taken or f"std::unique_ptr<{info.cpp_name}>"
+        checks: tuple[str, ...] = (_check_object(name, py_class, nullable),)
+        if self._is_base(info) and not info.model.virtual_destructor:
+            # The C++ code destroys the object through the base class, which is
+            # only defined for an object of exactly that class.
+            suffix = ", nullable=True" if nullable else ""
+            checks += (f'_runtime.check_exact({name}, {py_class}, "{name}"{suffix})',)
         return LoweredParam(
             c_params=(CParam(name, f"{info.c_type}*", Role.INPUT, f"_types.{info.pointer_name}"),),
             argument=f"{owner}.take<{taken}>()",
@@ -2183,9 +2285,10 @@ class _Builder:
             value_checks=(),
             py=PyArg(
                 name,
-                (_check_object(name, py_class, nullable),),
+                checks,
                 imports=imports,
                 transfer=True,
+                view=f"_mptr_{info.c_type}" if self._is_base(info) else None,
             ),
             call_args=(f"{name}._mptr()",),
             prologue=(
@@ -2805,12 +2908,12 @@ class _Builder:
         keeps alive what the objects taken retained.
         """
         call_args = [*leading]
-        transfers: list[tuple[str, str]] = []
+        transfers: list[tuple[str, str, str | None]] = []
         for param in params:
             for arg in param.call_args:
                 if param.py.transfer:
                     # Given up last, so that every failure comes first.
-                    transfers.append((param.py.name, f"_h{len(call_args) + 1}"))
+                    transfers.append((param.py.name, f"_h{len(call_args) + 1}", param.py.view))
                 call_args.append(arg)
         if result is not None:
             call_args += result.call_args
@@ -2818,7 +2921,7 @@ class _Builder:
         if transfers:
             # Every handle is read before any object is given up: a closed or
             # read-only object must fail while nothing has been taken.
-            taken = {int(local[2:]) for _, local in transfers}
+            taken = {int(local[2:]) for _, local, _ in transfers}
             for position, arg in enumerate(call_args, start=1):
                 if position not in taken and "(" in arg:
                     prepare.append(f"_h{position} = {arg}")
@@ -2931,6 +3034,10 @@ class _Builder:
             location=model.location,
         )
 
+        info = self._classes[model.usr]
+        py_bases, base_modules = self._py_bases(info)
+        views = self._views(info, self_param, cast_self)
+
         factory_names = {item.name for item in constructors}
         members: list[PyCallable] = []
         py_names: dict[str, Location] = {}
@@ -2971,7 +3078,7 @@ class _Builder:
                     self_param=self_param(method.is_const),
                     keeper="self keeps",
                 )
-                leading = ("self._ptr()" if method.is_const else "self._mptr()",)
+                leading = (self._handle(info, "self", writable=not method.is_const),)
             py_name = naming.member_name(method.name + suffix, reserved=factory_names)
             if py_name in py_names:
                 self.errors.append(
@@ -3002,7 +3109,112 @@ class _Builder:
             destroy=destroy,
             members=tuple(members),
             enums=enums,
+            py_bases=py_bases,
+            base_modules=base_modules,
+            views=views,
+            is_base=self._is_base(info),
         )
+
+    def _bases(self, info: _ClassInfo) -> list[_ClassInfo]:
+        """The public base classes of a class, which have to be classes of the module
+        (reported otherwise)."""
+        model = info.model
+        bases: list[_ClassInfo] = []
+        for ref in model.bases:
+            base = self._classes.get(ref.usr)
+            if base is None:
+                self.errors.append(
+                    Diagnostic(
+                        f"the base class '{ref.qualified_name}' of '{model.qualified_name}' is "
+                        "not a class of this module: wrap the header that defines it (the "
+                        "public base classes of a wrapped class must be wrapped too)",
+                        ref.location,
+                    )
+                )
+            else:
+                bases.append(base)
+        return bases
+
+    def _py_bases(self, info: _ClassInfo) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """The Python base classes of a class, and the modules to import for them."""
+        names: list[str] = []
+        modules: list[str] = []
+        for base in self._bases(info):
+            if base.header is info.header:
+                names.append(base.py_name)
+            else:
+                names.append(f"{naming.module_alias(base.header.stem)}.{base.py_name}")
+                modules.append(base.header.stem)
+        return tuple(names), tuple(dict.fromkeys(modules))
+
+    def _ancestors(self, info: _ClassInfo) -> list[_ClassInfo]:
+        """Every base class of a class, the bases of its bases too, each once."""
+        found: dict[str, _ClassInfo] = {}
+
+        def visit(current: _ClassInfo) -> None:
+            for base in self._known_bases(current):
+                if base.model.usr in found:
+                    self.errors.append(
+                        Diagnostic(
+                            f"class '{info.model.qualified_name}' inherits "
+                            f"'{base.model.qualified_name}' more than once: a pointer to it "
+                            "cannot be converted to a pointer to that base",
+                            info.model.location,
+                        )
+                    )
+                    continue
+                found[base.model.usr] = base
+                visit(base)
+
+        visit(info)
+        return list(found.values())
+
+    def _known_bases(self, info: _ClassInfo) -> list[_ClassInfo]:
+        return [self._classes[ref.usr] for ref in info.model.bases if ref.usr in self._classes]
+
+    def _views(
+        self,
+        info: _ClassInfo,
+        self_param: Callable[[bool], CParam],
+        cast_self: Callable[[bool], str],
+    ) -> tuple[ClassView, ...]:
+        """The conversions of a class to each of its ancestors."""
+        model = info.model
+        views: list[ClassView] = []
+        for ancestor in self._ancestors(info):
+            functions: list[CFunction] = []
+            for const in (False, True):
+                qualifier = "const " if const else ""
+                name = f"{info.c_type}_as_{ancestor.c_type}" + ("_const" if const else "")
+                self._reserve_c_name(
+                    name,
+                    f"the conversion of '{model.qualified_name}' to its base class "
+                    f"'{ancestor.model.qualified_name}'",
+                    model.location,
+                )
+                functions.append(
+                    CFunction(
+                        name=name,
+                        params=(self_param(const),),
+                        returns_status=False,
+                        # NULL stays NULL; the address changes when the base is not
+                        # at the start of the object (several bases).
+                        statement=(
+                            f"reinterpret_cast<{qualifier}{ancestor.c_type}*>("
+                            f"static_cast<{qualifier}{ancestor.cpp_name}*>({cast_self(const)}))"
+                        ),
+                        description=(
+                            f"{qualifier}{ancestor.model.qualified_name}* "
+                            f"{model.qualified_name}: the {'const ' if const else ''}object "
+                            "as its base class"
+                        ),
+                        ctypes_restype=f"_types.{ancestor.pointer_name}",
+                        location=model.location,
+                        c_return=f"{qualifier}{ancestor.c_type}*",
+                    )
+                )
+            views.append(ClassView(ancestor.c_type, functions[0], functions[1]))
+        return tuple(views)
 
     def _nested_enums(
         self, model: Class, factory_names: set[str], py_names: dict[str, Location]
@@ -3197,7 +3409,16 @@ class _Builder:
 #      the wrapped function; a pointer result is owned or borrowed as the
 #      annotations say (it may be NULL); the header says which parameters may
 #      be NULL and which pointers the function keeps.
-C_API_CONVENTIONS = 6
+#   7  <module>_disable_callbacks disables every release function that was
+#      given, not only the last one (several runtimes share a library), and
+#      <module>_enable_callbacks undoes it for one function.
+#   8  inheritance: a class converts to each of its ancestors with
+#      <class>_as_<ancestor> (and _const), the only way to get the pointer of
+#      a base class (it is not the same address with several bases); the
+#      methods of a base are not repeated in the derived classes; an abstract
+#      class has no create function; virtual methods are called through any
+#      pointer to a class that has them.
+C_API_CONVENTIONS = 8
 
 
 def api_fingerprint(public_headers: Iterable[str]) -> str:

@@ -150,6 +150,46 @@ def test_verification_errors_point_at_the_wrapped_declaration(tmp_path: Path) ->
     assert error.startswith(f"{tmp_path / 'api.h'}:5:")
 
 
+_CALLBACK = "int each(std::function<int(int, int)> cb);"
+_STRUCT = "struct P { int a; int b[2]; };\nint total(const P& p);\nP make(int a);"
+
+
+@pytest.mark.parametrize(
+    ("macros", "code", "names"),
+    [
+        # Two variables of the callback lambda become the same parameter name.
+        ("#define _arg1 oops\n#define _arg2 oops", _CALLBACK, ["_arg1", "_arg2"]),
+        ("#define _result 1", _CALLBACK, ["_result"]),
+        ("#define _user_data 0", _CALLBACK, ["_user_data"]),
+        ("#define _owner1 (", _CALLBACK, ["_owner1"]),
+        # The helpers of the value structs are in their own generated header.
+        ("#define _in 7", _STRUCT, ["_in"]),
+        ("#define _out 7", _STRUCT, ["_out"]),
+        ("#define _i0 9", _STRUCT, ["_i0"]),
+        ("#define _item +", "int total(const std::vector<P>& items);", ["_item"]),
+    ],
+)
+def test_macros_named_like_generated_variables_are_pointed_out(
+    tmp_path: Path, macros: str, code: str, names: list[str]
+) -> None:
+    prelude = "#include <vector>\nstruct P { int a; };\n" if "vector" in code else ""
+    error = error_of(tmp_path, f"{prelude}{macros}\n{code}")
+    for name in names:
+        assert re.search(rf"api\.h:\d+:\d+: the macro '{name}' replaces an identifier", error), (
+            error
+        )
+    assert "rename or undefine the macro" in error
+
+
+def test_macros_that_the_generated_code_does_not_use_are_not_blamed(tmp_path: Path) -> None:
+    # Defined, but no wrapper declares `_result`: nothing to report, nothing breaks.
+    result = generate(tmp_path, "#define _result 1\n#define _unrelated 2\nint plain(int a);")
+    assert "mod_plain" in result.files["c/api_c.cpp"]
+    # A macro that is not the cause is not named: the error is another one.
+    error = error_of(tmp_path, "#define _unrelated 2\nint pick(); int pick(int x = 3);")
+    assert "_unrelated" not in error
+
+
 def test_verification_can_be_disabled(tmp_path: Path) -> None:
     header = write_header(tmp_path, "namespace d { int pick(); int pick(int x = 3); }")
     options = bridgefex.Options("mod", verify=False)
@@ -1122,3 +1162,142 @@ def test_the_destroy_functions_cannot_be_annotated(tmp_path: Path) -> None:
     options = annotated_options(tmp_path, '[k_Item_destroy]\nreturn = "owned"\n')
     with pytest.raises(BridgefexError, match="not a generated C function that can be annotated"):
         bridgefex.generate([header], options)
+
+
+# Inheritance ---------------------------------------------------------------------
+
+
+def test_a_derived_class_needs_its_base_class_to_be_wrapped(tmp_path: Path) -> None:
+    base = write_header(tmp_path, "namespace d { class B { public: B(); int f(); }; }", "base.h")
+    leaf = write_header(
+        tmp_path,
+        '#include "base.h"\nnamespace d { class L : public B { public: L(); int g(); }; }',
+        "leaf.h",
+    )
+    options = bridgefex.Options("mod")
+    with pytest.raises(GenerationError) as raised:
+        bridgefex.generate([leaf], options)
+    message = str(raised.value)
+    assert "the base class 'd::B' of 'd::L' is not a class of this module" in message
+    assert f"{leaf}:" in message
+    # With its header, the module is the same classes and the conversion.
+    result = bridgefex.generate([base, leaf], options)
+    assert "d_L_as_d_B" in result.files["c/leaf_c.h"]
+    assert "class L(_base.B):" in result.files["python/mod/leaf.py"]
+    assert "from . import base as _base" in result.files["python/mod/leaf.py"]
+
+
+def test_private_and_protected_bases_are_not_exposed(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { class B { public: B(); int f(); };"
+        " class P : private B { public: P(); int g(); };"
+        " class Q : protected B { public: Q(); int h(); }; }",
+    )
+    assert "as_" not in result.files["c/api_c.h"]
+    assert "class P(_runtime.Object):" in result.files["python/mod/api.py"]
+
+
+def test_a_derived_class_inherits_the_virtual_destructor(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { class B { public: B(); virtual ~B(); virtual int f(); };"
+        " class D : public B { public: D(); int f() override; virtual int g(); }; }",
+    )
+    assert "d_D_as_d_B" in result.files["c/api_c.h"]
+
+
+@pytest.mark.parametrize("std", ["c++11", "c++14", "c++17", "c++20"])
+def test_inheritance_compiles_in_every_standard(tmp_path: Path, std: str) -> None:
+    if std == "c++11" and sys.platform == "win32":
+        pytest.skip("MSVC STL: C++14")
+    generate(
+        tmp_path,
+        "namespace d { class A { public: virtual ~A(); virtual int a() const = 0; };"
+        " class B { public: B(); int b(); };"
+        " class C final : public B, public A { public: C(); int a() const override; }; }",
+        std,
+    )
+
+
+def test_abstract_classes_by_value_are_rejected(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace d { class A { public: virtual ~A(); virtual int a() const = 0; };"
+        " int f(A copy); }",
+    )
+    assert "abstract class 'd::A' cannot be passed or returned by value" in error
+
+
+def test_diamonds_are_rejected(tmp_path: Path) -> None:
+    error = error_of(
+        tmp_path,
+        "namespace d { class T { public: T(); }; class L : public T { public: L(); };"
+        " class R : public T { public: R(); }; class D : public L, public R { public: D(); }; }",
+    )
+    assert "'d::D' inherits 'd::T' more than once" in error
+
+
+def test_virtual_methods_final_and_covariant_references(tmp_path: Path) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { class B { public: B(); virtual ~B(); virtual B& self();"
+        " virtual int f() const; virtual int g() final;"
+        " private: virtual int hook(); protected: virtual int step(); };"
+        " class D : public B { public: D(); D& self() override; int f() const override; }; }",
+    )
+    header = result.files["c/api_c.h"]
+    # Both declare self(): each wrapper has the type its class declares, and calls
+    # the virtual method, so the override runs through a pointer to the base.
+    assert "d_B_self(d_B* self, d_B** out_result)" in header
+    assert "d_D_self(d_D* self, d_D** out_result)" in header
+    assert "d_B_g(" in header
+    assert "hook" not in header
+    assert "step" not in header
+    source = result.files["c/api_c.cpp"]
+    assert "->self()" in source
+
+
+def test_a_class_that_overrides_everything_of_an_abstract_base_can_be_created(
+    tmp_path: Path,
+) -> None:
+    result = generate(
+        tmp_path,
+        "namespace d { class I { public: virtual ~I(); virtual int a() const = 0; };"
+        " class J : public I { public: virtual int b() const = 0; };"
+        " class K : public J { public: K(); int a() const override; int b() const override; }; }",
+    )
+    header = result.files["c/api_c.h"]
+    assert "d_K_create(" in header
+    assert "d_J_create(" not in header
+    assert "d_I_create(" not in header
+    assert "d_K_as_d_I(" in header
+
+
+@pytest.mark.parametrize("stem", ["types", "builtins", "runtime", "lib", "bind"])
+def test_headers_named_like_a_global_of_the_generated_modules(tmp_path: Path, stem: str) -> None:
+    """The module of a header is imported as ``_<stem>``: ``types.h`` must not hide
+    ``_types`` (the bases, and the classes that functions take, are used there)."""
+    base = write_header(
+        tmp_path, "namespace d { class B { public: B(); virtual ~B(); }; }", f"{stem}.h"
+    )
+    leaf = write_header(
+        tmp_path,
+        f'#include "{stem}.h"\nnamespace d {{ class L : public B {{ public: L(); }};'
+        " int use(B& base); }",
+        "leaf.h",
+    )
+    result = bridgefex.generate([base, leaf], bridgefex.Options("mod"))
+    source = result.files["python/mod/leaf.py"]
+    assert f"from . import {stem} as _{stem}_" in source
+    assert f"class L(_{stem}_.B):" in source
+    # The verification imported both modules: nothing of the package was hidden.
+    assert f"_{stem}_.B" in source
+
+
+def test_the_verifier_does_not_blame_a_macro_for_a_word_of_a_comment(tmp_path: Path) -> None:
+    """Every generated file says it was generated by bridgefex: a macro with that
+    name replaces nothing in the code, so it is not the cause of an error."""
+    error = error_of(tmp_path, "#define bridgefex 1\nint pick(); int pick(int x = 3);")
+    assert "the macro 'bridgefex'" not in error
+    assert "ambiguous" in error or "pick" in error

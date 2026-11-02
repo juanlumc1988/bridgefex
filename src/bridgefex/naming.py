@@ -152,6 +152,12 @@ def c_identifier_problem(name: str) -> str | None:
     return None
 
 
+def module_alias(stem: str) -> str:
+    """The name that the generated modules give the module of a header: ``_<stem>``,
+    unless that is a global of theirs (``types.h`` would hide ``_types``)."""
+    return f"_{stem}_" if f"_{stem}" in MODULE_GLOBALS else f"_{stem}"
+
+
 def check_header_stem(stem: str) -> str:
     """Validate a header file name (without extension).
 
