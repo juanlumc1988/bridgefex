@@ -880,7 +880,7 @@ class _Visitor:
         self.errors.append(Diagnostic(message, _location(cursor.location)))
 
     def _check_name(self, cursor: cindex.Cursor, name: str) -> bool:
-        """Names end up in C and Python code, so they must be ASCII identifiers."""
+        """Names end up in the generated code, so they must be ASCII identifiers."""
         if naming.is_identifier(name):
             return True
         self._error(cursor, f"'{name}' is not an ASCII identifier, which bridgefex requires")

@@ -25,10 +25,7 @@ def test_valid_module_names(name: str) -> None:
         ("", "lowercase"),
         ("int", "keyword"),
         ("class", "keyword"),
-        ("lambda", "keyword"),
         ("restrict", "keyword"),
-        ("json", "standard library"),
-        ("ctypes", "standard library"),
     ],
 )
 def test_invalid_module_names(name: str, reason: str) -> None:
@@ -36,12 +33,13 @@ def test_invalid_module_names(name: str, reason: str) -> None:
         naming.check_module_name(name)
 
 
-@pytest.mark.parametrize("stem", ["counter", "Counter", "my_header2"])
+# A header name is only a file name: C++ keywords are fine (register.h, new.h, export.h).
+@pytest.mark.parametrize("stem", ["counter", "Counter", "my_header2", "register", "union", "class"])
 def test_valid_header_stems(stem: str) -> None:
     assert naming.check_header_stem(stem) == stem
 
 
-@pytest.mark.parametrize("stem", ["my-header", "2d", "class", "_private", "a.b"])
+@pytest.mark.parametrize("stem", ["my-header", "2d", "_private", "_Alignas", "a.b", ""])
 def test_invalid_header_stems(stem: str) -> None:
     with pytest.raises(ConfigurationError):
         naming.check_header_stem(stem)
@@ -64,9 +62,9 @@ def test_overload_suffix() -> None:
 def test_parameter_names() -> None:
     assert naming.parameter_names(["a", "b"]) == ("a", "b")
     assert naming.parameter_names(["", ""]) == ("arg1", "arg2")
-    # Keywords of C, C++ and Python, macros and generated names get a '_'.
+    # Keywords of C and C++, macros and generated names get a '_'.
     assert naming.parameter_names(["lambda", "restrict", "errno", "self", "out_result"]) == (
-        "lambda_",
+        "lambda",
         "restrict_",
         "errno_",
         "self_",
@@ -80,18 +78,6 @@ def test_parameter_names() -> None:
     assert naming.parameter_names(["handle"], reserved={"handle"}) == ("handle_",)
 
 
-def test_python_and_member_names() -> None:
-    assert naming.python_name("value") == "value"
-    assert naming.python_name("from") == "from_"
-    assert naming.python_name("match") == "match"  # soft keywords are valid names
-    assert naming.member_name("close") == "close_"
-    # Methods that the constructors and close() of every class call.
-    assert naming.member_name("_watch") == "_watch_"
-    assert naming.member_name("_collected") == "_collected_"
-    assert naming.member_name("create_int32", reserved={"create_int32"}) == "create_int32_"
-    assert naming.member_name("value") == "value"
-
-
 def test_is_identifier() -> None:
     assert naming.is_identifier("abc_1")
     assert not naming.is_identifier("1abc")
@@ -102,12 +88,6 @@ def test_is_identifier() -> None:
 def test_module_names_that_would_make_reserved_identifiers(name: str) -> None:
     with pytest.raises(ConfigurationError, match="single '_'"):
         naming.check_module_name(name)
-
-
-@pytest.mark.parametrize("stem", sorted(naming.PACKAGE_NAMES))
-def test_header_stems_that_replace_package_names(stem: str) -> None:
-    with pytest.raises(ConfigurationError, match="would replace"):
-        naming.check_header_stem(stem)
 
 
 def test_generated_macros() -> None:
@@ -147,21 +127,13 @@ def test_reserved_parameter_names_include_types_and_platform_macros() -> None:
     )
 
 
-def test_module_level_names() -> None:
-    assert naming.module_level_name("ctypes") == "ctypes_"
-    assert naming.module_level_name("threading") == "threading_"
-    assert naming.module_level_name("lambda") == "lambda_"
-    assert naming.module_level_name("Box", reserved={"Box"}) == "Box_"
-    assert naming.module_level_name("getattr") == "getattr"
-
-
 def test_derived_names() -> None:
-    cpp = ["from", "x_", "errno", "", "s", "s_size", "out_result_size"]
+    cpp = ["restrict", "x_", "errno", "", "s", "s_size", "out_result_size"]
     final = naming.parameter_names(cpp)
-    assert final == ("from_", "x_", "errno_", "arg4", "s", "s_size", "out_result_size_")
+    assert final == ("restrict_", "x_", "errno_", "arg4", "s", "s_size", "out_result_size_")
     wants = [True, True, True, True, True, False, False]
     sizes = naming.derived_names(cpp, final, wants, "_size")
-    assert sizes == ("from_size", "x_size", "errno_size", "arg4_size", "s_size_", None, None)
+    assert sizes == ("restrict_size", "x_size", "errno_size", "arg4_size", "s_size_", None, None)
     for name in sizes:
         assert name is None or naming.c_identifier_problem(name) is None
 
@@ -179,14 +151,22 @@ def test_derived_names_avoid_reserved_names_and_each_other() -> None:
     assert naming.derived_names(["_"], ["_"], [True], "_size") == ("arg1_size",)
 
 
-@pytest.mark.parametrize(
-    "name", ["_types", "_out_size", "_out_data", "out_result_size", "_item", "_scope", "_status"]
-)
+@pytest.mark.parametrize("name", ["out_result_size", "_out", "_item", "_result", "self"])
 def test_names_of_generated_locals_are_reserved_for_parameters(name: str) -> None:
     assert naming.parameter_names([name]) == (f"{name}_",)
 
 
 def test_runtime_names_of_step_two_are_reserved() -> None:
     assert {"DEMO_ERROR_INVALID_ARGUMENT", "DEMO_TYPES_H"} <= naming.generated_macros("demo")
-    assert "ERROR_INVALID_ARGUMENT" in naming.PACKAGE_NAMES
-    assert "_types" in naming.MODULE_GLOBALS
+
+
+def test_the_names_a_language_rejects_come_from_the_backend() -> None:
+    def problem(name: str) -> str | None:
+        return "it is a test" if name == "demo" else None
+
+    with pytest.raises(ConfigurationError, match="invalid module name 'demo': it is a test"):
+        naming.check_module_name("demo", problem)
+    with pytest.raises(ConfigurationError, match="cannot use header name 'demo': it is a test"):
+        naming.check_header_stem("demo", problem)
+    assert naming.check_module_name("other", problem) == "other"
+    assert naming.check_header_stem("other", problem) == "other"

@@ -16,8 +16,6 @@ import functools
 import itertools
 import os
 import re
-import subprocess
-import sys
 import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -25,10 +23,11 @@ from pathlib import Path
 from clang import cindex
 
 from . import libclang
+from .backends import BACKENDS
 from .errors import Diagnostic, GenerationError, Location
-from .generator import write_files
 from .parser import ParseOptions
 from .plan import CFunction, HeaderPlan, ModulePlan
+from .rendering import write_files
 
 # Names of the C and C++ standard headers, and of the headers that the standard
 # headers of glibc and MSVC include, which a translation unit parsed on another
@@ -67,8 +66,8 @@ def verify(
     include_dirs: Mapping[str, Path],
     options: ParseOptions,
 ) -> tuple[Diagnostic, ...]:
-    """Compile the C layer in ``files`` with libclang, and compile and import the
-    Python package in ``files`` (if any) with the running interpreter.
+    """Compile the C layer in ``files`` with libclang, and let each backend check
+    its own files (for example, compile and load what it generated).
 
     ``include_dirs`` maps each header stem to the directory its generated
     source needs on the include path. Returns the warnings found in the
@@ -172,7 +171,12 @@ def verify(
                         )
                     )
             del unit
-        errors += _check_python(plan, files, root)
+        for backend in BACKENDS:
+            own = {
+                path: text for path, text in files.items() if path.startswith(f"{backend.name}/")
+            }
+            if backend.check is not None and own:
+                errors += backend.check(plan, own, root)
     if errors:
         raise GenerationError(errors)
     for directory, name in shadowing:
@@ -184,68 +188,6 @@ def verify(
             )
         )
     return tuple(warnings)
-
-
-_IMPORT_ALL = """\
-import importlib, sys
-sys.path.insert(0, sys.argv[1])
-for name in sys.argv[2:]:
-    importlib.import_module(name)
-"""
-
-
-def _check_python(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagnostic]:
-    """Compile the generated Python files, then import them in a new interpreter
-    (importing does not load the library). Writes them below ``root``."""
-    python_files = {path: content for path, content in files.items() if path.startswith("python/")}
-    if not python_files:
-        return []
-    errors: list[Diagnostic] = []
-    for path, content in python_files.items():
-        try:
-            compile(content, path, "exec", dont_inherit=True)
-        except SyntaxError as error:
-            errors.append(
-                Diagnostic(
-                    f"the generated Python code does not compile: {path}:{error.lineno}: "
-                    f"{error.msg}"
-                )
-            )
-    # Without an interpreter to run (bridgefex embedded, or frozen into an
-    # executable), the import is not checked.
-    if errors or not sys.executable or getattr(sys, "frozen", False):
-        return errors
-    write_files(python_files, root)
-    modules = [
-        plan.name,
-        f"{plan.name}._types",
-        *(f"{plan.name}.{header.stem}" for header in plan.headers),
-    ]
-    command = [sys.executable, "-I", "-B", "-X", "dev", "-W", "error", "-c", _IMPORT_ALL]
-    try:
-        completed = subprocess.run(
-            [*command, str(root / "python"), *modules],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as error:
-        return [
-            Diagnostic(
-                f"cannot run {sys.executable} to import the generated Python code ({error}); "
-                "use --no-verify to skip the verification"
-            )
-        ]
-    if completed.returncode != 0:
-        lines = completed.stderr.strip().splitlines()
-        errors.append(
-            Diagnostic(
-                "the generated Python code cannot be imported: "
-                + (lines[-1] if lines else f"exit status {completed.returncode}")
-            )
-        )
-    return errors
 
 
 def _same_file(first: Path, second: Path) -> bool:
