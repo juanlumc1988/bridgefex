@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import libclang, naming
 from .annotations import load as load_annotations
+from .backends import reservations
 from .errors import ConfigurationError, Diagnostic, GenerationError
 from .generator import LANGUAGES, render
 from .model import Header, Module
@@ -180,7 +181,7 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
         raise GenerationError(problems)
 
     module = Module(name=options.module, headers=tuple(parsed), system_names=system_names())
-    plan = build_plan(module, load_annotations(options.annotations))
+    plan = build_plan(module, load_annotations(options.annotations), reservations())
     files = render(plan, options.languages)
     if options.verify:
         warnings.extend(verify(plan, files, include_dirs, parse_options))

@@ -36,9 +36,6 @@ class ScalarType:
 
     category: TypeCategory
 
-    ctypes_name: str
-    """Name of the matching type in Python's ctypes module, for example ``c_int32``."""
-
     token: str
     """Stable short name used to build overload suffixes, for example ``int32``."""
 

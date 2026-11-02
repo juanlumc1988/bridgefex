@@ -5,9 +5,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ...plan import ModulePlan
+from ... import naming
+from ...model import Class, Module
+from ...plan import ModulePlan, Reservations
 from ...rendering import Renderer
 from ..base import Backend
+from .lower import class_name
 from .module import PyClass, PyEnum, PyFunction, PyHandle, PyStruct, lower
 
 _TEMPLATES = Path(__file__).parent / "templates"
@@ -37,4 +40,23 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     return files
 
 
-BACKEND = Backend("python", render)
+def _reserved_names(module: Module) -> frozenset[str]:
+    """What the bindings use unqualified: the classes of the module (a parameter of
+    the same name would hide them) and the aliases of the header modules."""
+    classes = {
+        class_name(declaration.name)
+        for header in module.headers
+        for declaration in header.declarations
+        if isinstance(declaration, Class)
+    }
+    return frozenset(classes | {naming.module_alias(header.stem) for header in module.headers})
+
+
+def _reserved_locals(count: int) -> frozenset[str]:
+    """The locals of a function that takes ``count`` parameters: the C function, and a
+    handle for each argument (a call argument is one parameter at most three, plus
+    self and the outputs)."""
+    return frozenset({"_c"} | {f"_h{position}" for position in range(1, 3 * count + 5)})
+
+
+BACKEND = Backend("python", render, Reservations(_reserved_names, _reserved_locals))

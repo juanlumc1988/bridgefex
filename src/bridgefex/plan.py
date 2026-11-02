@@ -1,8 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Binding plan: every name, signature and statement that the templates render.
+"""The neutral binding plan: the C layer and what a language binding needs of it.
 
-Keeping this logic in Python, instead of in the templates, makes it testable
-and keeps the templates free of decisions.
+The plan holds every name, signature and statement of the generated C layer, and
+a semantic description of each callable (``CallablePlan``: what each parameter and
+result means across the boundary, not how a language spells it). A backend lowers
+that description to its own language (``bridgefex.backends``); nothing here knows
+about any of them. Keeping the logic in code, instead of in the templates, makes
+it testable and keeps the templates free of decisions.
 """
 
 from __future__ import annotations
@@ -46,7 +50,6 @@ from .model import (
     Struct,
     StructRef,
     Type,
-    TypeCategory,
 )
 
 
@@ -62,11 +65,102 @@ class Role(Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class Reservations:
+    """Names that the C functions leave alone because a language backend uses them:
+    the generated C API is the same whichever languages are generated, so every
+    backend says which names it needs."""
+
+    names: Callable[[Module], frozenset[str]] = lambda module: frozenset()
+    """For a module: the names a parameter or a member must not take, because the
+    bindings use them unqualified (their classes, the aliases of their modules)."""
+
+    locals: Callable[[int], frozenset[str]] = lambda count: frozenset()
+    """For a function with this many parameters: the local variables of the bindings
+    of it, which a parameter must not hide."""
+
+    @staticmethod
+    def merge(reservations: Iterable[Reservations]) -> Reservations:
+        items = tuple(reservations)
+        return Reservations(
+            names=lambda module: frozenset().union(*(item.names(module) for item in items)),
+            locals=lambda count: frozenset().union(*(item.locals(count) for item in items)),
+        )
+
+
+NO_RESERVATIONS = Reservations()
+
+
+class FfiKind(Enum):
+    VOID = "void"
+    STATUS = "status"
+    """The status of a call."""
+
+    SCALAR = "scalar"
+    """``name``: the C name of the type (``int32_t``, ``double``, ``size_t``...)."""
+
+    VOID_POINTER = "void*"
+    CHAR_POINTER = "char*"
+    """A string that is passed in."""
+
+    HANDLE = "handle"
+    """A pointer to an opaque wrapped class; ``name``: its C type."""
+
+    STRUCT = "struct"
+    """A value struct; ``name``: its C type."""
+
+    STRING = "string"
+    """A string of the runtime that is returned (data and size)."""
+
+    STRING_IN = "string_in"
+    """A string of the runtime that is passed in."""
+
+    CALLBACK = "callback"
+    """A function pointer; ``name``: the signature (see the backends)."""
+
+    RELEASE = "release"
+    """The release function of a callback: ``void (*)(void*)``."""
+
+    POINTER = "pointer"
+    """A pointer to ``inner``."""
+
+
+@dataclass(frozen=True, slots=True)
+class Ffi:
+    """The C type of a parameter or a result, as a foreign function interface sees
+    it: structured, so that a backend does not parse C declarations."""
+
+    kind: FfiKind
+    name: str = ""
+    inner: Ffi | None = None
+
+    @staticmethod
+    def scalar(c_name: str) -> Ffi:
+        return Ffi(FfiKind.SCALAR, c_name)
+
+    @staticmethod
+    def handle(c_type: str) -> Ffi:
+        return Ffi(FfiKind.HANDLE, c_type)
+
+    @staticmethod
+    def struct(c_type: str) -> Ffi:
+        return Ffi(FfiKind.STRUCT, c_type)
+
+    def pointer(self) -> Ffi:
+        return Ffi(FfiKind.POINTER, inner=self)
+
+
+VOID_FFI = Ffi(FfiKind.VOID)
+STATUS_FFI = Ffi(FfiKind.STATUS)
+VOID_POINTER_FFI = Ffi(FfiKind.VOID_POINTER)
+SIZE_FFI = Ffi.scalar("size_t")
+
+
+@dataclass(frozen=True, slots=True)
 class CParam:
     name: str
     c_type: str
     role: Role
-    ctypes_type: str
+    ffi: Ffi
     length: int | None = None
     """The bound of an array parameter (``const float m[4]``)."""
 
@@ -121,7 +215,7 @@ class CFunction:
     description: str
     """The wrapped C++ declaration, for comments and docstrings."""
 
-    ctypes_restype: str
+    ffi_restype: Ffi
 
     owned_checks: tuple[Precondition, ...] = ()
     """NULL checks of the outputs that the function allocates (out_self...),
@@ -163,10 +257,6 @@ class CFunction:
     def signature(self) -> str:
         params = ", ".join(param.declaration for param in self.params) or "void"
         return f"{self.name}({params})"
-
-    @property
-    def ctypes_argtypes(self) -> str:
-        return "[" + ", ".join(param.ctypes_type for param in self.params) + "]"
 
 
 class CallableKind(Enum):
@@ -447,10 +537,6 @@ class EnumPlan:
         return "::" + self.model.qualified_name
 
     @property
-    def ctypes_type(self) -> str:
-        return f"ctypes.{self.model.underlying.ctypes_name}"
-
-    @property
     def comment(self) -> str:
         valid = self.model.valid_range
         if valid is None:
@@ -488,10 +574,6 @@ class StructPlan:
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
-
-    @property
-    def mirror(self) -> str:
-        return f"_{self.c_type}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -593,7 +675,7 @@ class HeaderPlan:
 
     @property
     def struct_inits(self) -> tuple[CFunction, ...]:
-        """The <c_type>_init functions, which _types.py binds."""
+        """The <c_type>_init functions of the value structs."""
         return tuple(struct.init for struct in self.structs)
 
     @property
@@ -790,21 +872,12 @@ class ClassInfo:
     model: Class
     header: Header
     c_type: str
-    py_name: str
-    """Its name in the module of its header."""
-
     is_base: bool = False
     """Another class of the module derives from it."""
 
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
-
-    @property
-    def pointer_name(self) -> str:
-        # '__' separates the role from the C name: C names never contain it, so
-        # the class X_p cannot take the pointer type of X.
-        return f"_{self.c_type}__p"
 
 
 @dataclass(frozen=True, slots=True)
@@ -816,8 +889,8 @@ class _Element:
     """The C++ element type, in the C++ container type."""
 
     token: str
-    ctypes_in: str
-    ctypes_out: str
+    ffi_in: Ffi
+    ffi_out: Ffi
     to_cpp: str | None = None
     """C++ converter of a C element to C++, or None if they are the same type
     (``{name}``: the parameter, for messages)."""
@@ -902,31 +975,15 @@ def _describe_params(parameters: Sequence[Parameter]) -> str:
     )
 
 
-def _check_object(name: str, py_class: str, nullable: bool) -> str:
-    """The statement that checks the type of a wrapped object, before any conversion."""
-    suffix = ", nullable=True" if nullable else ""
-    return f'_runtime.check_object({name}, {py_class}, "{name}"{suffix})'
-
-
-def _checked(value: str, scalar: ScalarType, name: str) -> str:
-    """Python expression that checks ``value`` for a scalar of C; ``name`` is the
-    expression of its name in error messages."""
-    if scalar.category is TypeCategory.BOOL:
-        return f"_runtime.to_bool({value}, {name})"
-    if scalar.category is TypeCategory.FLOATING:
-        return f"_runtime.to_float({value}, ctypes.{scalar.ctypes_name}, {name})"
-    return f"_runtime.to_int({value}, ctypes.{scalar.ctypes_name}, {name})"
-
-
-def _conversion(name: str, scalar: ScalarType) -> str:
-    return _checked(name, scalar, f'"{name}"')
-
-
 class _Builder:
     def __init__(
-        self, module: Module, annotations: Mapping[str, FunctionAnnotations] | None = None
+        self,
+        module: Module,
+        annotations: Mapping[str, FunctionAnnotations] | None = None,
+        reservations: Reservations | None = None,
     ) -> None:
         self.module = module
+        self._reservations = reservations or NO_RESERVATIONS
         self._annotations: Mapping[str, FunctionAnnotations] = annotations or {}
         # The generated C functions that an annotation can name.
         self.annotatable: list[str] = []
@@ -1022,7 +1079,6 @@ class _Builder:
                             declaration,
                             header,
                             f"{prefix}_{declaration.name}",
-                            naming.module_level_name(declaration.name),
                         ),
                     )
         self._class_c_types = {usr: info.c_type for usr, info in self._classes.items()}
@@ -1037,14 +1093,10 @@ class _Builder:
             usr: dataclasses.replace(info, is_base=usr in self._base_usrs)
             for usr, info in self._classes.items()
         }
-        # The header being built: its classes are named directly in Python, those
-        # of the others through their module.
+        # The header being built.
         self._header: Header | None = None
-        # A parameter named like the module alias of a header would hide it.
-        self._parameter_macros |= {naming.module_alias(header.stem) for header in module.headers}
-        # The Python classes are named unqualified in the generated functions: a
-        # parameter with the same name would hide them.
-        self._parameter_macros |= {info.py_name for info in self._classes.values()}
+        # What the language backends use unqualified in their bindings.
+        self._parameter_macros |= self._reservations.names(module)
         # Per header stem, the headers whose structs or classes its functions use.
         self.foreign_struct_headers: dict[str, tuple[Header, ...]] = {}
         self.foreign_class_headers: dict[str, tuple[Header, ...]] = {}
@@ -1193,7 +1245,7 @@ class _Builder:
         init = CFunction(
             name=init_name,
             params=(
-                CParam("out_result", f"{c_type}*", Role.OUT_RESULT, f"ctypes.POINTER(_{c_type})"),
+                CParam("out_result", f"{c_type}*", Role.OUT_RESULT, Ffi.struct(c_type).pointer()),
             ),
             returns_status=True,
             # Value-initialization: zeros, then the default member initializers,
@@ -1201,7 +1253,7 @@ class _Builder:
             statement=f"*out_result = {detail}::to_c({cpp_name}());",
             description=f"{model.qualified_name}(): the value of a default-constructed "
             f"{model.qualified_name}",
-            ctypes_restype="_runtime.Status",
+            ffi_restype=STATUS_FFI,
             checks=(_null_check("out_result"),),
             location=model.location,
         )
@@ -1421,14 +1473,11 @@ class _Builder:
         callbacks = [
             parameter.type for parameter in parameters if isinstance(parameter.type, CallbackType)
         ]
-        # The locals of the Python function that takes the objects it is given.
-        # (a call argument is one parameter at most three, plus self and the outputs)
-        python_locals = {"_c"} | {f"_h{position}" for position in range(1, 3 * len(parameters) + 5)}
         taken = (
             self._parameter_macros
             | frozenset(reserved)
             | _callback_locals(callbacks)
-            | python_locals
+            | self._reservations.locals(len(parameters))
         )
         cpp_names = [parameter.name for parameter in parameters]
         names = naming.parameter_names(cpp_names, taken)
@@ -1559,7 +1608,7 @@ class _Builder:
             assert size is not None
             return self._lower_vector_param(name, size, type_, location)
         return LoweredParam(
-            c_params=(CParam(name, type_.c_name, Role.INPUT, f"ctypes.{type_.ctypes_name}"),),
+            c_params=(CParam(name, type_.c_name, Role.INPUT, Ffi.scalar(type_.c_name)),),
             argument=name,
             null_checks=(),
             value_checks=(),
@@ -1613,20 +1662,19 @@ class _Builder:
             f"{detail}::make_callback<::std::function<{signature}>, {result_cpp}>("
             f"{name}, {owner}, {invoke})"
         )
-        # The Python type of the C function pointer, by the signature (see the Python
-        # backend, which makes the thunks).
-        thunk_type = "_callback__" + "__".join([result_token, *tokens]) + "__type"
+        # The signature of the function pointer, which the backends name their types by.
+        thunk_key = "__".join([result_token, *tokens])
         return LoweredParam(
             c_params=(
                 CParam(
                     name,
                     "void",
                     Role.INPUT,
-                    f"_types.{thunk_type}",
+                    Ffi(FfiKind.CALLBACK, thunk_key),
                     function_params=", ".join(c_args),
                 ),
-                CParam(user_data, "void*", Role.INPUT, "ctypes.c_void_p"),
-                CParam(release, "void", Role.INPUT, "_runtime.Release", function_params="void*"),
+                CParam(user_data, "void*", Role.INPUT, VOID_POINTER_FFI),
+                CParam(release, "void", Role.INPUT, Ffi(FfiKind.RELEASE), function_params="void*"),
             ),
             argument=argument,
             null_checks=(),
@@ -1747,12 +1795,9 @@ class _Builder:
     def _lower_string_param(
         self, name: str, size: str | None, type_: StringType, nullable: bool = False
     ) -> LoweredParam:
-        data = CParam(name, "const char*", Role.INPUT, "ctypes.c_char_p")
+        data = CParam(name, "const char*", Role.INPUT, Ffi(FfiKind.CHAR_POINTER))
         if size is None:
-            # NUL-terminated: Python refuses NULs, which C++ would not see.
-            conversion = f'_runtime.to_c_string({name}, "{name}")'
-            if nullable:
-                conversion = f"None if {name} is None else {conversion}"
+            # NUL-terminated: the bindings must not pass NULs, which C++ would not see.
             return LoweredParam(
                 c_params=(data,),
                 argument=name,
@@ -1768,7 +1813,7 @@ class _Builder:
             f"static_cast<const {constructor}&>({temporary})" if type_.by_reference else temporary
         )
         return LoweredParam(
-            c_params=(data, CParam(size, "size_t", Role.SIZE, "ctypes.c_size_t")),
+            c_params=(data, CParam(size, "size_t", Role.SIZE, SIZE_FFI)),
             argument=argument,
             temporary=f"{constructor}()" if type_.by_reference else None,
             null_checks=(_sized_null_check(name, size),),
@@ -1815,7 +1860,7 @@ class _Builder:
                     name,
                     f"{qualifier}{info.c_type}*",
                     Role.INPUT,
-                    f"_types.{info.pointer_name}",
+                    Ffi.handle(info.c_type),
                 ),
             ),
             argument=pointer if is_pointer else f"*{pointer}",
@@ -1835,7 +1880,7 @@ class _Builder:
         taken = f"{info.cpp_name}*" if form is ClassForm.POINTER else None
         taken = taken or f"std::unique_ptr<{info.cpp_name}>"
         return LoweredParam(
-            c_params=(CParam(name, f"{info.c_type}*", Role.INPUT, f"_types.{info.pointer_name}"),),
+            c_params=(CParam(name, f"{info.c_type}*", Role.INPUT, Ffi.handle(info.c_type)),),
             argument=f"{owner}.take<{taken}>()",
             null_checks=() if nullable else (_null_check(name),),
             value_checks=(),
@@ -1866,7 +1911,9 @@ class _Builder:
                     )
                 )
         return LoweredParam(
-            c_params=(CParam(name, enum.c_type, Role.INPUT, enum.ctypes_type),),
+            c_params=(
+                CParam(name, enum.c_type, Role.INPUT, Ffi.scalar(enum.model.underlying.c_name)),
+            ),
             argument=f"static_cast<{enum.cpp_name}>({name})",
             null_checks=(),
             value_checks=tuple(checks),
@@ -1889,7 +1936,7 @@ class _Builder:
                     name,
                     f"const {struct.c_type}*",
                     Role.INPUT,
-                    f"ctypes.POINTER(_types.{struct.mirror})",
+                    Ffi.struct(struct.c_type).pointer(),
                 ),
             ),
             argument=argument,
@@ -1906,8 +1953,8 @@ class _Builder:
                 c_type=self.module.name + "_string",
                 cpp="std::string",
                 token="string",
-                ctypes_in="_runtime.StringIn",
-                ctypes_out="_runtime.String",
+                ffi_in=Ffi(FfiKind.STRING_IN),
+                ffi_out=Ffi(FfiKind.STRING),
             )
         if isinstance(type_, EnumRef):
             enum = self._enum(type_, location)
@@ -1927,8 +1974,8 @@ class _Builder:
                 c_type=enum.c_type,
                 cpp=enum.cpp_name,
                 token=enum.c_type,
-                ctypes_in=enum.ctypes_type,
-                ctypes_out=enum.ctypes_type,
+                ffi_in=Ffi.scalar(enum.model.underlying.c_name),
+                ffi_out=Ffi.scalar(enum.model.underlying.c_name),
                 to_cpp=to_cpp,
                 to_c=f"{detail}::cast_to<{enum.c_type}>()",
                 enum=enum,
@@ -1937,13 +1984,12 @@ class _Builder:
             struct = self._struct(type_, location)
             if struct is None:
                 return None
-            mirror = f"_types.{struct.mirror}"
             return _Element(
                 c_type=struct.c_type,
                 cpp=struct.cpp_name,
                 token=struct.c_type,
-                ctypes_in=mirror,
-                ctypes_out=mirror,
+                ffi_in=Ffi.struct(struct.c_type),
+                ffi_out=Ffi.struct(struct.c_type),
                 # Not noexcept: building the C++ struct may throw.
                 to_cpp=f"[](const {struct.c_type}& _item) {{ return {detail}::from_c(_item); }}",
                 to_c=(
@@ -1956,8 +2002,8 @@ class _Builder:
             c_type=type_.c_name,
             cpp=type_.c_name,
             token=type_.token,
-            ctypes_in=f"ctypes.{type_.ctypes_name}",
-            ctypes_out=f"ctypes.{type_.ctypes_name}",
+            ffi_in=Ffi.scalar(type_.c_name),
+            ffi_out=Ffi.scalar(type_.c_name),
         )
 
     def _lower_vector_param(
@@ -1994,17 +2040,15 @@ class _Builder:
             temporary = f"std::span<const {element.cpp}>({temporary})"
         by_reference = type_.by_reference and not span  # a span is a view anyway
         argument = f"static_cast<const {vector}&>({temporary})" if by_reference else temporary
-        pointer = f"ctypes.POINTER({element.ctypes_in})"
+        pointer = element.ffi_in.pointer()
         return LoweredParam(
             c_params=(
                 CParam(name, f"const {element.c_type}*", Role.INPUT, pointer),
-                CParam(size, "size_t", Role.SIZE, "ctypes.c_size_t"),
+                CParam(size, "size_t", Role.SIZE, SIZE_FFI),
             ),
             argument=argument,
             null_checks=tuple(checks),
             value_checks=(),
-            # The size of the ctypes array: before self._ptr(), so that nothing
-            # runs between it and the call.
             temporary=f"{vector}()" if by_reference else None,
             spec=ParamSpec(
                 name,
@@ -2037,7 +2081,7 @@ class _Builder:
                     name,
                     f"const {element.c_type}",
                     Role.INPUT,
-                    f"ctypes.POINTER({element.ctypes_in})",
+                    element.ffi_in.pointer(),
                     type_.length,
                 ),
             ),
@@ -2063,7 +2107,7 @@ class _Builder:
                     "out_result",
                     element.c_type,
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER({element.ctypes_out})",
+                    element.ffi_out.pointer(),
                     type_.length,
                 ),
             ),
@@ -2093,13 +2137,13 @@ class _Builder:
                     "out_result",
                     f"{element.c_type}**",
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER(ctypes.POINTER({element.ctypes_out}))",
+                    element.ffi_out.pointer().pointer(),
                 ),
                 CParam(
                     "out_result_size",
                     "size_t*",
                     Role.OUT_RESULT_SIZE,
-                    "ctypes.POINTER(ctypes.c_size_t)",
+                    SIZE_FFI.pointer(),
                 ),
             ),
             statement=statement,
@@ -2121,7 +2165,7 @@ class _Builder:
                     "out_result",
                     f"{struct.c_type}*",
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER(_types.{struct.mirror})",
+                    Ffi.struct(struct.c_type).pointer(),
                 ),
             ),
             # Caller storage, which may alias an input: written on success only,
@@ -2151,7 +2195,7 @@ class _Builder:
         pointer_form = ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER)
         if pointer_form and ownership is None:  # reported by the policy
             return placeholder
-        pointer = f"_types.{info.pointer_name}"
+        pointer = Ffi.handle(info.c_type).pointer()
         destroy = f"{info.c_type}_destroy"
         borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
             ownership == "borrowed"
@@ -2175,7 +2219,7 @@ class _Builder:
                         "out_result",
                         f"{qualifier}{info.c_type}**",
                         Role.OUT_RESULT,
-                        f"ctypes.POINTER({pointer})",
+                        pointer,
                     ),
                 ),
                 statement=statement,
@@ -2183,9 +2227,9 @@ class _Builder:
                 notes=(f"*out_result: borrowed{origin}, {nullability}; do not destroy it.",),
                 spec=ResultSpec(ref, cls=info, ownership=ownership),
             )
-        # An object that the caller owns: the Python object that will own it
-        # exists before the call, and from the moment the C function writes the
-        # handle, its collection destroys the object (see ClassPlan.watch).
+        # An object that the caller owns: the bindings make the object that will own it
+        # before the call, so that from the moment the C function writes the handle,
+        # its destruction is guaranteed.
         nullable = ref.form is not ClassForm.VALUE
         if ref.form is ClassForm.UNIQUE:
             statement = f"*out_result = reinterpret_cast<{info.c_type}*>({{call}}.release());"
@@ -2205,7 +2249,7 @@ class _Builder:
                     "out_result",
                     f"{info.c_type}**",
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER({pointer})",
+                    pointer,
                 ),
             ),
             statement=statement,
@@ -2225,7 +2269,7 @@ class _Builder:
                     "out_result",
                     f"{enum.c_type}*",
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER({enum.ctypes_type})",
+                    Ffi.scalar(enum.model.underlying.c_name).pointer(),
                 ),
             ),
             statement=f"*out_result = static_cast<{enum.c_type}>({{call}});",
@@ -2273,7 +2317,7 @@ class _Builder:
                     "out_result",
                     f"{type_.c_name}*",
                     Role.OUT_RESULT,
-                    f"ctypes.POINTER(ctypes.{type_.ctypes_name})",
+                    Ffi.scalar(type_.c_name).pointer(),
                 ),
             ),
             statement="*out_result = {call};",
@@ -2286,12 +2330,12 @@ class _Builder:
         helper = "return_string" if type_.sized else "return_c_string"
         return LoweredResult(
             c_params=(
-                CParam("out_result", "char**", Role.OUT_RESULT, "ctypes.POINTER(ctypes.c_void_p)"),
+                CParam("out_result", "char**", Role.OUT_RESULT, VOID_POINTER_FFI.pointer()),
                 CParam(
                     "out_result_size",
                     "size_t*",
                     Role.OUT_RESULT_SIZE,
-                    "ctypes.POINTER(ctypes.c_size_t)",
+                    SIZE_FFI.pointer(),
                 ),
             ),
             statement=f"{detail}::{helper}({{call}}, out_result, out_result_size);",
@@ -2334,7 +2378,7 @@ class _Builder:
             returns_status=True,
             statement=lowered.statement.replace("{call}", call.replace("{arguments}", arguments)),
             description=description,
-            ctypes_restype="_runtime.Status",
+            ffi_restype=STATUS_FFI,
             owned_checks=lowered.owned_checks,
             resets=lowered.resets,
             checks=(*null_checks, *(c for param in params for c in param.value_checks)),
@@ -2375,7 +2419,7 @@ class _Builder:
     # Declarations ------------------------------------------------------------
 
     def _constructor_plan(
-        self, model: Class, constructor: Constructor, c_type: str, pointer_name: str
+        self, model: Class, constructor: Constructor, c_type: str
     ) -> CallablePlan:
         cpp_name = "::" + model.qualified_name
         key = (*model.namespace, model.name)
@@ -2387,7 +2431,7 @@ class _Builder:
             "out_self",
             f"{c_type}**",
             Role.OUT_SELF,
-            f"ctypes.POINTER(_types.{pointer_name})",
+            Ffi.handle(c_type).pointer(),
         )
         policy = self._policy(
             name, what, constructor.parameters, None, constructor.location, constructor=True
@@ -2403,7 +2447,7 @@ class _Builder:
             returns_status=True,
             statement=f"*out_self = reinterpret_cast<{c_type}*>(new {cpp_name}({arguments}));",
             description=description,
-            ctypes_restype="_runtime.Status",
+            ffi_restype=STATUS_FFI,
             owned_checks=(_null_check("out_self"),),
             resets=("*out_self = nullptr;",),
             checks=(
@@ -2435,14 +2479,11 @@ class _Builder:
             c_type, f"the handle type of '{model.qualified_name}'", model.location, tag=True
         )
         cpp_name = "::" + model.qualified_name
-        # '__' separates the role from the C name: C names never contain it, so
-        # the class X_p cannot take the pointer type of X.
-        pointer_name = f"_{c_type}__p"
         key = (*model.namespace, model.name)
 
         def self_param(is_const: bool) -> CParam:
             qualifier = "const " if is_const else ""
-            return CParam("self", f"{qualifier}{c_type}*", Role.SELF, f"_types.{pointer_name}")
+            return CParam("self", f"{qualifier}{c_type}*", Role.SELF, Ffi.handle(c_type))
 
         def cast_self(is_const: bool) -> str:
             # The C handle is an opaque struct; in C++ it points to the class.
@@ -2450,8 +2491,7 @@ class _Builder:
             return f"reinterpret_cast<{qualifier}{cpp_name}*>(self)"
 
         constructors = [
-            self._constructor_plan(model, constructor, c_type, pointer_name)
-            for constructor in model.constructors
+            self._constructor_plan(model, constructor, c_type) for constructor in model.constructors
         ]
 
         destroy_name = f"{c_type}_destroy"
@@ -2462,7 +2502,7 @@ class _Builder:
             returns_status=False,
             statement=f"delete {cast_self(False)};",
             description=f"{model.qualified_name}::~{model.name}()",
-            ctypes_restype="None",
+            ffi_restype=VOID_FFI,
             location=model.location,
         )
 
@@ -2612,7 +2652,7 @@ class _Builder:
                             f"{model.qualified_name}: the {'const ' if const else ''}object "
                             "as its base class"
                         ),
-                        ctypes_restype=f"_types.{ancestor.pointer_name}",
+                        ffi_restype=Ffi.handle(ancestor.c_type),
                         location=model.location,
                         c_return=f"{qualifier}{ancestor.c_type}*",
                     )
@@ -2780,18 +2820,22 @@ def api_fingerprint(public_headers: Iterable[str]) -> str:
 
 
 def build_plan(
-    module: Module, annotations: Mapping[str, FunctionAnnotations] | None = None
+    module: Module,
+    annotations: Mapping[str, FunctionAnnotations] | None = None,
+    reservations: Reservations | None = None,
 ) -> ModulePlan:
     """Decide every generated name and check that none of them clash.
 
     ``annotations`` are the annotation files, loaded (see :mod:`bridgefex.annotations`).
+    ``reservations`` are the names that the language backends need left alone (see
+    :func:`bridgefex.backends.reservations`).
 
     Raises:
         ConfigurationError: invalid module or header names.
         GenerationError: generated names clash.
     """
     naming.check_module_name(module.name)
-    builder = _Builder(module, annotations)
+    builder = _Builder(module, annotations, reservations)
     # Compared without case: Windows and macOS file systems ignore it.
     generated_files = {
         name.casefold()

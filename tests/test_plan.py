@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 
 from bridgefex.annotations import FunctionAnnotations
+from bridgefex.backends import reservations
+from bridgefex.backends.python.ffi import binding, ctypes_expr
 from bridgefex.backends.python.module import PyClass, PyFunction, PyHandle, PyModule, lower
 from bridgefex.errors import ConfigurationError, GenerationError, Location
 from bridgefex.generator import render
@@ -81,12 +83,12 @@ def header(*declarations: Class | Function, name: str = "test.h") -> Header:
 
 
 def plan_for(*headers: Header, module: str = "mod"):  # type: ignore[no-untyped-def]
-    return build_plan(Module(module, tuple(headers)))
+    return build_plan(Module(module, tuple(headers)), None, reservations())
 
 
 def py_plan_for(*headers: Header, module: str = "mod"):  # type: ignore[no-untyped-def]
     """The Python view of the plan: the names, bodies and thunks of the backend."""
-    return lower(build_plan(Module(module, tuple(headers))))
+    return lower(plan_for(*headers, module=module))
 
 
 def test_class_functions_and_signatures() -> None:
@@ -265,7 +267,7 @@ def test_python_conversions() -> None:
         ('b = _runtime.to_float(b, ctypes.c_double, "b")',),
         ('c = _runtime.to_bool(c, "c")',),
     ]
-    assert item.c_function.ctypes_argtypes == (
+    assert binding(item.c_function).argtypes == (
         "[ctypes.c_int32, ctypes.c_double, ctypes.c_bool, ctypes.POINTER(ctypes.c_int32)]"
     )
 
@@ -430,7 +432,7 @@ def test_string_parameters() -> None:
         Role.SIZE,
         Role.INPUT,
     ]
-    assert function.ctypes_argtypes == (
+    assert binding(function).argtypes == (
         "[ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p]"
     )
     # A const reference gets an lvalue: overloads for temporaries of headers
@@ -494,7 +496,7 @@ def test_string_results(result: StringType, helper: str) -> None:
         f"mod_detail::{helper}(reinterpret_cast<const ::ns::Text*>(self)->get("
         "std::string(mod_detail::string_data(s), s_size)), out_result, out_result_size);"
     )
-    assert function.ctypes_argtypes.endswith(
+    assert binding(function).argtypes.endswith(
         "ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]"
     )
     body = py.body(8).splitlines()
@@ -828,7 +830,7 @@ def test_struct_parameters_and_results() -> None:
     # Value outputs are checked with the inputs, never reset: they may alias one.
     assert [c.condition for c in function.checks] == ["a == nullptr", "out_result == nullptr"]
     assert function.owned_checks == ()
-    assert function.ctypes_argtypes == (
+    assert binding(function).argtypes == (
         "[ctypes.POINTER(_types._ns_Point), ctypes.POINTER(_types._ns_Point)]"
     )
     assert item.py.args[0].conversions == ('a = _types._ns_Point__to_c(a, "a")',)
@@ -1078,7 +1080,7 @@ def test_callback_parameters() -> None:
         "[](decltype(f) _callback, void* _user_data, int32_t _arg1) -> int32_t "
         "{ int32_t _result{}; _callback(_user_data, _arg1, &_result); return _result; })"
     ) in function.statement
-    assert function.ctypes_argtypes == (
+    assert binding(function).argtypes == (
         "[_types._callback__int32__int32__type, ctypes.c_void_p, _runtime.Release, "
         "ctypes.POINTER(ctypes.c_int32)]"
     )
@@ -1248,7 +1250,7 @@ def test_class_parameters() -> None:
         "'d' is NULL",
         "'e' is NULL",
     ]
-    assert [p.ctypes_type for p in function.params[1:6]] == ["_types._ns_Node__p"] * 5
+    assert [ctypes_expr(p.ffi) for p in function.params[1:6]] == ["_types._ns_Node__p"] * 5
     # Only a copy needs the class to be copyable.
     (copyable,) = function.compile_checks
     assert "std::is_copy_constructible<::ns::Node>" in copyable
@@ -1691,7 +1693,7 @@ def annotated(
     *methods: Method, annotations: dict[str, FunctionAnnotations], static_only: bool = False
 ):  # type: ignore[no-untyped-def]
     tree = klass("Tree", methods=methods)
-    plan = build_plan(Module("mod", two_headers(tree)), annotations)
+    plan = build_plan(Module("mod", two_headers(tree)), annotations, reservations())
     (item,) = [i for i in lower(plan).headers[1].items if isinstance(i, PyClass)]
     return plan, item
 
@@ -1844,7 +1846,9 @@ def test_constructors_keep_unless_they_only_read() -> None:
         Parameter("read", cref("Node", forms.CONST_REFERENCE)),
     )
     tree = klass("Tree", constructors=(Constructor(parameters, HERE),))
-    plan = build_plan(Module("mod", two_headers(tree)), annotate(ns_Tree_create={"read": "call"}))
+    plan = build_plan(
+        Module("mod", two_headers(tree)), annotate(ns_Tree_create={"read": "call"}), reservations()
+    )
     (item,) = [i for i in lower(plan).headers[1].items if isinstance(i, PyClass)]
     (constructor,) = item.constructors
     assert constructor.retain_statements("self") == ("_runtime.retain(self._retained, kept)",)
@@ -1990,7 +1994,7 @@ def test_every_ancestor_has_a_conversion_and_a_view() -> None:
     assert plan_view.const_upcast.signature == "ns_Leaf_as_ns_Base_const(const ns_Leaf* self)"
     assert plan_view.upcast.c_return == "ns_Base*"
     assert plan_view.const_upcast.c_return == "const ns_Base*"
-    assert plan_view.upcast.ctypes_restype == "_types._ns_Base__p"
+    assert binding(plan_view.upcast).restype == "_types._ns_Base__p"
     assert "static_cast<::ns::Base*>(reinterpret_cast<::ns::Leaf*>(self))" in (
         plan_view.upcast.statement
     )

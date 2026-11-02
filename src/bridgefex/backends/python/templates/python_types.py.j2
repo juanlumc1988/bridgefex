@@ -109,8 +109,8 @@ def _bind():
     with _bind_lock:
         if _lib is None:
 {% for s in m.structs %}
-            lib.{{ s.init.name }}.argtypes = {{ s.init.ctypes_argtypes }}
-            lib.{{ s.init.name }}.restype = {{ s.init.ctypes_restype }}
+            lib.{{ s.init.name }}.argtypes = {{ s.init_binding.argtypes }}
+            lib.{{ s.init.name }}.restype = {{ s.init_binding.restype }}
 {% endfor %}
             _lib = lib
     return _lib

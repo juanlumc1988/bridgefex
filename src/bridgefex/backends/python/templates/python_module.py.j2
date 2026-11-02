@@ -27,9 +27,9 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
-{% for f in h.c_functions if f not in h.struct_inits %}
-            lib.{{ f.name }}.argtypes = {{ f.ctypes_argtypes }}
-            lib.{{ f.name }}.restype = {{ f.ctypes_restype }}
+{% for b in h.bindings %}
+            lib.{{ b.name }}.argtypes = {{ b.argtypes }}
+            lib.{{ b.name }}.restype = {{ b.restype }}
 {% endfor %}
             _lib = lib
     return _lib

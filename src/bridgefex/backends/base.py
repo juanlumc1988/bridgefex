@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..plan import ModulePlan
+from ..plan import NO_RESERVATIONS, ModulePlan, Reservations
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,3 +17,6 @@ class Backend:
     render: Callable[[ModulePlan, str], dict[str, str]]
     """``render(plan, fingerprint)``: the files of the bindings, by relative POSIX
     path below the output directory (``<language>/...``)."""
+
+    reservations: Reservations = NO_RESERVATIONS
+    """The names that the C API leaves alone for the bindings."""

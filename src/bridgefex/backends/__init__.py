@@ -9,10 +9,11 @@ renders it first.
 
 from __future__ import annotations
 
+from ..plan import Reservations
 from . import python
 from .base import Backend
 
-__all__ = ["BACKENDS", "Backend", "registry"]
+__all__ = ["BACKENDS", "Backend", "registry", "reservations"]
 
 BACKENDS: tuple[Backend, ...] = (python.BACKEND,)
 """Every backend, in the order their files are generated."""
@@ -21,3 +22,9 @@ BACKENDS: tuple[Backend, ...] = (python.BACKEND,)
 def registry() -> dict[str, Backend]:
     """The backends by language."""
     return {backend.name: backend for backend in BACKENDS}
+
+
+def reservations() -> Reservations:
+    """The names that every backend needs left alone by the C API. Whichever
+    languages are generated, they all count: the C API does not depend on them."""
+    return Reservations.merge(backend.reservations for backend in BACKENDS)

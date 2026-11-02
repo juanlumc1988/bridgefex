@@ -17,25 +17,25 @@ _SIGNED = TypeCategory.SIGNED_INTEGER
 _UNSIGNED = TypeCategory.UNSIGNED_INTEGER
 _FLOATING = TypeCategory.FLOATING
 
-VOID = ScalarType("void", TypeCategory.VOID, "None", "void")
+VOID = ScalarType("void", TypeCategory.VOID, "void")
 
 # Builtin C++ types, keyed by libclang TypeKind name. Their spelling is the
 # same in C (C99 <stdbool.h> provides bool) and their ABI matches on every
 # supported platform.
 BUILTIN_TYPES: dict[str, ScalarType] = {
-    "BOOL": ScalarType("bool", TypeCategory.BOOL, "c_bool", "bool"),
-    "SCHAR": ScalarType("signed char", _SIGNED, "c_byte", "schar"),
-    "UCHAR": ScalarType("unsigned char", _UNSIGNED, "c_ubyte", "uchar"),
-    "SHORT": ScalarType("short", _SIGNED, "c_short", "short"),
-    "USHORT": ScalarType("unsigned short", _UNSIGNED, "c_ushort", "ushort"),
-    "INT": ScalarType("int", _SIGNED, "c_int", "int"),
-    "UINT": ScalarType("unsigned int", _UNSIGNED, "c_uint", "uint"),
-    "LONG": ScalarType("long", _SIGNED, "c_long", "long"),
-    "ULONG": ScalarType("unsigned long", _UNSIGNED, "c_ulong", "ulong"),
-    "LONGLONG": ScalarType("long long", _SIGNED, "c_longlong", "llong"),
-    "ULONGLONG": ScalarType("unsigned long long", _UNSIGNED, "c_ulonglong", "ullong"),
-    "FLOAT": ScalarType("float", _FLOATING, "c_float", "float"),
-    "DOUBLE": ScalarType("double", _FLOATING, "c_double", "double"),
+    "BOOL": ScalarType("bool", TypeCategory.BOOL, "bool"),
+    "SCHAR": ScalarType("signed char", _SIGNED, "schar"),
+    "UCHAR": ScalarType("unsigned char", _UNSIGNED, "uchar"),
+    "SHORT": ScalarType("short", _SIGNED, "short"),
+    "USHORT": ScalarType("unsigned short", _UNSIGNED, "ushort"),
+    "INT": ScalarType("int", _SIGNED, "int"),
+    "UINT": ScalarType("unsigned int", _UNSIGNED, "uint"),
+    "LONG": ScalarType("long", _SIGNED, "long"),
+    "ULONG": ScalarType("unsigned long", _UNSIGNED, "ulong"),
+    "LONGLONG": ScalarType("long long", _SIGNED, "llong"),
+    "ULONGLONG": ScalarType("unsigned long long", _UNSIGNED, "ullong"),
+    "FLOAT": ScalarType("float", _FLOATING, "float"),
+    "DOUBLE": ScalarType("double", _FLOATING, "double"),
 }
 
 _SIGNED_INTEGER_KINDS = frozenset({"SCHAR", "SHORT", "INT", "LONG", "LONGLONG"})
@@ -56,7 +56,7 @@ class _StandardTypedef:
 
 def _fixed(name: str, category: TypeCategory, size: int) -> _StandardTypedef:
     token = name.removesuffix("_t")
-    return _StandardTypedef(ScalarType(name, category, f"c_{token}", token), size)
+    return _StandardTypedef(ScalarType(name, category, token), size)
 
 
 # Typedefs from <cstdint>/<cstddef> that are kept by name. Their canonical
@@ -72,7 +72,7 @@ STANDARD_TYPEDEFS: dict[str, _StandardTypedef] = {
     "uint16_t": _fixed("uint16_t", _UNSIGNED, 2),
     "uint32_t": _fixed("uint32_t", _UNSIGNED, 4),
     "uint64_t": _fixed("uint64_t", _UNSIGNED, 8),
-    "size_t": _StandardTypedef(ScalarType("size_t", _UNSIGNED, "c_size_t", "size"), None),
+    "size_t": _StandardTypedef(ScalarType("size_t", _UNSIGNED, "size"), None),
 }
 
 # Reasons for rejecting types, keyed by libclang TypeKind name.

@@ -36,9 +36,11 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from .ffi import PyBinding, binding, ctypes_scalar
 from .lower import (
     build_callable,
     callback_thunk_name,
+    class_name,
     enum_ctypes,
     enum_type,
     handle,
@@ -130,6 +132,11 @@ class PyStruct(PlanView):
     @property
     def init(self) -> CFunction:
         return self.plan.init
+
+    @property
+    def init_binding(self) -> PyBinding:
+        """The signature of its init function, declared in ``_types.py``."""
+        return binding(self.plan.init, local=True)
 
     @property
     def mirror(self) -> str:
@@ -266,6 +273,13 @@ class PyHeader(PlanView):
         return self.plan.struct_inits
 
     @property
+    def bindings(self) -> tuple[PyBinding, ...]:
+        """The signatures of the C functions of this header (the init functions of
+        the value structs are declared in ``_types.py``)."""
+        inits = set(self.plan.struct_inits)
+        return tuple(binding(f) for f in self.plan.c_functions if f not in inits)
+
+    @property
     def classes(self) -> tuple[PyClass, ...]:
         return tuple(item for item in self.items if isinstance(item, PyClass))
 
@@ -355,7 +369,7 @@ def _thunk_argument(part: CallbackPart, local: str) -> tuple[list[str], list[str
         mirror = f"_{part.struct.c_type}"
         return [f"ctypes.POINTER({mirror})"], [local], f"{mirror}__from_c({local}.contents)"
     assert isinstance(type_, ScalarType)
-    return [f"ctypes.{type_.ctypes_name}"], [local], local
+    return [f"ctypes.{ctypes_scalar(type_.c_name)}"], [local], local
 
 
 def _thunk_result(part: CallbackPart) -> tuple[str, tuple[str, ...]] | None:
@@ -379,7 +393,7 @@ def _thunk_result(part: CallbackPart) -> tuple[str, tuple[str, ...]] | None:
     assert isinstance(type_, ScalarType)
     if type_.is_void:
         return None
-    ctypes_type = f"ctypes.{type_.ctypes_name}"
+    ctypes_type = f"ctypes.{ctypes_scalar(type_.c_name)}"
     if type_.category is TypeCategory.BOOL:
         return ctypes_type, ("_runtime.to_bool", "_value", "_name", what)
     if type_.category is TypeCategory.FLOATING:
@@ -603,7 +617,7 @@ class _Lowering:
 
         else:
             assert isinstance(type_, ScalarType)
-            c_type, ctypes_element = type_.c_name, f"ctypes.{type_.ctypes_name}"
+            c_type, ctypes_element = type_.c_name, f"ctypes.{ctypes_scalar(type_.c_name)}"
             annotation = {
                 TypeCategory.BOOL: "bool",
                 TypeCategory.FLOATING: "float",
@@ -691,7 +705,7 @@ class _Lowering:
 
     def _class(self, plan: ClassPlan, header: HeaderPlan) -> PyClass:
         model = plan.model
-        py_name = naming.module_level_name(naming.python_name(model.name))
+        py_name = class_name(model.name)
         cpp_name = "::" + model.qualified_name
         constructors: list[PyCallable] = []
         for constructor in plan.constructors:
@@ -725,7 +739,7 @@ class _Lowering:
         bases: list[str] = []
         modules: list[str] = []
         for base in plan.bases:
-            base_name = naming.module_level_name(base.model.name)
+            base_name = class_name(base.model.name)
             if base.header.stem == header.stem:
                 bases.append(base_name)
             else:

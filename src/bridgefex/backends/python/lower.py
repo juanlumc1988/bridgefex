@@ -36,6 +36,7 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
+from .ffi import ctypes_scalar
 from .model import PyArg, PyCallable, PyResult
 
 
@@ -45,7 +46,7 @@ def enum_type(enum: EnumPlan) -> str:
 
 
 def enum_ctypes(enum: EnumPlan) -> str:
-    return f"ctypes.{enum.model.underlying.ctypes_name}"
+    return f"ctypes.{ctypes_scalar(enum.model.underlying.c_name)}"
 
 
 def struct_mirror(struct: StructPlan) -> str:
@@ -63,8 +64,8 @@ def scalar_check(value: str, scalar: ScalarType, name: str) -> str:
     if scalar.category is TypeCategory.BOOL:
         return f"_runtime.to_bool({value}, {name})"
     if scalar.category is TypeCategory.FLOATING:
-        return f"_runtime.to_float({value}, ctypes.{scalar.ctypes_name}, {name})"
-    return f"_runtime.to_int({value}, ctypes.{scalar.ctypes_name}, {name})"
+        return f"_runtime.to_float({value}, ctypes.{ctypes_scalar(scalar.c_name)}, {name})"
+    return f"_runtime.to_int({value}, ctypes.{ctypes_scalar(scalar.c_name)}, {name})"
 
 
 def scalar_conversion(name: str, scalar: ScalarType) -> str:
@@ -77,12 +78,18 @@ def check_object(name: str, py_class: str, nullable: bool) -> str:
     return f'_runtime.check_object({name}, {py_class}, "{name}"{suffix})'
 
 
+def class_name(name: str) -> str:
+    """The name of a wrapped class in the module of its header."""
+    return naming.module_level_name(naming.python_name(name))
+
+
 def py_class(info: ClassInfo, header_stem: str | None) -> tuple[str, tuple[str, ...]]:
     """The Python expression of a class, and the module (stem) to import for it
     when it belongs to another header than the one being generated."""
+    name = class_name(info.model.name)
     if header_stem is None or info.header.stem == header_stem:
-        return info.py_name, ()
-    return f"{naming.module_alias(info.header.stem)}.{info.py_name}", (info.header.stem,)
+        return name, ()
+    return f"{naming.module_alias(info.header.stem)}.{name}", (info.header.stem,)
 
 
 def handle(c_type: str, is_base: bool, obj: str, *, writable: bool) -> str:
@@ -158,12 +165,12 @@ def element(spec: ElementSpec) -> PyElement:
     is_bytes = type_.c_name in ("uint8_t", "unsigned char")
     return PyElement(
         py_in=(
-            f'_runtime.to_array({{name}}, ctypes.{type_.ctypes_name}, "{{name}}", '
+            f'_runtime.to_array({{name}}, ctypes.{ctypes_scalar(type_.c_name)}, "{{name}}", '
             f"_runtime.{check}{', True' if is_bytes else ''})"
         ),
         py_read="_runtime.array_items",
         py_value="{data}",
-        ctypes_out=f"ctypes.{type_.ctypes_name}",
+        ctypes_out=f"ctypes.{ctypes_scalar(type_.c_name)}",
     )
 
 
@@ -425,7 +432,7 @@ def lower_result(
         )
         return result, ("_out", "_out_size")
     assert isinstance(type_, ScalarType)
-    result = PyResult(setup=(f"_out = ctypes.{type_.ctypes_name}()",), value="_out.value")
+    result = PyResult(setup=(f"_out = ctypes.{ctypes_scalar(type_.c_name)}()",), value="_out.value")
     return result, ("_out",)
 
 
@@ -458,7 +465,7 @@ def _object_result(
     info = spec.cls
     assert info is not None
     class_expression, imports = py_class(info, header_stem)
-    pointer = f"_types.{info.pointer_name}"
+    pointer = f"_types._{info.c_type}__p"
     borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
         spec.ownership == "borrowed"
     )

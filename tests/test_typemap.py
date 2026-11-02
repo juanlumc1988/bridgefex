@@ -11,26 +11,26 @@ from bridgefex.typemap import UnsupportedTypeError, resolve, typedef_name
 
 
 @pytest.mark.parametrize(
-    ("kind", "c_name", "ctypes_name", "token"),
+    ("kind", "c_name", "token"),
     [
-        ("BOOL", "bool", "c_bool", "bool"),
-        ("SCHAR", "signed char", "c_byte", "schar"),
-        ("UCHAR", "unsigned char", "c_ubyte", "uchar"),
-        ("SHORT", "short", "c_short", "short"),
-        ("USHORT", "unsigned short", "c_ushort", "ushort"),
-        ("INT", "int", "c_int", "int"),
-        ("UINT", "unsigned int", "c_uint", "uint"),
-        ("LONG", "long", "c_long", "long"),
-        ("ULONG", "unsigned long", "c_ulong", "ulong"),
-        ("LONGLONG", "long long", "c_longlong", "llong"),
-        ("ULONGLONG", "unsigned long long", "c_ulonglong", "ullong"),
-        ("FLOAT", "float", "c_float", "float"),
-        ("DOUBLE", "double", "c_double", "double"),
+        ("BOOL", "bool", "bool"),
+        ("SCHAR", "signed char", "schar"),
+        ("UCHAR", "unsigned char", "uchar"),
+        ("SHORT", "short", "short"),
+        ("USHORT", "unsigned short", "ushort"),
+        ("INT", "int", "int"),
+        ("UINT", "unsigned int", "uint"),
+        ("LONG", "long", "long"),
+        ("ULONG", "unsigned long", "ulong"),
+        ("LONGLONG", "long long", "llong"),
+        ("ULONGLONG", "unsigned long long", "ullong"),
+        ("FLOAT", "float", "float"),
+        ("DOUBLE", "double", "double"),
     ],
 )
-def test_builtin_types(kind: str, c_name: str, ctypes_name: str, token: str) -> None:
+def test_builtin_types(kind: str, c_name: str, token: str) -> None:
     scalar = resolve(kind, c_name, kind, 0)
-    assert (scalar.c_name, scalar.ctypes_name, scalar.token) == (c_name, ctypes_name, token)
+    assert (scalar.c_name, scalar.token) == (c_name, token)
 
 
 def test_builtin_tokens_are_unique() -> None:
