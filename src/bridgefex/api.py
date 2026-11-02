@@ -121,7 +121,7 @@ def generate(headers: Sequence[Path], options: Options) -> Result:
         LibclangError: libclang cannot be used.
         GenerationError: the headers contain errors or unsupported constructs.
     """
-    naming.check_module_name(options.module)
+    naming.check_module_name(options.module, reservations().module_problem)
     if not headers:
         raise ConfigurationError("no input headers")
     # A -std in --clang-arg comes later on the command line, so it wins.

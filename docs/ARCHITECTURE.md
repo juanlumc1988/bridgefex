@@ -31,11 +31,12 @@ headers ──parser (libclang)──▶ model.Module ──build_plan──▶ 
 | A language | `backends/<name>/` | the plan, and that language only |
 | The checks | `verify` | libclang, and the checks the backends provide |
 
-`tests/test_architecture.py` enforces the layering by reading the source: the plan
-and the templates of the C layer contain no word that names a language, no neutral
-module imports `bridgefex.backends`, and a backend imports nothing but the plan,
-the model, `naming`, `typemap`, `errors`, `rendering` and itself. A backend never
-calls the parser, the generator or another backend.
+`tests/test_architecture.py` enforces the layering by reading the source: the
+model, the plan, the naming rules and the templates of the C layer contain no word
+that names a language, no neutral module imports `bridgefex.backends`, and a
+backend imports nothing but the plan, the model, `naming`, `typemap`, `errors`,
+`rendering` and itself. A backend never calls the parser, the generator or another
+backend.
 
 ## The plan
 
@@ -73,13 +74,24 @@ headers) exist so that bindings and library agree: the render function gets the
 fingerprint, embeds it, and the generated code refuses to load a library built from
 another version of the API.
 
-The C parameters of a function must not collide with names that a binding uses
-unqualified. Each backend declares those names in `Backend.reservations`
-(`Reservations.names(module)`: the classes and module aliases of the bindings;
-`Reservations.locals(count)`: the local variables of a generated function), and
+The names of the C API must not collide with what a binding uses, and the C API
+is the same whichever languages are generated. So each backend declares, in
+`Backend.reservations` (a `Reservations`), what it needs left alone:
+
+- `words`: the keywords of the language, which no parameter, member or field takes;
+- `parameter_words`: the names the bindings use for the parameters and locals of
+  their functions, which no parameter takes;
+- `names(module)`: the classes and module aliases the bindings use unqualified;
+- `locals(count)`: the local variables of a generated function of `count` parameters;
+- `module_problem(name)` and `header_problem(stem)`: why the bindings cannot be
+  named like the module, or have a module for a header (a standard library module,
+  a name the package defines...).
+
 `api.generate` passes the union of **all** registered backends to `build_plan`,
-whichever languages are selected. That keeps the C API identical whatever is
-generated on top of it.
+whichever languages are selected, so the C API never depends on that choice. A
+backend can also rename in its own lowering (a keyword of its language becomes
+`@event` or `r#type`) and declare nothing: the reservations are for names that the
+C API shares with the bindings, like the keyword arguments of the Python bindings.
 
 ## A backend
 

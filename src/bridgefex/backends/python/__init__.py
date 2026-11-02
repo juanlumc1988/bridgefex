@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ... import naming
 from ...model import Class, Module
 from ...plan import ModulePlan, Reservations
 from ...rendering import Renderer
@@ -13,6 +12,7 @@ from ..base import Backend
 from .check import check
 from .lower import class_name
 from .module import PyClass, PyEnum, PyFunction, PyHandle, PyStruct, lower
+from .naming import KEYWORDS, PARAMETER_NAMES, header_problem, module_alias, module_problem
 
 _TEMPLATES = Path(__file__).parent / "templates"
 
@@ -50,7 +50,7 @@ def _reserved_names(module: Module) -> frozenset[str]:
         for declaration in header.declarations
         if isinstance(declaration, Class)
     }
-    return frozenset(classes | {naming.module_alias(header.stem) for header in module.headers})
+    return frozenset(classes | {module_alias(header.stem) for header in module.headers})
 
 
 def _reserved_locals(count: int) -> frozenset[str]:
@@ -60,4 +60,16 @@ def _reserved_locals(count: int) -> frozenset[str]:
     return frozenset({"_c"} | {f"_h{position}" for position in range(1, 3 * count + 5)})
 
 
-BACKEND = Backend("python", render, Reservations(_reserved_names, _reserved_locals), check=check)
+BACKEND = Backend(
+    "python",
+    render,
+    Reservations(
+        words=KEYWORDS,
+        parameter_words=PARAMETER_NAMES,
+        names=_reserved_names,
+        locals=_reserved_locals,
+        module_problem=module_problem,
+        header_problem=header_problem,
+    ),
+    check=check,
+)

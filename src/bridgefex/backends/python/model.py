@@ -7,8 +7,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from ... import naming
 from ...plan import CFunction
+from .naming import module_alias
 
 # Longest line written in one piece in the generated Python code.
 MAX_LINE_LENGTH = 99
@@ -133,7 +133,7 @@ class PyCallable:
         """The ``from . import`` statements of the modules of other headers."""
         stems = dict.fromkeys(stem for arg in self.args for stem in arg.imports)
         stems.update(dict.fromkeys(self.result.imports))
-        return tuple(f"from . import {stem} as {naming.module_alias(stem)}" for stem in stems)
+        return tuple(f"from . import {stem} as {module_alias(stem)}" for stem in stems)
 
     def retain_statements(self, owner: str = "self") -> tuple[str, ...]:
         """The statements that keep alive the arguments that the C++ code keeps a

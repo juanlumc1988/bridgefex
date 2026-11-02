@@ -11,7 +11,6 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Sequence
 
-from ... import naming
 from ...model import (
     CallbackType,
     ClassForm,
@@ -38,6 +37,7 @@ from ...plan import (
 )
 from .ffi import ctypes_scalar
 from .model import PyArg, PyCallable, PyResult
+from .naming import module_alias, module_level_name, python_name
 
 
 def enum_type(enum: EnumPlan) -> str:
@@ -80,7 +80,7 @@ def check_object(name: str, py_class: str, nullable: bool) -> str:
 
 def class_name(name: str) -> str:
     """The name of a wrapped class in the module of its header."""
-    return naming.module_level_name(naming.python_name(name))
+    return module_level_name(python_name(name))
 
 
 def py_class(info: ClassInfo, header_stem: str | None) -> tuple[str, tuple[str, ...]]:
@@ -89,7 +89,7 @@ def py_class(info: ClassInfo, header_stem: str | None) -> tuple[str, tuple[str, 
     name = class_name(info.model.name)
     if header_stem is None or info.header.stem == header_stem:
         return name, ()
-    return f"{naming.module_alias(info.header.stem)}.{name}", (info.header.stem,)
+    return f"{module_alias(info.header.stem)}.{name}", (info.header.stem,)
 
 
 def handle(c_type: str, is_base: bool, obj: str, *, writable: bool) -> str:

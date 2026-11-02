@@ -1,12 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Naming rules for the generated C and Python code."""
+"""Naming rules for the generated C code and the names the bindings must leave alone."""
 
 from __future__ import annotations
 
-import keyword
 import re
-import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 from .errors import ConfigurationError
 from .typemap import STANDARD_TYPEDEFS
@@ -54,70 +52,37 @@ _COMMON_MACROS = frozenset(
     """.split()
 )
 
-# Names that the generated code uses for its own parameters, locals and globals.
+# Names that the generated C code uses for its own parameters and locals.
 _GENERATED_PARAMETER_NAMES = frozenset(
-    """
-    self cls out_self out_result out_result_size ctypes weakref threading _builtins _runtime
-    _types _lib _bind _bind_lock _out _out_size _out_data _handle _self _item _scope _status _result
-    """.split()
+    "self out_self out_result out_result_size _out _item _result".split()
 )
 
 RESERVED_PARAMETER_NAMES = (
-    frozenset(keyword.kwlist)
-    | KEYWORDS
+    KEYWORDS
     | _COMMON_MACROS
     | _GENERATED_PARAMETER_NAMES
     # The generated C prototypes spell these types unqualified.
     | frozenset(STANDARD_TYPEDEFS)
 )
 
-# Members that every generated Python class defines.
-RESERVED_MEMBER_NAMES = frozenset(
-    """
-    close _watch _adopt _ptr _mptr _collected _handle _finalizer _owned _owners _readonly
-    _retained __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
-    """.split()
-)
 
-# Globals of every generated per-header Python module, and the builtins that
-# close() names directly (it cannot use _builtins at interpreter exit). weakref,
-# _sys, _watch and _watchers are not generated any more, but stay reserved so
-# that the names already given to C++ declarations do not change.
-MODULE_GLOBALS = frozenset(
-    """
-    ctypes weakref threading _builtins _sys _runtime _types _lib _bind _bind_lock _watch
-    _watchers
-    __all__ AttributeError IndexError
-    """.split()
-)
-
-# Names defined by the generated package's __init__.py. A header with one of
-# these names would make a submodule that replaces them.
-PACKAGE_NAMES = frozenset(
-    """
-    load Error OK ERROR_EXCEPTION ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT
-    ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
-    """.split()
-)
-
-
-def check_module_name(name: str) -> str:
+def check_module_name(name: str, problem: Callable[[str], str | None] | None = None) -> str:
     """Validate the module name, which prefixes every runtime symbol.
 
-    It must be a lowercase identifier that is valid in C, C++ and Python.
+    It must be a lowercase identifier that is valid in C and C++, and that the
+    bindings can use: ``problem`` says why they cannot (see
+    :class:`bridgefex.plan.Reservations`).
     """
     if not _MODULE_NAME.fullmatch(name):
         raise ConfigurationError(
             f"invalid module name '{name}': use lowercase letters, digits and single '_' "
             "between them, starting with a letter"
         )
-    if name in KEYWORDS or keyword.iskeyword(name):
+    if name in KEYWORDS:
         raise ConfigurationError(f"invalid module name '{name}': it is a keyword")
-    if name in sys.stdlib_module_names:
-        raise ConfigurationError(
-            f"invalid module name '{name}': the Python package would shadow the standard "
-            "library module of the same name"
-        )
+    reason = problem(name) if problem is not None else None
+    if reason is not None:
+        raise ConfigurationError(f"invalid module name '{name}': {reason}")
     return name
 
 
@@ -137,7 +102,7 @@ def header_guard(module: str, stem: str) -> str:
 
 
 def is_identifier(name: str) -> bool:
-    """True for an ASCII identifier, valid in C, C++ and Python."""
+    """True for an ASCII identifier, valid in C and C++."""
     return _IDENTIFIER.fullmatch(name) is not None
 
 
@@ -152,30 +117,23 @@ def c_identifier_problem(name: str) -> str | None:
     return None
 
 
-def module_alias(stem: str) -> str:
-    """The name that the generated modules give the module of a header: ``_<stem>``,
-    unless that is a global of theirs (``types.h`` would hide ``_types``)."""
-    return f"_{stem}_" if f"_{stem}" in MODULE_GLOBALS else f"_{stem}"
-
-
-def check_header_stem(stem: str) -> str:
+def check_header_stem(stem: str, problem: Callable[[str], str | None] | None = None) -> str:
     """Validate a header file name (without extension).
 
-    It names the generated files and the Python module, so it must be an
-    identifier, and it must not replace a name of the generated package.
+    It names the generated files, so it must be an identifier; and the bindings
+    must be able to give a module to it: ``problem`` says why they cannot (see
+    :class:`bridgefex.plan.Reservations`).
     """
-    if not _IDENTIFIER.fullmatch(stem) or keyword.iskeyword(stem):
+    if not _IDENTIFIER.fullmatch(stem) or stem in KEYWORDS:
         raise ConfigurationError(
             f"cannot use header name '{stem}': it must be a valid identifier "
-            "(letters, digits and '_') because it names the generated Python module"
+            "(letters, digits and '_') that is not a keyword"
         )
     if stem.startswith("_"):
         raise ConfigurationError(f"cannot use header name '{stem}': it must not start with '_'")
-    if stem in PACKAGE_NAMES:
-        raise ConfigurationError(
-            f"cannot use header name '{stem}': its Python module would replace "
-            f"'{stem}' of the generated package"
-        )
+    reason = problem(stem) if problem is not None else None
+    if reason is not None:
+        raise ConfigurationError(f"cannot use header name '{stem}': {reason}")
     return stem
 
 
@@ -196,11 +154,6 @@ def overload_suffix(tokens: Sequence[str]) -> str:
     return "_" + "_".join(tokens)
 
 
-def python_name(name: str) -> str:
-    """Make a C++ name usable as a Python name (``lambda`` becomes ``lambda_``)."""
-    return f"{name}_" if keyword.iskeyword(name) else name
-
-
 def unique_name(candidate: str, taken: Iterable[str]) -> str:
     """``candidate``, else with a trailing ``_``, else with a number (``x2``,
     ``x3``...): never ``__``, which C and C++ reserve."""
@@ -214,27 +167,11 @@ def unique_name(candidate: str, taken: Iterable[str]) -> str:
     return f"{candidate}{number}"
 
 
-def _avoid(candidate: str, taken: frozenset[str]) -> str:
-    while candidate in taken:
-        candidate += "_"
-    return candidate
-
-
-def member_name(name: str, reserved: Iterable[str] = ()) -> str:
-    """Python name of a class member, avoiding the names of generated members."""
-    return _avoid(python_name(name), RESERVED_MEMBER_NAMES | frozenset(reserved))
-
-
-def module_level_name(name: str, reserved: Iterable[str] = ()) -> str:
-    """Python name of a class or function, avoiding the generated module globals."""
-    return _avoid(python_name(name), MODULE_GLOBALS | frozenset(reserved))
-
-
 def parameter_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple[str, ...]:
-    """Names of the parameters in the generated C and Python code.
+    """Names of the parameters in the generated C code and the bindings.
 
     Unnamed parameters become ``arg1``, ``arg2``...; names that clash with a
-    keyword of C, C++ or Python, a common macro, a type name or a name used
+    keyword of C or C++, a common macro, a type name or a name used
     by the generated code, or with the names in ``reserved``, are made unique
     with :func:`unique_name` (a trailing ``_`` first). The result has no
     duplicates.
@@ -290,45 +227,11 @@ def derived_names(
     return tuple(result)
 
 
-# Names that an IntEnum member cannot take: 'mro' makes the class creation
-# fail, the others would hide the int method of every member. Fixed, not
-# computed from the running Python, so that the output does not depend on it.
-_ENUM_MEMBER_RESERVED = frozenset(
-    "mro as_integer_ratio bit_count bit_length conjugate from_bytes is_integer to_bytes".split()
-)
-
-
-def enum_member_name(name: str) -> str:
-    """Python name of an enumerator in an IntEnum (``None`` becomes ``None_``)."""
-    if keyword.iskeyword(name) or name in _ENUM_MEMBER_RESERVED:
-        return f"{name}_"
-    return name
-
-
-# Names that ctypes gives a meaning to in a Structure subclass.
-_CTYPES_STRUCTURE_NAMES = frozenset(
-    "_fields_ _anonymous_ _pack_ _align_ _layout_ _swappedbytes_".split()
-)
-
-_FIELD_RESERVED = (
-    frozenset(keyword.kwlist) | KEYWORDS | _COMMON_MACROS | frozenset(STANDARD_TYPEDEFS)
-)
+_FIELD_RESERVED = KEYWORDS | _COMMON_MACROS | frozenset(STANDARD_TYPEDEFS)
 
 
 def field_names(names: Sequence[str], reserved: Iterable[str] = ()) -> tuple[str, ...]:
-    """Names of the members of a value struct in its C mirror and its Python
-    dataclass: like :func:`parameter_names`, without the names that only
+    """Names of the members of a value struct in its C mirror and in the bindings:
+    like :func:`parameter_names`, without the names that only
     parameters avoid (``self``, ``out_result``...)."""
     return _unique_names(names, _FIELD_RESERVED | frozenset(reserved))
-
-
-def ctypes_field_names(names: Sequence[str]) -> tuple[str, ...]:
-    """Names of the members in the ctypes mirror: ``_fields_`` and the other names
-    that ctypes reads from the class get a trailing ``_``."""
-    result: list[str] = []
-    for name in names:
-        candidate = name
-        if candidate in _CTYPES_STRUCTURE_NAMES:
-            candidate = unique_name(candidate + "_", frozenset(names) | frozenset(result))
-        result.append(candidate)
-    return tuple(result)

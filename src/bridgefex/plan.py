@@ -66,9 +66,16 @@ class Role(Enum):
 
 @dataclass(frozen=True, slots=True)
 class Reservations:
-    """Names that the C functions leave alone because a language backend uses them:
-    the generated C API is the same whichever languages are generated, so every
-    backend says which names it needs."""
+    """What the language backends need of the names of the C API: the generated C API
+    is the same whichever languages are generated, so every backend says which names
+    it uses, and the plan leaves them alone."""
+
+    words: frozenset[str] = frozenset()
+    """Names that no parameter, member or field takes: the keywords of the language."""
+
+    parameter_words: frozenset[str] = frozenset()
+    """Names that no parameter takes: those that the bindings use for the parameters
+    and the locals of their functions."""
 
     names: Callable[[Module], frozenset[str]] = lambda module: frozenset()
     """For a module: the names a parameter or a member must not take, because the
@@ -78,12 +85,26 @@ class Reservations:
     """For a function with this many parameters: the local variables of the bindings
     of it, which a parameter must not hide."""
 
+    module_problem: Callable[[str], str | None] = lambda name: None
+    """Why the bindings cannot be named like the module (``name``), or None."""
+
+    header_problem: Callable[[str], str | None] = lambda stem: None
+    """Why the bindings cannot have a module for a header called ``stem``, or None."""
+
     @staticmethod
     def merge(reservations: Iterable[Reservations]) -> Reservations:
         items = tuple(reservations)
+
+        def first(problems: Iterable[str | None]) -> str | None:
+            return next((problem for problem in problems if problem), None)
+
         return Reservations(
+            words=frozenset().union(*(item.words for item in items)),
+            parameter_words=frozenset().union(*(item.parameter_words for item in items)),
             names=lambda module: frozenset().union(*(item.names(module) for item in items)),
             locals=lambda count: frozenset().union(*(item.locals(count) for item in items)),
+            module_problem=lambda name: first(item.module_problem(name) for item in items),
+            header_problem=lambda stem: first(item.header_problem(stem) for item in items),
         )
 
 
@@ -1028,9 +1049,12 @@ class _Builder:
         # A parameter named like a macro without arguments would be replaced
         # by it: the generated macros and include guards, and the macros of the
         # wrapped headers (the generated source includes them first).
-        self._parameter_macros = self._macros | {
-            naming.header_guard(module.name, header.stem) for header in module.headers
-        }
+        # The keywords of the languages of the bindings are not names either.
+        self._parameter_macros = (
+            self._macros
+            | {naming.header_guard(module.name, header.stem) for header in module.headers}
+            | self._reservations.words
+        )
         for header in module.headers:
             self._parameter_macros |= header.names.object_macro_names
         self._overloads = self._count_overloads(module)
@@ -1478,6 +1502,7 @@ class _Builder:
             | frozenset(reserved)
             | _callback_locals(callbacks)
             | self._reservations.locals(len(parameters))
+            | self._reservations.parameter_words
         )
         cpp_names = [parameter.name for parameter in parameters]
         names = naming.parameter_names(cpp_names, taken)
@@ -2695,7 +2720,7 @@ class _Builder:
         )
 
     def build_header(self, header: Header) -> HeaderPlan:
-        stem = naming.check_header_stem(header.stem)
+        stem = naming.check_header_stem(header.stem, self._reservations.header_problem)
         guard = naming.header_guard(self.module.name, stem)
         self._reserve_c_name(guard, f"the include guard of the C header of {header.path}", None)
         internal_guard = f"{guard.removesuffix('_C_H')}_C_INTERNAL_HPP"
@@ -2834,7 +2859,7 @@ def build_plan(
         ConfigurationError: invalid module or header names.
         GenerationError: generated names clash.
     """
-    naming.check_module_name(module.name)
+    naming.check_module_name(module.name, (reservations or NO_RESERVATIONS).module_problem)
     builder = _Builder(module, annotations, reservations)
     # Compared without case: Windows and macOS file systems ignore it.
     generated_files = {

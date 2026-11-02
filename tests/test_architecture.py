@@ -90,9 +90,18 @@ def test_neutral_modules_do_not_import_the_backends(path: Path) -> None:
     assert not [name for name in imported if _is_inside(name, "bridgefex.backends")]
 
 
-def test_the_plan_knows_no_language() -> None:
-    text = (SOURCE / "plan.py").read_text(encoding="utf-8")
-    assert _words(text) & _LANGUAGE_WORDS == set()
+# They talk about the Python that runs bridgefex (the libclang bindings, the TOML
+# reader), not about a language of the bindings.
+_ABOUT_THE_TOOL = {"libclang", "annotations"}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [path for path in _neutral_modules() if path.stem not in _ABOUT_THE_TOOL],
+    ids=lambda path: path.name,
+)
+def test_the_neutral_code_knows_no_language(path: Path) -> None:
+    assert _words(path.read_text(encoding="utf-8")) & _LANGUAGE_WORDS == set()
 
 
 @pytest.mark.parametrize(

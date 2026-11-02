@@ -9,7 +9,6 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from ... import naming
 from ...errors import Diagnostic, GenerationError, Location
 from ...model import (
     ContainerType,
@@ -47,6 +46,14 @@ from .lower import (
     scalar_check,
 )
 from .model import PyCallable, python_call
+from .naming import (
+    ctypes_field_names,
+    enum_member_name,
+    member_name,
+    module_alias,
+    module_level_name,
+    python_name,
+)
 
 
 class PlanView:
@@ -307,9 +314,7 @@ class PyHeader(PlanView):
     @property
     def base_imports(self) -> tuple[str, ...]:
         """The imports of those, at module level (a base class is needed there)."""
-        return tuple(
-            f"from . import {stem} as {naming.module_alias(stem)}" for stem in self.base_modules
-        )
+        return tuple(f"from . import {stem} as {module_alias(stem)}" for stem in self.base_modules)
 
 
 # Callback thunks ---------------------------------------------------------------
@@ -504,7 +509,7 @@ class _Lowering:
                 lowered = self._struct(plan, header)
                 name = lowered.py_name
             elif isinstance(plan, EnumPlan):
-                name = naming.module_level_name(naming.python_name(plan.model.name))
+                name = module_level_name(python_name(plan.model.name))
                 lowered = self._enum(plan, header, name, name)
             else:
                 lowered = self._function(plan, header)
@@ -538,7 +543,7 @@ class _Lowering:
         names: dict[str, str] = {}
         enumerators: list[PyEnumerator] = []
         for enumerator in plan.enumerators:
-            py_name = naming.enum_member_name(enumerator.model_name)
+            py_name = enum_member_name(enumerator.model_name)
             if py_name in names:
                 self.errors.append(
                     Diagnostic(
@@ -561,9 +566,9 @@ class _Lowering:
 
     def _struct(self, plan: StructPlan, header: HeaderPlan) -> PyStruct:
         model = plan.model
-        name = naming.module_level_name(naming.python_name(model.name))
+        name = module_level_name(python_name(model.name))
         names = [field.name for field in plan.fields]
-        ctypes_names = naming.ctypes_field_names(names)
+        ctypes_names = ctypes_field_names(names)
         fields = tuple(
             self._field(field, ctypes_name)
             for field, ctypes_name in zip(plan.fields, ctypes_names, strict=True)
@@ -571,7 +576,7 @@ class _Lowering:
         taken = {field.name: field.model.location for field in plan.fields}
         enums: list[PyEnum] = []
         for enum in plan.enums:
-            py_name = naming.member_name(enum.model.name)
+            py_name = member_name(enum.model.name)
             if py_name in taken:
                 self.errors.append(
                     Diagnostic(
@@ -668,9 +673,7 @@ class _Lowering:
 
     def _function(self, plan: FunctionPlan, header: HeaderPlan) -> PyFunction:
         callable_plan = plan.callable
-        name = naming.module_level_name(
-            naming.python_name(callable_plan.name + callable_plan.suffix)
-        )
+        name = module_level_name(python_name(callable_plan.name + callable_plan.suffix))
         return PyFunction(plan, self._callable(name, callable_plan, header, leading=()))
 
     def _callable(
@@ -715,12 +718,12 @@ class _Lowering:
         taken: dict[str, Location] = {}
         enums: list[PyEnum] = []
         for enum in plan.enums:
-            enum_name = naming.member_name(enum.model.name, reserved=factory_names)
+            enum_name = member_name(enum.model.name, reserved=factory_names)
             taken[enum_name] = enum.model.location
             enums.append(self._enum(enum, header, enum_name, f"{py_name}.{enum_name}"))
         members: list[PyCallable] = []
         for member in plan.members:
-            name = naming.member_name(member.name + member.suffix, reserved=factory_names)
+            name = member_name(member.name + member.suffix, reserved=factory_names)
             if name in taken:
                 self.errors.append(
                     Diagnostic(
@@ -743,7 +746,7 @@ class _Lowering:
             if base.header.stem == header.stem:
                 bases.append(base_name)
             else:
-                bases.append(f"{naming.module_alias(base.header.stem)}.{base_name}")
+                bases.append(f"{module_alias(base.header.stem)}.{base_name}")
                 modules.append(base.header.stem)
         return PyClass(
             plan,
