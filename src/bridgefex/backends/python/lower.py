@@ -28,10 +28,12 @@ from ...model import (
 from ...plan import (
     CallbackPart,
     CallbackSpec,
+    CFunction,
     ClassInfo,
     ElementSpec,
     ParamSpec,
     PyArg,
+    PyCallable,
     PyResult,
     ResultSpec,
 )
@@ -469,3 +471,68 @@ def _object_result(
         imports=imports,
     )
     return result, ("_out",)
+
+
+# Functions ---------------------------------------------------------------------
+
+
+def build_callable(
+    name: str,
+    function: CFunction,
+    params: Sequence[ParamSpec],
+    result: ResultSpec | None,
+    *,
+    leading: Sequence[str] = (),
+    kind: str = "static",
+    module: str,
+    header_stem: str | None,
+) -> PyCallable:
+    """The Python function that calls a C function.
+
+    ``leading`` are the call arguments before the parameters (``self._ptr()``...).
+    ``kind`` is how the function belongs to its class: ``method``, ``constructor``
+    or ``static`` (also a free function): the object that keeps alive what the
+    objects taken retained.
+    """
+    call_args = [*leading]
+    transfers: list[tuple[str, str, str | None]] = []
+    args: list[PyArg] = []
+    for spec in params:
+        arg, passed = lower_param(spec, header_stem)
+        args.append(arg)
+        for value in passed:
+            if arg.transfer:
+                # Given up last, so that every failure comes first.
+                transfers.append((arg.name, f"_h{len(call_args) + 1}", arg.view))
+            call_args.append(value)
+    py_result, result_args = lower_result(
+        result, params, module=module, is_method=kind == "method", header_stem=header_stem
+    )
+    call_args += result_args
+    prepare: list[str] = []
+    if transfers:
+        # Every handle is read before any object is given up: a closed or
+        # read-only object must fail while nothing has been taken.
+        taken = {int(local[2:]) for _, local, _ in transfers}
+        for position, value in enumerate(call_args, start=1):
+            if position not in taken and "(" in value:
+                prepare.append(f"_h{position} = {value}")
+                call_args[position - 1] = f"_h{position}"
+        for position in taken:
+            call_args[position - 1] = f"_h{position}"
+    retained, keep = {
+        "method": ("self._retained", "self"),
+        "constructor": ("{owner}._retained", "{owner}"),
+        "static": ("_runtime.forever", None),
+    }[kind]
+    return PyCallable(
+        name,
+        function,
+        tuple(args),
+        tuple(call_args),
+        py_result,
+        prepare=tuple(prepare),
+        transfers=tuple(transfers),
+        retained=retained,
+        keep=keep,
+    )

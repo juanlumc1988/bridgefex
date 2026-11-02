@@ -3076,8 +3076,53 @@ class _Builder:
         )
         return function, lowered
 
-    @staticmethod
     def _python_callable(
+        self,
+        name: str,
+        function: CFunction,
+        params: Sequence[LoweredParam],
+        result: LoweredResult | None,
+        *,
+        leading: Sequence[str] = (),
+        kind: str = "static",
+    ) -> PyCallable:
+        legacy = self._legacy_python_callable(
+            name, function, params, result, leading=leading, kind=kind
+        )
+        self._check_python_callable(legacy, params, result, leading, kind)
+        return legacy
+
+    def _check_python_callable(
+        self,
+        legacy: PyCallable,
+        params: Sequence[LoweredParam],
+        result: LoweredResult | None,
+        leading: Sequence[str],
+        kind: str,
+    ) -> None:
+        """Temporary: the Python backend assembles the same function."""
+        from .backends.python.lower import build_callable  # noqa: PLC0415
+
+        specs = [param.spec for param in params]
+        if any(spec is None for spec in specs) or (
+            result is not None and result.c_params and result.spec is None
+        ):
+            return  # reported
+        header = self._header.stem if self._header is not None else None
+        expected = build_callable(
+            legacy.name,
+            legacy.function,
+            [spec for spec in specs if spec is not None],
+            result.spec if result is not None else None,
+            leading=leading,
+            kind=kind,
+            module=self.module.name,
+            header_stem=header,
+        )
+        assert expected == legacy, (expected, legacy)
+
+    @staticmethod
+    def _legacy_python_callable(
         name: str,
         function: CFunction,
         params: Sequence[LoweredParam],
