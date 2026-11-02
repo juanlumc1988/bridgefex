@@ -124,8 +124,8 @@ _callback__bool__int64__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_
 
 
 def _callback__bool__int64(_user_data, _arg1, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -134,7 +134,7 @@ def _callback__bool__int64(_user_data, _arg1, _out_result):
         _value = _function(_arg1)
         _out_result[0] = _runtime.to_bool(_value, _name, what="the result of callback")
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -146,8 +146,8 @@ _callback__double__double__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes
 
 
 def _callback__double__double(_user_data, _arg1, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -158,7 +158,7 @@ def _callback__double__double(_user_data, _arg1, _out_result):
             _value, ctypes.c_double, _name, what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -170,8 +170,8 @@ _callback__double__ev_Point__cstr__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p
 
 
 def _callback__double__ev_Point__cstr(_user_data, _arg1, _arg2, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -182,7 +182,7 @@ def _callback__double__ev_Point__cstr(_user_data, _arg1, _arg2, _out_result):
             _value, ctypes.c_double, _name, what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -194,8 +194,8 @@ _callback__ev_Level__int32__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctype
 
 
 def _callback__ev_Level__int32(_user_data, _arg1, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -206,7 +206,7 @@ def _callback__ev_Level__int32(_user_data, _arg1, _out_result):
             _value, ev_Level, ctypes.c_uint8, _name, None, what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -218,8 +218,8 @@ _callback__ev_Mode__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTE
 
 
 def _callback__ev_Mode(_user_data, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -230,7 +230,7 @@ def _callback__ev_Mode(_user_data, _out_result):
             _value, ev_Mode, ctypes.c_int, _name, (0, 3), what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -242,8 +242,8 @@ _callback__int32__int32__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c
 
 
 def _callback__int32__int32(_user_data, _arg1, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -254,7 +254,7 @@ def _callback__int32__int32(_user_data, _arg1, _out_result):
             _value, ctypes.c_int32, _name, what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -266,8 +266,8 @@ _callback__int32__string__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.
 
 
 def _callback__int32__string(_user_data, _arg1, _arg1_size, _out_result):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -278,7 +278,7 @@ def _callback__int32__string(_user_data, _arg1, _arg1_size, _out_result):
             _value, ctypes.c_int32, _name, what="the result of callback"
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -290,8 +290,8 @@ _callback__void__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
 def _callback__void(_user_data):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -299,7 +299,7 @@ def _callback__void(_user_data):
             return
         _function()
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -311,8 +311,8 @@ _callback__void__ev_Level__string__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p
 
 
 def _callback__void__ev_Level__string(_user_data, _arg1, _arg2, _arg2_size):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -322,7 +322,7 @@ def _callback__void__ev_Level__string(_user_data, _arg1, _arg2, _arg2_size):
             _runtime.enum_result(ev_Level, _arg1), _runtime.callback_string(_arg2, _arg2_size)
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -334,8 +334,8 @@ _callback__void__ev_Point__ev_Mode__type = ctypes.CFUNCTYPE(None, ctypes.c_void_
 
 
 def _callback__void__ev_Point__ev_Mode(_user_data, _arg1, _arg2):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -343,7 +343,7 @@ def _callback__void__ev_Point__ev_Mode(_user_data, _arg1, _arg2):
             return
         _function(_ev_Point__from_c(_arg1.contents), _runtime.enum_result(ev_Mode, _arg2))
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -355,8 +355,8 @@ _callback__void__int32__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_
 
 
 def _callback__void__int32(_user_data, _arg1):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -364,7 +364,7 @@ def _callback__void__int32(_user_data, _arg1):
             return
         _function(_arg1)
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -376,8 +376,8 @@ _callback__void__string__ev_Point__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p
 
 
 def _callback__void__string__ev_Point(_user_data, _arg1, _arg1_size, _arg2):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -385,7 +385,7 @@ def _callback__void__string__ev_Point(_user_data, _arg1, _arg1_size, _arg2):
             return
         _function(_runtime.callback_string(_arg1, _arg1_size), _ev_Point__from_c(_arg2.contents))
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 
@@ -397,8 +397,8 @@ _callback__void__string__string__string__type = ctypes.CFUNCTYPE(None, ctypes.c_
 
 
 def _callback__void__string__string__string(_user_data, _arg1, _arg1_size, _arg2, _arg2_size, _arg3, _arg3_size):
-    # Called by C++. An exception goes to the call that passed the callback,
-    # if it is still running (see _runtime.CallScope), else to sys.unraisablehook.
+    # Called by C++. An exception goes to the call that runs the callback, if it
+    # passes callbacks (see _runtime.fail_callback), else to sys.unraisablehook.
     _scope = None
     try:
         _function, _scope, _name = _runtime.callback_target(_user_data)
@@ -410,7 +410,7 @@ def _callback__void__string__string__string(_user_data, _arg1, _arg1_size, _arg2
             _runtime.callback_string(_arg3, _arg3_size),
         )
     except BaseException as _error:
-        if _scope is None or not _scope.fail(_error):
+        if not _runtime.fail_callback(_scope, _error):
             raise
 
 

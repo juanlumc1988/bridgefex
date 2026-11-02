@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import _thread
 import array
 import copy
 import ctypes
@@ -470,6 +471,67 @@ def fresh_runtime() -> Iterator[Callable[[], ModuleType]]:
     sys.unraisablehook = previous
     for name in names:
         del sys.modules[name]
+
+
+def _on_thread(function: Callable[[], object], foreign: bool = False) -> object:
+    """What ``function`` returns on a new thread. A foreign thread is one that
+    Python did not start, as the threads of C++ are."""
+    done = threading.Event()
+    result: list[object] = []
+
+    def run() -> None:
+        try:
+            result.append(function())
+        finally:
+            done.set()
+
+    if foreign:
+        _thread.start_new_thread(run, ())
+        assert done.wait(10)
+    else:
+        thread = threading.Thread(target=run)
+        thread.start()
+        thread.join()
+    return result[0]
+
+
+def test_a_callback_error_goes_to_the_call_that_runs_it(runtime: ModuleType) -> None:
+    passed = runtime.CallScope()  # this thread is inside the call that passed it
+    error = ValueError()
+    assert runtime.fail_callback(passed, error)
+    assert passed.error is error
+    passed.error = None
+
+    # Another thread, in a call without callbacks that runs a stored callback of
+    # `passed`: not its error, and `passed` goes on.
+    assert not _on_thread(lambda: runtime.fail_callback(passed, error))
+    assert passed.error is None
+
+    # In a call with callbacks: that call gets it, the innermost one.
+    def in_calls() -> tuple[object, object, object]:
+        outer, inner = runtime.CallScope(), runtime.CallScope()
+        try:
+            return runtime.fail_callback(passed, error), inner.error, outer.error
+        finally:
+            inner.close()
+            outer.close()
+
+    assert _on_thread(in_calls) == (True, error, None)
+    assert passed.error is None
+
+    # A thread that Python did not start runs no call of ours: the call that
+    # passed the callback gets it, even if threading has met the thread.
+    assert _on_thread(lambda: runtime.fail_callback(passed, error), foreign=True)
+    assert passed.error is error
+    passed.error = None
+    met = lambda: (threading.current_thread(), runtime.fail_callback(passed, error))[1]  # noqa: E731
+    assert _on_thread(met, foreign=True)
+    assert passed.error is error
+
+    # The call has returned: nobody.
+    passed.close()
+    assert not _on_thread(lambda: runtime.fail_callback(passed, error), foreign=True)
+    assert not runtime.fail_callback(None, error)
 
 
 def _unraisable(error: BaseException) -> object:

@@ -767,10 +767,11 @@ class CallScope:
     """A call of the bindings that passes callbacks.
 
     An exception raised by one of its callbacks while the call runs, on any
-    thread, is raised by the call when it returns; its remaining callbacks are
-    then skipped (C++ gets their default result). Once the call has returned,
-    an exception raised by a callback that C++ kept goes to sys.unraisablehook,
-    as for any ctypes callback.
+    thread that no other call runs on, is raised by the call when it returns;
+    its remaining callbacks are then skipped (C++ gets their default result).
+    Once the call has returned, an exception raised by a callback that C++ kept
+    goes to sys.unraisablehook, as for any ctypes callback; see fail_callback
+    for who gets the exception of a callback that another call runs.
     """
 
     __slots__ = ("_active", "_called", "_keys", "_stack", "error")
@@ -856,6 +857,36 @@ class CallScope:
                 )
             raise error
         check(status)
+
+
+_DummyThread = threading._DummyThread
+"""What ``threading`` makes of a thread that it did not start (a C++ thread)."""
+
+
+def _is_foreign_thread():
+    """True if the calling thread is not one of Python: C++ (or another
+    library) started it, so no call of the bindings can run on it."""
+    ident = threading.get_ident()
+    for thread in threading.enumerate():
+        if thread.ident == ident:
+            return isinstance(thread, _DummyThread)
+    return True
+
+
+def fail_callback(scope, error):
+    """Give the exception of a callback to the call that runs it; False if
+    there is none, and the exception goes to sys.unraisablehook.
+
+    The call that runs a callback is the innermost call with callbacks of the
+    thread, which is not always the one that passed it: C++ can store a
+    callback and run it in an unrelated call, on another thread. Only a thread
+    that Python did not start (a C++ thread, which runs no call of ours) gives
+    the exception to the call that passed the callback, if it still runs.
+    """
+    stack = getattr(_scopes, "stack", None)
+    if stack:
+        return stack[-1].fail(error)
+    return scope is not None and _is_foreign_thread() and scope.fail(error)
 
 
 class _InterruptForwarder:
