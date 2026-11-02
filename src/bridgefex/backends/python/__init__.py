@@ -10,6 +10,7 @@ from ...model import Class, Module
 from ...plan import ModulePlan, Reservations
 from ...rendering import Renderer
 from ..base import Backend
+from .check import check
 from .lower import class_name
 from .module import PyClass, PyEnum, PyFunction, PyHandle, PyStruct, lower
 
@@ -59,4 +60,4 @@ def _reserved_locals(count: int) -> frozenset[str]:
     return frozenset({"_c"} | {f"_h{position}" for position in range(1, 3 * count + 5)})
 
 
-BACKEND = Backend("python", render, Reservations(_reserved_names, _reserved_locals))
+BACKEND = Backend("python", render, Reservations(_reserved_names, _reserved_locals), check=check)

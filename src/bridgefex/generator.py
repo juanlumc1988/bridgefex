@@ -3,12 +3,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from pathlib import Path, PurePosixPath
+from collections.abc import Sequence
+from pathlib import Path
 
 from .backends import registry
 from .plan import ModulePlan, api_fingerprint
-from .rendering import Renderer
+from .rendering import Renderer, write_files
+
+__all__ = ["LANGUAGES", "render", "write_files"]
 
 LANGUAGES = tuple(registry())
 """Languages that bindings can be generated for, on top of the C layer."""
@@ -48,17 +50,3 @@ def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, 
     for language in languages:
         files.update(backends[language].render(plan, fingerprint))
     return files
-
-
-def write_files(files: Mapping[str, str], output: Path) -> list[Path]:
-    """Write generated files below ``output``; existing files are overwritten.
-
-    Files are written as UTF-8 with LF line endings on every platform.
-    """
-    written: list[Path] = []
-    for relative, content in files.items():
-        target = output.joinpath(*PurePosixPath(relative).parts)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content.encode("utf-8"))
-        written.append(target)
-    return written

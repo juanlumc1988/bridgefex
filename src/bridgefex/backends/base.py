@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
+from ..errors import Diagnostic
 from ..plan import NO_RESERVATIONS, ModulePlan, Reservations
 
 
@@ -20,3 +22,8 @@ class Backend:
 
     reservations: Reservations = NO_RESERVATIONS
     """The names that the C API leaves alone for the bindings."""
+
+    check: Callable[[ModulePlan, Mapping[str, str], Path], list[Diagnostic]] | None = None
+    """``check(plan, files, scratch)``: verifies the files of this backend before they
+    are written (compiles them, imports them...), writing what it needs below the
+    scratch directory. Returns the errors found."""

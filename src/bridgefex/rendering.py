@@ -5,7 +5,7 @@ and the backends."""
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import jinja2
 
@@ -70,3 +70,17 @@ class Renderer:
         context says another module object."""
         context.setdefault("m", self._plan)
         self.files[path] = tidy(self._environment.get_template(template).render(**context))
+
+
+def write_files(files: Mapping[str, str], output: Path) -> list[Path]:
+    """Write generated files below ``output``; existing files are overwritten.
+
+    Files are written as UTF-8 with LF line endings on every platform.
+    """
+    written: list[Path] = []
+    for relative, content in files.items():
+        target = output.joinpath(*PurePosixPath(relative).parts)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content.encode("utf-8"))
+        written.append(target)
+    return written

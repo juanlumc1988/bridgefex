@@ -34,7 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--lang",
-        choices=("python", "none"),
+        choices=(*generator.LANGUAGES, "none"),
         default="python",
         help="bindings generated on top of the C layer (default: python)",
     )

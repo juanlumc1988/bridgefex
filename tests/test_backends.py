@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 import bridgefex
@@ -37,3 +39,29 @@ def test_a_backend_only_writes_below_its_language() -> None:
 def test_an_unknown_language_is_refused() -> None:
     with pytest.raises(ValueError, match="unknown languages: csharp"):
         render(build_plan(Module("m", ())), ("csharp",))
+
+
+def _python_files() -> dict[str, str]:
+    return registry()["python"].render(build_plan(Module("m", ())), "0" * 32)
+
+
+def test_the_python_backend_checks_its_package(tmp_path: Path) -> None:
+    check = registry()["python"].check
+    assert check is not None
+    assert check(build_plan(Module("m", ())), _python_files(), tmp_path) == []
+
+
+def test_the_python_check_reports_code_that_does_not_compile(tmp_path: Path) -> None:
+    check = registry()["python"].check
+    assert check is not None
+    files = {**_python_files(), "python/m/_types.py": "def broken(:\n"}
+    (error,) = check(build_plan(Module("m", ())), files, tmp_path)
+    assert "the generated Python code does not compile: python/m/_types.py:1:" in error.message
+
+
+def test_the_python_check_reports_a_package_that_cannot_be_imported(tmp_path: Path) -> None:
+    check = registry()["python"].check
+    assert check is not None
+    files = {**_python_files(), "python/m/_types.py": "raise RuntimeError('boom')\n"}
+    (error,) = check(build_plan(Module("m", ())), files, tmp_path)
+    assert error.message == "the generated Python code cannot be imported: RuntimeError: boom"
