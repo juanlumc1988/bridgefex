@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with classes, overloads, exceptions and lifetimes
+# (see tests/conformance/scenarios.py).
+
+[[scenario]]
+name = "objects are created by overloaded constructors and count as alive"
+steps = [
+  { call = "counter.Counter.liveInstances", expect = 0 },
+  { new = "counter.Counter", overload = "_void", as = "first" },
+  { call = "first.value", expect = 0 },
+  { call = "first.isZero", expect = true },
+  { new = "counter.Counter", overload = "_int32", args = [41], as = "second" },
+  { call = "second.increment" },
+  { call = "second.value", expect = 42 },
+  { call = "second.isZero", expect = false },
+  { call = "counter.Counter.liveInstances", expect = 2 },
+  { close = "first" },
+  { call = "counter.Counter.liveInstances", expect = 1 },
+  { close = "second" },
+  { call = "counter.Counter.liveInstances", expect = 0 },
+]
+
+[[scenario]]
+name = "overloaded methods are told apart by the types of their parameters"
+steps = [
+  { new = "counter.Counter", overload = "_int32", args = [41], as = "c" },
+  { call = "c.add_int32", args = [-2] },
+  { call = "c.add_double", args = [0.6] },
+  { call = "c.value", expect = 40 },
+  { call = "c.add_int32", args = [-2147483647] },
+  { call = "c.add_int32", args = [2147483647] },
+  { call = "c.value", expect = 40 },
+  { call = "counter.multiply_int32_int32", args = [-3, 1073741824], expect = -3221225472 },
+]
+
+[[scenario]]
+name = "C++ exceptions become errors with the message and the kind of the exception"
+steps = [
+  { new = "counter.Counter", overload = "_int32", args = [41], as = "c" },
+  { call = "c.setLimit", args = [-1], error = "exception", message = "negative" },
+  { call = "c.setLimit", args = [41] },
+  { call = "c.limit", expect = 41 },
+  { call = "c.increment", error = "exception", message = "limit reached" },
+  { call = "c.fail", error = "unknown_exception" },
+  { call = "c.reserve", args = [42], error = "out_of_memory" },
+  { call = "c.reserve", args = [41] },
+  { call = "c.value", expect = 41 },
+]
+
+[[scenario]]
+name = "values that do not fit the C type are refused, not wrapped"
+steps = [
+  { new = "counter.Counter", overload = "_int32", args = [41], as = "c" },
+  { call = "c.add_int32", args = [2147483648], error = "range" },
+  { call = "c.add_int32", args = [-2147483649], error = "range" },
+  { call = "c.reserve", args = [-1], error = "range" },
+  { call = "c.value", expect = 41 },
+]
+
+[[scenario]]
+name = "a closed object refuses every use, and closing twice is harmless"
+steps = [
+  { new = "counter.Counter", overload = "_void", as = "c" },
+  { close = "c" },
+  { close = "c" },
+  { call = "c.value", error = "closed" },
+  { call = "c.increment", error = "closed" },
+  { call = "counter.Counter.liveInstances", expect = 0 },
+]
+
+[[scenario]]
+name = "a class of another header, with its own exceptions"
+steps = [
+  { new = "geometry.Circle", args = [2.0], as = "circle" },
+  { call = "circle.radius", expect = 2.0 },
+  { call = "circle.area", expect = 12.566370614359172, approx = 1e-12 },
+  { call = "circle.scale", args = [1.5] },
+  { call = "circle.radius", expect = 3.0 },
+  { call = "circle.scale", args = [0.0], error = "exception", message = "positive" },
+  { new = "geometry.Circle", args = [-1.0], error = "exception", message = "radius" },
+  { call = "geometry.distance", args = [0.0, 0.0, 3.0, 4.0], expect = 5.0 },
+  { call = "geometry.multiply_double_double", args = [1.5, 4.0], expect = 6.0 },
+]

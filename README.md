@@ -329,6 +329,7 @@ ruff check . && ruff format --check . && mypy
 - **Golden tests** compare the generated files with `tests/golden/<case>/expected` byte by byte.
 - **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC on Linux), for example with signals arriving during C calls.
 - **Standard tests** compile the generated code in every supported language standard.
+- **Conformance tests** (`tests/test_conformance.py`): `tests/golden/<case>/scenarios.toml` tells, in terms of the C++ API and not of any language, what the bindings must do (create objects, call, expect a result or a kind of failure). Each backend has a runner that plays the scenarios against the library built from the case; a backend without a runner fails the build. What a language does beyond that is tested in the `check_<language>` program of the case.
 - **Architecture tests** (`tests/test_architecture.py`) read the source to keep the layers apart: the plan and the templates of the C layer know no language, and a backend only reads the plan. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the code is split and how to add a language.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
 - **Verification**: before writing anything, bridgefex compiles the generated C++ sources against your headers and the C headers as C23 and as strict C99, with libclang, and compiles and imports the generated Python package.
@@ -350,7 +351,7 @@ Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/
 1. Prototype: classes, functions and scalar types; C layer and Python bindings; golden and round-trip tests. *(done)*
 2. More types: strings, enums, POD structs, containers, callbacks, and wrapped classes across headers with ownership annotations. *(done)*
 3. Python complete: the loose ends of the callbacks, and inheritance and virtual methods called from Python. *(done)*
-4. Language-neutral architecture: one plan with one backend per language *(done, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))*, and a conformance suite that every backend runs on the same golden headers.
+4. Language-neutral architecture: one plan with one backend per language, and a conformance suite that every backend runs on the same golden headers. *(done, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))*
 5. Classes of the target language that override the virtual methods of C++ ones. The part that is not Python's, a generated C++ subclass that calls back through a table of callbacks, belongs to the shared C layer, so it comes after the split of step 4.
 6. C# (P/Invoke), on that common base.
 7. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.

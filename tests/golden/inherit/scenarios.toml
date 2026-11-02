@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with inheritance and virtual methods
+# (see tests/conformance/scenarios.py).
+
+[[scenario]]
+name = "methods of the bases are inherited, and virtual calls run the override of the object"
+steps = [
+  { new = "shapes.Circle", args = [2.0], as = "circle" },
+  { call = "circle.area", expect = 12.0 },
+  { call = "circle.name", expect = "circle" },
+  { call = "circle.greeting", expect = "I am circle" },
+  { call = "circle.describe", expect = "circle: 12 units" },
+  { call = "circle.sides", expect = 0 },
+  { call = "circle.radius", expect = 2.0 },
+  { new = "shapes.Square", args = [3.0], as = "square" },
+  { call = "square.sides", expect = 4 },
+  { call = "square.name", expect = "square" },
+  { call = "square.describe", expect = "square: 9 units" },
+]
+
+[[scenario]]
+name = "a method of a derived class hides the one of its base"
+steps = [
+  { new = "shapes.Circle", args = [2.0], as = "circle" },
+  { call = "circle.scale", args = [2.0], expect = 4.0 },
+  { call = "circle.radius", expect = 4.0 },
+]
+
+[[scenario]]
+name = "three levels, and a derived object where a base is expected"
+steps = [
+  { new = "shapes.Ring", args = [10.0, 5.0], as = "ring" },
+  { call = "ring.area", expect = 225.0 },
+  { call = "ring.name", expect = "ring" },
+  { call = "ring.radius", expect = 10.0 },
+  { call = "ring.describe", expect = "ring: 225 units" },
+  { call = "ring.greeting", expect = "I am ring" },
+  { call = "shapes.call_name", args = [{ ref = "ring" }], expect = "I am ring" },
+  { call = "shapes.total_area", args = [{ ref = "ring" }, { ref = "ring" }], expect = 450.0 },
+  { call = "shapes.describe_first", args = [{ ref = "ring" }], expect = "ring: 225 units" },
+  { call = "shapes.grow", args = [{ ref = "ring" }, 2], expect = 450.0 },
+]
+
+[[scenario]]
+name = "objects that C++ returns as the base class run the code of what they are"
+steps = [
+  { call = "shapes.make_shape", args = [0, 3.0], as = "round" },
+  { call = "shapes.make_shape", args = [1, 3.0], as = "square" },
+  { call = "shapes.make_shape", args = [2, 3.0], as = "ring" },
+  { call = "round.name", expect = "circle" },
+  { call = "square.name", expect = "square" },
+  { call = "ring.name", expect = "ring" },
+  { call = "round.sides", expect = 0 },
+  { call = "square.sides", expect = 4 },
+  { call = "round.area", expect = 27.0 },
+  { call = "square.area", expect = 9.0 },
+  { call = "shapes.shapes_alive", expect = 3 },
+  { close = "round" },
+  { close = "square" },
+  { close = "ring" },
+  { call = "shapes.shapes_alive", expect = 0 },
+  { call = "shapes.make_shape", args = [9, 1.0], expect = { null = true } },
+]
+
+[[scenario]]
+name = "a borrowed result belongs to the objects it came from"
+steps = [
+  { new = "shapes.Circle", args = [1.0], as = "small" },
+  { new = "shapes.Square", args = [5.0], as = "big" },
+  { call = "shapes.largest", args = [{ ref = "small" }, { ref = "big" }], as = "chosen" },
+  { call = "chosen.name", expect = "square" },
+  { call = "chosen.sides", expect = 4 },
+  { close = "big" },
+  { call = "chosen.name", error = "closed" },
+]
+
+[[scenario]]
+name = "giving an object up as a std::unique_ptr of its base closes it"
+steps = [
+  { new = "shapes.Circle", args = [1.0], as = "circle" },
+  { call = "shapes.shapes_alive", expect = 1 },
+  { call = "shapes.consume", args = [{ ref = "circle" }], expect = 0 },
+  { call = "circle.area", error = "closed" },
+  { call = "shapes.shapes_alive", expect = 0 },
+  { call = "shapes.make_shape", args = [1, 1.0], as = "made" },
+  { call = "shapes.consume", args = [{ ref = "made" }], expect = 4 },
+  { call = "made.area", error = "closed" },
+  { call = "shapes.consume", args = [{ ref = "made" }], error = "closed" },
+  { call = "shapes.shapes_alive", expect = 0 },
+]
+
+[[scenario]]
+name = "with several bases, each of them is a different part of the object"
+steps = [
+  { new = "widget.Widget", as = "w" },
+  { call = "w.next", expect = 1 },
+  { call = "widget.bump", args = [{ ref = "w" }], expect = 2 },
+  { call = "w.count", expect = 2 },
+  { call = "widget.peek", args = [{ ref = "w" }], expect = 2 },
+  { call = "w.label", expect = "widget unnamed" },
+  { call = "w.setLabel", args = ["ab"] },
+  { call = "widget.name_of", args = [{ ref = "w" }], expect = "widget ab" },
+  { call = "w.both", expect = 209 },
+]
+
+[[scenario]]
+name = "the bases are classes of their own"
+steps = [
+  { new = "widget.Counter", as = "counter" },
+  { call = "widget.bump", args = [{ ref = "counter" }], expect = 1 },
+  { new = "widget.Labeled", overload = "_void", as = "plain" },
+  { call = "widget.name_of", args = [{ ref = "plain" }], expect = "unnamed" },
+  { new = "widget.Labeled", overload = "_string", args = ["given"], as = "given" },
+  { call = "given.label", expect = "given" },
+  { new = "widget.Plain", as = "base" },
+  { call = "widget.take_plain", args = [{ ref = "base" }], expect = 5 },
+]

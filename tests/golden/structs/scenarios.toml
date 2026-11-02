@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with value structs (see tests/conformance/scenarios.py).
+# A struct value always gives all its members: what an omitted one means is up to the language.
+
+[[scenario]]
+name = "a struct goes in and comes back as a new value"
+steps = [
+  { call = "geo.mid", args = [{ struct = "geo.Point", x = 1.0, y = 2.0 }, { struct = "geo.Point", x = 3.0, y = 6.0 }], expect = { struct = "geo.Point", x = 2.0, y = 4.0 } },
+  { call = "geo.scale", args = [{ struct = "geo.Point", x = 1.5, y = -2.0 }, 2.0], expect = { struct = "geo.Point", x = 3.0, y = -4.0 } },
+  { call = "geo.scale", args = [{ struct = "geo.Point", x = 1.0, y = 1.0 }, -1.0], error = "exception", message = "negative scale" },
+  { call = "geo.area_geo_Point", args = [{ struct = "geo.Point", x = 3.0, y = 6.0 }], expect = 18 },
+]
+
+[[scenario]]
+name = "members that are arrays, nested structs and enums keep their value, in a packed struct"
+steps = [
+  { call = "geo.echo", args = [{ struct = "geo.Msg", tag = 8, where = { struct = "geo.Point", x = 1.5, y = 0.0 }, samples = [1, 2, 123], ok = true, path = [{ struct = "geo.Point", x = 0.0, y = 0.0 }, { struct = "geo.Point", x = 0.0, y = 9.5 }], quality = { enum = "geo.Quality", member = "Best" } }], expect = { struct = "geo.Msg", tag = 8, where = { struct = "geo.Point", x = 1.5, y = 0.0 }, samples = [1, 2, 123], ok = true, path = [{ struct = "geo.Point", x = 0.0, y = 0.0 }, { struct = "geo.Point", x = 0.0, y = 9.5 }], quality = { enum = "geo.Quality", member = "Best" } } },
+  { call = "geo.shift", args = [{ struct = "geo.Msg", tag = 8, where = { struct = "geo.Point", x = 1.5, y = 0.0 }, samples = [1, 2, 123], ok = true, path = [{ struct = "geo.Point", x = 0.0, y = 0.0 }, { struct = "geo.Point", x = 0.0, y = 9.5 }], quality = { enum = "geo.Quality", member = "Best" } }, 10], expect = { struct = "geo.Msg", tag = 9, where = { struct = "geo.Point", x = 1.5, y = 0.0 }, samples = [11, 12, 133], ok = true, path = [{ struct = "geo.Point", x = 0.0, y = 0.0 }, { struct = "geo.Point", x = 0.0, y = 9.5 }], quality = { enum = "geo.Quality", member = "Best" } } },
+]
+
+[[scenario]]
+name = "an over-aligned struct, with members of every width"
+steps = [
+  { call = "geo.widen", args = [{ struct = "geo.Wide", f = 3.0, big = 21, size = 7, l = -1, c = -5, bytes = [0, 1, 2, 255] }], expect = { struct = "geo.Wide", f = 3.0, big = 42, size = 7, l = -1, c = -5, bytes = [0, 1, 2, 255] } },
+  { call = "geo.area_geo_Wide", args = [{ struct = "geo.Wide", f = 3.0, big = 21, size = 7, l = -1, c = -5, bytes = [0, 1, 2, 255] }], expect = 3 },
+]
+
+[[scenario]]
+name = "members named like keywords of C or of other languages"
+steps = [
+  { call = "geo.rename", args = [{ struct = "geo.Names", from = 1, restrict = 2, errno_ = 3 }], expect = { struct = "geo.Names", from = 2, restrict = 2, errno_ = 3 } },
+]
+
+[[scenario]]
+name = "an enum nested in a struct"
+steps = [
+  { call = "geo.toggle", args = [{ struct = "geo.Tagged", mode = { enum = "geo.Tagged.Mode", member = "Off" }, value = 5 }], expect = { struct = "geo.Tagged", mode = { enum = "geo.Tagged.Mode", member = "On" }, value = 5 } },
+]
+
+[[scenario]]
+name = "a struct of another header that contains structs of this one"
+steps = [
+  { call = "route.length", args = [{ struct = "route.Leg", from = { struct = "geo.Point", x = 0.0, y = 0.0 }, to = { struct = "geo.Point", x = 3.0, y = 4.0 }, kind = { enum = "geo.Kind", member = "Plain" } }], expect = 5.0 },
+  { call = "route.reverse", args = [{ struct = "route.Leg", from = { struct = "geo.Point", x = 0.0, y = 0.0 }, to = { struct = "geo.Point", x = 3.0, y = 4.0 }, kind = { enum = "geo.Kind", member = "Marked" } }], expect = { struct = "route.Leg", from = { struct = "geo.Point", x = 3.0, y = 4.0 }, to = { struct = "geo.Point", x = 0.0, y = 0.0 }, kind = { enum = "geo.Kind", member = "Marked" } } },
+  { call = "route.start", args = [{ struct = "route.Leg", from = { struct = "geo.Point", x = 1.0, y = 2.0 }, to = { struct = "geo.Point", x = 3.0, y = 4.0 }, kind = { enum = "geo.Kind", member = "Plain" } }], expect = { struct = "geo.Point", x = 1.0, y = 2.0 } },
+]
+
+[[scenario]]
+name = "a class that takes and returns structs"
+steps = [
+  { new = "geo.Path", args = [{ struct = "geo.Point", x = 1.0, y = 1.0 }], as = "path" },
+  { call = "path.add", args = [{ struct = "geo.Point", x = 2.0, y = 3.0 }] },
+  { call = "path.last", expect = { struct = "geo.Point", x = 2.0, y = 3.0 } },
+  { call = "geo.Path.origin", expect = { struct = "geo.Point", x = 0.0, y = 0.0 } },
+]

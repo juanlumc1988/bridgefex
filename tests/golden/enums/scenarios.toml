@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with enums (see tests/conformance/scenarios.py). Values that
+# are not enumerators are left to each language: some cannot even represent them.
+
+[[scenario]]
+name = "scoped and unscoped enums go in and come back as the same enumerator"
+steps = [
+  { call = "colors.mix", args = [{ enum = "colors.Color", member = "Max" }, { enum = "colors.Color", member = "Max" }], expect = { enum = "colors.Color", member = "Max" } },
+  { call = "colors.mix", args = [{ enum = "colors.Color", member = "Red" }, { enum = "colors.Color", member = "Red" }], expect = { enum = "colors.Color", member = "Red" } },
+  { call = "colors.mix", args = [{ enum = "colors.Color", member = "Green" }, { enum = "colors.Color", member = "Green" }], expect = { enum = "colors.Color", member = "Green" } },
+  { call = "colors.toggle", args = [{ enum = "colors.Mode", member = "Off" }], expect = { enum = "colors.Mode", member = "On" } },
+  { call = "colors.toggle", args = [{ enum = "colors.Mode", member = "On" }], expect = { enum = "colors.Mode", member = "Off" } },
+]
+
+[[scenario]]
+name = "the underlying type may be 64 bits wide, unsigned or signed"
+steps = [
+  { call = "colors.flip", args = [{ enum = "colors.Flags", member = "All" }], expect = { enum = "colors.Flags", member = "Nothing" } },
+  { call = "colors.flip", args = [{ enum = "colors.Flags", member = "Nothing" }], expect = { enum = "colors.Flags", member = "All" } },
+  { call = "colors.plain", args = [{ enum = "colors.Plain", member = "Low" }], expect = { enum = "colors.Plain", member = "Low" } },
+  { call = "colors.plain", args = [{ enum = "colors.Plain", member = "High" }], expect = { enum = "colors.Plain", member = "High" } },
+  { call = "colors.wide", args = [{ enum = "colors.Wide", member = "Min" }], expect = { enum = "colors.Wide", member = "Min" } },
+  { call = "colors.wide", args = [{ enum = "colors.Wide", member = "Max" }], expect = { enum = "colors.Wide", member = "Max" } },
+  { call = "colors.small", args = [{ enum = "colors.Small", member = "Top" }], expect = { enum = "colors.Small", member = "Top" } },
+]
+
+[[scenario]]
+name = "an enum declared in another header, and a function that takes either an enum or an int"
+steps = [
+  { call = "colors.current", expect = { enum = "colors.Old", member = "Current" } },
+  { call = "colors.default_shape", expect = { enum = "shapes.Shape", member = "Square" } },
+  { call = "shapes.color_of", args = [{ enum = "shapes.Shape", member = "Circle" }], expect = { enum = "colors.Color", member = "Red" } },
+  { call = "shapes.shape_of", args = [{ enum = "colors.Color", member = "Green" }], expect = { enum = "shapes.Shape", member = "Square" } },
+  { call = "colors.f_colors_Color", args = [{ enum = "colors.Color", member = "Max" }], expect = 1255 },
+  { call = "colors.f_int", args = [7], expect = 7 },
+]
+
+[[scenario]]
+name = "enums nested in a class"
+steps = [
+  { new = "colors.Lamp", args = [{ enum = "colors.Color", member = "Green" }], as = "lamp" },
+  { call = "lamp.state", expect = { enum = "colors.Lamp.State", member = "Dark" } },
+  { call = "lamp.set", args = [{ enum = "colors.Lamp.State", member = "Lit" }, { enum = "colors.Lamp.Level", member = "Bright" }] },
+  { call = "lamp.state", expect = { enum = "colors.Lamp.State", member = "Lit" } },
+  { call = "lamp.level", expect = { enum = "colors.Lamp.Level", member = "Bright" } },
+  { call = "lamp.color", expect = { enum = "colors.Color", member = "Green" } },
+]

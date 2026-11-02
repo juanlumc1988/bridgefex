@@ -133,17 +133,56 @@ To add a language:
 4. Add the golden files (`tests/golden/<case>/expected/<name>/`). Registering a
    backend can change the C parameter names of the existing goldens (see above):
    regenerate them and check that the C files only change in that.
+5. Add a runner of the conformance scenarios (see below).
 
 The Python backend is the reference: `backends/python/ffi.py` maps `Ffi` to ctypes,
 `lower.py` lowers parameters and results, `module.py` builds the modules, classes,
 enums and structs, `check.py` compiles and imports the generated package before it
 is written, and `templates/` holds the Jinja templates and the runtime.
 
+## The conformance suite
+
+The behavior that every language must share (what a call returns, which failures
+there are, when an object is closed, how inheritance and ownership look) is
+described once, in `tests/golden/<case>/scenarios.toml`, in terms of the C++ API:
+
+```toml
+[[scenario]]
+name = "a counter counts, refuses and closes"
+steps = [
+  { new = "counter.Counter", overload = "_int32", args = [41], as = "c" },
+  { call = "c.increment" },
+  { call = "c.value", expect = 42 },
+  { call = "c.setLimit", args = [-1], error = "exception", message = "negative" },
+  { close = "c" },
+  { call = "c.value", error = "closed" },
+]
+```
+
+`tests/conformance/scenarios.py` documents the format (names, steps, values, the
+kinds of failure) and checks every scenario against the neutral plan, so that a
+name, an overload, a number or a kind of argument or result that the headers do not
+have, or the use of an object after `close`, is an error whichever language runs
+it. (Members of a struct value are checked for names and order, not yet for kind.) Each backend has a runner in `tests/conformance/` and an
+entry in `RUNNERS` of `tests/test_conformance.py`; a registered backend without a
+runner fails the build. `runner_python.py` plays the scenarios with the generated
+package and nothing else, as a user would, and the tests check that it fails when a
+scenario is not true.
+
+A runner decides how the neutral names reach its language: the Python one finds a
+header as a module, a constructor overload as `Class.create<overload>`, a struct
+member by its position (the scenario gives all of them in declaration order) and a
+kind of failure as an exception class. Behavior that is not shared (a Python subclass,
+a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
+`check_<language>` program of the case. Callbacks and ownership annotations are not
+in the scenarios yet.
+
 ## Tests
 
 - `tests/test_plan.py` checks the plan and, through the Python backend's view of
   it, the Python lowering; `tests/test_backends.py` the registry and the checks.
-- `tests/test_architecture.py` the layering described above.
+- `tests/test_architecture.py` the layering described above; `tests/test_conformance.py`
+  the conformance suite.
 - `tests/golden/<case>/` holds, per case, the input headers, the C++ implementation
   and the expected generated files; `test_golden.py` compares them byte by byte
   and `test_roundtrip.py` builds the library and runs `check_c.c` and
