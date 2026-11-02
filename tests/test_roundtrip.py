@@ -623,7 +623,10 @@ for _ in range(rounds):
     # pending handlers itself: no signal is left for the next round.
     while True:
         try:
-            sent.wait()
+            # Not sent.wait(): a signal that lands inside the pure Python code of
+            # threading leaves its lock unlocked ('release unlocked lock').
+            while not sent.is_set():
+                time.sleep(0.001)
             signal.raise_signal(signal.SIGUSR2)
             break
         except KeyboardInterrupt:
