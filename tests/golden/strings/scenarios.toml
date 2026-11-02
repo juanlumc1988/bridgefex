@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with strings (see tests/conformance/scenarios.py).
+# Strings are UTF-8 and may contain NUL when they are std::string; a const char* ends at it.
+
+[[scenario]]
+name = "std::string parameters and results keep every character"
+steps = [
+  { call = "text.echo", args = ["héllo"], expect = "héllo" },
+  { call = "text.echo", args = [""], expect = "" },
+  { call = "text.echo", args = ["a\u0000b"], expect = "a\u0000b" },
+  { call = "text.echo", args = ["日本語 🌉"], expect = "日本語 🌉" },
+  { call = "text.concat", args = ["a\u0000", "\u0000b"], expect = "a\u0000\u0000b" },
+  { call = "text.count_string", args = ["a\u0000b"], expect = 3 },
+  { call = "text.count_cstr", args = ["abc"], expect = 1003 },
+  { call = "text.alias", args = ["x"], expect = "x!" },
+  { call = "text.c_alias", args = ["y"], expect = "y" },
+]
+
+[[scenario]]
+name = "a string and its size are one parameter in the bindings"
+steps = [
+  { call = "text.length", args = ["abc", 7], expect = 3007 },
+  { call = "text.total", args = ["a", "bc", "def"], expect = 123 },
+]
+
+[[scenario]]
+name = "a const char* result may be NULL"
+steps = [
+  { call = "text.maybe_null", args = [true], expect = { null = true } },
+  { call = "text.maybe_null", args = [false], expect = "not null" },
+  { call = "text.first_char", args = ["xxxxxxxxxxxxxxxxxxxx"], expect = "xxxxxxxxxxxxxxxxxxxx" },
+]
+
+[[scenario]]
+name = "an exception carries its message through, whatever the characters"
+steps = [
+  { call = "text.fail", args = ["boom é"], error = "exception", message = "boom é" },
+]
+
+[[scenario]]
+name = "std::string_view parameters and results"
+steps = [
+  { call = "views.first_word", args = ["hello world"], expect = "hello" },
+  { call = "views.size_of", args = ["abc"], expect = 3 },
+  { call = "views.empty", expect = "" },
+  { call = "views.literal", expect = "a literal" },
+]
+
+[[scenario]]
+name = "a class that takes and returns strings"
+steps = [
+  { new = "text.Person", overload = "_cstr_int", args = ["Ada", 36], as = "person" },
+  { call = "person.name", expect = "Ada" },
+  { call = "person.age", expect = 36 },
+  { call = "person.set_name", args = ["Grace"] },
+  { call = "person.name_ref", expect = "Grace" },
+  { call = "person.c_name", expect = "Grace" },
+  { call = "person.greet", args = ["Bob", "Hi"], expect = "Hi Bob, I am Grace" },
+  { call = "text.Person.species", expect = "human" },
+  { new = "text.Person", overload = "_string", args = ["Eve"], as = "eve" },
+  { call = "eve.age", expect = 0 },
+  { call = "eve.name", expect = "Eve" },
+]

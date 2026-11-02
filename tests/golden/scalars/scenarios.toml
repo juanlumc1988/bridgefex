@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do with the scalar types (see tests/conformance/scenarios.py).
+# long, unsigned long and size_t are left out: their size depends on the platform.
+
+[[scenario]]
+name = "integers keep their value, at the limits of their type"
+steps = [
+  { call = "numbers.echo_int8", args = [-128], expect = -128 },
+  { call = "numbers.echo_int8", args = [127], expect = 127 },
+  { call = "numbers.echo_int8", args = [0], expect = 0 },
+  { call = "numbers.echo_uint8", args = [0], expect = 0 },
+  { call = "numbers.echo_uint8", args = [255], expect = 255 },
+  { call = "numbers.echo_uint8", args = [1], expect = 1 },
+  { call = "numbers.echo_int16", args = [-32768], expect = -32768 },
+  { call = "numbers.echo_int16", args = [32767], expect = 32767 },
+  { call = "numbers.echo_int16", args = [0], expect = 0 },
+  { call = "numbers.echo_uint16", args = [0], expect = 0 },
+  { call = "numbers.echo_uint16", args = [65535], expect = 65535 },
+  { call = "numbers.echo_uint16", args = [1], expect = 1 },
+  { call = "numbers.echo_int32", args = [-2147483648], expect = -2147483648 },
+  { call = "numbers.echo_int32", args = [2147483647], expect = 2147483647 },
+  { call = "numbers.echo_int32", args = [0], expect = 0 },
+  { call = "numbers.echo_uint32", args = [0], expect = 0 },
+  { call = "numbers.echo_uint32", args = [4294967295], expect = 4294967295 },
+  { call = "numbers.echo_uint32", args = [1], expect = 1 },
+  { call = "numbers.echo_int64", args = [-9223372036854775808], expect = -9223372036854775808 },
+  { call = "numbers.echo_int64", args = [9223372036854775807], expect = 9223372036854775807 },
+  { call = "numbers.echo_int64", args = [0], expect = 0 },
+  { call = "numbers.echo_uint64", args = [0], expect = 0 },
+  { call = "numbers.echo_uint64", args = [{ int = "18446744073709551615" }], expect = { int = "18446744073709551615" } },
+  { call = "numbers.echo_uint64", args = [1], expect = 1 },
+  { call = "numbers.echo_schar", args = [-128], expect = -128 },
+  { call = "numbers.echo_schar", args = [127], expect = 127 },
+  { call = "numbers.echo_schar", args = [0], expect = 0 },
+  { call = "numbers.echo_uchar", args = [0], expect = 0 },
+  { call = "numbers.echo_uchar", args = [255], expect = 255 },
+  { call = "numbers.echo_uchar", args = [1], expect = 1 },
+  { call = "numbers.echo_short", args = [-32768], expect = -32768 },
+  { call = "numbers.echo_short", args = [32767], expect = 32767 },
+  { call = "numbers.echo_short", args = [0], expect = 0 },
+  { call = "numbers.echo_ushort", args = [0], expect = 0 },
+  { call = "numbers.echo_ushort", args = [65535], expect = 65535 },
+  { call = "numbers.echo_ushort", args = [1], expect = 1 },
+  { call = "numbers.echo_int", args = [-2147483648], expect = -2147483648 },
+  { call = "numbers.echo_int", args = [2147483647], expect = 2147483647 },
+  { call = "numbers.echo_int", args = [0], expect = 0 },
+  { call = "numbers.echo_uint", args = [0], expect = 0 },
+  { call = "numbers.echo_uint", args = [4294967295], expect = 4294967295 },
+  { call = "numbers.echo_uint", args = [1], expect = 1 },
+  { call = "numbers.echo_llong", args = [-9223372036854775808], expect = -9223372036854775808 },
+  { call = "numbers.echo_llong", args = [9223372036854775807], expect = 9223372036854775807 },
+  { call = "numbers.echo_llong", args = [0], expect = 0 },
+  { call = "numbers.echo_ullong", args = [0], expect = 0 },
+  { call = "numbers.echo_ullong", args = [{ int = "18446744073709551615" }], expect = { int = "18446744073709551615" } },
+  { call = "numbers.echo_ullong", args = [1], expect = 1 },
+]
+
+[[scenario]]
+name = "integers outside the limits of their type are refused before the call"
+steps = [
+  { call = "numbers.echo_int8", args = [128], error = "range" },
+  { call = "numbers.echo_int8", args = [-129], error = "range" },
+  { call = "numbers.echo_uint8", args = [256], error = "range" },
+  { call = "numbers.echo_uint8", args = [-1], error = "range" },
+  { call = "numbers.echo_int16", args = [32768], error = "range" },
+  { call = "numbers.echo_int16", args = [-32769], error = "range" },
+  { call = "numbers.echo_uint16", args = [65536], error = "range" },
+  { call = "numbers.echo_uint16", args = [-1], error = "range" },
+  { call = "numbers.echo_int32", args = [2147483648], error = "range" },
+  { call = "numbers.echo_int32", args = [-2147483649], error = "range" },
+  { call = "numbers.echo_uint32", args = [4294967296], error = "range" },
+  { call = "numbers.echo_uint32", args = [-1], error = "range" },
+  { call = "numbers.echo_int64", args = [{ int = "9223372036854775808" }], error = "range" },
+  { call = "numbers.echo_int64", args = [{ int = "-9223372036854775809" }], error = "range" },
+  { call = "numbers.echo_uint64", args = [{ int = "18446744073709551616" }], error = "range" },
+  { call = "numbers.echo_uint64", args = [-1], error = "range" },
+  { call = "numbers.echo_schar", args = [128], error = "range" },
+  { call = "numbers.echo_schar", args = [-129], error = "range" },
+  { call = "numbers.echo_uchar", args = [256], error = "range" },
+  { call = "numbers.echo_uchar", args = [-1], error = "range" },
+  { call = "numbers.echo_short", args = [32768], error = "range" },
+  { call = "numbers.echo_short", args = [-32769], error = "range" },
+  { call = "numbers.echo_ushort", args = [65536], error = "range" },
+  { call = "numbers.echo_ushort", args = [-1], error = "range" },
+  { call = "numbers.echo_int", args = [2147483648], error = "range" },
+  { call = "numbers.echo_int", args = [-2147483649], error = "range" },
+  { call = "numbers.echo_uint", args = [4294967296], error = "range" },
+  { call = "numbers.echo_uint", args = [-1], error = "range" },
+  { call = "numbers.echo_llong", args = [{ int = "9223372036854775808" }], error = "range" },
+  { call = "numbers.echo_llong", args = [{ int = "-9223372036854775809" }], error = "range" },
+  { call = "numbers.echo_ullong", args = [{ int = "18446744073709551616" }], error = "range" },
+  { call = "numbers.echo_ullong", args = [-1], error = "range" },
+]
+
+[[scenario]]
+name = "bool, float and double"
+steps = [
+  { call = "numbers.echo_bool", args = [true], expect = true },
+  { call = "numbers.echo_bool", args = [false], expect = false },
+  { call = "numbers.echo_double", args = [1.5], expect = 1.5 },
+  { call = "numbers.echo_double", args = [-2.25], expect = -2.25 },
+  { call = "numbers.echo_double", args = [1e300], expect = 1e300 },
+  { call = "numbers.echo_double", args = [inf], expect = inf },
+  { call = "numbers.echo_double", args = [-inf], expect = -inf },
+  { call = "numbers.echo_double", args = [nan], expect = nan },
+  { call = "numbers.echo_float", args = [1.5], expect = 1.5 },
+  { call = "numbers.echo_float", args = [3.4028234663852886e38], expect = 3.4028234663852886e38 },
+  { call = "numbers.echo_float", args = [inf], expect = inf },
+  { call = "numbers.echo_float", args = [1e39], error = "range" },
+  { call = "numbers.echo_float", args = [-1e39], error = "range" },
+]
+
+[[scenario]]
+name = "functions: parameters named like keywords, unnamed ones, overloads"
+steps = [
+  { call = "numbers.sum_renamed", args = [1, 2, 3, 4], expect = 10 },
+  { call = "numbers.twice", args = [21], expect = 42 },
+  { call = "numbers.scale_double", args = [1.5], expect = 3.0 },
+  { call = "numbers.scale_double_double", args = [1.5, 3.0], expect = 4.5 },
+  { call = "numbers.do_nothing" },
+]
+
+[[scenario]]
+name = "a C++ exception is an error of the language, with its message"
+steps = [
+  { call = "numbers.divide", args = [7, 2], expect = 3 },
+  { call = "numbers.divide", args = [1, 0], error = "exception", message = "division by zero" },
+  { call = "numbers.divide", args = [-9, 2], expect = -4 },
+]
+
+[[scenario]]
+name = "an accumulator, with a static method"
+steps = [
+  { call = "numbers.Accumulator.version", expect = 3 },
+  { new = "numbers.Accumulator", as = "acc" },
+  { call = "acc.count", expect = 0 },
+  { call = "acc.push", args = [1.5] },
+  { call = "acc.push", args = [2.5] },
+  { call = "acc.total", expect = 4.0 },
+  { call = "acc.count", expect = 2 },
+  { call = "acc.reset" },
+  { call = "acc.count", expect = 0 },
+  { close = "acc" },
+  { call = "acc.count", error = "closed" },
+]

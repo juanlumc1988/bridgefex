@@ -16,44 +16,18 @@ import signal
 import subprocess
 import sys
 import textwrap
-from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
 import bridgefex
+from tests.support.build import build
 from tests.support.cases import Case, all_cases
 from tests.support.toolchain import Toolchain
 
 CASES = [case for case in all_cases() if case.impl_sources]
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
-
-# Standard used to build the libraries in these tests; test_standards.py
-# covers the other ones.
-CXX_STANDARD = "c++17"
-
-
-def cxx_standard(case: Case) -> str:
-    """CXX_STANDARD, or the newer standard that a case needs (std::span)."""
-    order = ("c++11", "c++14", "c++17", "c++20", "c++23")
-    return max(CXX_STANDARD, case.min_cxx, key=order.index)
-
-
-def build(
-    case: Case, toolchain: Toolchain, directory: Path, extra_flags: Sequence[str] = ()
-) -> tuple[Path, Path]:
-    """Generate the bindings and build the shared library; return (library, output dir)."""
-    output = directory / "out"
-    result = bridgefex.generate(case.headers, case.options())
-    bridgefex.write_files(result.files, output)
-    library = directory / toolchain.shared_library_name(case.module)
-    sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)
-    toolchain.build_shared_library(
-        sources, [output / "c", case.input_dir], library, cxx_standard(case), extra_flags
-    ).check()
-    return library, output
-
 
 # A function declaration of a generated C header ('DEMO_API void demo_free(void* memory);').
 _DECLARATION = re.compile(r"(?:[A-Z0-9_]+_NODISCARD )?[A-Z0-9_]+_API [^(]*?(\w+)\(")

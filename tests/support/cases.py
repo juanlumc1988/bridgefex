@@ -8,6 +8,7 @@ Each case has:
   impl/            optional C++ implementation, for the round-trip tests
   check_python.py  optional Python program run against the built library
   check_c.c        optional C program linked against the built library
+  scenarios.toml   optional, what every backend must do the same (tests/conformance)
   annotations.toml optional, if case.toml lists it: who owns what (see bridgefex.annotations)
 """
 
@@ -54,6 +55,10 @@ class Case:
     @property
     def check_c(self) -> Path:
         return self.directory / "check_c.c"
+
+    @property
+    def scenarios(self) -> Path:
+        return self.directory / "scenarios.toml"
 
     def options(self) -> bridgefex.Options:
         return bridgefex.Options(module=self.module, std=self.std, annotations=self.annotations)
