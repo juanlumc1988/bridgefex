@@ -49,8 +49,16 @@ def _bind():
             lib.dr1_Base_value_int32.restype = _runtime.Status
             lib.dr1_Base_value_double.argtypes = [_types._dr1_Base__p, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.dr1_Base_value_double.restype = _runtime.Status
+            lib.dr1_Base_flag.argtypes = [_types._dr1_Base__p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool)]
+            lib.dr1_Base_flag.restype = _runtime.Status
+            lib.dr1_Base_big.argtypes = [_types._dr1_Base__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
+            lib.dr1_Base_big.restype = _runtime.Status
             lib.dr1_Base_show.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.dr1_Base_show.restype = _runtime.Status
+            lib.dr1_Base_show_flag.argtypes = [_types._dr1_Base__p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool)]
+            lib.dr1_Base_show_flag.restype = _runtime.Status
+            lib.dr1_Base_show_big.argtypes = [_types._dr1_Base__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
+            lib.dr1_Base_show_big.restype = _runtime.Status
             lib.dr1_Base_show_tagged.argtypes = [_types._dr1_Base__p, ctypes.POINTER(_types._dr1_Tagged)]
             lib.dr1_Base_show_tagged.restype = _runtime.Status
             lib.dr1_Base_show_kind.argtypes = [_types._dr1_Base__p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
@@ -87,6 +95,10 @@ def _bind():
             lib.dr1_Base_director_base_value_int32.restype = _runtime.Status
             lib.dr1_Base_director_base_value_double.argtypes = [_types._dr1_Base_director__p, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.dr1_Base_director_base_value_double.restype = _runtime.Status
+            lib.dr1_Base_director_base_flag.argtypes = [_types._dr1_Base_director__p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool)]
+            lib.dr1_Base_director_base_flag.restype = _runtime.Status
+            lib.dr1_Base_director_base_big.argtypes = [_types._dr1_Base_director__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
+            lib.dr1_Base_director_base_big.restype = _runtime.Status
             lib.dr1_Base_director_base_hook.argtypes = [_types._dr1_Base_director__p]
             lib.dr1_Base_director_base_hook.restype = _runtime.Status
             lib.dr1_Derived_director_create.argtypes = [ctypes.POINTER(_types._dr1_Derived__p), ctypes.POINTER(_types._dr1_Derived_director__p), ctypes.POINTER(_types._dr1_Derived_vtable)]
@@ -107,6 +119,10 @@ def _bind():
             lib.dr1_Derived_director_base_value_int32.restype = _runtime.Status
             lib.dr1_Derived_director_base_value_double.argtypes = [_types._dr1_Derived_director__p, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.dr1_Derived_director_base_value_double.restype = _runtime.Status
+            lib.dr1_Derived_director_base_flag.argtypes = [_types._dr1_Derived_director__p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool)]
+            lib.dr1_Derived_director_base_flag.restype = _runtime.Status
+            lib.dr1_Derived_director_base_big.argtypes = [_types._dr1_Derived_director__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
+            lib.dr1_Derived_director_base_big.restype = _runtime.Status
             lib.dr1_Derived_director_base_hook.argtypes = [_types._dr1_Derived_director__p]
             lib.dr1_Derived_director_base_hook.restype = _runtime.Status
             _lib = lib
@@ -139,6 +155,8 @@ class Base(_runtime.Object):
             ("touch", "touch", False, _types._director__dr1_Base__touch),
             ("value_int32", "value_int32", False, _types._director__dr1_Base__value_int32),
             ("value_double", "value_double", False, _types._director__dr1_Base__value_double),
+            ("flag", "flag", False, _types._director__dr1_Base__flag),
+            ("big", "big", False, _types._director__dr1_Base__big),
             ("hook", "hook", False, _types._director__dr1_Base__hook),
         ),
     )
@@ -380,6 +398,24 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_director_base_value_double(self._dptr(), x, _out))
         return _out.value
 
+    def _base_flag(self, on):
+        """Calls the implementation of ``bool dr1::Base::flag(bool on) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_bool()
+        on = _runtime.to_bool(on, "on")
+        _runtime.check(_bind().dr1_Base_director_base_flag(self._dptr(), on, _out))
+        return _out.value
+
+    def _base_big(self, x, f, byte):
+        """Calls the implementation of ``uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_uint64()
+        x = _runtime.to_int(x, ctypes.c_int64, "x")
+        f = _runtime.to_float(f, ctypes.c_float, "f")
+        byte = _runtime.to_int(byte, ctypes.c_uint8, "byte")
+        _runtime.check(_bind().dr1_Base_director_base_big(self._dptr(), x, f, byte, _out))
+        return _out.value
+
     def _base_hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++: not the
         override of an object, which would call this one again."""
@@ -468,6 +504,26 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_value_double(self._ptr_dr1_Base(), x, _out))
         return _out.value
 
+    def flag(self, on):
+        """Wraps ``bool dr1::Base::flag(bool on) const``."""
+        if self._director is not None:
+            return self._base_flag(on)
+        _out = ctypes.c_bool()
+        on = _runtime.to_bool(on, "on")
+        _runtime.check(_bind().dr1_Base_flag(self._ptr_dr1_Base(), on, _out))
+        return _out.value
+
+    def big(self, x, f, byte):
+        """Wraps ``uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const``."""
+        if self._director is not None:
+            return self._base_big(x, f, byte)
+        _out = ctypes.c_uint64()
+        x = _runtime.to_int(x, ctypes.c_int64, "x")
+        f = _runtime.to_float(f, ctypes.c_float, "f")
+        byte = _runtime.to_int(byte, ctypes.c_uint8, "byte")
+        _runtime.check(_bind().dr1_Base_big(self._ptr_dr1_Base(), x, f, byte, _out))
+        return _out.value
+
     def show(self):
         """Wraps ``std::string dr1::Base::show() const``."""
         _out = ctypes.c_void_p()
@@ -479,6 +535,22 @@ class Base(_runtime.Object):
             if _out:
                 _lib.dr1_free(_out)
         return _runtime.decode(_out_data)
+
+    def show_flag(self, on):
+        """Wraps ``bool dr1::Base::show_flag(bool on) const``."""
+        _out = ctypes.c_bool()
+        on = _runtime.to_bool(on, "on")
+        _runtime.check(_bind().dr1_Base_show_flag(self._ptr_dr1_Base(), on, _out))
+        return _out.value
+
+    def show_big(self, x, f, byte):
+        """Wraps ``uint64_t dr1::Base::show_big(int64_t x, float f, uint8_t byte) const``."""
+        _out = ctypes.c_uint64()
+        x = _runtime.to_int(x, ctypes.c_int64, "x")
+        f = _runtime.to_float(f, ctypes.c_float, "f")
+        byte = _runtime.to_int(byte, ctypes.c_uint8, "byte")
+        _runtime.check(_bind().dr1_Base_show_big(self._ptr_dr1_Base(), x, f, byte, _out))
+        return _out.value
 
     def show_tagged(self):
         """Wraps ``dr1::Tagged dr1::Base::show_tagged() const``."""
@@ -526,6 +598,8 @@ class Derived(Base):
             ("touch", "touch", False, _types._director__dr1_Derived__touch),
             ("value_int32", "value_int32", False, _types._director__dr1_Derived__value_int32),
             ("value_double", "value_double", False, _types._director__dr1_Derived__value_double),
+            ("flag", "flag", False, _types._director__dr1_Derived__flag),
+            ("big", "big", False, _types._director__dr1_Derived__big),
             ("hook", "hook", False, _types._director__dr1_Derived__hook),
         ),
     )
@@ -733,6 +807,24 @@ class Derived(Base):
         _runtime.check(_bind().dr1_Derived_director_base_value_double(self._dptr(), x, _out))
         return _out.value
 
+    def _base_flag(self, on):
+        """Calls the implementation of ``bool dr1::Base::flag(bool on) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_bool()
+        on = _runtime.to_bool(on, "on")
+        _runtime.check(_bind().dr1_Derived_director_base_flag(self._dptr(), on, _out))
+        return _out.value
+
+    def _base_big(self, x, f, byte):
+        """Calls the implementation of ``uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_uint64()
+        x = _runtime.to_int(x, ctypes.c_int64, "x")
+        f = _runtime.to_float(f, ctypes.c_float, "f")
+        byte = _runtime.to_int(byte, ctypes.c_uint8, "byte")
+        _runtime.check(_bind().dr1_Derived_director_base_big(self._dptr(), x, f, byte, _out))
+        return _out.value
+
     def _base_hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++: not the
         override of an object, which would call this one again."""
@@ -773,6 +865,18 @@ class Derived(Base):
         if self._director is None:
             return super().value_double(x)
         return self._base_value_double(x)
+
+    def flag(self, on):
+        """Wraps ``bool dr1::Base::flag(bool on) const``."""
+        if self._director is None:
+            return super().flag(on)
+        return self._base_flag(on)
+
+    def big(self, x, f, byte):
+        """Wraps ``uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const``."""
+        if self._director is None:
+            return super().big(x, f, byte)
+        return self._base_big(x, f, byte)
 
     def hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++ (protected: only

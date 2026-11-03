@@ -44,6 +44,14 @@ class Mine(base.Base):
         self.hooked = True
         super().hook()
 
+    def flag(self, on):
+        assert isinstance(on, bool)  # a bool arrives as a bool
+        return on  # the implementation of the class gives the opposite
+
+    def big(self, x, f, byte):
+        assert isinstance(f, float) and isinstance(byte, int)
+        return 2**63 + x + int(f) + byte  # beyond the range of an int64
+
 
 # The three constructors: two public, one protected.
 with Mine.create_int32(5) as mine:
@@ -62,6 +70,9 @@ with Mine.create_int32(5) as mine:
     assert mine.value_double(2.0) == 4.5
     mine.hook()
     assert mine.hooked
+    assert mine.show_flag(True) is True
+    assert mine.show_flag(False) is False
+    assert mine.show_big(-3, 2.5, 200) == 2**63 + 199
 with Mine.create_dr1_Kind_int32(base.Kind.Large, 1) as mine:
     assert mine.seed() == 11
 with Mine.create_void() as mine:  # the protected constructor

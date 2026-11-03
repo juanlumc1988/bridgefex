@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# What every backend must do when a class of its language overrides virtual methods of C++
+# (see tests/conformance/scenarios.py).
+
+[[scenario]]
+name = "C++ runs the overrides of a class of the language"
+steps = [
+  { derive = "shape.Shape", named = "Square", overrides = { area = { returns = 4.0 }, name = { returns = "sq" }, sides = { returns = 4 } } },
+  { new = "Square", overload = "_void", as = "s" },
+  { call = "s.area", expect = 4.0 },
+  { call = "s.describe", expect = "sq: 4 units" },
+  { call = "s.sides", expect = 4 },
+  { call = "s.fixed", expect = 7 },
+]
+
+[[scenario]]
+name = "an override can run the implementation of its base class"
+steps = [
+  { derive = "shape.Shape", named = "Boxed", overrides = { area = { returns = 1.0 }, name = { base = true } } },
+  { new = "Boxed", overload = "_string_int32", args = ["box", 3], as = "b" },
+  { call = "b.name", expect = "box" },
+  { call = "b.sides", expect = 3 },
+  { call = "b.describe", expect = "box: 1 units" },
+]
+
+[[scenario]]
+name = "enums, structs and strings cross in both directions"
+steps = [
+  { derive = "shape.Shape", named = "Typed", overrides = { area = { returns = 2.0 }, center = { returns = { struct = "shape.Point", x = 4.0, y = 6.0 } }, mode = { argument = 0 }, greet = { argument = 0 }, add_int32_int32 = { returns = 99 }, add_double_double = { argument = 1 } } },
+  { new = "Typed", overload = "_void", as = "t" },
+  { call = "t.middle", args = [{ struct = "shape.Point", x = 2.0, y = 0.0 }], expect = { struct = "shape.Point", x = 3.0, y = 3.0 } },
+  { call = "t.choose", args = [{ enum = "shape.Mode", member = "Auto" }], expect = { enum = "shape.Mode", member = "Auto" } },
+  { call = "t.choose", args = [{ enum = "shape.Mode", member = "On" }], expect = { enum = "shape.Mode", member = "On" } },
+  { call = "t.welcome", args = ["Ann"], expect = "Ann" },
+  { call = "t.sum", args = [1, 2], expect = 99 },
+]
+
+[[scenario]]
+name = "the failure of an override reaches the call that made C++ run it"
+steps = [
+  { derive = "shape.Shape", named = "Failing", overrides = { area = { raises = "boom" } } },
+  { new = "Failing", overload = "_void", as = "f" },
+  { call = "f.describe", error = "override", message = "boom" },
+  { call = "f.sum", args = [1, 2], expect = 3 },
+  { call = "f.describe", error = "override", message = "boom" },
+]
+
+[[scenario]]
+name = "a class whose constructors are protected is made by a derived class"
+steps = [
+  { derive = "stage.Stage", named = "Steps", overrides = { step = { returns = "s" }, origin = { returns = { struct = "shape.Point", x = 7.0, y = 0.0 } } } },
+  { new = "Steps", overload = "_int32", args = [3], as = "steps" },
+  { call = "steps.run", args = [{ enum = "shape.Mode", member = "On" }], expect = "sss@7" },
+  { call = "steps.steps", expect = 3 },
+  { new = "Steps", overload = "_void", as = "default" },
+  { call = "default.run", args = [{ enum = "shape.Mode", member = "Auto" }], expect = "ss@7" },
+]
+
+[[scenario]]
+name = "a class that is not abstract can be derived from too"
+steps = [
+  { derive = "shape.Circle", named = "Disc", overrides = { name = { returns = "disc" } } },
+  { new = "Disc", args = [1.0], as = "d" },
+  { call = "d.describe", expect = "disc: 3 units" },
+  { call = "d.radius", expect = 1.0 },
+]

@@ -328,6 +328,50 @@ def _director__dr1_Base__value_double(_user_data, _arg1, _out_result):
 _director__dr1_Base__value_double = _director__dr1_Base__value_double__type(_director__dr1_Base__value_double)
 
 
+_director__dr1_Base__flag__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool))
+
+
+def _director__dr1_Base__flag(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "flag")
+        if _function is None:
+            return
+        _value = _function(_arg1)
+        _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Base__flag = _director__dr1_Base__flag__type(_director__dr1_Base__flag)
+
+
+_director__dr1_Base__big__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64))
+
+
+def _director__dr1_Base__big(_user_data, _arg1, _arg2, _arg3, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "big")
+        if _function is None:
+            return
+        _value = _function(_arg1, _arg2, _arg3)
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_uint64, 'big', what="the result of the override"
+        )
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Base__big = _director__dr1_Base__big__type(_director__dr1_Base__big)
+
+
 _director__dr1_Base__hook__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
@@ -361,6 +405,8 @@ class _dr1_Base_vtable(ctypes.Structure):
         ("touch", _director__dr1_Base__touch__type),
         ("value_int32", _director__dr1_Base__value_int32__type),
         ("value_double", _director__dr1_Base__value_double__type),
+        ("flag", _director__dr1_Base__flag__type),
+        ("big", _director__dr1_Base__big__type),
         ("hook", _director__dr1_Base__hook__type),
     ]
 
@@ -524,6 +570,50 @@ def _director__dr1_Derived__value_double(_user_data, _arg1, _out_result):
 _director__dr1_Derived__value_double = _director__dr1_Derived__value_double__type(_director__dr1_Derived__value_double)
 
 
+_director__dr1_Derived__flag__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool))
+
+
+def _director__dr1_Derived__flag(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "flag")
+        if _function is None:
+            return
+        _value = _function(_arg1)
+        _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Derived__flag = _director__dr1_Derived__flag__type(_director__dr1_Derived__flag)
+
+
+_director__dr1_Derived__big__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64))
+
+
+def _director__dr1_Derived__big(_user_data, _arg1, _arg2, _arg3, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "big")
+        if _function is None:
+            return
+        _value = _function(_arg1, _arg2, _arg3)
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_uint64, 'big', what="the result of the override"
+        )
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Derived__big = _director__dr1_Derived__big__type(_director__dr1_Derived__big)
+
+
 _director__dr1_Derived__hook__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
@@ -557,5 +647,7 @@ class _dr1_Derived_vtable(ctypes.Structure):
         ("touch", _director__dr1_Derived__touch__type),
         ("value_int32", _director__dr1_Derived__value_int32__type),
         ("value_double", _director__dr1_Derived__value_double__type),
+        ("flag", _director__dr1_Derived__flag__type),
+        ("big", _director__dr1_Derived__big__type),
         ("hook", _director__dr1_Derived__hook__type),
     ]

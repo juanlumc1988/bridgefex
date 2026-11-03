@@ -70,12 +70,24 @@ is a tree of frozen dataclasses:
   its signature seen as for a `std::function` (`CallbackSpec`, `thunk_key`), whether
   it is pure and its base call (a `CallablePlan` of kind `DIRECTOR_BASE`), and the
   functions that create the director (`DIRECTOR_CONSTRUCTOR`, one per constructor
-  that a derived class can call). The C++ of the subclass belongs to the shared C
-  layer (`DirectorPlan.glue`), so every language gets the same one; a backend
-  implements the table: it builds the functions of the vtable from its own
-  overrides, keeps what they need alive until `release`, and calls the base
-  variants for `super()`. `HeaderPlan.c_functions` is what the bindings call;
-  `HeaderPlan.director_functions` is the rest of what the C header declares.
+  that a derived class can call, which write the object, to own and destroy it from
+  the moment it exists, and the director, for the base calls). The C++ of the
+  subclass belongs to the shared C layer (`DirectorPlan.glue`), so every language
+  gets the same one; a backend implements the table: it builds the functions of the
+  vtable from its own overrides, keeps what they need alive until `release`, and
+  calls the base variants for `super()`. `DirectorEntry.location` says where the
+  method is declared, so that a backend finds the wrapper of a public one.
+  `HeaderPlan.c_functions` is what the bindings call; `HeaderPlan.director_functions`
+  is the rest of what the C header declares.
+
+  The Python backend (`backends/python/directors.py`, `thunks.py`) fills the vtable
+  with one fixed thunk per virtual method, whose `user_data` is the key of a registry
+  entry that holds the object (weakly while Python owns the C++ object, strongly once
+  C++ does). A class that overrides a method with the Python name of its wrapper makes
+  its objects through the create function of the director; the wrappers of the class
+  call the base function of the director of the object, so `super().method()` does not
+  call the override again. An exception of an override goes to the call that made C++
+  run it, as for a callback.
 
 The plan never says how a language spells any of it. The C layer is rendered from
 it by `generator.render`, with the templates in `src/bridgefex/templates/`.
@@ -182,11 +194,18 @@ runner fails the build. `runner_python.py` plays the scenarios with the generate
 package and nothing else, as a user would, and the tests check that it fails when a
 scenario is not true.
 
+A scenario can also derive a class from one that has a director, overriding virtual
+methods with a few neutral behaviors (give a value, call the implementation of the
+base, give an argument back, fail), so that every language shows the same: C++ runs the
+overrides, a base call does not call the override again, the types cross in both
+directions, and the failure of an override reaches the call that made C++ run it
+(`tests/golden/directors/scenarios.toml`).
+
 A runner decides how the neutral names reach its language: the Python one finds a
 header as a module, a constructor overload as `Class.create<overload>`, a struct
 member by its position (the scenario gives all of them in declaration order) and a
-kind of failure as an exception class. Behavior that is not shared (a Python subclass,
-a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
+kind of failure as an exception class. Behavior that is not shared (how a class that is
+not instantiable fails to be, a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
 `check_<language>` program of the case. Callbacks and ownership annotations are not
 in the scenarios yet.
 

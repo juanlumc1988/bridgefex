@@ -31,7 +31,11 @@ public:
     virtual void touch(std::int32_t amount, const std::int32_t& limit);
     virtual std::int32_t value(std::int32_t x) const;
     virtual double value(double x) const;
+    virtual bool flag(bool on) const;
+    virtual std::uint64_t big(std::int64_t x, float f, std::uint8_t byte) const;
     std::string show() const;
+    bool show_flag(bool on) const;
+    std::uint64_t show_big(std::int64_t x, float f, std::uint8_t byte) const;
     Tagged show_tagged() const;
     Kind show_kind(Kind requested) const;
     std::int32_t seed() const;

@@ -38,6 +38,10 @@ typedef struct dr1_Base_vtable {
     void (*value_int32)(void*, int32_t, int32_t*);
     /* double dr1::Base::value(double x) const */
     void (*value_double)(void*, double, double*);
+    /* bool dr1::Base::flag(bool on) const */
+    void (*flag)(void*, bool, bool*);
+    /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
+    void (*big)(void*, int64_t, float, uint8_t, uint64_t*);
     /* void dr1::Base::hook() */
     void (*hook)(void*);
 } dr1_Base_vtable;
@@ -73,6 +77,10 @@ typedef struct dr1_Derived_vtable {
     void (*value_int32)(void*, int32_t, int32_t*);
     /* double dr1::Base::value(double x) const */
     void (*value_double)(void*, double, double*);
+    /* bool dr1::Base::flag(bool on) const */
+    void (*flag)(void*, bool, bool*);
+    /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
+    void (*big)(void*, int64_t, float, uint8_t, uint64_t*);
     /* void dr1::Base::hook() */
     void (*hook)(void*);
 } dr1_Derived_vtable;
@@ -108,8 +116,20 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_value_int32(const dr1_Base* self, int3
 /* double dr1::Base::value(double x) const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_value_double(const dr1_Base* self, double x, double* out_result);
 
+/* bool dr1::Base::flag(bool on) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_flag(const dr1_Base* self, bool on, bool* out_result);
+
+/* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result);
+
 /* std::string dr1::Base::show() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_result_size);
+
+/* bool dr1::Base::show_flag(bool on) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_show_flag(const dr1_Base* self, bool on, bool* out_result);
+
+/* uint64_t dr1::Base::show_big(int64_t x, float f, uint8_t byte) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_show_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result);
 
 /* dr1::Tagged dr1::Base::show_tagged() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show_tagged(const dr1_Base* self, dr1_Tagged* out_result);
@@ -174,6 +194,14 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_value_int32(dr1_Base_dir
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_value_double(dr1_Base_director* director, double x, double* out_result);
 
+/* bool dr1::Base::flag(bool on) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_flag(dr1_Base_director* director, bool on, bool* out_result);
+
+/* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_big(dr1_Base_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result);
+
 /* void dr1::Base::hook()
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_hook(dr1_Base_director* director);
@@ -212,6 +240,14 @@ DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_value_int32(dr1_Deriv
 /* double dr1::Base::value(double x) const
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_value_double(dr1_Derived_director* director, double x, double* out_result);
+
+/* bool dr1::Base::flag(bool on) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_flag(dr1_Derived_director* director, bool on, bool* out_result);
+
+/* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_big(dr1_Derived_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result);
 
 /* void dr1::Base::hook()
  * calls the implementation of the class, without going through the vtable */

@@ -24,6 +24,8 @@ _ERRORS = {
     "range": (OverflowError, ()),
     "length": (ValueError, ("elements",)),
     "closed": (ValueError, ("closed", "no longer valid")),
+    # What an override raises reaches the call as it is: the scenarios make it a RuntimeError.
+    "override": (RuntimeError, ()),
 }
 _STATUSES = {
     "exception": "ERROR_EXCEPTION",
@@ -48,6 +50,7 @@ class Player:
         self.error = self.package.Error
         self.name = package
         self.variables: dict[str, object] = {}
+        self.classes: dict[str, type] = {}
 
     def header(self, stem: str) -> ModuleType:
         return importlib.import_module(f"{self.name}.{stem}")
@@ -129,9 +132,17 @@ class Player:
         if "close" in step:
             self.variables[str(step["close"])].close()
             return
+        if "derive" in step:
+            base = self.lookup(str(step["derive"]))
+            self.classes[str(step["named"])] = self.derive(
+                str(step["named"]),
+                base,
+                step["overrides"],  # type: ignore[arg-type]
+            )
+            return
         arguments = [self.decode(item) for item in step.get("args", [])]
         if "new" in step:
-            cls = self.lookup(str(step["new"]))
+            cls = self.classes.get(str(step["new"])) or self.lookup(str(step["new"]))
             overload = step.get("overload")
             make = getattr(cls, f"create{overload}") if overload else cls
             call = lambda: make(*arguments)  # noqa: E731
@@ -146,6 +157,39 @@ class Player:
             )
             if problem:
                 raise Failure(problem)
+
+    def derive(self, named: str, base: type, overrides: dict[str, dict[str, object]]) -> type:
+        """A class that derives from ``base`` and overrides the methods that ``overrides``
+        names, as the scenario says (see scenarios.py)."""
+        made: list[type] = []
+        methods = {
+            name_of(field): self.behavior(name_of(field), spec, made)
+            for field, spec in overrides.items()
+        }
+        derived = type(named, (base,), methods)
+        made.append(derived)
+        return derived
+
+    def behavior(self, name: str, spec: dict[str, object], made: list[type]):
+        if "returns" in spec:
+            value = self.decode(spec["returns"])
+            return lambda _self, *arguments: value
+        if "argument" in spec:
+            position = int(spec["argument"])  # type: ignore[call-overload]
+            return lambda _self, *arguments: arguments[position]
+        if "raises" in spec:
+            message = str(spec["raises"])
+
+            def fail(_self, *arguments):
+                raise RuntimeError(message)
+
+            return fail
+
+        def base_call(self, *arguments):
+            # The implementation of the class, not this method again.
+            return getattr(super(made[0], self), name)(*arguments)
+
+        return base_call
 
     def callable(self, target: str, arguments: list[object]):
         parts = target.split(".")

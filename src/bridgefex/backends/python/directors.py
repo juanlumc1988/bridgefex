@@ -46,10 +46,6 @@ class PySlot:
         return f"self, {self.parameters}" if self.parameters else "self"
 
     @property
-    def field(self) -> str:
-        return self.entry.field
-
-    @property
     def is_pure(self) -> bool:
         return self.entry.is_pure
 
@@ -92,20 +88,8 @@ class PyDirector:
         return next((item for item in self.constructors if item.plain == plain), None)
 
     @property
-    def c_type(self) -> str:
-        return self.plan.c_type
-
-    @property
     def class_name(self) -> str:
         return self.plan.class_name
-
-    @property
-    def director_type(self) -> str:
-        return self.plan.director_type
-
-    @property
-    def vtable_type(self) -> str:
-        return self.plan.vtable_type
 
     @property
     def struct_name(self) -> str:
