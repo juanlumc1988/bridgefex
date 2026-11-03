@@ -288,7 +288,8 @@ def vtable_of(result: bridgefex.Result, c_type: str, header: str = "api_c.h") ->
         ("short x", "std::int16_t x"),
         ("signed char x", "std::int8_t x"),
         ("unsigned char x", "std::uint8_t x"),
-        ("std::size_t x", "unsigned long x"),
+        # Not "unsigned long": size_t is unsigned int or unsigned long long on other targets.
+        ("std::size_t x", "size_t x"),
         ("const int x", "int y"),
         ("const std::int32_t& x", "const int& y"),
     ],

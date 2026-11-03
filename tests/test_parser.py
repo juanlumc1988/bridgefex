@@ -1098,7 +1098,7 @@ def test_the_key_of_a_virtual_method_is_what_an_override_has_in_common(tmp_path:
           virtual void h(const int x);
         };
         class B : public A { public:
-          void f(std::int32_t a, unsigned int b, unsigned long c, const int& d) const override;
+          void f(std::int32_t a, unsigned int b, size_t c, const int& d) const override;
           void f(std::int32_t) override;
           void g() const override;
           void h(int y) override;
@@ -1111,7 +1111,8 @@ def test_the_key_of_a_virtual_method_is_what_an_override_has_in_common(tmp_path:
     keys_a = [hook.key for hook in a.hooks]
     keys_b = [hook.key for hook in b.hooks]
     assert len(set(keys_a)) == len(keys_a)  # const and non-const are different methods
-    assert keys_b[0] == keys_a[0]  # int32_t is int, size_t is unsigned long (LP64 or not)
+    # int32_t is int and ::size_t is std::size_t, whatever the width of long on the target.
+    assert keys_b[0] == keys_a[0]
     assert keys_b[1] == keys_a[1]
     assert keys_b[2] == keys_a[2]
     assert keys_b[3] == keys_a[4]  # a top-level const of a parameter is not part of the type

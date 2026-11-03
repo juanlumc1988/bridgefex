@@ -14,6 +14,7 @@ Each case has:
 
 from __future__ import annotations
 
+import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,8 +61,20 @@ class Case:
     def scenarios(self) -> Path:
         return self.directory / "scenarios.toml"
 
+    @property
+    def parse_std(self) -> str:
+        """The standard the headers are parsed and verified with on this host: ``std``, or
+        C++14 on Windows when it asks for C++11, because the STL of MSVC (the only one
+        there) needs C++14 and libclang refuses to parse it as C++11. The output does not
+        depend on the standard, so the golden files are the same."""
+        if sys.platform == "win32" and self.std == "c++11":
+            return "c++14"
+        return self.std
+
     def options(self) -> bridgefex.Options:
-        return bridgefex.Options(module=self.module, std=self.std, annotations=self.annotations)
+        return bridgefex.Options(
+            module=self.module, std=self.parse_std, annotations=self.annotations
+        )
 
 
 def load_case(directory: Path) -> Case:
