@@ -159,6 +159,15 @@ To add a language:
    backend can change the C parameter names of the existing goldens (see above):
    regenerate them and check that the C files only change in that.
 5. Add a runner of the conformance scenarios (see below).
+6. Validate it before its pull request, with the same bar for every language: the
+   round trip of each golden case (also under sanitizers, and for 32-bit ARM what
+   the CI's armhf job can run), the conformance runner, tests for what is specific
+   to the language, and an **independent adversarial review**: reviewers that did not
+   write the code, each with a focus (lifetime and concurrency, the generated code
+   on hostile headers, the user's experience and the quality of the tests, the C
+   layer and its ABI), who try to break it and report only what they can reproduce.
+   Every finding is fixed (or answered with a reason) in the pull request, each
+   fix with a test that fails without it.
 
 The Python backend is the reference: `backends/python/ffi.py` maps `Ffi` to ctypes,
 `lower.py` lowers parameters and results, `module.py` builds the modules, classes,
