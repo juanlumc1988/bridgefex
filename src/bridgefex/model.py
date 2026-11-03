@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from .errors import Location
+from .errors import Diagnostic, Location
 
 
 class TypeCategory(Enum):
@@ -375,6 +375,11 @@ class Parameter:
 
     type: Type
 
+    by_reference: bool = False
+    """``const T&`` of a scalar or an enum, which the type does not say (it is copied
+    across the boundary). The other types keep it themselves. An override has to
+    declare the same parameter."""
+
 
 @dataclass(frozen=True, slots=True)
 class Function:
@@ -414,6 +419,49 @@ class Method:
     is_pure: bool = False
     """Declared ``= 0``."""
 
+    is_final: bool = False
+    """Declared ``final``: no class can override it."""
+
+    is_noexcept: bool = False
+    """``noexcept`` or ``throw()``: an override must not throw either."""
+
+    result_by_reference: bool = False
+    """It returns a reference (``const T&``): an override cannot give one back from a
+    value that another language computed."""
+
+
+class Access(Enum):
+    """Where a class declares a member that code of another language may use or
+    override. Private virtual methods are recorded too, only to tell what a derived
+    class cannot call: it cannot override one that has an implementation, because it
+    could not run that implementation, but it has to override a pure one."""
+
+    PUBLIC = "public"
+    PROTECTED = "protected"
+    PRIVATE = "private"
+
+
+@dataclass(frozen=True, slots=True)
+class Hook:
+    """A virtual method that a class declares, public or protected: something that a
+    subclass written in another language may override (a director does it). It is not
+    part of the API of the class unless it is public. The parser does not know
+    whether the class asks for a director, so a signature that cannot cross the C
+    boundary is not an error here: ``method`` is None and ``problems`` says why."""
+
+    name: str
+    access: Access
+    is_pure: bool
+    is_final: bool
+    location: Location
+    method: Method | None
+    problems: tuple[Diagnostic, ...] = ()
+    key: str = ""
+    """What tells a virtual method from the others of its class and its bases: the name,
+    the types of the parameters as the compiler sees them (``int`` and ``std::int32_t``
+    are one) and whether it is ``const``. An override has the key of what it overrides.
+    Only used to compare, never written to the generated code."""
+
 
 @dataclass(frozen=True, slots=True)
 class BaseRef:
@@ -451,6 +499,21 @@ class Class:
 
     virtual_destructor: bool = False
     """Its destructor is virtual (declared so, or inherited)."""
+
+    final: bool = False
+    """Declared ``final``: no class derives from it."""
+
+    hooks: tuple[Hook, ...] = ()
+    """The virtual methods it declares (overrides too), public and protected, in
+    source order."""
+
+    director_constructors: tuple[Constructor, ...] = ()
+    """The constructors that a derived class can call (public and protected, not the
+    copy and move ones), the implicit default one included, whether or not the
+    class is abstract."""
+
+    director_problems: tuple[Diagnostic, ...] = ()
+    """Why some of those constructors cannot be used from C."""
 
     @property
     def qualified_name(self) -> str:

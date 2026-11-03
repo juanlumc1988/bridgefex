@@ -17,6 +17,15 @@
 #include <bits/cxxabi_forced.h>
 #endif
 
+{% if m.has_directors %}
+#include <string>
+
+// What a function of a vtable gives back when it returns a string (see {{ m.runtime_header }}).
+struct {{ m.string_sink_type }} {
+    ::std::string value;
+};
+
+{% endif %}
 namespace {{ m.detail_namespace }} {
 
 #if !defined(__cpp_aligned_new)

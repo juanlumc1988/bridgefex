@@ -7,6 +7,7 @@ After an intended change of the output, regenerate the expected files with
 
 from __future__ import annotations
 
+import dataclasses
 import difflib
 import os
 import shutil
@@ -67,6 +68,26 @@ def test_golden(case: Case, update_goldens: bool) -> None:
         "(run 'pytest --update-goldens' if the change is intended):\n"
         + describe_differences(expected, actual)
     )
+
+
+@pytest.mark.parametrize(
+    ("platform", "std", "parsed"),
+    [
+        ("linux", "c++11", "c++11"),
+        ("darwin", "c++11", "c++11"),
+        ("win32", "c++11", "c++14"),
+        ("win32", "c++14", "c++14"),
+        ("win32", "c++20", "c++20"),
+        ("linux", "c++17", "c++17"),
+    ],
+)
+def test_a_case_is_parsed_with_a_standard_that_the_host_stl_supports(
+    monkeypatch: pytest.MonkeyPatch, platform: str, std: str, parsed: str
+) -> None:
+    monkeypatch.setattr(sys, "platform", platform)
+    case = dataclasses.replace(CASES[0], std=std)
+    assert case.parse_std == parsed
+    assert case.options().std == parsed
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)

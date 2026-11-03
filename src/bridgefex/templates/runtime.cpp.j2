@@ -164,6 +164,16 @@ extern "C" void {{ m.free_function }}(void* memory)
 {
     std::free(memory);
 }
+{% if m.has_directors %}
+
+extern "C" void {{ m.string_sink_set }}({{ m.string_sink_type }}* sink, const char* data, size_t size)
+{
+    if (sink == nullptr || (data == nullptr && size != 0)) {
+        return;
+    }
+    {{ m.detail_namespace }}::guard_silently([&]() { sink->value.assign(size == 0 ? "" : data, size); });
+}
+{% endif %}
 
 extern "C" void {{ m.disable_callbacks }}(void (*release)(void*))
 {

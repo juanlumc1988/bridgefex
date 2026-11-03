@@ -1,0 +1,5 @@
+# Options passed to bridgefex for this case: the directors need nothing newer than C++11.
+module = "dr1"
+headers = ["base.h"]
+std = "c++11"
+annotations = ["annotations.toml"]

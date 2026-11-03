@@ -321,7 +321,7 @@ def _function_lines(
     definitions = {
         f"{plan.status_type if function.returns_status else function.c_return or 'void'} "
         f"{function.signature}": function
-        for function in header.c_functions
+        for function in header.all_c_functions
     }
     return [
         (number, definitions[line])
@@ -387,6 +387,8 @@ def _report(
             f"the generated wrapper {wrapper.name}() for '{wrapper.description}' {kind}: "
             f"{diagnostic.spelling}"
         )
+        if wrapper.hint and severity >= cindex.Diagnostic.Error:
+            message += f" ({wrapper.hint})"
         diagnostic_location: Location | None = wrapper.location
     else:
         message = f"the generated code {kind}: {_describe(diagnostic, root)}"

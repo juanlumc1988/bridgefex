@@ -20,15 +20,19 @@ from enum import Enum
 
 from . import naming
 from .annotations import (
+    Annotations,
+    DirectorRequest,
     FunctionAnnotations,
     Kind,
     Param,
     Resolved,
     resolve,
+    unknown_directors,
     unknown_functions,
 )
 from .errors import Diagnostic, GenerationError, Location
 from .model import (
+    Access,
     CallbackType,
     Class,
     ClassForm,
@@ -42,6 +46,8 @@ from .model import (
     Field,
     Function,
     Header,
+    Hook,
+    Method,
     Module,
     Parameter,
     ScalarType,
@@ -269,6 +275,11 @@ class CFunction:
     """For a plain function (no status, no exception guard) that returns a value,
     the C type of it; ``statement`` is then the expression returned."""
 
+    hint: str = ""
+    """What to tell, after the error of the compiler, if the generated code of this
+    function does not compile: where the request that caused it is, and the likely
+    cause."""
+
     @property
     def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
         """Each NULL check of an output that the function allocates, with its reset."""
@@ -289,6 +300,14 @@ class CallableKind(Enum):
 
     METHOD = "method"
     CONSTRUCTOR = "constructor"
+
+    DIRECTOR_CONSTRUCTOR = "director constructor"
+    """Creates the director of a class: a subclass whose virtual methods call back
+    through a vtable."""
+
+    DIRECTOR_BASE = "director base call"
+    """Calls the implementation of a virtual method that the director overrides, without
+    going through the vtable."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,8 +439,9 @@ class LoweredParam:
 
 
 def _param_name(param: LoweredParam) -> str:
-    assert param.spec is not None
-    return param.spec.name
+    # A parameter that could not be lowered was reported: the plan is not built, and
+    # what is written about it does not matter.
+    return param.spec.name if param.spec is not None else ""
 
 
 def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
@@ -611,6 +631,78 @@ class ClassView:
 
 
 @dataclass(frozen=True, slots=True)
+class DirectorEntry:
+    """A virtual method that the vtable of a director overrides: one function pointer,
+    which is NULL when the method keeps the implementation of the class."""
+
+    field: str
+    """The member of the vtable, and the end of the name of its base call."""
+
+    name: str
+    """The C++ name of the method."""
+
+    description: str
+    """The C++ declaration, for the comments."""
+
+    owner: str
+    """The class that declares the method (the director's class or an ancestor)."""
+
+    access: Access
+    is_pure: bool
+    """No implementation to fall back on: the vtable has to give one."""
+
+    callback: CallbackSpec
+    """What the function receives and gives back, as for a ``std::function``."""
+
+    thunk_key: str
+    """The signature of the function pointer, which the backends name their types by."""
+
+    function_params: str
+    """The C parameters of the function pointer, ``void*`` first."""
+
+    base: CallablePlan | None
+    """The base call: None for a pure virtual method."""
+
+    @property
+    def declaration(self) -> str:
+        return f"void (*{self.field})({self.function_params})"
+
+
+@dataclass(frozen=True, slots=True)
+class DirectorPlan:
+    """The director of a class: a generated subclass, final, whose virtual methods call
+    the functions of a vtable that code of another language provides."""
+
+    c_type: str
+    """The C type of the class."""
+
+    class_name: str
+    """The C++ name of the class, for the comments."""
+
+    director_type: str
+    """The opaque C type of the director."""
+
+    vtable_type: str
+    entries: tuple[DirectorEntry, ...]
+    constructors: tuple[CallablePlan, ...]
+    """The functions that create a director, one per constructor of the class."""
+
+    object: CFunction
+    """The conversion from the director to the object (the class)."""
+
+    glue: tuple[str, ...]
+    """The C++ class, as lines."""
+
+    @property
+    def functions(self) -> tuple[CFunction, ...]:
+        return (
+            *(item.function for item in self.constructors),
+            self.object,
+            *(entry.base.function for entry in self.entries if entry.base is not None),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ClassPlan:
     model: Class
     c_type: str
@@ -630,6 +722,9 @@ class ClassPlan:
 
     is_base: bool = False
     """Another class of the module derives from it: it has a view of itself too."""
+
+    director: DirectorPlan | None = None
+    """Its director, if the annotations file asks for one."""
 
     @property
     def cpp_name(self) -> str:
@@ -675,6 +770,10 @@ class HeaderPlan:
     foreign_class_headers: tuple[HeaderPlan, ...] = ()
     """The other headers whose classes this header's functions use: the
     generated source includes them, so that the classes are complete there."""
+
+    director_types: tuple[Type, ...] = ()
+    """The types that the virtual methods of the directors of this header take and
+    give: they cross the boundary in the generated source too."""
 
     created_classes: tuple[tuple[str, str], ...] = ()
     """The (C++ name, qualified name) of the classes that the generated source
@@ -750,11 +849,30 @@ class HeaderPlan:
         return tuple(functions)
 
     @property
+    def directors(self) -> tuple[DirectorPlan, ...]:
+        return tuple(
+            item.director
+            for item in self.items
+            if isinstance(item, ClassPlan) and item.director is not None
+        )
+
+    @property
+    def director_functions(self) -> tuple[CFunction, ...]:
+        """The functions of the directors: for the code that calls back, not for the
+        bindings that call."""
+        return tuple(function for director in self.directors for function in director.functions)
+
+    @property
+    def all_c_functions(self) -> tuple[CFunction, ...]:
+        """Every function that the C header declares and the C source defines."""
+        return (*self.c_functions, *self.director_functions)
+
+    @property
     def std_includes(self) -> tuple[str, ...]:
         """Standard headers of the types that cross the boundary in the generated
         source: the wrapped header may only declare them (<iosfwd>)."""
         kinds: set[StringKind] = set()
-        for element in _components(_header_types(self.header)):
+        for element in _components((*_header_types(self.header), *self.director_types)):
             if isinstance(element, StringType):
                 kinds.add(element.kind)
         includes = []
@@ -849,6 +967,19 @@ class ModulePlan:
         return f"{self.name}_string"
 
     @property
+    def has_directors(self) -> bool:
+        return any(header.directors for header in self.headers)
+
+    @property
+    def string_sink_type(self) -> str:
+        """The string that a function of a vtable gives back."""
+        return f"{self.name}_string_sink"
+
+    @property
+    def string_sink_set(self) -> str:
+        return f"{self.name}_string_sink_set"
+
+    @property
     def disable_callbacks(self) -> str:
         return f"{self.name}_disable_callbacks"
 
@@ -903,6 +1034,15 @@ class ClassInfo:
     @property
     def cpp_name(self) -> str:
         return "::" + self.model.qualified_name
+
+
+@dataclass(frozen=True, slots=True)
+class _Slot:
+    """A virtual method that a director overrides: the most derived declaration."""
+
+    owner: ClassInfo
+    hook: Hook
+    method: Method
 
 
 @dataclass(frozen=True, slots=True)
@@ -977,6 +1117,10 @@ def _token(
     return type_.token
 
 
+_DIRECTOR_PARAMETERS = frozenset({"director", "vtable", "out_director"})
+"""The names of the parameters that the functions of a director add: the others avoid them."""
+
+
 def _callback_locals(callbacks: Sequence[CallbackType]) -> frozenset[str]:
     """The names that the generated code of these callbacks declares in the C
     function (the owners) and in the lambdas that call them: no parameter may
@@ -1013,6 +1157,12 @@ class _Builder:
         # The generated C functions that an annotation can name.
         self.annotatable: list[str] = []
         self.errors: list[Diagnostic] = []
+        # The classes that the annotations file asks a director for, and the types that
+        # the virtual methods of those directors use, by header.
+        self.director_requests: Mapping[str, DirectorRequest] = (
+            annotations.directors if isinstance(annotations, Annotations) else {}
+        )
+        self._director_types: dict[str, list[Type]] = {}
         self._c_names: dict[str, tuple[str, Location | None]] = {}
         # Names that generated C identifiers must not take: declarations at
         # global scope and macros seen by the parsed headers, and those of the
@@ -1046,6 +1196,7 @@ class _Builder:
         self._reserve_c_name(
             f"{module.name}_string", "the string type of the runtime", None, tag=True
         )
+        self._reserve_director_names()
         # A generated type with the name of an output parameter would be hidden
         # by it. (Only generated names: these do not clash with the headers.)
         for name in ("out_self", "out_result", "out_result_size"):
@@ -1798,28 +1949,30 @@ class _Builder:
         declares it (a reference too): the generated std::function must have
         its exact type."""
 
-        def spell(part: Type, reference: bool) -> str:
-            if isinstance(part, EnumRef):
-                enum = self._enum(part, location)
-                name = enum.cpp_name if enum is not None else "::" + part.qualified_name
-            elif isinstance(part, StructRef):
-                name = "::" + part.qualified_name
-                return f"const {name}&" if part.by_reference else name
-            elif isinstance(part, StringType):
-                if part.kind is StringKind.C_STRING:
-                    return "const char*"
-                name = f"::std::{part.kind.value}"
-                return f"const {name}&" if part.by_reference else name
-            else:
-                assert isinstance(part, ScalarType)
-                name = part.c_name
-            return f"const {name}&" if reference else name
-
         arguments = ", ".join(
-            spell(argument, reference)
+            self._spell(argument, reference, location)
             for argument, reference in zip(type_.arguments, type_.references, strict=True)
         )
-        return f"{spell(type_.result, False)} ({arguments})"
+        return f"{self._spell(type_.result, False, location)} ({arguments})"
+
+    def _spell(self, part: Type, reference: bool, location: Location) -> str:
+        """A scalar, enum, struct or string as a signature declares it, fully qualified
+        (the C++ spelling of the model is not a libclang one)."""
+        if isinstance(part, EnumRef):
+            enum = self._enum(part, location)
+            name = enum.cpp_name if enum is not None else "::" + part.qualified_name
+        elif isinstance(part, StructRef):
+            name = "::" + part.qualified_name
+            return f"const {name}&" if part.by_reference else name
+        elif isinstance(part, StringType):
+            if part.kind is StringKind.C_STRING:
+                return "const char*"
+            name = f"::std::{part.kind.value}"
+            return f"const {name}&" if part.by_reference else name
+        else:
+            assert isinstance(part, ScalarType)
+            name = part.c_name
+        return f"const {name}&" if reference else name
 
     def _lower_string_param(
         self, name: str, size: str | None, type_: StringType, nullable: bool = False
@@ -2586,6 +2739,7 @@ class _Builder:
                 )
             )
 
+        request = self.director_requests.get(c_type)
         return ClassPlan(
             model=model,
             c_type=c_type,
@@ -2596,7 +2750,575 @@ class _Builder:
             bases=tuple(bases),
             views=views,
             is_base=self._is_base(info),
+            director=self._director(info, request) if request is not None else None,
         )
+
+    # Directors ---------------------------------------------------------------
+
+    def _reserve_director_names(self) -> None:
+        """The names that the runtime of a module with directors adds."""
+        if not self.director_requests:
+            return
+        name = self.module.name
+        self._reserve_c_name(
+            f"{name}_string_sink", "the string sink of the vtables", None, tag=True
+        )
+        self._reserve_c_name(
+            f"{name}_string_sink_set", "the function that sets a string of the vtables", None
+        )
+
+    def unknown_directors(self) -> list[Diagnostic]:
+        """The classes that the annotations file asks a director for, and are not wrapped."""
+        return unknown_directors(
+            self.director_requests, [info.c_type for info in self._classes.values()]
+        )
+
+    def _ancestor_list(self, info: ClassInfo) -> list[ClassInfo]:
+        """The bases of a class, those of its bases too, each once, depth first."""
+        found: dict[str, ClassInfo] = {}
+
+        def visit(current: ClassInfo) -> None:
+            for base in self._known_bases(current):
+                if base.model.usr not in found:
+                    found[base.model.usr] = base
+                    visit(base)
+
+        visit(info)
+        return list(found.values())
+
+    @staticmethod
+    def _slot_key(hook: Hook) -> str:
+        """What tells the virtual methods apart: see :attr:`Hook.key`. (A model that was
+        not made by the parser has no key: the spelled types stand in for it.)"""
+        if hook.key:
+            return hook.key
+        method = hook.method
+        if method is None:
+            return hook.name
+        types = ", ".join(
+            _spelling(p.type) + ("&" if p.by_reference else "") for p in method.parameters
+        )
+        return f"{method.name}({types}){' const' if method.is_const else ''}"
+
+    def _director_slots(self, info: ClassInfo) -> tuple[list[_Slot], list[tuple[ClassInfo, Hook]]]:
+        """The virtual methods that a director of the class overrides, the most derived
+        declaration of each, and those that the model could not read.
+
+        A method is left to the class (the director does not override it) when the most
+        derived declaration is final, or private and has an implementation (a generated
+        class could not run it). A private pure one is overridden: nothing else makes the
+        director concrete. A method that two unrelated bases declare, and the class does
+        not, is ambiguous for a base call: it is overridden only if it is pure."""
+        slots: dict[str, _Slot] = {}
+        unreadable: list[tuple[ClassInfo, Hook]] = []
+        first: dict[str, ClassInfo] = {}
+        ambiguous: set[str] = set()
+        ancestors: dict[str, set[str]] = {}
+
+        def derives(owner: ClassInfo, base: ClassInfo) -> bool:
+            if owner.model.usr not in ancestors:
+                ancestors[owner.model.usr] = {item.model.usr for item in self._ancestor_list(owner)}
+            return base.model.usr in ancestors[owner.model.usr]
+
+        for owner in (info, *self._ancestor_list(info)):
+            for hook in owner.model.hooks:
+                key = self._slot_key(hook)
+                earlier = first.get(key)
+                if earlier is not None:
+                    if earlier is not info and not derives(earlier, owner):
+                        ambiguous.add(key)
+                    continue
+                first[key] = owner
+                if hook.is_final or (hook.access is Access.PRIVATE and not hook.is_pure):
+                    continue
+                if hook.method is None:
+                    unreadable.append((owner, hook))
+                else:
+                    slots[key] = _Slot(owner, hook, hook.method)
+        for key in ambiguous:
+            slot = slots.get(key)
+            if slot is not None and not slot.hook.is_pure:
+                del slots[key]
+        return list(slots.values()), unreadable
+
+    def _director_problems(self, slot: _Slot) -> list[str]:
+        """Why a virtual method cannot be overridden from another language (yet)."""
+        method = slot.method
+        problems: list[str] = []
+
+        def supported(type_: Type, what: str) -> bool:
+            if isinstance(type_, EnumRef) and type_.usr not in self._enums:
+                problems.append(f"{what}: the enum '{type_.qualified_name}' is not wrapped")
+            elif isinstance(type_, StructRef) and type_.usr not in self._structs:
+                problems.append(f"{what}: the struct '{type_.qualified_name}' is not wrapped")
+            elif not isinstance(type_, ScalarType | EnumRef | StructRef | StringType):
+                problems.append(
+                    f"{what}: '{_spelling(type_)}' is not a type that an override can take "
+                    "or give yet (scalars, enums, strings and value structs are)"
+                )
+            else:
+                return True
+            return False
+
+        for position, parameter in enumerate(method.parameters, start=1):
+            supported(parameter.type, f"parameter {parameter.name or position}")
+        result = method.result
+        if method.result_by_reference or getattr(result, "by_reference", False):
+            problems.append("the result is a reference: an override cannot return one")
+        elif isinstance(result, StringType) and result.kind is not StringKind.STRING:
+            problems.append(
+                "the result is a view of characters that the override would not own: "
+                "return a std::string"
+            )
+        elif isinstance(result, ScalarType) and result.is_void:
+            pass
+        else:
+            supported(result, "the result")
+        return problems
+
+    def _director_eligible(
+        self, info: ClassInfo, request: DirectorRequest
+    ) -> tuple[list[_Slot], list[tuple[ClassInfo, Hook]]] | None:
+        """The slots of the director of a class, or None (reported) if it cannot have one."""
+        model = info.model
+        problems_before = len(self.errors)
+
+        def fail(reason: str) -> None:
+            self.errors.append(
+                Diagnostic(
+                    f"class '{model.qualified_name}' cannot have a director: {reason} "
+                    f"({request.where()})",
+                    model.location,
+                )
+            )
+
+        if model.final:
+            fail("it is final")
+        if not model.virtual_destructor:
+            fail("it has no virtual destructor, so it is not meant to be derived from")
+        if not model.director_constructors:
+            reasons = "; ".join(problem.message for problem in model.director_problems)
+            detail = f" ({reasons})" if reasons else ""
+            fail("no constructor that a derived class can call crosses the C boundary" + detail)
+        slots, unreadable = self._director_slots(info)
+        if not slots and not unreadable:
+            fail("it has no public or protected virtual method to override")
+        for owner, hook in unreadable:
+            if hook.is_pure:
+                why = "; ".join(problem.message for problem in hook.problems)
+                fail(
+                    f"the pure virtual method '{owner.model.name}::{hook.name}' cannot be "
+                    f"overridden from another language: {why}"
+                )
+        for slot in slots:
+            problems = self._director_problems(slot)
+            if problems and slot.hook.is_pure:
+                fail(
+                    f"the pure virtual method '{slot.owner.model.name}::{slot.method.name}' "
+                    f"cannot be overridden from another language ({'; '.join(problems)})"
+                )
+        if len(self.errors) > problems_before:
+            return None
+        return slots, unreadable
+
+    def _director(self, info: ClassInfo, request: DirectorRequest) -> DirectorPlan | None:
+        """The director of a class that the annotations file asks for, or None
+        (reported)."""
+        model = info.model
+        problems_before = len(self.errors)
+        eligible = self._director_eligible(info, request)
+        if eligible is None:
+            return None
+        slots, _ = eligible
+        c_type = info.c_type
+        director_type = f"{c_type}_director"
+        vtable_type = f"{c_type}_vtable"
+        impl = f"{c_type}_director_impl"
+        cpp_base = info.cpp_name
+        detail = f"{self.module.name}_detail"
+        location = model.location
+        for name, what in (
+            (director_type, f"the director handle of '{model.qualified_name}'"),
+            (vtable_type, f"the vtable of the director of '{model.qualified_name}'"),
+        ):
+            self._reserve_c_name(name, what, location, tag=True)
+
+        # What can be overridden (a method whose types cannot cross yet keeps the C++
+        # implementation), with the names of the vtable members.
+        entries_slots = [slot for slot in slots if not self._director_problems(slot)]
+        overloads: dict[str, int] = {}
+        for slot in entries_slots:
+            overloads[slot.method.name] = overloads.get(slot.method.name, 0) + 1
+        raw = [
+            slot.method.name
+            + (
+                naming.overload_suffix(
+                    [
+                        _token(p.type, self._enums, self._struct_c_types, self._class_c_types)
+                        for p in slot.method.parameters
+                    ]
+                )
+                if overloads[slot.method.name] > 1
+                else ""
+            )
+            for slot in entries_slots
+        ]
+        fields = naming.field_names(raw, self._parameter_macros | {"user_data", "release"})
+
+        entries: list[DirectorEntry] = []
+        glue_overrides: list[str] = []
+        glue_bases: list[str] = []
+        types: list[Type] = []
+        for slot, field in zip(entries_slots, fields, strict=True):
+            built = self._director_entry(info, slot, field, impl)
+            if built is None:  # reported
+                continue
+            entry, override, base_member = built
+            entries.append(entry)
+            glue_overrides += override
+            glue_bases += base_member
+            types += [p.type for p in slot.method.parameters] + [slot.method.result]
+        if len(self.errors) > problems_before:
+            return None
+
+        constructors = self._director_constructors(
+            info, director_type, vtable_type, impl, entries, request=request
+        )
+        object_name = f"{director_type}_object"
+        self._reserve_c_name(object_name, f"the object of the director of '{cpp_base}'", location)
+        object_function = CFunction(
+            name=object_name,
+            params=(CParam("director", f"{director_type}*", Role.SELF, Ffi.handle(director_type)),),
+            returns_status=False,
+            statement=(
+                f"reinterpret_cast<{c_type}*>(static_cast<{cpp_base}*>"
+                f"(reinterpret_cast<{detail}::{impl}*>(director)))"
+            ),
+            description=f"{model.qualified_name}: the object of its director",
+            ffi_restype=Ffi.handle(c_type),
+            location=location,
+            c_return=f"{c_type}*",
+        )
+        glue = (
+            f"class {impl} final : public {cpp_base} {{",
+            "public:",
+            "    template <typename... Args>",
+            f"    {impl}({detail}::callback_owner& owner, const {vtable_type}& vtable,"
+            " Args&&... args)",
+            f"        : {cpp_base}(static_cast<Args&&>(args)...), vt_(vtable), ref_(owner) {{}}",
+            *glue_overrides,
+            *glue_bases,
+            "",
+            "private:",
+            f"    {vtable_type} vt_;",
+            f"    {detail}::callback_ref ref_;",
+            "};",
+        )
+        types += [
+            parameter.type
+            for constructor in model.director_constructors
+            for parameter in constructor.parameters
+        ]
+        self._director_types.setdefault(info.header.stem, []).extend(types)
+        return DirectorPlan(
+            c_type=c_type,
+            class_name=model.qualified_name,
+            director_type=director_type,
+            vtable_type=vtable_type,
+            entries=tuple(entries),
+            constructors=tuple(constructors),
+            object=object_function,
+            glue=glue,
+        )
+
+    def _director_result(
+        self, type_: Type, location: Location
+    ) -> tuple[str, str | None, str, list[str], list[str]]:
+        """How the override gets the result of the function pointer: (C++ type, C type
+        of its output parameter or None, token of the signature, statements before the
+        call, statements after it)."""
+        detail = f"{self.module.name}_detail"
+        if isinstance(type_, StringType):
+            sink = f"{self.module.name}_string_sink"
+            return (
+                "::std::string",
+                f"{sink}*",
+                "string",
+                [f"{sink} _result;"],
+                ["return static_cast<::std::string&&>(_result.value);"],
+            )
+        if isinstance(type_, StructRef):
+            struct = self._struct(type_, location)
+            assert struct is not None  # checked
+            return (
+                struct.cpp_name,
+                f"{struct.c_type}*",
+                struct.c_type,
+                [f"{struct.c_type} _result{{}};"],
+                [
+                    "try {",
+                    f"    return {detail}::from_c(_result);",
+                    f"}} catch (const {detail}::argument_error&) {{",
+                    "    // A member that is not valid (an enum out of range) gives the zero",
+                    "    // value, as it does when it is the result itself.",
+                    f"    return {struct.cpp_name}();",
+                    "}",
+                ],
+            )
+        result = self._callback_result(type_, location)  # type: ignore[arg-type]
+        assert result is not None  # checked
+        cpp, c_type, token = result
+        if c_type is None:
+            return "void", None, "void", [], []
+        back = "_result" if cpp == c_type else f"static_cast<{cpp}>(_result)"
+        valid = self._valid_range(type_, location)
+        if valid is not None:
+            terms = [f"_result < {valid[0]}"] if valid[0] > _INT_MIN else []
+            terms += [f"_result > {valid[1]}"] if valid[1] < _INT_MAX else []
+            if terms:
+                back = f"{' || '.join(terms)} ? {cpp}() : {back}"
+        return cpp, f"{c_type}*", token, [f"{c_type} _result{{}};"], [f"return {back};"]
+
+    def _director_entry(
+        self, info: ClassInfo, slot: _Slot, field: str, impl: str
+    ) -> tuple[DirectorEntry, list[str], list[str]] | None:
+        """One member of the vtable: its description, its override in the director, the
+        member that calls the implementation of the class, and the C function that
+        calls it."""
+        method = slot.method
+        location = method.location
+        detail = f"{self.module.name}_detail"
+        cpp_base = info.cpp_name
+        declarations: list[str] = []
+        c_types = ["void*"]
+        passed = ["ref_.user_data()"]
+        tokens: list[str] = []
+        parts: list[CallbackPart] = []
+        for position, parameter in enumerate(method.parameters, start=1):
+            local = f"_arg{position}"
+            declarations.append(
+                f"{self._spell(parameter.type, parameter.by_reference, location)} {local}"
+            )
+            lowered = self._callback_argument(parameter.type, local, location)
+            assert lowered is not None  # checked
+            _, c_args, pass_c, token = lowered
+            c_types += c_args
+            passed += pass_c
+            tokens.append(token)
+            parts.append(self._callback_part(parameter.type, location))
+        result_cpp, result_c, result_token, before, after = self._director_result(
+            method.result, location
+        )
+        if result_c is not None:
+            c_types.append(result_c)
+            passed.append("&_result")
+        names = ", ".join(f"_arg{i}" for i in range(1, len(method.parameters) + 1))
+        qualifiers = (" const" if method.is_const else "") + (
+            " noexcept" if method.is_noexcept else ""
+        )
+        base_call = f"{cpp_base}::{method.name}({names})"
+        if slot.hook.is_pure:
+            fallback = "return;" if result_cpp == "void" else f"return {result_cpp}();"
+            condition = "ref_.disabled()"
+        else:
+            fallback = f"return {base_call};"  # (a void result too: it is a void expression)
+            condition = f"vt_.{field} == nullptr || ref_.disabled()"
+        override = [
+            "",
+            f"    {result_cpp} {method.name}({', '.join(declarations)}){qualifiers} override",
+            "    {",
+            f"        if ({condition}) {{",
+            f"            {fallback}",
+            "        }",
+            *(f"        {line}" for line in before),
+            f"        vt_.{field}({', '.join(passed)});",
+            *(f"        {line}" for line in after),
+            "    }",
+        ]
+        const = " const" if method.is_const else ""
+        base_member = (
+            []
+            if slot.hook.is_pure
+            else [
+                "",
+                "    template <typename... Args>",
+                f"    {result_cpp} bridgefex_base_{field}(Args&&... args){const}",
+                "    {",
+                f"        return this->{cpp_base}::{method.name}(static_cast<Args&&>(args)...);",
+                "    }",
+            ]
+        )
+        callback = CallbackSpec(
+            tuple(parts),
+            self._callback_part(method.result, location),
+        )
+        director_type = f"{info.c_type}_director"
+        base: CallablePlan | None = None
+        description = (
+            f"{_spelling(method.result)} {slot.owner.model.qualified_name}::{method.name}"
+            f"({_describe_params(method.parameters)}){' const' if method.is_const else ''}"
+        )
+        if not slot.hook.is_pure:
+            name = f"{director_type}_base_{field}"
+            what = f"the base call of '{description}'"
+            self._reserve_c_name(name, what, location)
+            policy = self._policy(name, what, method.parameters, method.result, location)
+            params = self._lower_params(
+                method.parameters, location, policy, reserved=_DIRECTOR_PARAMETERS
+            )
+            function, lowered_result = self._status_function(
+                name,
+                params,
+                f"reinterpret_cast<{detail}::{impl}*>(director)->bridgefex_base_{field}({{arguments}})",
+                method.result,
+                description,
+                location=location,
+                policy=policy,
+                self_param=CParam(
+                    "director", f"{director_type}*", Role.SELF, Ffi.handle(director_type)
+                ),
+                keeper="the director keeps",
+            )
+            function = dataclasses.replace(
+                function,
+                notes=(
+                    "calls the implementation of the class, without going through the vtable",
+                    *function.notes,
+                ),
+            )
+            base = self._callable(
+                CallableKind.DIRECTOR_BASE,
+                method.name,
+                field.removeprefix(method.name),
+                function,
+                params=params,
+                result=lowered_result,
+                location=location,
+                is_const=method.is_const,
+            )
+        entry = DirectorEntry(
+            field=field,
+            name=method.name,
+            description=description,
+            owner=slot.owner.model.qualified_name,
+            access=slot.hook.access,
+            is_pure=slot.hook.is_pure,
+            callback=callback,
+            thunk_key="__".join([result_token, *tokens]),
+            function_params=", ".join(c_types),
+            base=base,
+        )
+        return entry, override, base_member
+
+    def _director_constructors(
+        self,
+        info: ClassInfo,
+        director_type: str,
+        vtable_type: str,
+        impl: str,
+        entries: Sequence[DirectorEntry],
+        *,
+        request: DirectorRequest,
+    ) -> list[CallablePlan]:
+        """The functions that create the director, one for each constructor that a derived
+        class can call."""
+        model = info.model
+        detail = f"{self.module.name}_detail"
+        constructors = model.director_constructors
+        plans: list[CallablePlan] = []
+        for constructor in constructors:
+            suffix = (
+                naming.overload_suffix(
+                    [
+                        _token(p.type, self._enums, self._struct_c_types, self._class_c_types)
+                        for p in constructor.parameters
+                    ]
+                )
+                if len(constructors) > 1
+                else ""
+            )
+            name = f"{director_type}_create{suffix}"
+            description = (
+                f"{model.qualified_name}::{model.name}({_describe_params(constructor.parameters)})"
+                " of the director"
+            )
+            what = f"the constructor of the director '{description}'"
+            self._reserve_c_name(name, what, constructor.location)
+            policy = self._policy(
+                name, what, constructor.parameters, None, constructor.location, constructor=True
+            )
+            params = self._lower_params(
+                constructor.parameters, constructor.location, policy, reserved=_DIRECTOR_PARAMETERS
+            )
+            arguments = "".join(f", {param.argument}" for param in params)
+            out_director = CParam(
+                "out_director",
+                f"{director_type}**",
+                Role.OUT_SELF,
+                Ffi.handle(director_type).pointer(),
+            )
+            vtable = CParam(
+                "vtable", f"const {vtable_type}*", Role.INPUT, Ffi.struct(vtable_type).pointer()
+            )
+            pure = tuple(
+                Precondition(
+                    f"vtable->{entry.field} == nullptr",
+                    "invalid_argument",
+                    f"'vtable->{entry.field}' is NULL: it has to implement the pure virtual "
+                    f"method '{entry.description}'",
+                )
+                for entry in entries
+                if entry.is_pure
+            )
+            function = CFunction(
+                name=name,
+                params=(out_director, vtable, *(c for param in params for c in param.c_params)),
+                returns_status=True,
+                statement=(
+                    f"*out_director = reinterpret_cast<{director_type}*>"
+                    f"(new {detail}::{impl}(_vtable_owner, *vtable{arguments}));"
+                ),
+                description=description,
+                ffi_restype=STATUS_FFI,
+                owned_checks=(_null_check("out_director"),),
+                resets=("*out_director = nullptr;",),
+                checks=(
+                    _null_check("vtable"),
+                    *pure,
+                    *(c for param in params for c in param.null_checks),
+                    *(c for param in params for c in param.value_checks),
+                ),
+                location=constructor.location,
+                compile_checks=tuple(check for param in params for check in param.compile_checks),
+                prologue=(
+                    f"{detail}::callback_owner _vtable_owner(vtable != nullptr ? vtable->release"
+                    " : nullptr, vtable != nullptr ? vtable->user_data : nullptr);",
+                    *(line for param in params for line in param.prologue),
+                ),
+                notes=(
+                    "the vtable is copied; its release function is called once, when the "
+                    "director is destroyed (or now, if this function fails)",
+                    *_parameter_notes(params, "the new object keeps"),
+                ),
+                hint=(
+                    f"{request.where()}: the class asks for a director, which derives from it "
+                    "and has to call this constructor: check that it is not deleted or "
+                    "inaccessible, in the class or in its bases (a reference member or a base "
+                    "without a default constructor deletes the implicit one)"
+                ),
+            )
+            plans.append(
+                self._callable(
+                    CallableKind.DIRECTOR_CONSTRUCTOR,
+                    model.name,
+                    suffix,
+                    function,
+                    params=params,
+                    result=None,
+                    location=constructor.location,
+                )
+            )
+        return plans
 
     def _bases(self, info: ClassInfo) -> list[ClassInfo]:
         """The public base classes of a class, which have to be classes of the module
@@ -2744,15 +3466,16 @@ class _Builder:
                 items.append(self._structs[declaration.usr])
             else:
                 items.append(self._enums[declaration.usr])
+        director_types = tuple(self._director_types.get(header.stem, ()))
         owners: dict[str, Header] = {}
-        for type_ in _components(_header_types(header, fields=False)):
+        for type_ in _components((*_header_types(header, fields=False), *director_types)):
             if isinstance(type_, StructRef) and type_.usr in self._structs:
                 owner = self._struct_headers[type_.usr]
                 if owner is not header:
                     owners.setdefault(owner.stem, owner)
         self.foreign_struct_headers[header.stem] = tuple(owners.values())
         class_owners: dict[str, Header] = {}
-        for type_ in _components(_header_types(header, fields=False)):
+        for type_ in _components((*_header_types(header, fields=False), *director_types)):
             ref = self._as_class(type_)
             if ref is not None and ref.usr in self._classes:
                 owner = self._classes[ref.usr].header
@@ -2760,7 +3483,7 @@ class _Builder:
                     class_owners.setdefault(owner.stem, owner)
         self.foreign_class_headers[header.stem] = tuple(class_owners.values())
         foreign: dict[str, EnumPlan] = {}
-        for type_ in _components(_header_types(header)):
+        for type_ in _components((*_header_types(header), *director_types)):
             if isinstance(type_, EnumRef) and type_.usr in self._enums:
                 owner = self._enum_headers[type_.usr]
                 enum = self._enums[type_.usr]
@@ -2774,6 +3497,7 @@ class _Builder:
             guard=guard,
             items=tuple(items),
             foreign_enums=tuple(foreign.values()),
+            director_types=director_types,
             created_classes=tuple((i.cpp_name, i.model.qualified_name) for i in created.values()),
             value_results=tuple((i.cpp_name, i.model.qualified_name) for i in by_value),
         )
@@ -2904,6 +3628,7 @@ def build_plan(
         stems[key] = header
         headers.append(builder.build_header(header))
     builder.errors.extend(unknown_functions(annotations or {}, builder.annotatable))
+    builder.errors.extend(builder.unknown_directors())
     if builder.errors:
         raise GenerationError(builder.errors)
     # The sources include the headers (in module order) whose structs they use.

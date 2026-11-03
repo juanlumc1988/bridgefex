@@ -14,7 +14,7 @@ from tests.support.cases import Case
 
 def plan_of(case: Case) -> ModulePlan:
     """Parse the headers of ``case`` and plan them (libclang must be loaded)."""
-    options = ParseOptions(std=case.std)
+    options = ParseOptions(std=case.parse_std)
     headers = tuple(
         parse_header(header, include_spelling(header, None), options).header
         for header in case.headers
