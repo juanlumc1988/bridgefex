@@ -17,7 +17,7 @@ KEYWORDS = frozenset(keyword.kwlist)
 PARAMETER_NAMES = frozenset(
     """
     cls ctypes weakref threading _builtins _runtime _types _lib _bind _bind_lock _out_size
-    _out_data _handle _self _scope _status
+    _out_data _handle _self _scope _status _found _director _vtable _record
     """.split()
 )
 
@@ -25,7 +25,8 @@ PARAMETER_NAMES = frozenset(
 RESERVED_MEMBER_NAMES = frozenset(
     """
     close _watch _adopt _ptr _mptr _collected _handle _finalizer _owned _owners _readonly
-    _retained __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
+    _retained _director _director_slots _watch_director _adopt_director _dptr
+    __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
     """.split()
 )
 

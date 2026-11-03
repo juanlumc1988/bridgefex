@@ -31,6 +31,9 @@ typedef struct drc_Dot drc_Dot;
 /* Opaque handle of drc::Plain. */
 typedef struct drc_Plain drc_Plain;
 
+/* Opaque handle of drc::Holder. */
+typedef struct drc_Holder drc_Holder;
+
 /* From "stage.h". */
 
 /* Opaque handle of drc::Stage. */

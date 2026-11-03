@@ -138,6 +138,49 @@ def {{ t.name }}({{ t.params | join(", ") }}):
 # The thunk itself is never freed: C++ may call it at any time.
 {{ t.name }} = {{ t.type_name }}({{ t.name }})
 {% endfor %}
+{% for d in m.directors %}
+
+
+class {{ d.struct_name }}(ctypes.Structure):
+    """Opaque C handle of the director of {{ d.class_name }}."""
+
+
+{{ d.pointer_name }} = ctypes.POINTER({{ d.struct_name }})
+{% for slot in d.slots %}
+
+
+{{ slot.thunk.type_name }} = ctypes.CFUNCTYPE(None, {{ slot.thunk.ctypes_args | join(", ") }})
+
+
+def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "{{ slot.name }}")
+        if _function is None:
+            return
+{{ slot.thunk.body }}
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+{{ slot.thunk.name }} = {{ slot.thunk.type_name }}({{ slot.thunk.name }})
+{% endfor %}
+
+
+class {{ d.vtable_name }}(ctypes.Structure):
+    """C mirror of the vtable of the director of {{ d.class_name }}."""
+
+    _fields_ = [
+        ("user_data", ctypes.c_void_p),
+        ("release", _runtime.Release),
+{% for slot in d.slots %}
+        ("{{ slot.ctypes_name }}", {{ slot.thunk.type_name }}),
+{% endfor %}
+    ]
+{% endfor %}
 {% endset %}
 """Types of the "{{ m.name }}" bindings: the handles, enums and value structs of every header.
 

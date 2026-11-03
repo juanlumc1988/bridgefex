@@ -50,6 +50,20 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 
     __slots__ = ()
     _cxx_class = "{{ c.c_type }}"
+{% if c.director %}
+    # The virtual methods that a subclass may override: (method, member of the vtable,
+    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
+    _director_slots = _runtime.DirectorSlots(
+        "{{ c.c_type }}",
+        "{{ c.director.class_name }}",
+        _types.{{ c.director.vtable_name }},
+        (
+{% for slot in c.director.slots %}
+            ("{{ slot.name }}", "{{ slot.ctypes_name }}", {{ "True" if slot.is_pure else "False" }}, _types.{{ slot.thunk_name }}),
+{% endfor %}
+        ),
+    )
+{% endif %}
 {% if c.views %}
     _ancestors = ({% for view in c.views %}"{{ view.ptr }}",{{ " " if not loop.last }}{% endfor %})
 {% endif %}
@@ -59,7 +73,52 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 {% endif %}
     {{ e.py_name }} = {{ e.py_type }}
 {% endfor %}
-{% if not c.constructors %}
+{% if c.director and not c.director.own_constructors %}
+{% set creations = c.director.constructors %}
+{% if creations | length == 1 %}
+{% set dc = creations[0] %}
+
+    def __init__(self{{ ", " + dc.callable.parameter_list if dc.callable.args else "" }}):
+        """Wraps ``{{ dc.callable.function.description }}``.
+
+        A subclass that overrides virtual methods makes the objects: the class cannot be
+        instantiated itself.
+        """
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
+        _found = self._director_slots.overrides(type(self), subclass=True)
+{{ dc.callable.check_call(8, ("_handle, _director = self._watch_director()", "_vtable, _record = self._director_slots.make(self, _found)") + dc.callable.retain_statements("self")) }}
+        self._adopt_director(_handle, _director, _record)
+{% else %}
+
+    def __init__(self, *args, **kwargs):
+        raise _builtins.TypeError(
+            "{{ c.py_name }} has several constructors; use "
+            "{% for dc in creations %}{{ c.py_name }}.{{ dc.name }}(){{ ", " if not loop.last else "" }}{% endfor %}"
+        )
+{% for dc in creations %}
+
+    @_builtins.classmethod
+    def {{ dc.name }}(cls{{ ", " + dc.callable.parameter_list if dc.callable.args else "" }}):
+        """Wraps ``{{ dc.callable.function.description }}``.
+
+        A subclass that overrides virtual methods makes the objects: the class cannot be
+        instantiated itself.
+        """
+{% if c.is_base %}
+        if cls._cxx_class != "{{ c.c_type }}":
+            # Inherited by a class derived from this one, whose objects it cannot make.
+            raise _builtins.TypeError(
+                "{{ c.py_name }}.{{ dc.name }}() constructs a {{ c.py_name }}, not a " + cls.__name__
+            )
+{% endif %}
+        _found = cls._director_slots.overrides(cls, subclass=True)
+{{ dc.callable.check_call(8, ("_self = cls.__new__(cls)", "_handle, _director = _self._watch_director()", "_vtable, _record = cls._director_slots.make(_self, _found)") + dc.callable.retain_statements("_self"), owner="_self") }}
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+{% endfor %}
+{% endif %}
+{% elif not c.constructors %}
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
@@ -68,13 +127,27 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         )
 {% elif c.single_constructor %}
 {% set ctor = c.constructors[0] %}
+{% set dc = c.director.creation(ctor.name) if c.director else none %}
 
     def __init__(self{{ ", " + ctor.parameter_list if ctor.args else "" }}):
         """Wraps ``{{ ctor.function.description }}``."""
         if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
+{% if dc %}
+        _found = self._director_slots.overrides(type(self))
+        if _found:
+            self.{{ dc.private_name }}(_found{{ ", " + ctor.parameter_list if ctor.args else "" }})
+            return
+{% endif %}
 {{ ctor.check_call(8, ("_handle = self._watch()",) + ctor.retain_statements("self")) }}
         self._adopt(_handle)
+{% if dc %}
+
+    def {{ dc.private_name }}(self, _found{{ ", " + dc.callable.parameter_list if dc.callable.args else "" }}):
+        """Wraps ``{{ dc.callable.function.description }}``."""
+{{ dc.callable.check_call(8, ("_handle, _director = self._watch_director()", "_vtable, _record = self._director_slots.make(self, _found)") + dc.callable.retain_statements("self")) }}
+        self._adopt_director(_handle, _director, _record)
+{% endif %}
 {% else %}
 
     def __init__(self, *args, **kwargs):
@@ -83,6 +156,7 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
             "{% for ctor in c.constructors %}{{ c.py_name }}.{{ ctor.name }}(){{ ", " if not loop.last else "" }}{% endfor %}"
         )
 {% for ctor in c.constructors %}
+{% set dc = c.director.creation(ctor.name) if c.director else none %}
 
     @_builtins.classmethod
     def {{ ctor.name }}(cls{{ ", " + ctor.parameter_list if ctor.args else "" }}):
@@ -94,9 +168,23 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
                 "{{ c.py_name }}.{{ ctor.name }}() constructs a {{ c.py_name }}, not a " + cls.__name__
             )
 {% endif %}
+{% if dc %}
+        _found = cls._director_slots.overrides(cls)
+        if _found:
+            return cls.{{ dc.private_name }}(_found{{ ", " + ctor.parameter_list if ctor.args else "" }})
+{% endif %}
 {{ ctor.check_call(8, ("_self = cls.__new__(cls)", "_handle = _self._watch()") + ctor.retain_statements("_self"), owner="_self") }}
         _self._adopt(_handle)
         return _self
+{% if dc %}
+
+    @_builtins.classmethod
+    def {{ dc.private_name }}(cls, _found{{ ", " + dc.callable.parameter_list if dc.callable.args else "" }}):
+        """Wraps ``{{ dc.callable.function.description }}``."""
+{{ dc.callable.check_call(8, ("_self = cls.__new__(cls)", "_handle, _director = _self._watch_director()", "_vtable, _record = cls._director_slots.make(_self, _found)") + dc.callable.retain_statements("_self"), owner="_self") }}
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+{% endif %}
 {% endfor %}
 {% endif %}
 
@@ -114,8 +202,26 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
         self._retained = {}
+{% if m.has_directors %}
+        self._director = None
+{% endif %}
         self._finalizer = _runtime.watch(self, handle, _bind().{{ c.destroy.name }})
         return handle
+{% if c.director %}
+
+    def _watch_director(self):
+        """Like _watch(), and the handle for the create function to write the director to."""
+        return self._watch(), _types.{{ c.director.pointer_name }}()
+
+    def _adopt_director(self, handle, director, record):
+        self._adopt(handle)
+        record.pointer = director
+        self._director = record
+
+    def _dptr(self):
+        """The handle of the director, for the calls of the implementation of the class."""
+        return _runtime.director_pointer(self._director, "{{ c.py_name }}")
+{% endif %}
 
     def _adopt(self, handle):
         if not handle:
@@ -212,6 +318,33 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 
     def __reduce__(self):
         raise _builtins.TypeError("{{ c.py_name }} objects cannot be pickled")
+{% if c.director %}
+{% for slot in c.director.bases %}
+
+    def {{ slot.private_name }}({{ slot.signature }}):
+        """Calls the implementation of ``{{ slot.entry.description }}`` in C++: not the
+        override of an object, which would call this one again."""
+{{ slot.base.body(8) }}
+{% endfor %}
+{% for slot in c.director.wrappers %}
+
+    def {{ slot.name }}({{ slot.signature }}):
+{% if slot.wrapper == "protected" %}
+        """Calls the implementation of ``{{ slot.entry.description }}`` in C++ (protected: only
+        an override of a subclass that overrides virtual methods can call it)."""
+        if self._director is None:
+            raise _builtins.TypeError(
+                "{{ c.py_name }}.{{ slot.name }}() is a protected method: only an override "
+                "in a subclass that overrides virtual methods of {{ c.director.class_name }} calls it"
+            )
+{% else %}
+        """Wraps ``{{ slot.entry.description }}``."""
+        if self._director is None:
+            return super().{{ slot.name }}({{ slot.parameters }})
+{% endif %}
+        return self.{{ slot.private_name }}({{ slot.parameters }})
+{% endfor %}
+{% endif %}
 {% for py in c.members %}
 
 {% if py.is_static %}

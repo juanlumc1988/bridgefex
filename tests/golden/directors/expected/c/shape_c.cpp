@@ -29,6 +29,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <functional>
+#include <memory>
 
 // The code below names the wrapped declarations to expose them, deprecated
 // ones too: that is no reason to warn here. Nor is a member that a default
@@ -68,6 +70,8 @@ static_assert(alignof(::drc::Dot) <= drc_detail::new_alignment,
               "drc::Dot is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::drc::Plain) <= drc_detail::new_alignment,
               "drc::Plain is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::drc::Holder) <= drc_detail::new_alignment,
+              "drc::Holder is over-aligned: compile this file as C++17 or later");
 #endif
 
 // The directors: classes derived from the wrapped ones, whose virtual methods call the
@@ -938,6 +942,109 @@ drc_status drc_Plain_value(const drc_Plain* self, int32_t* out_result)
         return drc_detail::null_argument("drc_Plain_value: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Plain*>(self)->value(); });
+}
+
+// drc::Holder::Holder()
+drc_status drc_Holder_create(drc_Holder** out_self)
+{
+    if (out_self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return drc_detail::guard([&]() { *out_self = reinterpret_cast<drc_Holder*>(new ::drc::Holder()); });
+}
+
+// drc::Holder::~Holder()
+void drc_Holder_destroy(drc_Holder* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    drc_detail::guard_silently([&]() { delete reinterpret_cast<::drc::Holder*>(self); });
+}
+
+// void drc::Holder::put(std::unique_ptr<drc::Shape> shape)
+drc_status drc_Holder_put(drc_Holder* self, drc_Shape* shape)
+{
+    drc_detail::transferred<::drc::Shape> shape_owner(reinterpret_cast<::drc::Shape*>(shape));
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_put: 'self' is NULL");
+    }
+    if (shape == nullptr) {
+        return drc_detail::null_argument("drc_Holder_put: 'shape' is NULL");
+    }
+    return drc_detail::guard([&]() { reinterpret_cast<::drc::Holder*>(self)->put(shape_owner.take<std::unique_ptr<::drc::Shape>>()); });
+}
+
+// std::unique_ptr<drc::Shape> drc::Holder::take()
+drc_status drc_Holder_take(drc_Holder* self, drc_Shape** out_result)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_take: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_take: 'self' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_Shape*>(reinterpret_cast<::drc::Holder*>(self)->take().release()); });
+}
+
+// bool drc::Holder::empty() const
+drc_status drc_Holder_empty(const drc_Holder* self, bool* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_empty: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_empty: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Holder*>(self)->empty(); });
+}
+
+// std::string drc::Holder::describe() const
+drc_status drc_Holder_describe(const drc_Holder* self, char** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe: 'self' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<const ::drc::Holder*>(self)->describe(), out_result, out_result_size); });
+}
+
+// std::string drc::Holder::describe_on_thread() const
+drc_status drc_Holder_describe_on_thread(const drc_Holder* self, char** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe_on_thread: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe_on_thread: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_describe_on_thread: 'self' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::return_string(reinterpret_cast<const ::drc::Holder*>(self)->describe_on_thread(), out_result, out_result_size); });
+}
+
+// int32_t drc::Holder::apply(const std::function<int32_t (int32_t)>& f) const
+drc_status drc_Holder_apply(const drc_Holder* self, void (*f)(void*, int32_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result)
+{
+    drc_detail::callback_owner _owner1(f_release, f_user_data);
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_apply: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_apply: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Holder*>(self)->apply(drc_detail::make_callback<::std::function<int32_t (int32_t)>, int32_t>(f, _owner1, [](decltype(f) _callback, void* _user_data, int32_t _arg1) -> int32_t { int32_t _result{}; _callback(_user_data, _arg1, &_result); return _result; })); });
 }
 
 // drc::Shape::Shape() of the director

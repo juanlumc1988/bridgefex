@@ -120,6 +120,10 @@ class PyCallable:
     keep: str | None = None
     """The object that must not be one of those taken."""
 
+    prelude: tuple[str, ...] = ()
+    """Statements at the start of the body of a method (a virtual method of a class that
+    has a director: what it does on an object that is one)."""
+
     @property
     def parameter_list(self) -> str:
         return ", ".join(arg.name for arg in self.args)
@@ -251,7 +255,7 @@ class PyCallable:
         """Statements of a method or function that calls the C function."""
         pad = " " * indent
         result = self.result
-        lines = [f"{pad}{line}" for line in (*self.imports, *result.setup)]
+        lines = [f"{pad}{line}" for line in (*self.prelude, *self.imports, *result.setup)]
         retains = self.retain_statements()
         if self.registrations:
             lines += [f"{pad}{line}" for arg in self.args for line in arg.conversions]

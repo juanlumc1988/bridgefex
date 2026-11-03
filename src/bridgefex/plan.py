@@ -664,6 +664,10 @@ class DirectorEntry:
     base: CallablePlan | None
     """The base call: None for a pure virtual method."""
 
+    location: Location
+    """Where the method is declared: a language that wraps the public methods of the class
+    finds the wrapper of this one by it."""
+
     @property
     def declaration(self) -> str:
         return f"void (*{self.field})({self.function_params})"
@@ -3208,6 +3212,7 @@ class _Builder:
             thunk_key="__".join([result_token, *tokens]),
             function_params=", ".join(c_types),
             base=base,
+            location=location,
         )
         return entry, override, base_member
 

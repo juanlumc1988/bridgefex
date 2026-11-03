@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "shape.h"
 
+#include <thread>
 #include <utility>
 
 namespace drc {
@@ -185,6 +186,45 @@ Plain::~Plain() = default;
 std::int32_t Plain::value() const
 {
     return 5;
+}
+
+Holder::Holder() = default;
+
+Holder::~Holder() = default;
+
+void Holder::put(std::unique_ptr<Shape> shape)
+{
+    shape_ = std::move(shape);
+}
+
+std::unique_ptr<Shape> Holder::take()
+{
+    return std::move(shape_);
+}
+
+bool Holder::empty() const
+{
+    return !shape_;
+}
+
+std::string Holder::describe() const
+{
+    return shape_ ? shape_->describe() : "empty";
+}
+
+std::string Holder::describe_on_thread() const
+{
+    std::string result = "empty";
+    if (shape_) {
+        std::thread worker([&] { result = shape_->describe(); });
+        worker.join();
+    }
+    return result;
+}
+
+std::int32_t Holder::apply(const std::function<std::int32_t(std::int32_t)>& f) const
+{
+    return shape_ ? f(shape_->sum(1, 2)) : -1;
 }
 
 }  // namespace drc

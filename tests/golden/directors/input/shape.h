@@ -5,6 +5,8 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -94,6 +96,23 @@ public:
     Plain();
     virtual ~Plain();
     virtual std::int32_t value() const;
+};
+
+// Keeps a Shape that another language made (it takes it and gives it back), and calls its
+// virtual methods, also from a thread of C++ and inside a call that has a callback.
+class Holder {
+public:
+    Holder();
+    ~Holder();
+    void put(std::unique_ptr<Shape> shape);
+    std::unique_ptr<Shape> take();
+    bool empty() const;
+    std::string describe() const;
+    std::string describe_on_thread() const;
+    std::int32_t apply(const std::function<std::int32_t(std::int32_t)>& f) const;
+
+private:
+    std::unique_ptr<Shape> shape_;
 };
 
 }  // namespace drc

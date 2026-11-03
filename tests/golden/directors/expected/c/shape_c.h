@@ -213,6 +213,32 @@ DRC_API void drc_Plain_destroy(drc_Plain* self);
 /* int32_t drc::Plain::value() const */
 DRC_NODISCARD DRC_API drc_status drc_Plain_value(const drc_Plain* self, int32_t* out_result);
 
+/* drc::Holder::Holder() */
+DRC_NODISCARD DRC_API drc_status drc_Holder_create(drc_Holder** out_self);
+
+/* drc::Holder::~Holder() */
+DRC_API void drc_Holder_destroy(drc_Holder* self);
+
+/* void drc::Holder::put(std::unique_ptr<drc::Shape> shape)
+ * shape: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+DRC_NODISCARD DRC_API drc_status drc_Holder_put(drc_Holder* self, drc_Shape* shape);
+
+/* std::unique_ptr<drc::Shape> drc::Holder::take()
+ * *out_result: owned by the caller (may be NULL); destroy it with drc_Shape_destroy. */
+DRC_NODISCARD DRC_API drc_status drc_Holder_take(drc_Holder* self, drc_Shape** out_result);
+
+/* bool drc::Holder::empty() const */
+DRC_NODISCARD DRC_API drc_status drc_Holder_empty(const drc_Holder* self, bool* out_result);
+
+/* std::string drc::Holder::describe() const */
+DRC_NODISCARD DRC_API drc_status drc_Holder_describe(const drc_Holder* self, char** out_result, size_t* out_result_size);
+
+/* std::string drc::Holder::describe_on_thread() const */
+DRC_NODISCARD DRC_API drc_status drc_Holder_describe_on_thread(const drc_Holder* self, char** out_result, size_t* out_result_size);
+
+/* int32_t drc::Holder::apply(const std::function<int32_t (int32_t)>& f) const */
+DRC_NODISCARD DRC_API drc_status drc_Holder_apply(const drc_Holder* self, void (*f)(void*, int32_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
+
 /* drc::Shape::Shape() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_create_void(drc_Shape** out_object, drc_Shape_director** out_director, const drc_Shape_vtable* vtable);

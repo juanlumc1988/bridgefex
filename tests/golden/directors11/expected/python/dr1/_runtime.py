@@ -147,6 +147,8 @@ def load(path=None):
         library.dr1_disable_callbacks.restype = None
         library.dr1_enable_callbacks.argtypes = [Release]
         library.dr1_enable_callbacks.restype = None
+        library.dr1_string_sink_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
+        library.dr1_string_sink_set.restype = None
         # An earlier interpreter of the process may have disabled a release
         # function at the address of this one (ctypes reuses freed closures).
         library.dr1_enable_callbacks(release)
@@ -256,6 +258,7 @@ class Object:
 
     __slots__ = (
         "__weakref__",
+        "_director",
         "_finalizer",
         "_handle",
         "_owned",
@@ -266,6 +269,10 @@ class Object:
 
     _cxx_class = None
     """The C type of its C++ class (the generated classes set it)."""
+
+    _director_slots = None
+    """The virtual methods that a subclass may override, for the classes that have a
+    director (and those derived from them)."""
 
     _ancestors = ()
     """The names of the methods that give its handle as each ancestor."""
@@ -285,6 +292,9 @@ class Object:
                     f"{cls.__name__} derives from wrapped classes of different C++ classes "
                     f"({', '.join(sorted(classes))}): an object has the handle of one"
                 )
+            slots = cls._director_slots
+            if slots is not None and slots.c_type != cls._cxx_class:
+                slots.refuse(cls)
 
 
 def check_object(value, cls, name, nullable=False):
@@ -341,6 +351,7 @@ def borrow(cls, handle, owners, readonly):
     # its owner's: with several possible owners (or none), forever.
     obj._retained = owners[0]._retained if len(owners) == 1 else forever
     obj._finalizer = None
+    obj._director = None
     return obj
 
 
@@ -402,6 +413,9 @@ def take(retained, *arguments, keep=None):
         value._handle = None
         # The collection of the Python object must not destroy it any more.
         value._finalizer._as_parameter_ = null
+        if value._director is not None:
+            # C++ owns the director now, and calls the object: it lives until C++ destroys it.
+            value._director.promote()
         if value._retained:
             # What it kept pointers to lives as long as its new owner, and as long
             # as whoever gets the object back from it (see recover()).
@@ -1037,6 +1051,168 @@ def callback_string(data, size):
 def callback_c_string(data):
     """A const char* argument of a callback: None if NULL."""
     return None if data is None else decode(ctypes.string_at(data))
+
+
+# Directors ---------------------------------------------------------------------
+#
+# An object of a Python class that derives from a wrapped class that has a director,
+# and overrides some of its virtual methods, is a director in C++: its vtable has a
+# fixed thunk (in _types.py) for each virtual method that the class overrides, and the
+# user_data of the vtable is the key of a Director in _callbacks, from which the thunk
+# finds the object. As for the callbacks, ``release`` removes the entry when C++
+# destroys the director, exactly once, so no thunk is ever freed while C++ may call it.
+
+
+class Director:
+    """The entry of a director in _callbacks, which its object keeps to call the
+    implementation of the class (the base calls) and for C++ to call the object.
+
+    The registry holds the object weakly while Python owns the C++ object (its
+    collection destroys the director), and strongly once C++ owns it (see take()).
+    """
+
+    __slots__ = ("_ref", "_strong", "key", "pointer")
+
+    def __init__(self, obj):
+        global _next_key
+        if _disabled:
+            raise RuntimeError("directors are disabled at exit, C++ would not call them")
+        self.pointer = None
+        self._ref = weakref.ref(obj)
+        self._strong = None
+        with _callback_lock:
+            key = _next_key
+            while key in _callbacks:
+                key = key + 1 if key < _MAX_KEY else 1
+            _next_key = key + 1 if key < _MAX_KEY else 1
+            _callbacks[key] = self
+        self.key = key
+
+    def target(self):
+        """The object, or None if it was collected."""
+        strong = self._strong
+        return strong if strong is not None else self._ref()
+
+    def promote(self):
+        """C++ owns the director from now on: the object lives until it destroys it."""
+        self._strong = self._ref()
+
+
+class DirectorSlots:
+    """The virtual methods of a wrapped class that a Python subclass may override: the
+    vtable type of its director, and (method, vtable member, pure, thunk) for each."""
+
+    __slots__ = ("c_type", "class_name", "slots", "vtable")
+
+    def __init__(self, c_type, class_name, vtable, slots):
+        self.c_type = c_type
+        self.class_name = class_name
+        self.vtable = vtable
+        self.slots = slots
+
+    def _overridden(self, cls):
+        """The slots whose method ``cls`` defines, before the generated classes in the
+        order of its bases: (name, vtable member, thunk), and the pure ones that it does not."""
+        found = []
+        missing = []
+        for name, field, pure, thunk in self.slots:
+            owner = next((klass for klass in cls.__mro__ if name in vars(klass)), None)
+            if owner is not None and "_cxx_class" not in vars(owner):
+                found.append((name, field, thunk))
+            elif pure:
+                missing.append(name)
+        return found, missing
+
+    def overrides(self, cls, subclass=False):
+        """The (vtable member, thunk) of each virtual method that ``cls`` overrides: if there
+        is none, the object is an ordinary one, without a director, unless the class has no
+        other way to make objects (``subclass``: its constructors are protected, or it is
+        abstract), which then has to be a subclass."""
+        if subclass and "_cxx_class" in vars(cls):
+            raise TypeError(
+                f"{cls.__name__} cannot be instantiated itself: derive a class from it, "
+                f"which can override the virtual methods of {self.class_name}"
+            )
+        found, missing = self._overridden(cls)
+        if missing:
+            raise TypeError(
+                f"{cls.__name__} is abstract: it must override {', '.join(missing)} "
+                f"(pure virtual in {self.class_name})"
+            )
+        for name, _, _ in found:
+            if not callable(getattr(cls, name)):
+                raise TypeError(f"{cls.__name__}.{name} must be a method to override C++")
+        return [(field, thunk) for _, field, thunk in found]
+
+    def refuse(self, cls):
+        """A class whose C++ class has no director, derived from one that has, cannot
+        override the virtual methods: C++ would never call them."""
+        names = [name for name, _, _ in self._overridden(cls)[0]]
+        if names:
+            raise TypeError(
+                f"{cls.__name__} overrides {', '.join(names)}, virtual methods of "
+                f"{self.class_name}, but its C++ class {cls._cxx_class} has no director (ask for "
+                f'one with directors = ["{cls._cxx_class}"] in the annotations file; a final '
+                "class cannot have one)"
+            )
+
+    def make(self, obj, found):
+        """(vtable, Director) of ``obj``, which is being created: the Director is in
+        the registry until C++ releases it, which it does too if the creation fails."""
+        vtable = self.vtable()
+        for field, thunk in found:
+            setattr(vtable, field, thunk)
+        director = Director(obj)
+        vtable.user_data = director.key
+        vtable.release = release
+        return vtable, director
+
+
+def director_pointer(director, class_name):
+    """The handle of the director of an object for a base call, while it exists."""
+    if director is None or _callbacks.get(director.key) is not director:
+        raise ValueError(f"{class_name} object is closed")
+    return director.pointer
+
+
+def director_method(user_data, name):
+    """The method ``name`` of the object of a director, for its thunk; None if an
+    earlier override of the same call failed (C++ then gets the default result)."""
+    if getattr(_scopes, "interrupt", None) is not None:
+        return None
+    stack = getattr(_scopes, "stack", None)
+    if stack and stack[-1].error is not None:
+        return None
+    director = _callbacks.get(user_data)
+    obj = director.target() if isinstance(director, Director) else None
+    if obj is None:
+        raise RuntimeError(
+            f"a C++ virtual method was called after its director was released (user_data {user_data})"
+        )
+    return getattr(obj, name)
+
+
+def fail_director(error):
+    """Give the exception of an override to the call that runs it, which raises it
+    when it returns; False if there is none (a thread of C++), and the exception goes to
+    sys.unraisablehook. Only the first one of a call is kept."""
+    stack = getattr(_scopes, "stack", None)
+    if stack and stack[-1].fail(error):
+        return True
+    if _is_foreign_thread():
+        return False
+    # check() raises it as soon as the C function that ran the override returns.
+    if getattr(_scopes, "interrupt", None) is None:
+        _scopes.interrupt = error
+    return True
+
+
+def sink_set(sink, value, name):
+    """Give the string that an override returns to the sink of the vtable function."""
+    if not isinstance(value, (str, bytes, bytearray, memoryview)):
+        raise TypeError(f"the result of {name!r} must be str or bytes, not {_type_name(value)}")
+    data = to_bytes(value, name)
+    _library.dr1_string_sink_set(sink, data, len(data))
 
 
 def _disable_callbacks():

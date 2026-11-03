@@ -805,6 +805,45 @@ def inherit_asan_build(
     return library, output, runtime
 
 
+@pytest.fixture(scope="module")
+def directors_asan_build(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Path, Path, str]:
+    """The directors case built with AddressSanitizer: (library, output dir, runtime)."""
+    runtime = _asan_runtime(toolchain)
+    if runtime is None:
+        pytest.skip("needs GCC with AddressSanitizer on Linux")
+    case = next(case for case in CASES if case.name == "directors")
+    flags = ["-fsanitize=address", "-fno-omit-frame-pointer"]
+    library, output = build(case, toolchain, tmp_path_factory.mktemp("directors_asan"), flags)
+    return library, output, runtime
+
+
+def test_directors_under_asan(directors_asan_build: tuple[Path, Path, str]) -> None:
+    """Objects that Python makes from the director of a class, that C++ owns and calls from
+    threads of its own, and that are given back, touch no memory that is not theirs."""
+    library, output, runtime = directors_asan_build
+    case = next(case for case in CASES if case.name == "directors")
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(output / "python"),
+        "DRC_LIBRARY": str(library),
+        "LD_PRELOAD": runtime,
+        "ASAN_OPTIONS": "detect_leaks=0",
+    }
+    completed = subprocess.run(
+        [sys.executable, "-X", "dev", "-W", "error", str(case.check_python)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert "AddressSanitizer" not in completed.stderr, completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "directors: Python round trip OK" in completed.stdout
+
+
 def test_inheritance_under_asan(inherit_asan_build: tuple[Path, Path, str]) -> None:
     """Objects seen as a base class, given up as one and destroyed through it
     touch no memory that is not theirs (a wrong base address would)."""
