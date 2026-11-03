@@ -564,3 +564,14 @@ def test_a_virtual_method_that_returns_a_reference_keeps_the_class(tmp_path: Pat
     assert "(*ok)" in vtable
     assert "(*r)" not in vtable
     assert "(*s)" not in vtable
+
+
+def test_the_implicitly_deleted_default_constructor_of_an_abstract_class(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        "namespace n { class A { public: virtual ~A(); virtual int f() = 0; private: int& r_; }; }",
+        "n_A",
+    )
+    assert "implicitly-deleted default constructor" in text
+    assert "annotations.toml:1: the class asks for a director" in text
+    assert "api.h:" in text  # and where the class is

@@ -275,6 +275,11 @@ class CFunction:
     """For a plain function (no status, no exception guard) that returns a value,
     the C type of it; ``statement`` is then the expression returned."""
 
+    hint: str = ""
+    """What to tell, after the error of the compiler, if the generated code of this
+    function does not compile: where the request that caused it is, and the likely
+    cause."""
+
     @property
     def owned_outputs(self) -> tuple[tuple[Precondition, str], ...]:
         """Each NULL check of an output that the function allocates, with its reset."""
@@ -2976,7 +2981,9 @@ class _Builder:
         if len(self.errors) > problems_before:
             return None
 
-        constructors = self._director_constructors(info, director_type, vtable_type, impl, entries)
+        constructors = self._director_constructors(
+            info, director_type, vtable_type, impl, entries, request=request
+        )
         object_name = f"{director_type}_object"
         self._reserve_c_name(object_name, f"the object of the director of '{cpp_base}'", location)
         object_function = CFunction(
@@ -3210,6 +3217,8 @@ class _Builder:
         vtable_type: str,
         impl: str,
         entries: Sequence[DirectorEntry],
+        *,
+        request: DirectorRequest,
     ) -> list[CallablePlan]:
         """The functions that create the director, one for each constructor that a derived
         class can call."""
@@ -3290,6 +3299,12 @@ class _Builder:
                     "the vtable is copied; its release function is called once, when the "
                     "director is destroyed (or now, if this function fails)",
                     *_parameter_notes(params, "the new object keeps"),
+                ),
+                hint=(
+                    f"{request.where()}: the class asks for a director, which derives from it "
+                    "and has to call this constructor: check that it is not deleted or "
+                    "inaccessible, in the class or in its bases (a reference member or a base "
+                    "without a default constructor deletes the implicit one)"
                 ),
             )
             plans.append(

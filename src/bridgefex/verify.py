@@ -387,6 +387,8 @@ def _report(
             f"the generated wrapper {wrapper.name}() for '{wrapper.description}' {kind}: "
             f"{diagnostic.spelling}"
         )
+        if wrapper.hint and severity >= cindex.Diagnostic.Error:
+            message += f" ({wrapper.hint})"
         diagnostic_location: Location | None = wrapper.location
     else:
         message = f"the generated code {kind}: {_describe(diagnostic, root)}"
