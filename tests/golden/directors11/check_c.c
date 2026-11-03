@@ -79,10 +79,11 @@ static void check_values_that_are_not_valid(void)
     vtable.tagged = invalid_tagged;
     vtable.pair = forgets_the_pair;
     dr1_Base_director* director = NULL;
-    check(dr1_Base_director_create_int32(&director, &vtable, 3) == DR1_OK, "create");
+    dr1_Base* base = NULL;
+    check(dr1_Base_director_create_int32(&base, &director, &vtable, 3) == DR1_OK, "create");
     /* The vtable was copied: this one is gone. */
     memset(&vtable, 0xFF, sizeof vtable);
-    dr1_Base* base = dr1_Base_director_object(director);
+    check(base == dr1_Base_director_object(director), "the object of the director");
 
     char* result = NULL;
     size_t size = 0;
@@ -115,24 +116,24 @@ static void check_constructors(void)
     vtable.release = release;
     vtable.text = text;
     dr1_Base_director* director = NULL;
+    dr1_Base* base = NULL;
     /* A value that the enum of a constructor cannot have is refused, and released. */
-    check(dr1_Base_director_create_dr1_Kind_int32(&director, &vtable, 99, 1) ==
+    check(dr1_Base_director_create_dr1_Kind_int32(&base, &director, &vtable, 99, 1) ==
               DR1_ERROR_INVALID_ARGUMENT,
           "an enum argument out of range");
-    check(director == NULL && user.released == 1, "no director, released");
-    check(dr1_Base_director_create_dr1_Kind_int32(&director, &vtable, dr1_Kind_Large, 1) == DR1_OK,
+    check(base == NULL && director == NULL && user.released == 1, "no object, released");
+    check(dr1_Base_director_create_dr1_Kind_int32(&base, &director, &vtable, dr1_Kind_Large, 1) == DR1_OK,
           "a valid one");
     int32_t seed = 0;
-    check(dr1_Base_seed(dr1_Base_director_object(director), &seed) == DR1_OK && seed == 11,
+    check(dr1_Base_seed(base, &seed) == DR1_OK && seed == 11,
           "the constructor ran with its arguments");
-    dr1_Base_destroy(dr1_Base_director_object(director));
+    dr1_Base_destroy(base);
     check(user.released == 2, "released");
 
     /* A protected default constructor. */
-    check(dr1_Base_director_create_void(&director, &vtable) == DR1_OK, "the default constructor");
-    check(dr1_Base_seed(dr1_Base_director_object(director), &seed) == DR1_OK && seed == 1,
-          "the protected constructor ran");
-    dr1_Base_destroy(dr1_Base_director_object(director));
+    check(dr1_Base_director_create_void(&base, &director, &vtable) == DR1_OK, "the default constructor");
+    check(dr1_Base_seed(base, &seed) == DR1_OK && seed == 1, "the protected constructor ran");
+    dr1_Base_destroy(base);
 }
 
 static void check_a_function_that_is_only_counted(void)
@@ -144,9 +145,10 @@ static void check_a_function_that_is_only_counted(void)
     vtable.release = release;
     (void)counts;
     dr1_Derived_director* director = NULL;
-    check(dr1_Derived_director_create(&director, &vtable) == DR1_OK,
+    dr1_Derived* derived = NULL;
+    check(dr1_Derived_director_create(&derived, &director, &vtable) == DR1_OK,
           "a derived class needs no function: text is implemented by Derived");
-    dr1_Derived* derived = dr1_Derived_director_object(director);
+    check(derived == dr1_Derived_director_object(director), "the object of the director");
     char* result = NULL;
     size_t size = 0;
     check(dr1_Base_show(dr1_Derived_as_dr1_Base(derived), &result, &size) == DR1_OK &&

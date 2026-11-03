@@ -941,9 +941,13 @@ drc_status drc_Plain_value(const drc_Plain* self, int32_t* out_result)
 }
 
 // drc::Shape::Shape() of the director
-drc_status drc_Shape_director_create_void(drc_Shape_director** out_director, const drc_Shape_vtable* vtable)
+drc_status drc_Shape_director_create_void(drc_Shape** out_object, drc_Shape_director** out_director, const drc_Shape_vtable* vtable)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_create_void: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_create_void: 'out_director' is NULL");
     }
@@ -954,13 +958,17 @@ drc_status drc_Shape_director_create_void(drc_Shape_director** out_director, con
     if (vtable->area == nullptr) {
         return drc_detail::invalid_argument("drc_Shape_director_create_void: 'vtable->area' is NULL: it has to implement the pure virtual method 'double drc::Shape::area() const'");
     }
-    return drc_detail::guard([&]() { *out_director = reinterpret_cast<drc_Shape_director*>(new drc_detail::drc_Shape_director_impl(_vtable_owner, *vtable)); });
+    return drc_detail::guard([&]() { drc_detail::drc_Shape_director_impl* _created = new drc_detail::drc_Shape_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<drc_Shape_director*>(_created); *out_object = reinterpret_cast<drc_Shape*>(static_cast<::drc::Shape*>(_created)); });
 }
 
 // drc::Shape::Shape(const std::string& label, int32_t sides) of the director
-drc_status drc_Shape_director_create_string_int32(drc_Shape_director** out_director, const drc_Shape_vtable* vtable, const char* label, size_t label_size, int32_t sides)
+drc_status drc_Shape_director_create_string_int32(drc_Shape** out_object, drc_Shape_director** out_director, const drc_Shape_vtable* vtable, const char* label, size_t label_size, int32_t sides)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_create_string_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_create_string_int32: 'out_director' is NULL");
     }
@@ -974,7 +982,7 @@ drc_status drc_Shape_director_create_string_int32(drc_Shape_director** out_direc
     if (label == nullptr && label_size != 0) {
         return drc_detail::null_argument("drc_Shape_director_create_string_int32: 'label' is NULL and 'label_size' is not 0");
     }
-    return drc_detail::guard([&]() { *out_director = reinterpret_cast<drc_Shape_director*>(new drc_detail::drc_Shape_director_impl(_vtable_owner, *vtable, static_cast<const std::string&>(std::string(drc_detail::string_data(label), label_size)), sides)); });
+    return drc_detail::guard([&]() { drc_detail::drc_Shape_director_impl* _created = new drc_detail::drc_Shape_director_impl(_vtable_owner, *vtable, static_cast<const std::string&>(std::string(drc_detail::string_data(label), label_size)), sides); *out_director = reinterpret_cast<drc_Shape_director*>(_created); *out_object = reinterpret_cast<drc_Shape*>(static_cast<::drc::Shape*>(_created)); });
 }
 
 // drc::Shape: the object of its director
@@ -1119,9 +1127,13 @@ drc_status drc_Shape_director_base_changed(drc_Shape_director* director, int32_t
 }
 
 // drc::Circle::Circle(double radius) of the director
-drc_status drc_Circle_director_create(drc_Circle_director** out_director, const drc_Circle_vtable* vtable, double radius)
+drc_status drc_Circle_director_create(drc_Circle** out_object, drc_Circle_director** out_director, const drc_Circle_vtable* vtable, double radius)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_create: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_create: 'out_director' is NULL");
     }
@@ -1129,7 +1141,7 @@ drc_status drc_Circle_director_create(drc_Circle_director** out_director, const 
     if (vtable == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_create: 'vtable' is NULL");
     }
-    return drc_detail::guard([&]() { *out_director = reinterpret_cast<drc_Circle_director*>(new drc_detail::drc_Circle_director_impl(_vtable_owner, *vtable, radius)); });
+    return drc_detail::guard([&]() { drc_detail::drc_Circle_director_impl* _created = new drc_detail::drc_Circle_director_impl(_vtable_owner, *vtable, radius); *out_director = reinterpret_cast<drc_Circle_director*>(_created); *out_object = reinterpret_cast<drc_Circle*>(static_cast<::drc::Circle*>(_created)); });
 }
 
 // drc::Circle: the object of its director

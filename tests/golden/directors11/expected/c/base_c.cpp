@@ -585,9 +585,13 @@ dr1_status dr1_Derived_text(const dr1_Derived* self, const char* prefix, size_t 
 }
 
 // dr1::Base::Base(int32_t seed) of the director
-dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed)
+dr1_status dr1_Base_director_create_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_int32: 'out_director' is NULL");
     }
@@ -598,13 +602,17 @@ dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, cons
     if (vtable->text == nullptr) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_int32: 'vtable->text' is NULL: it has to implement the pure virtual method 'std::string dr1::Base::text(const std::string& prefix) const'");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, seed)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, seed); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base::Base(dr1::Kind kind, int32_t seed) of the director
-dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed)
+dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_dr1_Kind_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_dr1_Kind_int32: 'out_director' is NULL");
     }
@@ -618,13 +626,17 @@ dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_direc
     if (kind < 0 || kind > 15) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_dr1_Kind_int32: 'kind' is not a value of dr1::Kind (0..15)");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, static_cast<::dr1::Kind>(kind), seed)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, static_cast<::dr1::Kind>(kind), seed); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base::Base() of the director
-dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const dr1_Base_vtable* vtable)
+dr1_status dr1_Base_director_create_void(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_void: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_void: 'out_director' is NULL");
     }
@@ -635,7 +647,7 @@ dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const
     if (vtable->text == nullptr) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_void: 'vtable->text' is NULL: it has to implement the pure virtual method 'std::string dr1::Base::text(const std::string& prefix) const'");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base: the object of its director
@@ -726,9 +738,13 @@ dr1_status dr1_Base_director_base_hook(dr1_Base_director* director)
 }
 
 // dr1::Derived::Derived() of the director
-dr1_status dr1_Derived_director_create(dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable)
+dr1_status dr1_Derived_director_create(dr1_Derived** out_object, dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_create: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Derived_director_create: 'out_director' is NULL");
     }
@@ -736,7 +752,7 @@ dr1_status dr1_Derived_director_create(dr1_Derived_director** out_director, cons
     if (vtable == nullptr) {
         return dr1_detail::null_argument("dr1_Derived_director_create: 'vtable' is NULL");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Derived_director*>(new dr1_detail::dr1_Derived_director_impl(_vtable_owner, *vtable)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Derived_director_impl* _created = new dr1_detail::dr1_Derived_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<dr1_Derived_director*>(_created); *out_object = reinterpret_cast<dr1_Derived*>(static_cast<::dr1::Derived*>(_created)); });
 }
 
 // dr1::Derived: the object of its director

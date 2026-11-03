@@ -215,11 +215,11 @@ DRC_NODISCARD DRC_API drc_status drc_Plain_value(const drc_Plain* self, int32_t*
 
 /* drc::Shape::Shape() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Shape_director_create_void(drc_Shape_director** out_director, const drc_Shape_vtable* vtable);
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_create_void(drc_Shape** out_object, drc_Shape_director** out_director, const drc_Shape_vtable* vtable);
 
 /* drc::Shape::Shape(const std::string& label, int32_t sides) of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Shape_director_create_string_int32(drc_Shape_director** out_director, const drc_Shape_vtable* vtable, const char* label, size_t label_size, int32_t sides);
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_create_string_int32(drc_Shape** out_object, drc_Shape_director** out_director, const drc_Shape_vtable* vtable, const char* label, size_t label_size, int32_t sides);
 
 /* drc::Shape: the object of its director */
 DRC_NODISCARD DRC_API drc_Shape* drc_Shape_director_object(drc_Shape_director* director);
@@ -266,7 +266,7 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_changed(drc_Shape_direc
 
 /* drc::Circle::Circle(double radius) of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Circle_director_create(drc_Circle_director** out_director, const drc_Circle_vtable* vtable, double radius);
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_create(drc_Circle** out_object, drc_Circle_director** out_director, const drc_Circle_vtable* vtable, double radius);
 
 /* drc::Circle: the object of its director */
 DRC_NODISCARD DRC_API drc_Circle* drc_Circle_director_object(drc_Circle_director* director);

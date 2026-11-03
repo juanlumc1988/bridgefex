@@ -62,6 +62,7 @@ from .model import (
 class Role(Enum):
     SELF = "self"
     OUT_SELF = "out_self"
+    OUT_DIRECTOR = "out_director"
     INPUT = "input"
     SIZE = "size"
     """The size of the input before it (a string)."""
@@ -1117,7 +1118,7 @@ def _token(
     return type_.token
 
 
-_DIRECTOR_PARAMETERS = frozenset({"director", "vtable", "out_director"})
+_DIRECTOR_PARAMETERS = frozenset({"director", "vtable", "out_object", "out_director"})
 """The names of the parameters that the functions of a director add: the others avoid them."""
 
 
@@ -3223,6 +3224,7 @@ class _Builder:
         """The functions that create the director, one for each constructor that a derived
         class can call."""
         model = info.model
+        c_type = info.c_type
         detail = f"{self.module.name}_detail"
         constructors = model.director_constructors
         plans: list[CallablePlan] = []
@@ -3251,10 +3253,15 @@ class _Builder:
                 constructor.parameters, constructor.location, policy, reserved=_DIRECTOR_PARAMETERS
             )
             arguments = "".join(f", {param.argument}" for param in params)
+            # The object first, as in every create function, so that whoever owns it can
+            # destroy it from the moment it exists; and the director, for the base calls.
+            out_object = CParam(
+                "out_object", f"{c_type}**", Role.OUT_SELF, Ffi.handle(c_type).pointer()
+            )
             out_director = CParam(
                 "out_director",
                 f"{director_type}**",
-                Role.OUT_SELF,
+                Role.OUT_DIRECTOR,
                 Ffi.handle(director_type).pointer(),
             )
             vtable = CParam(
@@ -3272,16 +3279,24 @@ class _Builder:
             )
             function = CFunction(
                 name=name,
-                params=(out_director, vtable, *(c for param in params for c in param.c_params)),
+                params=(
+                    out_object,
+                    out_director,
+                    vtable,
+                    *(c for param in params for c in param.c_params),
+                ),
                 returns_status=True,
                 statement=(
-                    f"*out_director = reinterpret_cast<{director_type}*>"
-                    f"(new {detail}::{impl}(_vtable_owner, *vtable{arguments}));"
+                    f"{detail}::{impl}* _created = new {detail}::{impl}"
+                    f"(_vtable_owner, *vtable{arguments}); "
+                    f"*out_director = reinterpret_cast<{director_type}*>(_created); "
+                    f"*out_object = reinterpret_cast<{c_type}*>"
+                    f"(static_cast<{info.cpp_name}*>(_created));"
                 ),
                 description=description,
                 ffi_restype=STATUS_FFI,
-                owned_checks=(_null_check("out_director"),),
-                resets=("*out_director = nullptr;",),
+                owned_checks=(_null_check("out_object"), _null_check("out_director")),
+                resets=("*out_object = nullptr;", "*out_director = nullptr;"),
                 checks=(
                     _null_check("vtable"),
                     *pure,

@@ -137,15 +137,15 @@ DR1_NODISCARD DR1_API dr1_status dr1_Derived_text(const dr1_Derived* self, const
 
 /* dr1::Base::Base(int32_t seed) of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed);
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed);
 
 /* dr1::Base::Base(dr1::Kind kind, int32_t seed) of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed);
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed);
 
 /* dr1::Base::Base() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const dr1_Base_vtable* vtable);
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_create_void(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable);
 
 /* dr1::Base: the object of its director */
 DR1_NODISCARD DR1_API dr1_Base* dr1_Base_director_object(dr1_Base_director* director);
@@ -180,7 +180,7 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_hook(dr1_Base_director* 
 
 /* dr1::Derived::Derived() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_create(dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable);
+DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_create(dr1_Derived** out_object, dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable);
 
 /* dr1::Derived: the object of its director */
 DR1_NODISCARD DR1_API dr1_Derived* dr1_Derived_director_object(dr1_Derived_director* director);
