@@ -110,6 +110,11 @@ jobs:
           merge-multiple: true
           path: dist
       - name: Release
+        # A release that was written by hand for the tag keeps its text: only the files are added.
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes \
-            --title "$GITHUB_REF_NAME"
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes \
+              --title "$GITHUB_REF_NAME"
+          fi
