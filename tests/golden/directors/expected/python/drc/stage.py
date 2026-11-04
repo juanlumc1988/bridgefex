@@ -55,6 +55,7 @@ class Stage(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Stage"
+    _virtual_names = ("origin", "step",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -84,7 +85,11 @@ class Stage(_runtime.Object):
         _self = cls.__new__(cls)
         _handle, _director = _self._watch_director()
         _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().drc_Stage_director_create_void(_handle, _director, _vtable))
+        _runtime.check(_bind().drc_Stage_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
         _self._adopt_director(_handle, _director, _record)
         return _self
 
@@ -100,7 +105,12 @@ class Stage(_runtime.Object):
         _self = cls.__new__(cls)
         _handle, _director = _self._watch_director()
         _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().drc_Stage_director_create_int32(_handle, _director, _vtable, steps))
+        _runtime.check(_bind().drc_Stage_director_create_int32(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            steps,
+        ))
         _self._adopt_director(_handle, _director, _record)
         return _self
 
@@ -183,9 +193,7 @@ class Stage(_runtime.Object):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Stage object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Stage")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):

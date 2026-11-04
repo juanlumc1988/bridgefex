@@ -14,6 +14,7 @@ from ...model import (
     Access,
     ContainerType,
     EnumRef,
+    Method,
     ScalarType,
     StructRef,
     TypeCategory,
@@ -32,7 +33,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
-from .directors import PyDirector, PyDirectorConstructor, PySlot
+from .directors import PyAlias, PyDirector, PyDirectorConstructor, PySlot
 from .ffi import PyBinding, binding, ctypes_scalar
 from .lower import (
     build_callable,
@@ -202,6 +203,10 @@ class PyClass(PlanView):
     enums: tuple[PyEnum, ...]
     views: tuple[PyView, ...]
     director: PyDirector | None = None
+    virtual_names: tuple[str, ...] = ()
+    """In a module that has directors: the names of the virtual methods the class declares
+    (those of their wrappers and the C++ ones), so that a subclass cannot define one that
+    C++ would never call."""
 
     @property
     def c_type(self) -> str:
@@ -350,16 +355,22 @@ class _Lowering:
         self.structs = {
             struct.model.usr: struct for header in plan.headers for struct in header.structs
         }
+        self.class_plans: dict[str, ClassPlan] = {
+            cls.model.usr: cls
+            for header in plan.headers
+            for cls in header.items
+            if isinstance(cls, ClassPlan)
+        }
         # What a Python class calls the public method that a director overrides.
-        self.method_names: dict[Location, str] = {
-            member.location: member_name(
+        self.method_names: dict[object, str] = {
+            member.source: member_name(
                 member.name + member.suffix, reserved=_constructor_names(cls)
             )
             for header in plan.headers
             for cls in header.items
             if isinstance(cls, ClassPlan)
             for member in cls.members
-            if member.kind is CallableKind.METHOD
+            if member.kind is CallableKind.METHOD and member.source is not None
         }
 
     def lower(self) -> PyModule:
@@ -629,11 +640,13 @@ class _Lowering:
             for member in plan.members
         ]
         methods = frozenset(
-            member.location for member in plan.members if member.kind is CallableKind.METHOD
+            member.source
+            for member in plan.members
+            if member.kind is CallableKind.METHOD and member.source is not None
         )
         director = self._director(plan, header, factory_names, methods)
-        own_slots = (
-            {slot.entry.location: slot for slot in director.slots if slot.wrapper == "own"}
+        own_slots: dict[object, PySlot] = (
+            {slot.entry.method: slot for slot in director.slots if slot.wrapper == "own"}
             if director is not None
             else {}
         )
@@ -654,7 +667,7 @@ class _Lowering:
             else:
                 leading = ()
             lowered = self._callable(name, member, header, leading=leading)
-            slot = own_slots.get(member.location)
+            slot = own_slots.get(member.source)
             if slot is not None:
                 lowered = dataclasses.replace(
                     lowered, prelude=_director_prelude(slot, py_name, model.qualified_name)
@@ -671,6 +684,18 @@ class _Lowering:
             else:
                 bases.append(f"{module_alias(base.header.stem)}.{base_name}")
                 modules.append(base.header.stem)
+        virtual: dict[str, None] = {}
+        if self.plan.has_directors:
+            for member, name in zip(plan.members, names, strict=True):
+                source = member.source
+                if isinstance(source, Method) and source.is_virtual:
+                    virtual[name] = None
+                    virtual[member_name(source.name, reserved=factory_names)] = None
+            for hook in model.hooks:
+                virtual[member_name(hook.name, reserved=factory_names)] = None
+            if director is not None:
+                virtual.update(dict.fromkeys(slot.name for slot in director.slots))
+                virtual.update(dict.fromkeys(alias.name for alias in director.aliases))
         return PyClass(
             plan,
             py_name,
@@ -681,6 +706,7 @@ class _Lowering:
             tuple(enums),
             tuple(_view(view) for view in plan.views),
             director,
+            tuple(sorted(virtual)),
         )
 
     # Directors -------------------------------------------------------------------
@@ -690,7 +716,7 @@ class _Lowering:
         plan: ClassPlan,
         header: HeaderPlan,
         factory_names: frozenset[str],
-        methods: frozenset[Location],
+        methods: frozenset[object],
     ) -> PyDirector | None:
         """The methods that a Python subclass of the class overrides, and what creates its
         objects as directors."""
@@ -705,7 +731,7 @@ class _Lowering:
         for entry, ctypes_name in zip(director.entries, ctypes_names, strict=True):
             public = entry.access is Access.PUBLIC
             # The name of the method that a user calls is the one that overrides it.
-            name = self.method_names.get(entry.location) if public else None
+            name = self.method_names.get(entry.method) if public else None
             if name is None:
                 name = member_name(entry.field, reserved=factory_names)
             if name in seen:
@@ -723,7 +749,7 @@ class _Lowering:
                 if entry.base is not None
                 else None
             )
-            own = public and entry.location in methods
+            own = public and entry.method in methods
             wrapper: str | None
             if own:
                 wrapper = "own"
@@ -743,10 +769,11 @@ class _Lowering:
             )
         # What creates a director: the ordinary constructors, else the director's own.
         plain = {
-            constructor.location: (
+            constructor.source: (
                 "create" + constructor.suffix if len(plan.constructors) > 1 else "__init__"
             )
             for constructor in plan.constructors
+            if constructor.source is not None
         }
         creations: list[PyDirectorConstructor] = []
         for constructor in director.constructors:
@@ -754,20 +781,56 @@ class _Lowering:
                 "create" + constructor.suffix if len(director.constructors) > 1 else "__init__"
             )
             lowered = self._callable(
-                own_name, constructor, header, leading=("_handle", "_director", "_vtable")
+                own_name,
+                constructor,
+                header,
+                leading=("_handle", "_director", "_record.register(_vtable)"),
             )
             if plan.constructors:
                 # A constructor that only a derived class can call (a protected one) is not
                 # part of the API of a class that has ordinary ones.
-                if constructor.location in plain:
-                    creations.append(
-                        PyDirectorConstructor(
-                            plain[constructor.location], lowered, plain[constructor.location]
-                        )
-                    )
+                if constructor.source in plain:
+                    name = plain[constructor.source]
+                    creations.append(PyDirectorConstructor(name, lowered, name))
             else:
                 creations.append(PyDirectorConstructor(own_name, lowered, None))
-        return PyDirector(director, tuple(slots), tuple(creations), bool(plan.constructors))
+        return PyDirector(
+            director,
+            tuple(slots),
+            tuple(creations),
+            bool(plan.constructors),
+            self._aliases(plan, slots),
+        )
+
+    def _aliases(self, plan: ClassPlan, slots: Sequence[PySlot]) -> tuple[PyAlias, ...]:
+        """The names that the bases of the class give to its virtual methods when they are
+        not the class's own: a call of the base's name has to reach the director of this class,
+        not the base function of the director of the base."""
+        by_key = {slot.entry.key: slot for slot in slots if slot.base is not None}
+        own = {slot.name for slot in slots}
+        aliases: dict[str, PyAlias] = {}
+
+        def visit(cls: ClassPlan) -> None:
+            for info in cls.bases:
+                base = self.class_plans[info.model.usr]
+                visit(base)
+                other = base.director
+                if other is None:
+                    continue
+                factory = _constructor_names(base)
+                for entry in other.entries:
+                    target = by_key.get(entry.key)
+                    if target is None or entry.base is None:
+                        continue
+                    public = entry.access is Access.PUBLIC
+                    name = self.method_names.get(entry.method) if public else None
+                    if name is None:
+                        name = member_name(entry.field, reserved=factory)
+                    if name not in own and name not in aliases:
+                        aliases[name] = PyAlias(name, target)
+
+        visit(plan)
+        return tuple(aliases.values())
 
     def _check_director_names(
         self, plan: ClassPlan, director: PyDirector, taken: dict[str, Location]

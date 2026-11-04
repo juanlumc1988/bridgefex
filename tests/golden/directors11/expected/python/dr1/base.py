@@ -141,6 +141,7 @@ class Base(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "dr1_Base"
+    _virtual_names = ("big", "flag", "hook", "kind", "pair", "tagged", "text", "touch", "value", "value_double", "value_int32",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -184,7 +185,12 @@ class Base(_runtime.Object):
         _self = cls.__new__(cls)
         _handle, _director = _self._watch_director()
         _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().dr1_Base_director_create_int32(_handle, _director, _vtable, seed))
+        _runtime.check(_bind().dr1_Base_director_create_int32(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            seed,
+        ))
         _self._adopt_director(_handle, _director, _record)
         return _self
 
@@ -209,7 +215,7 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_director_create_dr1_Kind_int32(
             _handle,
             _director,
-            _vtable,
+            _record.register(_vtable),
             kind,
             seed,
         ))
@@ -232,7 +238,11 @@ class Base(_runtime.Object):
         _self = cls.__new__(cls)
         _handle, _director = _self._watch_director()
         _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().dr1_Base_director_create_void(_handle, _director, _vtable))
+        _runtime.check(_bind().dr1_Base_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
         _self._adopt_director(_handle, _director, _record)
         return _self
 
@@ -321,9 +331,7 @@ class Base(_runtime.Object):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Base object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Base")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -593,6 +601,7 @@ class Derived(Base):
 
     __slots__ = ()
     _cxx_class = "dr1_Derived"
+    _virtual_names = ("big", "flag", "hook", "kind", "pair", "tagged", "text", "touch", "value_double", "value_int32",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -618,7 +627,7 @@ class Derived(Base):
         """Wraps ``dr1::Derived::Derived()``."""
         if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Derived object is already initialized")
-        _found = self._director_slots.overrides(type(self))
+        _found = self._director_slots.overrides(_builtins.type(self))
         if _found:
             self._init_director(_found)
             return
@@ -630,7 +639,11 @@ class Derived(Base):
         """Wraps ``dr1::Derived::Derived() of the director``."""
         _handle, _director = self._watch_director()
         _vtable, _record = self._director_slots.make(self, _found)
-        _runtime.check(_bind().dr1_Derived_director_create(_handle, _director, _vtable))
+        _runtime.check(_bind().dr1_Derived_director_create(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
         self._adopt_director(_handle, _director, _record)
 
     def _watch(self):
@@ -718,9 +731,7 @@ class Derived(Base):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Derived object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Derived")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -851,49 +862,49 @@ class Derived(Base):
     def pair(self):
         """Wraps ``dr1::Pair dr1::Base::pair() const``."""
         if self._director is None:
-            return super().pair()
+            return _builtins.super(__class__, self).pair()
         return self._base_pair()
 
     def tagged(self):
         """Wraps ``dr1::Tagged dr1::Base::tagged() const``."""
         if self._director is None:
-            return super().tagged()
+            return _builtins.super(__class__, self).tagged()
         return self._base_tagged()
 
     def kind(self, requested):
         """Wraps ``dr1::Kind dr1::Base::kind(dr1::Kind requested) const``."""
         if self._director is None:
-            return super().kind(requested)
+            return _builtins.super(__class__, self).kind(requested)
         return self._base_kind(requested)
 
     def touch(self, amount, limit):
         """Wraps ``void dr1::Base::touch(int32_t amount, int32_t limit)``."""
         if self._director is None:
-            return super().touch(amount, limit)
+            return _builtins.super(__class__, self).touch(amount, limit)
         return self._base_touch(amount, limit)
 
     def value_int32(self, x):
         """Wraps ``int32_t dr1::Base::value(int32_t x) const``."""
         if self._director is None:
-            return super().value_int32(x)
+            return _builtins.super(__class__, self).value_int32(x)
         return self._base_value_int32(x)
 
     def value_double(self, x):
         """Wraps ``double dr1::Base::value(double x) const``."""
         if self._director is None:
-            return super().value_double(x)
+            return _builtins.super(__class__, self).value_double(x)
         return self._base_value_double(x)
 
     def flag(self, on):
         """Wraps ``bool dr1::Base::flag(bool on) const``."""
         if self._director is None:
-            return super().flag(on)
+            return _builtins.super(__class__, self).flag(on)
         return self._base_flag(on)
 
     def big(self, x, f, byte):
         """Wraps ``uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const``."""
         if self._director is None:
-            return super().big(x, f, byte)
+            return _builtins.super(__class__, self).big(x, f, byte)
         return self._base_big(x, f, byte)
 
     def hook(self):

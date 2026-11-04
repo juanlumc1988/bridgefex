@@ -17,9 +17,13 @@ KEYWORDS = frozenset(keyword.kwlist)
 PARAMETER_NAMES = frozenset(
     """
     cls ctypes weakref threading _builtins _runtime _types _lib _bind _bind_lock _out_size
-    _out_data _handle _self _scope _status _found _director _vtable _record
+    _out_data _handle _self _scope _status
     """.split()
 )
+
+# The locals of the functions that create a director: no parameter takes them in a module
+# that has directors (the other modules keep their output).
+DIRECTOR_WORDS = frozenset("_found _vtable _director _record".split())
 
 # Members that every generated Python class defines.
 RESERVED_MEMBER_NAMES = frozenset(
@@ -38,7 +42,7 @@ MODULE_GLOBALS = frozenset(
     """
     ctypes weakref threading _builtins _sys _runtime _types _lib _bind _bind_lock _watch
     _watchers
-    __all__ AttributeError IndexError RuntimeError
+    __all__ AttributeError IndexError
     """.split()
 )
 

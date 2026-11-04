@@ -202,6 +202,7 @@ class Shape(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Shape"
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "greet", "mode", "name", "quiet", "scale", "sides", "total",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -245,7 +246,11 @@ class Shape(_runtime.Object):
         _self = cls.__new__(cls)
         _handle, _director = _self._watch_director()
         _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().drc_Shape_director_create_void(_handle, _director, _vtable))
+        _runtime.check(_bind().drc_Shape_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
         _self._adopt_director(_handle, _director, _record)
         return _self
 
@@ -271,7 +276,7 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_director_create_string_int32(
             _handle,
             _director,
-            _vtable,
+            _record.register(_vtable),
             label,
             label_size,
             sides,
@@ -364,9 +369,7 @@ class Shape(_runtime.Object):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Shape object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Shape")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -762,6 +765,7 @@ class Circle(Shape):
 
     __slots__ = ()
     _cxx_class = "drc_Circle"
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "greet", "mode", "name", "quiet", "scale", "sides",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -788,7 +792,7 @@ class Circle(Shape):
         """Wraps ``drc::Circle::Circle(double radius)``."""
         if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("Circle object is already initialized")
-        _found = self._director_slots.overrides(type(self))
+        _found = self._director_slots.overrides(_builtins.type(self))
         if _found:
             self._init_director(_found, radius)
             return
@@ -802,7 +806,12 @@ class Circle(Shape):
         radius = _runtime.to_float(radius, ctypes.c_double, "radius")
         _handle, _director = self._watch_director()
         _vtable, _record = self._director_slots.make(self, _found)
-        _runtime.check(_bind().drc_Circle_director_create(_handle, _director, _vtable, radius))
+        _runtime.check(_bind().drc_Circle_director_create(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            radius,
+        ))
         self._adopt_director(_handle, _director, _record)
 
     def _watch(self):
@@ -890,9 +899,7 @@ class Circle(Shape):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Circle object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Circle")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -1045,43 +1052,43 @@ class Circle(Shape):
     def sides(self):
         """Wraps ``int32_t drc::Shape::sides() const``."""
         if self._director is None:
-            return super().sides()
+            return _builtins.super(__class__, self).sides()
         return self._base_sides()
 
     def center(self):
         """Wraps ``drc::Point drc::Shape::center() const``."""
         if self._director is None:
-            return super().center()
+            return _builtins.super(__class__, self).center()
         return self._base_center()
 
     def mode(self, requested):
         """Wraps ``drc::Mode drc::Shape::mode(drc::Mode requested) const``."""
         if self._director is None:
-            return super().mode(requested)
+            return _builtins.super(__class__, self).mode(requested)
         return self._base_mode(requested)
 
     def scale(self, factor):
         """Wraps ``void drc::Shape::scale(double factor)``."""
         if self._director is None:
-            return super().scale(factor)
+            return _builtins.super(__class__, self).scale(factor)
         return self._base_scale(factor)
 
     def add_double_double(self, a, b):
         """Wraps ``double drc::Shape::add(double a, double b) const``."""
         if self._director is None:
-            return super().add_double_double(a, b)
+            return _builtins.super(__class__, self).add_double_double(a, b)
         return self._base_add_double_double(a, b)
 
     def greet(self, who, tag, mark):
         """Wraps ``std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const``."""
         if self._director is None:
-            return super().greet(who, tag, mark)
+            return _builtins.super(__class__, self).greet(who, tag, mark)
         return self._base_greet(who, tag, mark)
 
     def quiet(self):
         """Wraps ``int32_t drc::Shape::quiet() const``."""
         if self._director is None:
-            return super().quiet()
+            return _builtins.super(__class__, self).quiet()
         return self._base_quiet()
 
     def changed(self, reason):
@@ -1093,6 +1100,10 @@ class Circle(Shape):
                 "in a subclass that overrides virtual methods of drc::Circle calls it"
             )
         return self._base_changed(reason)
+
+    def add_int32_int32(self, a, b):
+        """The same as ``add()``, which is the name of this method in this class."""
+        return self.add(a, b)
 
     def area(self):
         """Wraps ``double drc::Circle::area() const``."""
@@ -1145,6 +1156,7 @@ class Dot(Shape):
 
     __slots__ = ()
     _cxx_class = "drc_Dot"
+    _virtual_names = ("area",)
     _ancestors = ("_ptr_drc_Shape",)
 
     def __init__(self):
@@ -1227,9 +1239,7 @@ class Dot(Shape):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Dot object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Dot")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -1287,6 +1297,7 @@ class Plain(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Plain"
+    _virtual_names = ("value",)
 
     def __init__(self):
         """Wraps ``drc::Plain::Plain()``."""
@@ -1362,9 +1373,7 @@ class Plain(_runtime.Object):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Plain object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Plain")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -1497,9 +1506,7 @@ class Holder(_runtime.Object):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "Holder object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("Holder")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):

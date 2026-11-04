@@ -16,6 +16,7 @@ import hashlib
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from enum import Enum
 
 from . import naming
@@ -84,6 +85,10 @@ class Reservations:
     """Names that no parameter takes: those that the bindings use for the parameters
     and the locals of their functions."""
 
+    director_words: frozenset[str] = frozenset()
+    """Names that no parameter takes in a module that has directors: what the bindings use
+    for the parameters and the locals of the functions that create a director."""
+
     names: Callable[[Module], frozenset[str]] = lambda module: frozenset()
     """For a module: the names a parameter or a member must not take, because the
     bindings use them unqualified (their classes, the aliases of their modules)."""
@@ -108,6 +113,7 @@ class Reservations:
         return Reservations(
             words=frozenset().union(*(item.words for item in items)),
             parameter_words=frozenset().union(*(item.parameter_words for item in items)),
+            director_words=frozenset().union(*(item.director_words for item in items)),
             names=lambda module: frozenset().union(*(item.names(module) for item in items)),
             locals=lambda count: frozenset().union(*(item.locals(count) for item in items)),
             module_problem=lambda name: first(item.module_problem(name) for item in items),
@@ -402,6 +408,12 @@ class CallablePlan:
     is_const: bool = False
     """A method that can be called on a const object."""
 
+    source: Method | Constructor | None = dataclass_field(default=None, compare=False, repr=False)
+    """The declaration it wraps. A location does not tell two declarations apart (a macro
+    can declare several at one), so a backend that joins what a class declares with what
+    another list of the plan says of it (the wrapper of a virtual method and its entry in
+    a director) compares these."""
+
 
 @dataclass(frozen=True, slots=True)
 class LoweredParam:
@@ -664,9 +676,17 @@ class DirectorEntry:
     base: CallablePlan | None
     """The base call: None for a pure virtual method."""
 
+    method: Method
+    """The declaration: a language that wraps the public methods of the class finds the
+    wrapper of this one by comparing it with ``CallablePlan.source``."""
+
+    key: str
+    """What the overrides of the method have in common (its name, the types of its
+    parameters, whether it is const): the same in the director of a class and in that of its
+    bases, whichever declaration is the most derived."""
+
     location: Location
-    """Where the method is declared: a language that wraps the public methods of the class
-    finds the wrapper of this one by it."""
+    """Where the method is declared, for the messages."""
 
     @property
     def declaration(self) -> str:
@@ -1663,6 +1683,7 @@ class _Builder:
             | _callback_locals(callbacks)
             | self._reservations.locals(len(parameters))
             | self._reservations.parameter_words
+            | (self._reservations.director_words if self.director_requests else frozenset())
         )
         cpp_names = [parameter.name for parameter in parameters]
         names = naming.parameter_names(cpp_names, taken)
@@ -2588,6 +2609,7 @@ class _Builder:
         result: LoweredResult | None,
         location: Location,
         is_const: bool = False,
+        source: Method | Constructor | None = None,
     ) -> CallablePlan:
         # A parameter that could not be lowered was reported: the plan is not built.
         return CallablePlan(
@@ -2599,6 +2621,7 @@ class _Builder:
             result=result.spec if result is not None else None,
             location=location,
             is_const=is_const,
+            source=source,
         )
 
     # Declarations ------------------------------------------------------------
@@ -2655,6 +2678,7 @@ class _Builder:
             params=params,
             result=None,
             location=constructor.location,
+            source=constructor,
         )
 
     def build_class(self, model: Class) -> ClassPlan:
@@ -2741,6 +2765,7 @@ class _Builder:
                     result=result,
                     location=method.location,
                     is_const=method.is_const,
+                    source=method,
                 )
             )
 
@@ -3214,6 +3239,8 @@ class _Builder:
             thunk_key="__".join([result_token, *tokens]),
             function_params=", ".join(c_types),
             base=base,
+            method=method,
+            key=slot.hook.key,
             location=location,
         )
         return entry, override, base_member
@@ -3338,6 +3365,7 @@ class _Builder:
                     params=params,
                     result=None,
                     location=constructor.location,
+                    source=constructor,
                 )
             )
         return plans

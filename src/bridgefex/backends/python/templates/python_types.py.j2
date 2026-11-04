@@ -155,15 +155,15 @@ class {{ d.struct_name }}(ctypes.Structure):
 def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "{{ slot.name }}")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "{{ slot.name }}")
         if _function is None:
             return
-        try:
-{{ slot.thunk.body(12) }}
-        finally:
-            _runtime.director_leave(_user_data)
+{{ slot.thunk.body(8) }}
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 

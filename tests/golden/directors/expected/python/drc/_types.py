@@ -177,18 +177,18 @@ _director__drc_Shape__area__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctype
 def _director__drc_Shape__area(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "area")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "area")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_float(
-                _value, ctypes.c_double, 'area', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'area', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -203,16 +203,16 @@ _director__drc_Shape__name__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctype
 def _director__drc_Shape__name(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "name")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "name")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _runtime.sink_set(_out_result, _value, 'name')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _runtime.sink_set(_out_result, _value, 'name')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -227,18 +227,18 @@ _director__drc_Shape__sides__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Shape__sides(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "sides")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "sides")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'sides', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'sides', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -253,16 +253,16 @@ _director__drc_Shape__center__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Shape__center(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "center")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "center")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _drc_Point__to_c(_value, 'center')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _drc_Point__to_c(_value, 'center')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -277,18 +277,18 @@ _director__drc_Shape__mode__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctype
 def _director__drc_Shape__mode(_user_data, _arg1, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "mode")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "mode")
         if _function is None:
             return
-        try:
-            _value = _function(_runtime.enum_result(drc_Mode, _arg1))
-            _out_result[0] = _runtime.to_enum(
-                _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_runtime.enum_result(drc_Mode, _arg1))
+        _out_result[0] = _runtime.to_enum(
+            _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -303,15 +303,15 @@ _director__drc_Shape__scale__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Shape__scale(_user_data, _arg1):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "scale")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "scale")
         if _function is None:
             return
-        try:
-            _function(_arg1)
-        finally:
-            _runtime.director_leave(_user_data)
+        _function(_arg1)
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -326,18 +326,18 @@ _director__drc_Shape__add_int32_int32__type = ctypes.CFUNCTYPE(None, ctypes.c_vo
 def _director__drc_Shape__add_int32_int32(_user_data, _arg1, _arg2, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "add_int32_int32")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "add_int32_int32")
         if _function is None:
             return
-        try:
-            _value = _function(_arg1, _arg2)
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'add_int32_int32', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_arg1, _arg2)
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'add_int32_int32', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -352,18 +352,18 @@ _director__drc_Shape__add_double_double__type = ctypes.CFUNCTYPE(None, ctypes.c_
 def _director__drc_Shape__add_double_double(_user_data, _arg1, _arg2, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "add_double_double")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "add_double_double")
         if _function is None:
             return
-        try:
-            _value = _function(_arg1, _arg2)
-            _out_result[0] = _runtime.to_float(
-                _value, ctypes.c_double, 'add_double_double', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_arg1, _arg2)
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'add_double_double', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -378,20 +378,20 @@ _director__drc_Shape__greet__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Shape__greet(_user_data, _arg1, _arg1_size, _arg2, _arg2_size, _arg3, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "greet")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "greet")
         if _function is None:
             return
-        try:
-            _value = _function(
-                _runtime.callback_string(_arg1, _arg1_size),
-                _runtime.callback_string(_arg2, _arg2_size),
-                _runtime.callback_c_string(_arg3),
-            )
-            _runtime.sink_set(_out_result, _value, 'greet')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(
+            _runtime.callback_string(_arg1, _arg1_size),
+            _runtime.callback_string(_arg2, _arg2_size),
+            _runtime.callback_c_string(_arg3),
+        )
+        _runtime.sink_set(_out_result, _value, 'greet')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -406,18 +406,18 @@ _director__drc_Shape__quiet__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Shape__quiet(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "quiet")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "quiet")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'quiet', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'quiet', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -432,15 +432,15 @@ _director__drc_Shape__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ct
 def _director__drc_Shape__changed(_user_data, _arg1):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "changed")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "changed")
         if _function is None:
             return
-        try:
-            _function(_arg1)
-        finally:
-            _runtime.director_leave(_user_data)
+        _function(_arg1)
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -482,18 +482,18 @@ _director__drc_Circle__area__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Circle__area(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "area")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "area")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_float(
-                _value, ctypes.c_double, 'area', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'area', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -508,16 +508,16 @@ _director__drc_Circle__name__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Circle__name(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "name")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "name")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _runtime.sink_set(_out_result, _value, 'name')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _runtime.sink_set(_out_result, _value, 'name')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -532,18 +532,18 @@ _director__drc_Circle__add_int32_int32__type = ctypes.CFUNCTYPE(None, ctypes.c_v
 def _director__drc_Circle__add_int32_int32(_user_data, _arg1, _arg2, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "add")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "add")
         if _function is None:
             return
-        try:
-            _value = _function(_arg1, _arg2)
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'add', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_arg1, _arg2)
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'add', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -558,18 +558,18 @@ _director__drc_Circle__sides__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Circle__sides(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "sides")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "sides")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'sides', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'sides', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -584,16 +584,16 @@ _director__drc_Circle__center__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ct
 def _director__drc_Circle__center(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "center")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "center")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _drc_Point__to_c(_value, 'center')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _drc_Point__to_c(_value, 'center')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -608,18 +608,18 @@ _director__drc_Circle__mode__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctyp
 def _director__drc_Circle__mode(_user_data, _arg1, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "mode")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "mode")
         if _function is None:
             return
-        try:
-            _value = _function(_runtime.enum_result(drc_Mode, _arg1))
-            _out_result[0] = _runtime.to_enum(
-                _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_runtime.enum_result(drc_Mode, _arg1))
+        _out_result[0] = _runtime.to_enum(
+            _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -634,15 +634,15 @@ _director__drc_Circle__scale__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Circle__scale(_user_data, _arg1):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "scale")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "scale")
         if _function is None:
             return
-        try:
-            _function(_arg1)
-        finally:
-            _runtime.director_leave(_user_data)
+        _function(_arg1)
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -657,18 +657,18 @@ _director__drc_Circle__add_double_double__type = ctypes.CFUNCTYPE(None, ctypes.c
 def _director__drc_Circle__add_double_double(_user_data, _arg1, _arg2, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "add_double_double")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "add_double_double")
         if _function is None:
             return
-        try:
-            _value = _function(_arg1, _arg2)
-            _out_result[0] = _runtime.to_float(
-                _value, ctypes.c_double, 'add_double_double', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_arg1, _arg2)
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'add_double_double', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -683,20 +683,20 @@ _director__drc_Circle__greet__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Circle__greet(_user_data, _arg1, _arg1_size, _arg2, _arg2_size, _arg3, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "greet")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "greet")
         if _function is None:
             return
-        try:
-            _value = _function(
-                _runtime.callback_string(_arg1, _arg1_size),
-                _runtime.callback_string(_arg2, _arg2_size),
-                _runtime.callback_c_string(_arg3),
-            )
-            _runtime.sink_set(_out_result, _value, 'greet')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(
+            _runtime.callback_string(_arg1, _arg1_size),
+            _runtime.callback_string(_arg2, _arg2_size),
+            _runtime.callback_c_string(_arg3),
+        )
+        _runtime.sink_set(_out_result, _value, 'greet')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -711,18 +711,18 @@ _director__drc_Circle__quiet__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Circle__quiet(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "quiet")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "quiet")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _runtime.to_int(
-                _value, ctypes.c_int32, 'quiet', what="the result of the override"
-            )
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'quiet', what="the result of the override"
+        )
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -737,15 +737,15 @@ _director__drc_Circle__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, c
 def _director__drc_Circle__changed(_user_data, _arg1):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "changed")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "changed")
         if _function is None:
             return
-        try:
-            _function(_arg1)
-        finally:
-            _runtime.director_leave(_user_data)
+        _function(_arg1)
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -787,16 +787,16 @@ _director__drc_Stage__step__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctype
 def _director__drc_Stage__step(_user_data, _arg1, _arg2, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "step")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "step")
         if _function is None:
             return
-        try:
-            _value = _function(_runtime.enum_result(drc_Mode, _arg1), _arg2)
-            _runtime.sink_set(_out_result, _value, 'step')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function(_runtime.enum_result(drc_Mode, _arg1), _arg2)
+        _runtime.sink_set(_out_result, _value, 'step')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 
@@ -811,16 +811,16 @@ _director__drc_Stage__origin__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, cty
 def _director__drc_Stage__origin(_user_data, _out_result):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
     try:
-        _function = _runtime.director_method(_user_data, "origin")
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "origin")
         if _function is None:
             return
-        try:
-            _value = _function()
-            _out_result[0] = _drc_Point__to_c(_value, 'origin')
-        finally:
-            _runtime.director_leave(_user_data)
+        _value = _function()
+        _out_result[0] = _drc_Point__to_c(_value, 'origin')
     except BaseException as _error:
+        _active = None
         if not _runtime.fail_director(_error):
             raise
 

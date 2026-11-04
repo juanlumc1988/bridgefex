@@ -50,6 +50,9 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 
     __slots__ = ()
     _cxx_class = "{{ c.c_type }}"
+{% if c.virtual_names %}
+    _virtual_names = ({% for name in c.virtual_names %}"{{ name }}",{{ " " if not loop.last }}{% endfor %})
+{% endif %}
 {% if c.director %}
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
@@ -86,7 +89,7 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         """
         if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
-        _found = self._director_slots.overrides(type(self), subclass=True)
+        _found = self._director_slots.overrides(_builtins.type(self), subclass=True)
 {{ dc.callable.check_call(8, ("_handle, _director = self._watch_director()", "_vtable, _record = self._director_slots.make(self, _found)") + dc.callable.retain_statements("self")) }}
         self._adopt_director(_handle, _director, _record)
 {% else %}
@@ -134,7 +137,7 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         if _builtins.getattr(self, "_owned", None) is not None:
             raise _builtins.TypeError("{{ c.py_name }} object is already initialized")
 {% if dc %}
-        _found = self._director_slots.overrides(type(self))
+        _found = self._director_slots.overrides(_builtins.type(self))
         if _found:
             self.{{ dc.private_name }}(_found{{ ", " + ctor.parameter_list if ctor.args else "" }})
             return
@@ -288,9 +291,7 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
             director = None
         if director is not None and director.running:
             # C++ is running a method on the object: destroying it would free what it uses.
-            raise RuntimeError(
-                "{{ c.py_name }} object cannot be closed while one of its overrides runs"
-            )
+            director.cannot_close("{{ c.py_name }}")
 {% endif %}
         try:
             destroy, null = self._owned.pop()
@@ -351,9 +352,15 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 {% else %}
         """Wraps ``{{ slot.entry.description }}``."""
         if self._director is None:
-            return super().{{ slot.name }}({{ slot.parameters }})
+            return _builtins.super(__class__, self).{{ slot.name }}({{ slot.parameters }})
 {% endif %}
         return self.{{ slot.private_name }}({{ slot.parameters }})
+{% endfor %}
+{% for alias in c.director.aliases %}
+
+    def {{ alias.name }}({{ alias.signature }}):
+        """The same as ``{{ alias.target.name }}()``, which is the name of this method in this class."""
+        return self.{{ alias.target.name }}({{ alias.arguments }})
 {% endfor %}
 {% endif %}
 {% for py in c.members %}

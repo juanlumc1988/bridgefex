@@ -55,6 +55,24 @@ class PySlot:
 
 
 @dataclass(frozen=True, slots=True)
+class PyAlias:
+    """A method that a base class has for a virtual method, under the name that the base
+    gives it (a class that declares one overload hides the others, so its wrapper loses the
+    suffix): the class repeats it, calling the method it has for it."""
+
+    name: str
+    target: PySlot
+
+    @property
+    def signature(self) -> str:
+        return self.target.signature
+
+    @property
+    def arguments(self) -> str:
+        return self.target.parameters
+
+
+@dataclass(frozen=True, slots=True)
 class PyDirectorConstructor:
     """The creation of a director: ``callable`` calls the create function."""
 
@@ -82,6 +100,8 @@ class PyDirector:
 
     own_constructors: bool
     """The class has ordinary constructors."""
+
+    aliases: tuple[PyAlias, ...] = ()
 
     def creation(self, plain: str) -> PyDirectorConstructor | None:
         """The creation of the director for the constructor of the class called ``plain``."""
