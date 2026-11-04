@@ -294,14 +294,14 @@ The test suite does not run for 32-bit ARM (the arm64 runner is native). What do
 
 ### Libraries built by CI
 
-Those libraries, with the generated C headers, are published as the archives that the last commit of `main` made (the *Development build* pre-release, replaced by every push) and, for a tagged `v*` version, as a release:
+Those libraries, with the generated C headers, are published, for each tagged `v*` version, as a release; the links are those of the latest one:
 
 | Target | Archive |
 | --- | --- |
-| Linux x86_64 | [`bridgefex-demo-linux-x86_64.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/download/nightly/bridgefex-demo-linux-x86_64.tar.gz) |
-| Linux arm64 | [`bridgefex-demo-linux-aarch64.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/download/nightly/bridgefex-demo-linux-aarch64.tar.gz) |
-| Linux armhf (ARMv7, 32-bit) | [`bridgefex-demo-linux-armhf.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/download/nightly/bridgefex-demo-linux-armhf.tar.gz) |
-| Windows x64 | [`bridgefex-demo-windows-x64.zip`](https://github.com/juanlumc1988/bridgefex/releases/download/nightly/bridgefex-demo-windows-x64.zip) |
+| Linux x86_64 | [`bridgefex-demo-linux-x86_64.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/latest/download/bridgefex-demo-linux-x86_64.tar.gz) |
+| Linux arm64 | [`bridgefex-demo-linux-aarch64.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/latest/download/bridgefex-demo-linux-aarch64.tar.gz) |
+| Linux armhf (ARMv7, 32-bit) | [`bridgefex-demo-linux-armhf.tar.gz`](https://github.com/juanlumc1988/bridgefex/releases/latest/download/bridgefex-demo-linux-armhf.tar.gz) |
+| Windows x64 | [`bridgefex-demo-windows-x64.zip`](https://github.com/juanlumc1988/bridgefex/releases/latest/download/bridgefex-demo-windows-x64.zip) |
 
 Each has `include/` (the generated headers), `lib/` (the shared library, with its import library on Windows, and the static library) and a README with the compiler that built it. They are the output of the example, to see the generated C layer work on each target: bridgefex generates the library of *your* headers, and does not distribute one.
 

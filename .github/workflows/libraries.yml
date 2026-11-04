@@ -6,10 +6,10 @@ name: Libraries
 # director examples (classes of C that override C++ virtual methods) are built and run there
 # too, and nothing is packaged if one fails.
 #
-# A push to main replaces the "nightly" pre-release, a tag v* makes a release, and the
-# README links to their files. On pull requests that change this workflow or the script,
-# and on manual runs of other branches, the libraries are built and kept as artifacts of
-# the run only.
+# A tag v* makes a release with the libraries, and the README links to the files of the
+# latest one (their names do not change). A push to main, a pull request that changes this
+# workflow or the script, and a manual run build and run the libraries and keep them as
+# artifacts of the run only.
 
 on:
   push:
@@ -96,7 +96,7 @@ jobs:
   publish:
     name: Publish
     needs: build
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -110,16 +110,6 @@ jobs:
           merge-multiple: true
           path: dist
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes \
             --title "$GITHUB_REF_NAME"
-      # A release that is replaced, with its tag, so that its files are those of the last
-      # commit of main. The file names do not change, so the links in the README do not.
-      - name: Nightly
-        if: github.ref == 'refs/heads/main'
-        run: |
-          gh release delete nightly --cleanup-tag --yes || true
-          gh release create nightly dist/* --prerelease --target "$GITHUB_SHA" \
-            --title "Development build" \
-            --notes "The libraries that bridgefex generated for the demo example from the last commit of main ($GITHUB_SHA). Replaced by every push."
