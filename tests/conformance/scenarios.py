@@ -37,6 +37,19 @@ fit its C type; ``length``: an array does not have the length of its type; ``clo
 the object was closed, or it is borrowed from one that was); ``approx`` allows that
 much difference in a floating-point result.
 
+A class that has a director (the annotations file asks for it) can be derived from, to
+override its virtual methods: ``{ derive = "shapes.Shape", named = "Mine", overrides = {
+area = { returns = 4.0 }, name = { base = true } } }`` defines a class called ``Mine``,
+and ``{ new = "Mine", overload = "_void", as = "m" }`` makes an object of it. An override
+is named as the member of the vtable of the C API (``add_int32_int32``) and does one of
+``{ returns = value }`` (it gives that value, whatever its arguments), ``{ base = true }``
+(it calls the implementation of the class with its arguments and gives what it gives),
+``{ argument = 0 }`` (it gives its first argument, which has the type of its result) or
+``{ raises = "message" }`` (it fails: the call that made C++ run it reports it, as an
+``override`` error whose text has the message). The constructors of a derived class are
+those that the class shows (``overload`` is their suffix), or, if it shows none, those of
+its director.
+
 Values: numbers, booleans and strings are themselves; a list is a list; a table is one
 of ``{ int = "18446744073709551615" }`` (beyond 64-bit signed TOML integers),
 ``{ null = true }`` (a NULL pointer or an empty pointer), ``{ ref = "c" }`` (an object
@@ -69,6 +82,7 @@ from bridgefex.plan import (
     CallableKind,
     CallablePlan,
     ClassPlan,
+    DirectorEntry,
     EnumPlan,
     FunctionPlan,
     HeaderPlan,
@@ -80,11 +94,43 @@ CXX_ERRORS = frozenset({"exception", "unknown_exception", "out_of_memory"})
 """The failures of the C++ code, by the status of the C API: a ``std::exception``, any
 other exception, and ``std::bad_alloc``."""
 
-ERROR_KINDS = CXX_ERRORS | {"range", "length", "closed"}
+ERROR_KINDS = CXX_ERRORS | {"range", "length", "closed", "override"}
 """The failures that every backend reports, each in the way of its language."""
 
-_ACTIONS = ("new", "call", "close")
-_KEYS = frozenset({*_ACTIONS, "args", "as", "expect", "error", "message", "approx", "overload"})
+_ACTIONS = ("new", "call", "close", "derive")
+_KEYS = frozenset(
+    {
+        *_ACTIONS,
+        "args",
+        "as",
+        "expect",
+        "error",
+        "message",
+        "approx",
+        "overload",
+        "named",
+        "overrides",
+    }
+)
+_BEHAVIORS = frozenset({"returns", "base", "argument", "raises"})
+_DERIVE_KEYS = frozenset({"derive", "named", "overrides"})
+_INTEGER_BITS = {
+    "bool": None,
+    "signed char": (8, True),
+    "unsigned char": (8, False),
+    "short": (16, True),
+    "unsigned short": (16, False),
+    "int": (32, True),
+    "unsigned int": (32, False),
+    "int8_t": (8, True),
+    "uint8_t": (8, False),
+    "int16_t": (16, True),
+    "uint16_t": (16, False),
+    "int32_t": (32, True),
+    "uint32_t": (32, False),
+    "int64_t": (64, True),
+    "uint64_t": (64, False),
+}
 _VALUE_TABLES = frozenset({"int", "null", "ref", "enum", "struct"})
 
 
@@ -165,9 +211,10 @@ def check(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[str]:
         names.add(name)
         variables: dict[str, ClassPlan | None] = {}
         closed: set[str] = set()
+        derived: dict[str, ClassPlan] = {}
         for number, step in enumerate(steps, start=1):
             where = f"{name}, step {number}"
-            for problem in _check_step(step, index, variables, closed):
+            for problem in _check_step(step, index, variables, closed, derived):
                 problems.append(f"{where}: {problem}")
     return problems
 
@@ -177,6 +224,7 @@ def _check_step(
     index: _Index,
     variables: dict[str, ClassPlan | None],
     closed: set[str],
+    derived: dict[str, ClassPlan],
 ) -> list[str]:
     unknown = set(step) - _KEYS
     actions = [action for action in _ACTIONS if action in step]
@@ -191,6 +239,8 @@ def _check_step(
     problems += _option_problems(step)
     for value in [*args, *([step["expect"]] if "expect" in step else [])]:
         problems += _check_value(value, index, variables)
+    if action == "derive":
+        return [*problems, *_derive_problems(step, index, variables, derived)]
     if action == "close":
         if target not in variables:
             problems.append(f"close of {target!r}, which does not exist")
@@ -199,10 +249,12 @@ def _check_step(
 
     produced: ClassPlan | None = None
     if action == "new":
-        cls = _class(target, index)
+        cls = derived.get(target) or _class(target, index)
         if cls is None:
             return [*problems, f"no class {target!r}"]
-        constructor, overload_problems = _constructor(cls, step.get("overload"))
+        constructor, overload_problems = _constructor(
+            cls, step.get("overload"), director=target in derived
+        )
         problems += overload_problems
         call = constructor
         produced = cls
@@ -239,8 +291,12 @@ def _option_problems(step: Mapping[str, object]) -> list[str]:
         problems.append("a step cannot expect a result and an error")
     if step.get("error", "exception") not in ERROR_KINDS:
         problems.append(f"unknown error kind {step['error']!r}")
-    if "message" in step and step.get("error") not in CXX_ERRORS:
-        problems.append(f"message goes with an error of the C++ code: {sorted(CXX_ERRORS)}")
+    if step.get("error") == "override" and "message" not in step:
+        problems.append("an override error says the message of the failure that it reports")
+    if "message" in step and step.get("error") not in {*CXX_ERRORS, "override"}:
+        problems.append(
+            f"message goes with an error of the C++ code: {sorted(CXX_ERRORS)}, or an override"
+        )
     if "approx" in step:
         approx = step["approx"]
         number = isinstance(approx, int | float) and not isinstance(approx, bool)
@@ -336,17 +392,127 @@ def _class(target: str, index: _Index) -> ClassPlan | None:
     return index.classes.get((header, name))
 
 
-def _constructor(cls: ClassPlan, overload: object) -> tuple[CallablePlan | None, list[str]]:
-    """The constructor that ``overload`` names (the only one if there is one)."""
-    if len(cls.constructors) == 1:
+def _constructor(
+    cls: ClassPlan, overload: object, *, director: bool = False
+) -> tuple[CallablePlan | None, list[str]]:
+    """The constructor that ``overload`` names (the only one if there is one). A class
+    that is derived from has the ones that it shows, or those of its director."""
+    constructors = cls.constructors
+    if director and not constructors and cls.director is not None:
+        constructors = cls.director.constructors
+    if len(constructors) == 1:
         if overload is not None:
-            return cls.constructors[0], ["the class has one constructor: no overload"]
-        return cls.constructors[0], []
-    matching = [item for item in cls.constructors if item.suffix == overload]
+            return constructors[0], ["the class has one constructor: no overload"]
+        return constructors[0], []
+    matching = [item for item in constructors if item.suffix == overload]
     if not matching:
-        options = [item.suffix for item in cls.constructors]
+        options = [item.suffix for item in constructors]
         return None, [f"overload {overload!r} is not one of {options}"]
     return matching[0], []
+
+
+def _derive_problems(
+    step: Mapping[str, object],
+    index: _Index,
+    variables: Mapping[str, ClassPlan | None],
+    derived: dict[str, ClassPlan],
+) -> list[str]:
+    """What is wrong with the definition of a class that overrides virtual methods."""
+    target, named, overrides = step["derive"], step.get("named"), step.get("overrides")
+    cls = _class(target, index) if isinstance(target, str) else None
+    if cls is None:
+        return [f"no class {target!r}"]
+    if cls.director is None:
+        return [f"{target} has no director: nothing can derive from it"]
+    problems = [
+        f"a derive step has no {key!r}: it is not played"
+        for key in sorted(set(step) - _DERIVE_KEYS)
+    ]
+    if (
+        not isinstance(named, str)
+        or named in derived
+        or named in variables
+        or named in index.headers
+    ):
+        problems.append(f"the class {named!r} is not a new name")
+    if not isinstance(overrides, dict) or not overrides:
+        return [*problems, "overrides is a table of the methods to override"]
+    entries = {entry.field: entry for entry in cls.director.entries}
+    for field, behavior in overrides.items():
+        entry = entries.get(field)
+        if entry is None:
+            problems.append(
+                f"{target} has no virtual method {field!r} to override: {sorted(entries)}"
+            )
+            continue
+        problems += [
+            f"{field}: {problem}" for problem in _behavior_problems(behavior, entry, index)
+        ]
+    missing = sorted(field for field, entry in entries.items() if entry.is_pure)
+    missing = [field for field in missing if field not in overrides]
+    if missing:
+        problems.append(f"the pure virtual methods {missing} have to be overridden")
+    if isinstance(named, str):
+        derived[named] = cls
+    return problems
+
+
+def _behavior_problems(behavior: object, entry: DirectorEntry, index: _Index) -> list[str]:
+    if not isinstance(behavior, dict) or len(set(behavior) & _BEHAVIORS) != 1 or len(behavior) != 1:
+        return [f"an override does exactly one of {sorted(_BEHAVIORS)}: {behavior!r}"]
+    (kind,) = behavior
+    value = behavior[kind]
+    result = entry.callback.result.type
+    void = isinstance(result, ScalarType) and result.is_void
+    if kind == "returns":
+        if void:
+            return ["the method returns nothing: there is nothing to return"]
+        problems = _check_value(value, index, {})
+        reason = _kind_problem(value, result, index, {}, result=True)
+        if reason is None:
+            reason = _result_problem(value, result)
+        return problems + ([f"the result: {reason}"] if reason is not None else [])
+    if kind == "base":
+        return ["a pure virtual method has no implementation to call"] if entry.is_pure else []
+    if kind == "argument":
+        arguments = entry.callback.arguments
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < len(arguments):
+            return [f"argument is the position of one of its {len(arguments)} arguments"]
+        if void:
+            return ["the method returns nothing: it cannot give an argument back"]
+        if not _same_type(arguments[value].type, result):
+            return [f"argument {value} is not of the type of the result"]
+        return []
+    return [] if isinstance(value, str) else ["raises takes the message of the failure"]
+
+
+def _result_problem(value: object, result: Type) -> str | None:
+    """What the checks of the types leave: an override cannot give null for a string, and
+    an integer must fit the type of the result."""
+    if isinstance(result, StringType) and isinstance(value, dict):
+        return f"{value!r}: an override gives a string, not null"
+    if isinstance(result, ScalarType) and result.c_name in _INTEGER_BITS:
+        bits = _INTEGER_BITS[result.c_name]
+        number = int(value["int"]) if isinstance(value, dict) else value
+        if bits is not None and isinstance(number, int) and not isinstance(number, bool):
+            width, signed = bits
+            low, high = (-(2 ** (width - 1)), 2 ** (width - 1) - 1) if signed else (0, 2**width - 1)
+            if not low <= number <= high:
+                return f"{number} does not fit a {result.c_name} ([{low}, {high}])"
+    return None
+
+
+def _same_type(first: Type, second: Type) -> bool:
+    """Whether a value of ``first`` can be given back as a ``second``."""
+    if isinstance(first, StringType) and isinstance(second, StringType):
+        return True
+    if isinstance(first, ScalarType) and isinstance(second, ScalarType):
+        return first.c_name == second.c_name
+    if isinstance(first, EnumRef) and isinstance(second, EnumRef):
+        return first.usr == second.usr
+    if isinstance(first, StructRef) and isinstance(second, StructRef):
+        return first.usr == second.usr
+    return False
 
 
 def _callable(

@@ -11,19 +11,17 @@ from typing import Any
 
 from ...errors import Diagnostic, GenerationError, Location
 from ...model import (
+    Access,
     ContainerType,
     EnumRef,
+    Method,
     ScalarType,
-    StringKind,
-    StringType,
     StructRef,
     TypeCategory,
 )
 from ...plan import (
     CallableKind,
     CallablePlan,
-    CallbackPart,
-    CallbackSpec,
     CFunction,
     ClassPlan,
     ClassView,
@@ -35,17 +33,17 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from .directors import PyAlias, PyDirector, PyDirectorConstructor, PySlot
 from .ffi import PyBinding, binding, ctypes_scalar
 from .lower import (
     build_callable,
-    callback_thunk_name,
     class_name,
     enum_ctypes,
     enum_type,
     handle,
     scalar_check,
 )
-from .model import PyCallable, python_call
+from .model import PyCallable
 from .naming import (
     ctypes_field_names,
     enum_member_name,
@@ -54,6 +52,7 @@ from .naming import (
     module_level_name,
     python_name,
 )
+from .thunks import PyThunk, director_thunk, thunk
 
 
 class PlanView:
@@ -203,6 +202,11 @@ class PyClass(PlanView):
     members: tuple[PyCallable, ...]
     enums: tuple[PyEnum, ...]
     views: tuple[PyView, ...]
+    director: PyDirector | None = None
+    virtual_names: tuple[str, ...] = ()
+    """In a module that has directors: the names of the virtual methods the class declares
+    (those of their wrappers and the C++ ones), so that a subclass cannot define one that
+    C++ would never call."""
 
     @property
     def c_type(self) -> str:
@@ -280,7 +284,7 @@ class PyHeader(PlanView):
         """The signatures of the C functions of this header (the init functions of
         the value structs are declared in ``_types.py``)."""
         inits = set(self.plan.struct_inits)
-        return tuple(binding(f) for f in self.plan.c_functions if f not in inits)
+        return tuple(binding(f) for f in self.plan.all_c_functions if f not in inits)
 
     @property
     def classes(self) -> tuple[PyClass, ...]:
@@ -313,119 +317,6 @@ class PyHeader(PlanView):
         return tuple(f"from . import {stem} as {module_alias(stem)}" for stem in self.base_modules)
 
 
-# Callback thunks ---------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class PyThunk:
-    """The Python function that C++ calls for the callbacks of one C signature."""
-
-    name: str
-    ctypes_args: tuple[str, ...]
-    """The ctypes types of the C parameters, user_data first."""
-
-    params: tuple[str, ...]
-    arguments: tuple[str, ...]
-    """The Python values of the arguments of ``_function``."""
-
-    check: tuple[str, ...] | None
-    """The check of the result ``_value``, as the head and the arguments of a
-    call, or None for ``void``."""
-
-    @property
-    def body(self) -> str:
-        """The statements that call ``_function`` and write the checked result,
-        indented for the thunk's ``try``."""
-        if self.check is None:
-            return python_call("_function", self.arguments, 8)
-        call = python_call("_value = _function", self.arguments, 8)
-        head, *arguments = self.check
-        return f"{call}\n{python_call(f'_out_result[0] = {head}', arguments, 8)}"
-
-    @property
-    def type_name(self) -> str:
-        return f"{self.name}__type"
-
-
-def _thunk_argument(part: CallbackPart, local: str) -> tuple[list[str], list[str], str]:
-    """(the ctypes types, the Python parameters, the Python value) of an argument."""
-    type_ = part.type
-    if isinstance(type_, StringType):
-        if type_.kind is StringKind.C_STRING:
-            return ["ctypes.c_void_p"], [local], f"_runtime.callback_c_string({local})"
-        return (
-            ["ctypes.c_void_p", "ctypes.c_size_t"],
-            [local, f"{local}_size"],
-            f"_runtime.callback_string({local}, {local}_size)",
-        )
-    if isinstance(type_, EnumRef):
-        assert part.enum is not None
-        return (
-            [enum_ctypes(part.enum)],
-            [local],
-            f"_runtime.enum_result({part.enum.c_type}, {local})",
-        )
-    if isinstance(type_, StructRef):
-        assert part.struct is not None
-        mirror = f"_{part.struct.c_type}"
-        return [f"ctypes.POINTER({mirror})"], [local], f"{mirror}__from_c({local}.contents)"
-    assert isinstance(type_, ScalarType)
-    return [f"ctypes.{ctypes_scalar(type_.c_name)}"], [local], local
-
-
-def _thunk_result(part: CallbackPart) -> tuple[str, tuple[str, ...]] | None:
-    """(the ctypes type, the check of ``_value``) of the result, None for ``void``."""
-    type_ = part.type
-    what = 'what="the result of callback"'
-    if isinstance(type_, EnumRef):
-        assert part.enum is not None
-        enum = part.enum
-        valid = enum.model.valid_range
-        check = (
-            "_runtime.to_enum",
-            "_value",
-            enum.c_type,
-            enum_ctypes(enum),
-            "_name",
-            "None" if valid is None else f"({valid[0]}, {valid[1]})",
-            what,
-        )
-        return enum_ctypes(enum), check
-    assert isinstance(type_, ScalarType)
-    if type_.is_void:
-        return None
-    ctypes_type = f"ctypes.{ctypes_scalar(type_.c_name)}"
-    if type_.category is TypeCategory.BOOL:
-        return ctypes_type, ("_runtime.to_bool", "_value", "_name", what)
-    if type_.category is TypeCategory.FLOATING:
-        return ctypes_type, ("_runtime.to_float", "_value", ctypes_type, "_name", what)
-    return ctypes_type, ("_runtime.to_int", "_value", ctypes_type, "_name", what)
-
-
-def thunk(callback: CallbackSpec) -> PyThunk:
-    ctypes_args = ["ctypes.c_void_p"]
-    params = ["_user_data"]
-    arguments: list[str] = []
-    for position, part in enumerate(callback.arguments, start=1):
-        types, names, value = _thunk_argument(part, f"_arg{position}")
-        ctypes_args += types
-        params += names
-        arguments.append(value)
-    check: tuple[str, ...] | None = None
-    result = _thunk_result(callback.result)
-    if result is not None:
-        ctypes_type, check = result
-        ctypes_args.append(f"ctypes.POINTER({ctypes_type})")
-        params.append("_out_result")
-    return PyThunk(
-        name=callback_thunk_name(callback),
-        ctypes_args=tuple(ctypes_args),
-        params=tuple(params),
-        arguments=tuple(arguments),
-        check=check,
-    )
-
-
 # The module --------------------------------------------------------------------
 
 
@@ -438,6 +329,9 @@ class PyModule(PlanView):
 
     thunks: tuple[PyThunk, ...]
     """The callback thunks of every header, by name."""
+
+    directors: tuple[PyDirector, ...] = ()
+    """The directors of every header."""
 
     @property
     def name(self) -> str:
@@ -461,6 +355,23 @@ class _Lowering:
         self.structs = {
             struct.model.usr: struct for header in plan.headers for struct in header.structs
         }
+        self.class_plans: dict[str, ClassPlan] = {
+            cls.model.usr: cls
+            for header in plan.headers
+            for cls in header.items
+            if isinstance(cls, ClassPlan)
+        }
+        # What a Python class calls the public method that a director overrides.
+        self.method_names: dict[object, str] = {
+            member.source: member_name(
+                member.name + member.suffix, reserved=_constructor_names(cls)
+            )
+            for header in plan.headers
+            for cls in header.items
+            if isinstance(cls, ClassPlan)
+            for member in cls.members
+            if member.kind is CallableKind.METHOD and member.source is not None
+        }
 
     def lower(self) -> PyModule:
         headers = tuple(self._header(header) for header in self.plan.headers)
@@ -480,7 +391,12 @@ class _Lowering:
                     assert known == item, (known, item)
         if self.errors:
             raise GenerationError(self.errors)
-        return PyModule(self.plan, headers, structs, tuple(thunks[name] for name in sorted(thunks)))
+        directors = tuple(
+            cls.director for header in headers for cls in header.classes if cls.director is not None
+        )
+        return PyModule(
+            self.plan, headers, structs, tuple(thunks[name] for name in sorted(thunks)), directors
+        )
 
     def _callables(self) -> Iterator[CallablePlan]:
         for header in self.plan.headers:
@@ -685,6 +601,8 @@ class _Lowering:
             CallableKind.STATIC: "static",
             CallableKind.METHOD: "method",
             CallableKind.CONSTRUCTOR: "constructor",
+            CallableKind.DIRECTOR_CONSTRUCTOR: "constructor",
+            CallableKind.DIRECTOR_BASE: "method",
         }[plan.kind]
         result = build_callable(
             name,
@@ -710,16 +628,30 @@ class _Lowering:
         for constructor in plan.constructors:
             name = "create" + constructor.suffix if len(plan.constructors) > 1 else "__init__"
             constructors.append(self._callable(name, constructor, header, leading=("_handle",)))
-        factory_names = {item.name for item in constructors}
+        factory_names = _constructor_names(plan)
         taken: dict[str, Location] = {}
         enums: list[PyEnum] = []
         for enum in plan.enums:
             enum_name = member_name(enum.model.name, reserved=factory_names)
             taken[enum_name] = enum.model.location
             enums.append(self._enum(enum, header, enum_name, f"{py_name}.{enum_name}"))
+        names = [
+            member_name(member.name + member.suffix, reserved=factory_names)
+            for member in plan.members
+        ]
+        methods = frozenset(
+            member.source
+            for member in plan.members
+            if member.kind is CallableKind.METHOD and member.source is not None
+        )
+        director = self._director(plan, header, factory_names, methods)
+        own_slots: dict[object, PySlot] = (
+            {slot.entry.method: slot for slot in director.slots if slot.wrapper == "own"}
+            if director is not None
+            else {}
+        )
         members: list[PyCallable] = []
-        for member in plan.members:
-            name = member_name(member.name + member.suffix, reserved=factory_names)
+        for member, name in zip(plan.members, names, strict=True):
             if name in taken:
                 self.errors.append(
                     Diagnostic(
@@ -734,7 +666,15 @@ class _Lowering:
                 leading = (handle(plan.c_type, plan.is_base, "self", writable=not member.is_const),)
             else:
                 leading = ()
-            members.append(self._callable(name, member, header, leading=leading))
+            lowered = self._callable(name, member, header, leading=leading)
+            slot = own_slots.get(member.source)
+            if slot is not None:
+                lowered = dataclasses.replace(
+                    lowered, prelude=_director_prelude(slot, py_name, model.qualified_name)
+                )
+            members.append(lowered)
+        if director is not None:
+            self._check_director_names(plan, director, taken)
         bases: list[str] = []
         modules: list[str] = []
         for base in plan.bases:
@@ -744,6 +684,18 @@ class _Lowering:
             else:
                 bases.append(f"{module_alias(base.header.stem)}.{base_name}")
                 modules.append(base.header.stem)
+        virtual: dict[str, None] = {}
+        if self.plan.has_directors:
+            for member, name in zip(plan.members, names, strict=True):
+                source = member.source
+                if isinstance(source, Method) and source.is_virtual:
+                    virtual[name] = None
+                    virtual[member_name(source.name, reserved=factory_names)] = None
+            for hook in model.hooks:
+                virtual[member_name(hook.name, reserved=factory_names)] = None
+            if director is not None:
+                virtual.update(dict.fromkeys(slot.name for slot in director.slots))
+                virtual.update(dict.fromkeys(alias.name for alias in director.aliases))
         return PyClass(
             plan,
             py_name,
@@ -753,7 +705,187 @@ class _Lowering:
             tuple(members),
             tuple(enums),
             tuple(_view(view) for view in plan.views),
+            director,
+            tuple(sorted(virtual)),
         )
+
+    # Directors -------------------------------------------------------------------
+
+    def _director(
+        self,
+        plan: ClassPlan,
+        header: HeaderPlan,
+        factory_names: frozenset[str],
+        methods: frozenset[object],
+    ) -> PyDirector | None:
+        """The methods that a Python subclass of the class overrides, and what creates its
+        objects as directors."""
+        director = plan.director
+        if director is None:
+            return None
+        slots: list[PySlot] = []
+        seen: dict[str, Location] = {}
+        ctypes_names = ctypes_field_names(
+            ["user_data", "release", *(entry.field for entry in director.entries)]
+        )[2:]
+        for entry, ctypes_name in zip(director.entries, ctypes_names, strict=True):
+            public = entry.access is Access.PUBLIC
+            # The name of the method that a user calls is the one that overrides it.
+            name = self.method_names.get(entry.method) if public else None
+            if name is None:
+                name = member_name(entry.field, reserved=factory_names)
+            if name in seen:
+                self.errors.append(
+                    Diagnostic(
+                        f"two virtual methods of '{director.class_name}' that a subclass may "
+                        f"override get the Python name '{name}' (the other one is declared "
+                        f"at {seen[name]})",
+                        entry.location,
+                    )
+                )
+            seen[name] = entry.location
+            base = (
+                self._callable(f"_base_{name}", entry.base, header, leading=("self._dptr()",))
+                if entry.base is not None
+                else None
+            )
+            own = public and entry.method in methods
+            wrapper: str | None
+            if own:
+                wrapper = "own"
+            elif entry.is_pure:
+                wrapper = None
+            else:
+                wrapper = "inherited" if public else "protected"
+            slots.append(
+                PySlot(
+                    entry,
+                    name,
+                    ctypes_name,
+                    director_thunk(director.c_type, entry.field, name, entry.callback),
+                    base,
+                    wrapper,
+                )
+            )
+        # What creates a director: the ordinary constructors, else the director's own.
+        plain = {
+            constructor.source: (
+                "create" + constructor.suffix if len(plan.constructors) > 1 else "__init__"
+            )
+            for constructor in plan.constructors
+            if constructor.source is not None
+        }
+        creations: list[PyDirectorConstructor] = []
+        for constructor in director.constructors:
+            own_name = (
+                "create" + constructor.suffix if len(director.constructors) > 1 else "__init__"
+            )
+            lowered = self._callable(
+                own_name,
+                constructor,
+                header,
+                leading=("_handle", "_director", "_record.register(_vtable)"),
+            )
+            if plan.constructors:
+                # A constructor that only a derived class can call (a protected one) is not
+                # part of the API of a class that has ordinary ones.
+                if constructor.source in plain:
+                    name = plain[constructor.source]
+                    creations.append(PyDirectorConstructor(name, lowered, name))
+            else:
+                creations.append(PyDirectorConstructor(own_name, lowered, None))
+        return PyDirector(
+            director,
+            tuple(slots),
+            tuple(creations),
+            bool(plan.constructors),
+            self._aliases(plan, slots),
+        )
+
+    def _aliases(self, plan: ClassPlan, slots: Sequence[PySlot]) -> tuple[PyAlias, ...]:
+        """The names that the bases of the class give to its virtual methods when they are
+        not the class's own: a call of the base's name has to reach the director of this class,
+        not the base function of the director of the base."""
+        by_key = {slot.entry.key: slot for slot in slots if slot.base is not None}
+        own = {slot.name for slot in slots}
+        aliases: dict[str, PyAlias] = {}
+
+        def visit(cls: ClassPlan) -> None:
+            for info in cls.bases:
+                base = self.class_plans[info.model.usr]
+                visit(base)
+                other = base.director
+                if other is None:
+                    continue
+                factory = _constructor_names(base)
+                for entry in other.entries:
+                    target = by_key.get(entry.key)
+                    if target is None or entry.base is None:
+                        continue
+                    public = entry.access is Access.PUBLIC
+                    name = self.method_names.get(entry.method) if public else None
+                    if name is None:
+                        name = member_name(entry.field, reserved=factory)
+                    if name not in own and name not in aliases:
+                        aliases[name] = PyAlias(name, target)
+
+        visit(plan)
+        return tuple(aliases.values())
+
+    def _check_director_names(
+        self, plan: ClassPlan, director: PyDirector, taken: dict[str, Location]
+    ) -> None:
+        """The methods that a director adds to the class must not take the name of another."""
+        cpp_name = "::" + plan.model.qualified_name
+        for slot in director.slots:
+            added = [slot.private_name] if slot.base is not None else []
+            if slot.wrapper in ("inherited", "protected"):
+                added.append(slot.name)
+            for name in added:
+                if name in taken:
+                    self.errors.append(
+                        Diagnostic(
+                            f"a member of '{cpp_name}' and the virtual method "
+                            f"'{slot.entry.description}', which a subclass may override, get the "
+                            f"Python name '{name}' (the other one is declared at {taken[name]})",
+                            slot.entry.location,
+                        )
+                    )
+        for constructor in director.constructors:
+            if constructor.name != "__init__" and constructor.private_name in taken:
+                self.errors.append(
+                    Diagnostic(
+                        f"a member of '{cpp_name}' gets the Python name "
+                        f"'{constructor.private_name}', which the class uses for its director",
+                        plan.model.location,
+                    )
+                )
+
+
+def _constructor_names(plan: ClassPlan) -> frozenset[str]:
+    """What the Python class calls its constructors: ``__init__`` or ``create<suffix>``,
+    those of its director if it has no ordinary ones."""
+    constructors = plan.constructors or (plan.director.constructors if plan.director else ())
+    return frozenset(
+        "create" + constructor.suffix if len(constructors) > 1 else "__init__"
+        for constructor in constructors
+    )
+
+
+def _director_prelude(slot: PySlot, py_name: str, cpp_name: str) -> tuple[str, ...]:
+    """What a method that a director overrides does first, on an object that is a director:
+    its call goes to the implementation of the class, never through the vtable (which would
+    call the override that called it)."""
+    if slot.base is None:
+        return (
+            "if self._director is not None:",
+            f'    raise _builtins.NotImplementedError("{py_name}.{slot.name}() is a pure virtual '
+            f'method of {cpp_name}: there is no implementation to call")',
+        )
+    return (
+        "if self._director is not None:",
+        f"    return self.{slot.private_name}({slot.parameters})",
+    )
 
 
 def _view(view: ClassView) -> PyView:

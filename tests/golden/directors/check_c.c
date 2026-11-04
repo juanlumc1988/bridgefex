@@ -141,9 +141,10 @@ static void check_a_director_of_an_abstract_class(void)
     memset(&user, 0, sizeof user);
     drc_Shape_vtable vtable = shape_vtable(&user);
     drc_Shape_director* director = NULL;
-    check(drc_Shape_director_create_void(&director, &vtable) == DRC_OK, "create");
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_OK, "create");
     user.director = director;
-    drc_Shape* shape = drc_Shape_director_object(director);
+    check(shape == drc_Shape_director_object(director), "the object of the director");
     check(shape != NULL, "the object");
     int32_t count = 0;
     check(drc_Shape_alive(&count) == DRC_OK && count == 1, "one shape alive");
@@ -230,21 +231,26 @@ static void check_what_a_vtable_must_have(void)
     memset(&user, 0, sizeof user);
     drc_Shape_vtable vtable = shape_vtable(&user);
     drc_Shape_director* director = (drc_Shape_director*)&user;
+    drc_Shape* shape = (drc_Shape*)&user;
 
     /* The pure virtual method has to be implemented. */
     vtable.area = NULL;
-    check(drc_Shape_director_create_void(&director, &vtable) == DRC_ERROR_INVALID_ARGUMENT,
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_ERROR_INVALID_ARGUMENT,
           "a missing pure virtual method");
-    check(director == NULL, "no director");
+    check(shape == NULL && director == NULL, "no object, no director");
     check(strstr(drc_last_error(), "vtable->area") != NULL, "the error names it");
     check(user.released == 1, "release is called when the creation fails");
 
     state other;
     memset(&other, 0, sizeof other);
     vtable = shape_vtable(&other);
-    check(drc_Shape_director_create_void(NULL, &vtable) == DRC_ERROR_NULL_ARGUMENT, "NULL output");
+    check(drc_Shape_director_create_void(NULL, &director, &vtable) == DRC_ERROR_NULL_ARGUMENT,
+          "NULL object output");
     check(other.released == 1, "release is called when the arguments are wrong");
-    check(drc_Shape_director_create_void(&director, NULL) == DRC_ERROR_NULL_ARGUMENT, "no vtable");
+    check(drc_Shape_director_create_void(&shape, NULL, &vtable) == DRC_ERROR_NULL_ARGUMENT,
+          "NULL director output");
+    check(drc_Shape_director_create_void(&shape, &director, NULL) == DRC_ERROR_NULL_ARGUMENT,
+          "no vtable");
     check(drc_Shape_director_object(NULL) == NULL, "NULL stays NULL");
 }
 
@@ -256,9 +262,10 @@ static void check_the_constructors_of_the_class(void)
     vtable.name = NULL;
     vtable.sides = NULL;
     drc_Shape_director* director = NULL;
-    check(drc_Shape_director_create_string_int32(&director, &vtable, "box", 3, 4) == DRC_OK,
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_string_int32(&shape, &director, &vtable, "box", 3, 4) == DRC_OK,
           "constructor with arguments");
-    drc_Shape* shape = drc_Shape_director_object(director);
+    check(shape == drc_Shape_director_object(director), "the object of the director");
     char* text = NULL;
     size_t size = 0;
     check(drc_Shape_name(shape, &text, &size) == DRC_OK && equals(text, size, "box"),
@@ -276,8 +283,9 @@ static void check_a_string_that_is_not_given(void)
     drc_Shape_vtable vtable = shape_vtable(&user);
     vtable.name = shape_forgets_the_string;
     drc_Shape_director* director = NULL;
-    check(drc_Shape_director_create_void(&director, &vtable) == DRC_OK, "create");
-    drc_Shape* shape = drc_Shape_director_object(director);
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_OK, "create");
+    check(shape == drc_Shape_director_object(director), "the object of the director");
     char* text = NULL;
     size_t size = 99;
     check(drc_Shape_name(shape, &text, &size) == DRC_OK && equals(text, size, ""),
@@ -304,8 +312,9 @@ static void check_a_director_of_a_derived_class(void)
     vtable.name = circle_name;
     vtable.sides = shape_sides;
     drc_Circle_director* director = NULL;
-    check(drc_Circle_director_create(&director, &vtable, 2.0) == DRC_OK, "create a Circle");
-    drc_Circle* circle = drc_Circle_director_object(director);
+    drc_Circle* circle = NULL;
+    check(drc_Circle_director_create(&circle, &director, &vtable, 2.0) == DRC_OK, "create a Circle");
+    check(circle == drc_Circle_director_object(director), "the object of the director");
     drc_Shape* shape = drc_Circle_as_drc_Shape(circle);
     char* text = NULL;
     size_t size = 0;
@@ -319,6 +328,19 @@ static void check_a_director_of_a_derived_class(void)
           "the base call of Circle is Circle's");
     double radius = 0;
     check(drc_Circle_radius(circle, &radius) == DRC_OK && radius == 2.0, "Circle's methods");
+    /* Circle declares add(int, int), which hides Shape::add(double, double) from its name:
+     * the vtable entry add_double_double is NULL, and the implementation to run is that of
+     * Shape, not Circle's with a conversion of the arguments. */
+    double sum = 0;
+    check(drc_Shape_sum_double(shape, 2.5, 1.0, &sum) == DRC_OK && sum == 3.5,
+          "the fallback of an overload that a derived class hides");
+    check(drc_Circle_director_base_add_double_double(director, 2.5, 1.0, &sum) == DRC_OK &&
+              sum == 3.5,
+          "and its base call");
+    int32_t total = 0;
+    check(drc_Circle_director_base_add_int32_int32(director, 2, 1, &total) == DRC_OK &&
+              total == 1003,
+          "while the other overload is Circle's");
     drc_Circle_destroy(circle);
     check(user.released == 1, "released through the derived class");
 }
@@ -352,8 +374,9 @@ static void check_protected_constructors_and_methods(void)
     vtable.release = shape_release;
     vtable.step = stage_step;
     drc_Stage_director* director = NULL;
-    check(drc_Stage_director_create_int32(&director, &vtable, 3) == DRC_OK, "create a Stage");
-    drc_Stage* stage = drc_Stage_director_object(director);
+    drc_Stage* stage = NULL;
+    check(drc_Stage_director_create_int32(&stage, &director, &vtable, 3) == DRC_OK, "create a Stage");
+    check(stage == drc_Stage_director_object(director), "the object of the director");
     char* text = NULL;
     size_t size = 0;
     check(drc_Stage_run(stage, drc_Mode_Auto, &text, &size) == DRC_OK, "run");
@@ -363,14 +386,14 @@ static void check_protected_constructors_and_methods(void)
     check(user.released == 1, "released");
 
     vtable.origin = stage_origin;
-    check(drc_Stage_director_create_void(&director, &vtable) == DRC_OK, "the default constructor");
-    stage = drc_Stage_director_object(director);
+    check(drc_Stage_director_create_void(&stage, &director, &vtable) == DRC_OK, "the default constructor");
+    check(stage == drc_Stage_director_object(director), "the object of the other director");
     check(drc_Stage_run(stage, drc_Mode_On, &text, &size) == DRC_OK, "run again");
     check(equals(text, size, "boco@5"), "a protected virtual method that is overridden");
     drc_Stage_destroy(stage);
 
     vtable.step = NULL;
-    check(drc_Stage_director_create_void(&director, &vtable) == DRC_ERROR_INVALID_ARGUMENT,
+    check(drc_Stage_director_create_void(&stage, &director, &vtable) == DRC_ERROR_INVALID_ARGUMENT,
           "the protected pure method is required");
 }
 
@@ -381,8 +404,9 @@ static void check_disabled_callbacks(void)
     memset(&user, 0, sizeof user);
     drc_Shape_vtable vtable = shape_vtable(&user);
     drc_Shape_director* director = NULL;
-    check(drc_Shape_director_create_void(&director, &vtable) == DRC_OK, "create");
-    drc_Shape* shape = drc_Shape_director_object(director);
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_OK, "create");
+    check(shape == drc_Shape_director_object(director), "the object of the director");
     drc_disable_callbacks(shape_release);
     char* text = NULL;
     size_t size = 0;

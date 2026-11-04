@@ -68,7 +68,7 @@ def test_every_backend_has_a_runner() -> None:
 
 
 def test_there_are_scenarios() -> None:
-    cases = {"scalars", "demo", "strings", "enums", "structs", "containers", "inherit"}
+    cases = {"scalars", "demo", "strings", "enums", "structs", "containers", "inherit", "directors"}
     assert {case.name for case in CASES} >= cases
     for case in CASES:
         assert scenarios.load(case.scenarios), f"{case.name} has no scenario"
@@ -196,7 +196,114 @@ def test_the_check_refuses_a_scenario_that_is_not_true_of_the_headers(
 
 # What is not true of the types in the headers, or of the objects: each is a list of
 # steps, the case whose headers they refer to, and what the problem says.
+_DERIVE = 'derive = "shape.Shape", named = "Mine", overrides = '
 _UNTRUE_TYPES = {
+    "a class without a director": (
+        "directors",
+        ['derive = "shape.Plain", named = "Mine", overrides = { value = { returns = 1 } }'],
+        "has no director",
+    ),
+    "a method that is not virtual": (
+        "directors",
+        [_DERIVE + '{ area = { returns = 1.0 }, describe = { returns = "x" } }'],
+        "no virtual method 'describe'",
+    ),
+    "a pure method that is not overridden": (
+        "directors",
+        [_DERIVE + '{ name = { returns = "x" } }'],
+        "pure virtual methods ['area'] have to be overridden",
+    ),
+    "a base call of a pure method": (
+        "directors",
+        [_DERIVE + "{ area = { base = true } }"],
+        "no implementation to call",
+    ),
+    "a value of another type": (
+        "directors",
+        [_DERIVE + '{ area = { returns = "wide" } }'],
+        "the result",
+    ),
+    "a value of another enum": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, mode = { returns = 3 } }"],
+        "is not a member",
+    ),
+    "a method that returns nothing": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, scale = { returns = 1 } }"],
+        "returns nothing",
+    ),
+    "two behaviors": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0, base = true } }"],
+        "does exactly one",
+    ),
+    "an argument that is not there": (
+        "directors",
+        [_DERIVE + "{ area = { argument = 0 } }"],
+        "position of one of its 0 arguments",
+    ),
+    "a derive step with a key that is not played": (
+        "directors",
+        [_DERIVE + '{ area = { returns = 1.0 } }, as = "x"'],
+        "a derive step has no 'as'",
+    ),
+    "an argument given back by a method that returns nothing": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, scale = { argument = 0 } }"],
+        "it cannot give an argument back",
+    ),
+    "an argument of another type than the result": (
+        "directors11",
+        [
+            'derive = "base.Base", named = "Mine", overrides = '
+            '{ text = { returns = "x" }, big = { argument = 0 } }'
+        ],
+        "is not of the type of the result",
+    ),
+    "a negative result for an unsigned type": (
+        "directors11",
+        [
+            'derive = "base.Base", named = "Mine", overrides = '
+            '{ text = { returns = "x" }, big = { returns = -1 } }'
+        ],
+        "does not fit a uint64_t",
+    ),
+    "a result beyond the range of its type": (
+        "directors11",
+        [
+            'derive = "base.Base", named = "Mine", overrides = '
+            '{ text = { returns = "x" }, big = { returns = { int = "18446744073709551616" } } }'
+        ],
+        "does not fit a uint64_t",
+    ),
+    "null as the result of a string": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, name = { returns = { null = true } } }"],
+        "an override gives a string, not null",
+    ),
+    "an override error without its message": (
+        "directors",
+        [
+            _DERIVE + '{ area = { raises = "boom" } }',
+            'new = "Mine", overload = "_void", as = "m"',
+            'call = "m.describe", error = "override"',
+        ],
+        "says the message of the failure",
+    ),
+    "a class that was not defined": (
+        "directors",
+        ['new = "Mine", overload = "_void", as = "m"'],
+        "no class 'Mine'",
+    ),
+    "a constructor that the class does not show": (
+        "directors",
+        [
+            _DERIVE + "{ area = { returns = 1.0 } }",
+            'new = "Mine", overload = "_int32", as = "m"',
+        ],
+        "is not one of",
+    ),
     "a result of a function that returns nothing": (
         "scalars",
         ['call = "numbers.do_nothing", expect = 1'],
@@ -310,6 +417,74 @@ def test_the_check_refuses_what_does_not_fit_the_types(name: str, tmp_path: Path
     path.write_text(f'[[scenario]]\nname = "x"\nsteps = [\n  {body},\n]\n', encoding="utf-8")
     problems = scenarios.check(scenarios.load(path), plan_of(load_case(GOLDEN_DIR / case)))
     assert any(expected in problem for problem in problems), problems
+
+
+@pytest.fixture(scope="module")
+def directors(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[Case, Path, Path]:
+    case = load_case(GOLDEN_DIR / "directors")
+    library, output = build(case, toolchain, tmp_path_factory.mktemp("conformance_directors"))
+    return case, library, output
+
+
+# A derived class, the steps that make an object of it, and the call that is not true.
+_SQUARE = (
+    '{ area = { returns = 4.0 }, name = { returns = "sq" } }',
+    'new = "Sq", overload = "_void", as = "s"',
+)
+_UNTRUE_OVERRIDES = {
+    "a value that differs": (*_SQUARE, 'call = "s.describe", expect = "sq: 5 units"'),
+    "an override that does not fail": (*_SQUARE, 'call = "s.describe", error = "override"'),
+    "the text of the failure": (
+        *_SQUARE,
+        'call = "s.describe", error = "override", message = "other"',
+    ),
+    "a base call": (
+        "{ area = { returns = 1.0 }, name = { base = true } }",
+        'new = "Sq", overload = "_string_int32", args = ["box", 3], as = "s"',
+        'call = "s.describe", expect = "sq: 1 units"',
+    ),
+    "an argument given back": (
+        "{ area = { returns = 1.0 }, mode = { argument = 0 } }",
+        'new = "Sq", overload = "_void", as = "s"',
+        'call = "s.choose", args = [{ enum = "shape.Mode", member = "On" }], '
+        'expect = { enum = "shape.Mode", member = "Off" }',
+    ),
+    "a struct that differs": (
+        "{ area = { returns = 1.0 }, center = "
+        '{ returns = { struct = "shape.Point", x = 4.0, y = 6.0 } } }',
+        'new = "Sq", overload = "_void", as = "s"',
+        'call = "s.middle", args = [{ struct = "shape.Point", x = 2.0, y = 0.0 }], '
+        'expect = { struct = "shape.Point", x = 3.0, y = 4.0 }',
+    ),
+    "a struct that is given back": (
+        "{ area = { returns = 1.0 }, move = { argument = 0 } }",
+        'new = "Sq", overload = "_void", as = "s"',
+        'call = "s.call_move", args = [{ struct = "shape.Point", x = 1.0, y = 2.0 }], '
+        'expect = { struct = "shape.Point", x = 2.0, y = 1.0 }',
+    ),
+}
+
+
+@pytest.mark.parametrize("language", sorted(RUNNERS))
+@pytest.mark.parametrize("wrong", sorted(_UNTRUE_OVERRIDES))
+def test_a_scenario_of_overrides_that_is_not_true_fails(
+    language: str, wrong: str, directors: tuple[Case, Path, Path], tmp_path: Path
+) -> None:
+    case, library, output = directors
+    overrides, new, step = _UNTRUE_OVERRIDES[wrong]
+    path = tmp_path / "wrong.toml"
+    path.write_text(
+        '[[scenario]]\nname = "wrong"\nsteps = [\n'
+        f'  {{ derive = "shape.Shape", named = "Sq", overrides = {overrides} }},\n'
+        f"  {{ {new} }},\n"
+        f"  {{ {step} }},\n]\n",
+        encoding="utf-8",
+    )
+    completed = RUNNERS[language](case, library, output, path)
+    assert completed.returncode == 1, completed.stdout
+    assert "FAILED wrong, step 3" in completed.stderr
 
 
 def test_the_check_follows_the_objects_and_their_classes(tmp_path: Path) -> None:

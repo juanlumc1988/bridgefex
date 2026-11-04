@@ -41,6 +41,26 @@ double Base::value(double x) const
     return x * 2;
 }
 
+bool Base::flag(bool on) const
+{
+    return !on;
+}
+
+std::uint64_t Base::big(std::int64_t x, float f, std::uint8_t byte) const
+{
+    return static_cast<std::uint64_t>(x) + static_cast<std::uint64_t>(f) + byte;
+}
+
+bool Base::show_flag(bool on) const
+{
+    return flag(on);
+}
+
+std::uint64_t Base::show_big(std::int64_t x, float f, std::uint8_t byte) const
+{
+    return big(x, f, byte);
+}
+
 std::string Base::show() const
 {
     return text("p");

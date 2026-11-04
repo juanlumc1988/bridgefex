@@ -21,11 +21,16 @@ PARAMETER_NAMES = frozenset(
     """.split()
 )
 
+# The locals of the functions that create a director: no parameter takes them in a module
+# that has directors (the other modules keep their output).
+DIRECTOR_WORDS = frozenset("_found _vtable _director _record".split())
+
 # Members that every generated Python class defines.
 RESERVED_MEMBER_NAMES = frozenset(
     """
     close _watch _adopt _ptr _mptr _collected _handle _finalizer _owned _owners _readonly
-    _retained __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
+    _retained _director _director_slots _watch_director _adopt_director _dptr
+    __init__ __enter__ __exit__ __copy__ __deepcopy__ __reduce__ __slots__ __weakref__
     """.split()
 )
 

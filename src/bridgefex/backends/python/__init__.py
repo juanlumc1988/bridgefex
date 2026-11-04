@@ -12,7 +12,14 @@ from ..base import Backend
 from .check import check
 from .lower import class_name
 from .module import PyClass, PyEnum, PyFunction, PyHandle, PyStruct, lower
-from .naming import KEYWORDS, PARAMETER_NAMES, header_problem, module_alias, module_problem
+from .naming import (
+    DIRECTOR_WORDS,
+    KEYWORDS,
+    PARAMETER_NAMES,
+    header_problem,
+    module_alias,
+    module_problem,
+)
 
 _TEMPLATES = Path(__file__).parent / "templates"
 
@@ -66,6 +73,7 @@ BACKEND = Backend(
     Reservations(
         words=KEYWORDS,
         parameter_words=PARAMETER_NAMES,
+        director_words=DIRECTOR_WORDS,
         names=_reserved_names,
         locals=_reserved_locals,
         module_problem=module_problem,

@@ -5,6 +5,8 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,6 +32,8 @@ public:
     virtual std::string name() const;
     virtual std::int32_t sides() const;
     virtual Point center() const;
+    // Structs as parameters: by value, and by const reference.
+    virtual Point move(Point by, const Point& other) const;
     virtual Mode mode(Mode requested) const;
     virtual void scale(double factor);
     virtual std::int32_t add(std::int32_t a, std::int32_t b) const;
@@ -45,9 +49,11 @@ public:
     std::string describe() const;
     double scaled_area(double factor);
     Point middle(const Point& other) const;
+    Point call_move(Point by) const;
     Mode choose(Mode requested) const;
     std::string welcome(const std::string& who) const;
     std::int32_t sum(std::int32_t a, std::int32_t b) const;
+    double sum_double(double a, double b) const;
     std::int32_t total_of_three() const;
     std::int32_t how_quiet() const;
     // Calls the protected virtual method.
@@ -74,6 +80,9 @@ public:
 
     double area() const override;
     std::string name() const override;
+    // Hides Shape::add(double, double): a call of the implementation of the class must still
+    // run the overload of Shape that the director overrides, not this one with a conversion.
+    std::int32_t add(std::int32_t a, std::int32_t b) const override;
     double radius() const;
 
 private:
@@ -94,6 +103,23 @@ public:
     Plain();
     virtual ~Plain();
     virtual std::int32_t value() const;
+};
+
+// Keeps a Shape that another language made (it takes it and gives it back), and calls its
+// virtual methods, also from a thread of C++ and inside a call that has a callback.
+class Holder {
+public:
+    Holder();
+    ~Holder();
+    void put(std::unique_ptr<Shape> shape);
+    std::unique_ptr<Shape> take();
+    bool empty() const;
+    std::string describe() const;
+    std::string describe_on_thread() const;
+    std::int32_t apply(const std::function<std::int32_t(std::int32_t)>& f) const;
+
+private:
+    std::unique_ptr<Shape> shape_;
 };
 
 }  // namespace drc

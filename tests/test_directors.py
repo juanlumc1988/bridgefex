@@ -67,8 +67,10 @@ def test_the_director_api(tmp_path: Path) -> None:
     )
     assert "void (*sides)(void*, int32_t*);" in text
     assert "n_Shape_director_create_void" not in text  # one constructor: no suffix
-    create = "mod_status n_Shape_director_create(n_Shape_director** out_director, "
-    assert create + "const n_Shape_vtable* vtable);" in text
+    # The object first, as in every create function (whoever owns it can destroy it from the
+    # moment it exists), then the director, for the base calls.
+    create = "mod_status n_Shape_director_create(n_Shape** out_object, "
+    assert create + "n_Shape_director** out_director, const n_Shape_vtable* vtable);" in text
     assert "n_Shape* n_Shape_director_object(n_Shape_director* director);" in text
     assert "n_Shape_director_base_sides(n_Shape_director* director, int32_t* out_result);" in text
 
@@ -479,13 +481,14 @@ def test_the_parameters_of_the_functions_of_a_director_avoid_its_own(tmp_path: P
     result = generate(
         tmp_path,
         """
-        namespace n { class A { public: A(int vtable, int out_director, int director);
+        namespace n { class A {
+          public: A(int vtable, int out_object, int out_director, int director);
           virtual ~A(); virtual int f(int director, int vtable); }; }
         """,
         "n_A",
     )
     header = result.files["c/api_c.h"]
-    assert "int vtable_, int out_director_, int director_" in header
+    assert "int vtable_, int out_object_, int out_director_, int director_" in header
     assert "int director_, int vtable_" in header
 
 

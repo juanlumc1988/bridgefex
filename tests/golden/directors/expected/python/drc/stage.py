@@ -31,6 +31,14 @@ def _bind():
             lib.drc_Stage_run.restype = _runtime.Status
             lib.drc_Stage_steps.argtypes = [_types._drc_Stage__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Stage_steps.restype = _runtime.Status
+            lib.drc_Stage_director_create_void.argtypes = [ctypes.POINTER(_types._drc_Stage__p), ctypes.POINTER(_types._drc_Stage_director__p), ctypes.POINTER(_types._drc_Stage_vtable)]
+            lib.drc_Stage_director_create_void.restype = _runtime.Status
+            lib.drc_Stage_director_create_int32.argtypes = [ctypes.POINTER(_types._drc_Stage__p), ctypes.POINTER(_types._drc_Stage_director__p), ctypes.POINTER(_types._drc_Stage_vtable), ctypes.c_int32]
+            lib.drc_Stage_director_create_int32.restype = _runtime.Status
+            lib.drc_Stage_director_object.argtypes = [_types._drc_Stage_director__p]
+            lib.drc_Stage_director_object.restype = _types._drc_Stage__p
+            lib.drc_Stage_director_base_origin.argtypes = [_types._drc_Stage_director__p, ctypes.POINTER(_types._drc_Point)]
+            lib.drc_Stage_director_base_origin.restype = _runtime.Status
             _lib = lib
     return _lib
 
@@ -47,12 +55,64 @@ class Stage(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Stage"
+    _virtual_names = ("origin", "step",)
+    # The virtual methods that a subclass may override: (method, member of the vtable,
+    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
+    _director_slots = _runtime.DirectorSlots(
+        "drc_Stage",
+        "drc::Stage",
+        _types._drc_Stage_vtable,
+        (
+            ("step", "step", True, _types._director__drc_Stage__step),
+            ("origin", "origin", False, _types._director__drc_Stage__origin),
+        ),
+    )
 
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
-            "Stage is abstract: it cannot be instantiated, only obtained from "
-            "the functions that return it"
+            "Stage has several constructors; use "
+            "Stage.create_void(), Stage.create_int32()"
         )
+
+    @_builtins.classmethod
+    def create_void(cls):
+        """Wraps ``drc::Stage::Stage() of the director``.
+
+        A subclass that overrides virtual methods makes the objects: the class cannot be
+        instantiated itself.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Stage_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+
+    @_builtins.classmethod
+    def create_int32(cls, steps):
+        """Wraps ``drc::Stage::Stage(int32_t steps) of the director``.
+
+        A subclass that overrides virtual methods makes the objects: the class cannot be
+        instantiated itself.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        steps = _runtime.to_int(steps, ctypes.c_int32, "steps")
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Stage_director_create_int32(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            steps,
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
 
     def _watch(self):
         """Return the handle for a constructor to write, already watched.
@@ -68,8 +128,22 @@ class Stage(_runtime.Object):
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
         self._retained = {}
+        self._director = None
         self._finalizer = _runtime.watch(self, handle, _bind().drc_Stage_destroy)
         return handle
+
+    def _watch_director(self):
+        """Like _watch(), and the handle for the create function to write the director to."""
+        return self._watch(), _types._drc_Stage_director__p()
+
+    def _adopt_director(self, handle, director, record):
+        self._adopt(handle)
+        record.pointer = director
+        self._director = record
+
+    def _dptr(self):
+        """The handle of the director, for the calls of the implementation of the class."""
+        return _runtime.director_pointer(self._director, "Stage")
 
     def _adopt(self, handle):
         if not handle:
@@ -114,6 +188,13 @@ class Stage(_runtime.Object):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Stage")
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -150,6 +231,23 @@ class Stage(_runtime.Object):
 
     def __reduce__(self):
         raise _builtins.TypeError("Stage objects cannot be pickled")
+
+    def _base_origin(self):
+        """Calls the implementation of ``drc::Point drc::Stage::origin() const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = _types._drc_Point()
+        _runtime.check(_bind().drc_Stage_director_base_origin(self._dptr(), _out))
+        return _types._drc_Point__from_c(_out)
+
+    def origin(self):
+        """Calls the implementation of ``drc::Point drc::Stage::origin() const`` in C++ (protected: only
+        an override of a subclass that overrides virtual methods can call it)."""
+        if self._director is None:
+            raise _builtins.TypeError(
+                "Stage.origin() is a protected method: only an override "
+                "in a subclass that overrides virtual methods of drc::Stage calls it"
+            )
+        return self._base_origin()
 
     def run(self, mode):
         """Wraps ``std::string drc::Stage::run(drc::Mode mode)``."""

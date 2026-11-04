@@ -42,11 +42,11 @@ DRC_NODISCARD DRC_API drc_status drc_Stage_steps(const drc_Stage* self, int32_t*
 
 /* drc::Stage::Stage() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Stage_director_create_void(drc_Stage_director** out_director, const drc_Stage_vtable* vtable);
+DRC_NODISCARD DRC_API drc_status drc_Stage_director_create_void(drc_Stage** out_object, drc_Stage_director** out_director, const drc_Stage_vtable* vtable);
 
 /* drc::Stage::Stage(int32_t steps) of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Stage_director_create_int32(drc_Stage_director** out_director, const drc_Stage_vtable* vtable, int32_t steps);
+DRC_NODISCARD DRC_API drc_status drc_Stage_director_create_int32(drc_Stage** out_object, drc_Stage_director** out_director, const drc_Stage_vtable* vtable, int32_t steps);
 
 /* drc::Stage: the object of its director */
 DRC_NODISCARD DRC_API drc_Stage* drc_Stage_director_object(drc_Stage_director* director);

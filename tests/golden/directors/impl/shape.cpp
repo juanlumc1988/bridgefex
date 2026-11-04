@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "shape.h"
 
+#include <thread>
 #include <utility>
 
 namespace drc {
@@ -37,6 +38,16 @@ std::int32_t Shape::sides() const
 Point Shape::center() const
 {
     return Point{0.0, 0.0};
+}
+
+Point Shape::move(Point by, const Point& other) const
+{
+    return Point{by.x + other.x, by.y + other.y};
+}
+
+Point Shape::call_move(Point by) const
+{
+    return move(by, center());
 }
 
 Mode Shape::mode(Mode requested) const
@@ -115,6 +126,11 @@ std::int32_t Shape::sum(std::int32_t a, std::int32_t b) const
     return add(a, b);
 }
 
+double Shape::sum_double(double a, double b) const
+{
+    return add(a, b);
+}
+
 std::int32_t Shape::total_of_three() const
 {
     return total({1, 2, 3});
@@ -164,6 +180,11 @@ std::string Circle::name() const
     return "round";
 }
 
+std::int32_t Circle::add(std::int32_t a, std::int32_t b) const
+{
+    return a + b + 1000;
+}
+
 double Circle::radius() const
 {
     return radius_;
@@ -185,6 +206,45 @@ Plain::~Plain() = default;
 std::int32_t Plain::value() const
 {
     return 5;
+}
+
+Holder::Holder() = default;
+
+Holder::~Holder() = default;
+
+void Holder::put(std::unique_ptr<Shape> shape)
+{
+    shape_ = std::move(shape);
+}
+
+std::unique_ptr<Shape> Holder::take()
+{
+    return std::move(shape_);
+}
+
+bool Holder::empty() const
+{
+    return !shape_;
+}
+
+std::string Holder::describe() const
+{
+    return shape_ ? shape_->describe() : "empty";
+}
+
+std::string Holder::describe_on_thread() const
+{
+    std::string result = "empty";
+    if (shape_) {
+        std::thread worker([&] { result = shape_->describe(); });
+        worker.join();
+    }
+    return result;
+}
+
+std::int32_t Holder::apply(const std::function<std::int32_t(std::int32_t)>& f) const
+{
+    return shape_ ? f(shape_->sum(1, 2)) : -1;
 }
 
 }  // namespace drc

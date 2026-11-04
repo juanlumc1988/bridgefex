@@ -70,22 +70,35 @@ def test_the_libraries_of_a_case_are_built_run_and_packaged(
     assert checksum == f"{hashlib.sha256(archive.read_bytes()).hexdigest()}  {archive.name}\n"
 
 
-def test_a_case_that_needs_annotations_is_refused(tmp_path: Path) -> None:
-    """The example of the libraries has to build on its own."""
+def test_other_cases_are_built_and_run_but_not_packaged(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """The director examples, which need an annotations file and a C++11 parse on Windows."""
     completed = subprocess.run(
         [
             sys.executable,
             str(SCRIPT),
             "--target",
-            "x",
+            "host",
             "--output",
-            str(tmp_path),
-            "--case",
-            "directors",
+            str(tmp_path / "dist"),
+            "--work",
+            str(tmp_path / "work"),
+            "--cc",
+            toolchain.cc,
+            "--cxx",
+            toolchain.cxx,
+            "--check-case",
+            "directors11",
         ],
         capture_output=True,
         text=True,
         check=False,
     )
-    assert completed.returncode != 0
-    assert "cannot be built as a library on its own" in completed.stderr
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    # The shared and the static library of each case, linked into its C program and run.
+    assert completed.stdout.count("round trip OK") == 4, completed.stdout  # (and the demo's two)
+    assert [path.name.split(".")[0] for path in (tmp_path / "dist").glob("*")] == [
+        "bridgefex-demo-host",
+        "bridgefex-demo-host",
+    ]

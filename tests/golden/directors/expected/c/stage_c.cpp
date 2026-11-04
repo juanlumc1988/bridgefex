@@ -148,9 +148,13 @@ drc_status drc_Stage_steps(const drc_Stage* self, int32_t* out_result)
 }
 
 // drc::Stage::Stage() of the director
-drc_status drc_Stage_director_create_void(drc_Stage_director** out_director, const drc_Stage_vtable* vtable)
+drc_status drc_Stage_director_create_void(drc_Stage** out_object, drc_Stage_director** out_director, const drc_Stage_vtable* vtable)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Stage_director_create_void: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Stage_director_create_void: 'out_director' is NULL");
     }
@@ -161,13 +165,17 @@ drc_status drc_Stage_director_create_void(drc_Stage_director** out_director, con
     if (vtable->step == nullptr) {
         return drc_detail::invalid_argument("drc_Stage_director_create_void: 'vtable->step' is NULL: it has to implement the pure virtual method 'std::string drc::Stage::step(drc::Mode mode, int32_t number)'");
     }
-    return drc_detail::guard([&]() { *out_director = reinterpret_cast<drc_Stage_director*>(new drc_detail::drc_Stage_director_impl(_vtable_owner, *vtable)); });
+    return drc_detail::guard([&]() { drc_detail::drc_Stage_director_impl* _created = new drc_detail::drc_Stage_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<drc_Stage_director*>(_created); *out_object = reinterpret_cast<drc_Stage*>(static_cast<::drc::Stage*>(_created)); });
 }
 
 // drc::Stage::Stage(int32_t steps) of the director
-drc_status drc_Stage_director_create_int32(drc_Stage_director** out_director, const drc_Stage_vtable* vtable, int32_t steps)
+drc_status drc_Stage_director_create_int32(drc_Stage** out_object, drc_Stage_director** out_director, const drc_Stage_vtable* vtable, int32_t steps)
 {
     drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Stage_director_create_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return drc_detail::null_argument("drc_Stage_director_create_int32: 'out_director' is NULL");
     }
@@ -178,7 +186,7 @@ drc_status drc_Stage_director_create_int32(drc_Stage_director** out_director, co
     if (vtable->step == nullptr) {
         return drc_detail::invalid_argument("drc_Stage_director_create_int32: 'vtable->step' is NULL: it has to implement the pure virtual method 'std::string drc::Stage::step(drc::Mode mode, int32_t number)'");
     }
-    return drc_detail::guard([&]() { *out_director = reinterpret_cast<drc_Stage_director*>(new drc_detail::drc_Stage_director_impl(_vtable_owner, *vtable, steps)); });
+    return drc_detail::guard([&]() { drc_detail::drc_Stage_director_impl* _created = new drc_detail::drc_Stage_director_impl(_vtable_owner, *vtable, steps); *out_director = reinterpret_cast<drc_Stage_director*>(_created); *out_object = reinterpret_cast<drc_Stage*>(static_cast<::drc::Stage*>(_created)); });
 }
 
 // drc::Stage: the object of its director

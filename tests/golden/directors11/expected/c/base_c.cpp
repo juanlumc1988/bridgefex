@@ -150,6 +150,26 @@ public:
         return _result;
     }
 
+    bool flag(bool _arg1) const override
+    {
+        if (vt_.flag == nullptr || ref_.disabled()) {
+            return ::dr1::Base::flag(_arg1);
+        }
+        bool _result{};
+        vt_.flag(ref_.user_data(), _arg1, &_result);
+        return _result;
+    }
+
+    uint64_t big(int64_t _arg1, float _arg2, uint8_t _arg3) const override
+    {
+        if (vt_.big == nullptr || ref_.disabled()) {
+            return ::dr1::Base::big(_arg1, _arg2, _arg3);
+        }
+        uint64_t _result{};
+        vt_.big(ref_.user_data(), _arg1, _arg2, _arg3, &_result);
+        return _result;
+    }
+
     void hook() override
     {
         if (vt_.hook == nullptr || ref_.disabled()) {
@@ -195,6 +215,18 @@ public:
     }
 
     template <typename... Args>
+    bool bridgefex_base_flag(Args&&... args) const
+    {
+        return this->::dr1::Base::flag(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    uint64_t bridgefex_base_big(Args&&... args) const
+    {
+        return this->::dr1::Base::big(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
     void bridgefex_base_hook(Args&&... args)
     {
         return this->::dr1::Base::hook(static_cast<Args&&>(args)...);
@@ -224,7 +256,7 @@ public:
     ::dr1::Pair pair() const override
     {
         if (vt_.pair == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::pair();
+            return ::dr1::Base::pair();
         }
         dr1_Pair _result{};
         vt_.pair(ref_.user_data(), &_result);
@@ -240,7 +272,7 @@ public:
     ::dr1::Tagged tagged() const noexcept override
     {
         if (vt_.tagged == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::tagged();
+            return ::dr1::Base::tagged();
         }
         dr1_Tagged _result{};
         vt_.tagged(ref_.user_data(), &_result);
@@ -256,7 +288,7 @@ public:
     ::dr1::Kind kind(::dr1::Kind _arg1) const noexcept override
     {
         if (vt_.kind == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::kind(_arg1);
+            return ::dr1::Base::kind(_arg1);
         }
         dr1_Kind _result{};
         vt_.kind(ref_.user_data(), static_cast<dr1_Kind>(_arg1), &_result);
@@ -266,7 +298,7 @@ public:
     void touch(int32_t _arg1, const int32_t& _arg2) override
     {
         if (vt_.touch == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::touch(_arg1, _arg2);
+            return ::dr1::Base::touch(_arg1, _arg2);
         }
         vt_.touch(ref_.user_data(), _arg1, _arg2);
     }
@@ -274,7 +306,7 @@ public:
     int32_t value(int32_t _arg1) const override
     {
         if (vt_.value_int32 == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::value(_arg1);
+            return ::dr1::Base::value(_arg1);
         }
         int32_t _result{};
         vt_.value_int32(ref_.user_data(), _arg1, &_result);
@@ -284,17 +316,37 @@ public:
     double value(double _arg1) const override
     {
         if (vt_.value_double == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::value(_arg1);
+            return ::dr1::Base::value(_arg1);
         }
         double _result{};
         vt_.value_double(ref_.user_data(), _arg1, &_result);
         return _result;
     }
 
+    bool flag(bool _arg1) const override
+    {
+        if (vt_.flag == nullptr || ref_.disabled()) {
+            return ::dr1::Base::flag(_arg1);
+        }
+        bool _result{};
+        vt_.flag(ref_.user_data(), _arg1, &_result);
+        return _result;
+    }
+
+    uint64_t big(int64_t _arg1, float _arg2, uint8_t _arg3) const override
+    {
+        if (vt_.big == nullptr || ref_.disabled()) {
+            return ::dr1::Base::big(_arg1, _arg2, _arg3);
+        }
+        uint64_t _result{};
+        vt_.big(ref_.user_data(), _arg1, _arg2, _arg3, &_result);
+        return _result;
+    }
+
     void hook() override
     {
         if (vt_.hook == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::hook();
+            return ::dr1::Base::hook();
         }
         vt_.hook(ref_.user_data());
     }
@@ -308,43 +360,55 @@ public:
     template <typename... Args>
     ::dr1::Pair bridgefex_base_pair(Args&&... args) const
     {
-        return this->::dr1::Derived::pair(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::pair(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     ::dr1::Tagged bridgefex_base_tagged(Args&&... args) const
     {
-        return this->::dr1::Derived::tagged(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::tagged(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     ::dr1::Kind bridgefex_base_kind(Args&&... args) const
     {
-        return this->::dr1::Derived::kind(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::kind(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     void bridgefex_base_touch(Args&&... args)
     {
-        return this->::dr1::Derived::touch(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::touch(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     int32_t bridgefex_base_value_int32(Args&&... args) const
     {
-        return this->::dr1::Derived::value(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::value(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     double bridgefex_base_value_double(Args&&... args) const
     {
-        return this->::dr1::Derived::value(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::value(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    bool bridgefex_base_flag(Args&&... args) const
+    {
+        return this->::dr1::Base::flag(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    uint64_t bridgefex_base_big(Args&&... args) const
+    {
+        return this->::dr1::Base::big(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     void bridgefex_base_hook(Args&&... args)
     {
-        return this->::dr1::Derived::hook(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::hook(static_cast<Args&&>(args)...);
     }
 
 private:
@@ -476,6 +540,30 @@ dr1_status dr1_Base_value_double(const dr1_Base* self, double x, double* out_res
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->value(x); });
 }
 
+// bool dr1::Base::flag(bool on) const
+dr1_status dr1_Base_flag(const dr1_Base* self, bool on, bool* out_result)
+{
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_flag: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_flag: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->flag(on); });
+}
+
+// uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
+dr1_status dr1_Base_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result)
+{
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_big: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_big: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->big(x, f, byte); });
+}
+
 // std::string dr1::Base::show() const
 dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_result_size)
 {
@@ -491,6 +579,30 @@ dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_re
         return dr1_detail::null_argument("dr1_Base_show: 'self' is NULL");
     }
     return dr1_detail::guard([&]() { dr1_detail::return_string(reinterpret_cast<const ::dr1::Base*>(self)->show(), out_result, out_result_size); });
+}
+
+// bool dr1::Base::show_flag(bool on) const
+dr1_status dr1_Base_show_flag(const dr1_Base* self, bool on, bool* out_result)
+{
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_flag: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_flag: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->show_flag(on); });
+}
+
+// uint64_t dr1::Base::show_big(int64_t x, float f, uint8_t byte) const
+dr1_status dr1_Base_show_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result)
+{
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_big: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_big: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->show_big(x, f, byte); });
 }
 
 // dr1::Tagged dr1::Base::show_tagged() const
@@ -585,9 +697,13 @@ dr1_status dr1_Derived_text(const dr1_Derived* self, const char* prefix, size_t 
 }
 
 // dr1::Base::Base(int32_t seed) of the director
-dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed)
+dr1_status dr1_Base_director_create_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, int32_t seed)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_int32: 'out_director' is NULL");
     }
@@ -598,13 +714,17 @@ dr1_status dr1_Base_director_create_int32(dr1_Base_director** out_director, cons
     if (vtable->text == nullptr) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_int32: 'vtable->text' is NULL: it has to implement the pure virtual method 'std::string dr1::Base::text(const std::string& prefix) const'");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, seed)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, seed); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base::Base(dr1::Kind kind, int32_t seed) of the director
-dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed)
+dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable, dr1_Kind kind, int32_t seed)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_dr1_Kind_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_dr1_Kind_int32: 'out_director' is NULL");
     }
@@ -618,13 +738,17 @@ dr1_status dr1_Base_director_create_dr1_Kind_int32(dr1_Base_director** out_direc
     if (kind < 0 || kind > 15) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_dr1_Kind_int32: 'kind' is not a value of dr1::Kind (0..15)");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, static_cast<::dr1::Kind>(kind), seed)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable, static_cast<::dr1::Kind>(kind), seed); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base::Base() of the director
-dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const dr1_Base_vtable* vtable)
+dr1_status dr1_Base_director_create_void(dr1_Base** out_object, dr1_Base_director** out_director, const dr1_Base_vtable* vtable)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_create_void: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Base_director_create_void: 'out_director' is NULL");
     }
@@ -635,7 +759,7 @@ dr1_status dr1_Base_director_create_void(dr1_Base_director** out_director, const
     if (vtable->text == nullptr) {
         return dr1_detail::invalid_argument("dr1_Base_director_create_void: 'vtable->text' is NULL: it has to implement the pure virtual method 'std::string dr1::Base::text(const std::string& prefix) const'");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Base_director*>(new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Base_director_impl* _created = new dr1_detail::dr1_Base_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<dr1_Base_director*>(_created); *out_object = reinterpret_cast<dr1_Base*>(static_cast<::dr1::Base*>(_created)); });
 }
 
 // dr1::Base: the object of its director
@@ -716,6 +840,30 @@ dr1_status dr1_Base_director_base_value_double(dr1_Base_director* director, doub
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_value_double(x); });
 }
 
+// bool dr1::Base::flag(bool on) const
+dr1_status dr1_Base_director_base_flag(dr1_Base_director* director, bool on, bool* out_result)
+{
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_flag: 'director' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_flag: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_flag(on); });
+}
+
+// uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
+dr1_status dr1_Base_director_base_big(dr1_Base_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result)
+{
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_big: 'director' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_big: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_big(x, f, byte); });
+}
+
 // void dr1::Base::hook()
 dr1_status dr1_Base_director_base_hook(dr1_Base_director* director)
 {
@@ -726,9 +874,13 @@ dr1_status dr1_Base_director_base_hook(dr1_Base_director* director)
 }
 
 // dr1::Derived::Derived() of the director
-dr1_status dr1_Derived_director_create(dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable)
+dr1_status dr1_Derived_director_create(dr1_Derived** out_object, dr1_Derived_director** out_director, const dr1_Derived_vtable* vtable)
 {
     dr1_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_create: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
     if (out_director == nullptr) {
         return dr1_detail::null_argument("dr1_Derived_director_create: 'out_director' is NULL");
     }
@@ -736,7 +888,7 @@ dr1_status dr1_Derived_director_create(dr1_Derived_director** out_director, cons
     if (vtable == nullptr) {
         return dr1_detail::null_argument("dr1_Derived_director_create: 'vtable' is NULL");
     }
-    return dr1_detail::guard([&]() { *out_director = reinterpret_cast<dr1_Derived_director*>(new dr1_detail::dr1_Derived_director_impl(_vtable_owner, *vtable)); });
+    return dr1_detail::guard([&]() { dr1_detail::dr1_Derived_director_impl* _created = new dr1_detail::dr1_Derived_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<dr1_Derived_director*>(_created); *out_object = reinterpret_cast<dr1_Derived*>(static_cast<::dr1::Derived*>(_created)); });
 }
 
 // dr1::Derived: the object of its director
@@ -837,6 +989,30 @@ dr1_status dr1_Derived_director_base_value_double(dr1_Derived_director* director
         return dr1_detail::null_argument("dr1_Derived_director_base_value_double: 'out_result' is NULL");
     }
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_value_double(x); });
+}
+
+// bool dr1::Base::flag(bool on) const
+dr1_status dr1_Derived_director_base_flag(dr1_Derived_director* director, bool on, bool* out_result)
+{
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_flag: 'director' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_flag: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_flag(on); });
+}
+
+// uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
+dr1_status dr1_Derived_director_base_big(dr1_Derived_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result)
+{
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_big: 'director' is NULL");
+    }
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_big: 'out_result' is NULL");
+    }
+    return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_big(x, f, byte); });
 }
 
 // void dr1::Base::hook()
