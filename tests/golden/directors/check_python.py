@@ -553,43 +553,46 @@ class Quick(shape.Shape):
         return 1.0
 
 
-armed = [True]
+def signals_stress():
+    armed = [True]
+
+    def interrupt(signum, frame):
+        if armed[0]:
+            raise KeyboardInterrupt
+
+    signal.signal(signal.SIGALRM, interrupt)
+    objects = [Quick.create_void() for _ in range(8)]
+    interrupted = 0
+    deadline = time.monotonic() + 0.7
+    signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
+    try:
+        finished = False
+        while not finished:
+            try:
+                while time.monotonic() < deadline:
+                    for quick in objects:
+                        quick.describe()
+                finished = True
+            except KeyboardInterrupt:
+                interrupted += 1
+    finally:
+        # A signal that is already pending may still interrupt this, until the timer is stopped
+        # and the handler stops raising (it stays installed: a pending signal finds it).
+        while armed[0]:
+            try:
+                armed[0] = False
+                signal.setitimer(signal.ITIMER_REAL, 0, 0)
+            except KeyboardInterrupt:
+                interrupted += 1
+    assert interrupted > 0, "no signal arrived"
+    for quick in objects:
+        assert quick._director.running == {}
+        quick.close()
+    assert alive() == 0
 
 
-def interrupt(signum, frame):
-    if armed[0]:
-        raise KeyboardInterrupt
-
-
-signal.signal(signal.SIGALRM, interrupt)
-objects = [Quick.create_void() for _ in range(8)]
-interrupted = 0
-deadline = time.monotonic() + 0.7
-signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
-try:
-    finished = False
-    while not finished:
-        try:
-            while time.monotonic() < deadline:
-                for quick in objects:
-                    quick.describe()
-            finished = True
-        except KeyboardInterrupt:
-            interrupted += 1
-finally:
-    # A signal that is already pending may still interrupt this, until the timer is stopped
-    # and the handler stops raising (it stays installed: a pending signal finds it).
-    while armed[0]:
-        try:
-            armed[0] = False
-            signal.setitimer(signal.ITIMER_REAL, 0, 0)
-        except KeyboardInterrupt:
-            interrupted += 1
-assert interrupted > 0, "no signal arrived"
-for quick in objects:
-    assert quick._director.running == {}
-    quick.close()
-assert alive() == 0
+if hasattr(signal, "setitimer"):  # not on Windows
+    signals_stress()
 
 
 # An object that C++ holds when the interpreter exits (the director is disabled and left
