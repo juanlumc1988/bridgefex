@@ -116,6 +116,11 @@ std::int32_t Shape::sum(std::int32_t a, std::int32_t b) const
     return add(a, b);
 }
 
+double Shape::sum_double(double a, double b) const
+{
+    return add(a, b);
+}
+
 std::int32_t Shape::total_of_three() const
 {
     return total({1, 2, 3});
@@ -163,6 +168,11 @@ double Circle::area() const
 std::string Circle::name() const
 {
     return "round";
+}
+
+std::int32_t Circle::add(std::int32_t a, std::int32_t b) const
+{
+    return a + b + 1000;
 }
 
 double Circle::radius() const

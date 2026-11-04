@@ -328,6 +328,19 @@ static void check_a_director_of_a_derived_class(void)
           "the base call of Circle is Circle's");
     double radius = 0;
     check(drc_Circle_radius(circle, &radius) == DRC_OK && radius == 2.0, "Circle's methods");
+    /* Circle declares add(int, int), which hides Shape::add(double, double) from its name:
+     * the vtable entry add_double_double is NULL, and the implementation to run is that of
+     * Shape, not Circle's with a conversion of the arguments. */
+    double sum = 0;
+    check(drc_Shape_sum_double(shape, 2.5, 1.0, &sum) == DRC_OK && sum == 3.5,
+          "the fallback of an overload that a derived class hides");
+    check(drc_Circle_director_base_add_double_double(director, 2.5, 1.0, &sum) == DRC_OK &&
+              sum == 3.5,
+          "and its base call");
+    int32_t total = 0;
+    check(drc_Circle_director_base_add_int32_int32(director, 2, 1, &total) == DRC_OK &&
+              total == 1003,
+          "while the other overload is Circle's");
     drc_Circle_destroy(circle);
     check(user.released == 1, "released through the derived class");
 }

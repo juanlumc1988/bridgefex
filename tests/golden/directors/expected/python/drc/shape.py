@@ -72,6 +72,8 @@ def _bind():
             lib.drc_Shape_welcome.restype = _runtime.Status
             lib.drc_Shape_sum.argtypes = [_types._drc_Shape__p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_sum.restype = _runtime.Status
+            lib.drc_Shape_sum_double.argtypes = [_types._drc_Shape__p, ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_sum_double.restype = _runtime.Status
             lib.drc_Shape_total_of_three.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_total_of_three.restype = _runtime.Status
             lib.drc_Shape_how_quiet.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32)]
@@ -96,6 +98,8 @@ def _bind():
             lib.drc_Circle_area.restype = _runtime.Status
             lib.drc_Circle_name.argtypes = [_types._drc_Circle__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.drc_Circle_name.restype = _runtime.Status
+            lib.drc_Circle_add.argtypes = [_types._drc_Circle__p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_add.restype = _runtime.Status
             lib.drc_Circle_radius.argtypes = [_types._drc_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.drc_Circle_radius.restype = _runtime.Status
             lib.drc_Dot_create.argtypes = [ctypes.POINTER(_types._drc_Dot__p)]
@@ -164,6 +168,8 @@ def _bind():
             lib.drc_Circle_director_base_area.restype = _runtime.Status
             lib.drc_Circle_director_base_name.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.drc_Circle_director_base_name.restype = _runtime.Status
+            lib.drc_Circle_director_base_add_int32_int32.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_director_base_add_int32_int32.restype = _runtime.Status
             lib.drc_Circle_director_base_sides.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Circle_director_base_sides.restype = _runtime.Status
             lib.drc_Circle_director_base_center.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(_types._drc_Point)]
@@ -172,8 +178,6 @@ def _bind():
             lib.drc_Circle_director_base_mode.restype = _runtime.Status
             lib.drc_Circle_director_base_scale.argtypes = [_types._drc_Circle_director__p, ctypes.c_double]
             lib.drc_Circle_director_base_scale.restype = _runtime.Status
-            lib.drc_Circle_director_base_add_int32_int32.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32)]
-            lib.drc_Circle_director_base_add_int32_int32.restype = _runtime.Status
             lib.drc_Circle_director_base_add_double_double.argtypes = [_types._drc_Circle_director__p, ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
             lib.drc_Circle_director_base_add_double_double.restype = _runtime.Status
             lib.drc_Circle_director_base_greet.argtypes = [_types._drc_Circle_director__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t, ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -686,6 +690,14 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_sum(self._ptr_drc_Shape(), a, b, _out))
         return _out.value
 
+    def sum_double(self, a, b):
+        """Wraps ``double drc::Shape::sum_double(double a, double b) const``."""
+        _out = ctypes.c_double()
+        a = _runtime.to_float(a, ctypes.c_double, "a")
+        b = _runtime.to_float(b, ctypes.c_double, "b")
+        _runtime.check(_bind().drc_Shape_sum_double(self._ptr_drc_Shape(), a, b, _out))
+        return _out.value
+
     def total_of_three(self):
         """Wraps ``int32_t drc::Shape::total_of_three() const``."""
         _out = ctypes.c_int32()
@@ -750,11 +762,11 @@ class Circle(Shape):
         (
             ("area", "area", False, _types._director__drc_Circle__area),
             ("name", "name", False, _types._director__drc_Circle__name),
+            ("add", "add_int32_int32", False, _types._director__drc_Circle__add_int32_int32),
             ("sides", "sides", False, _types._director__drc_Circle__sides),
             ("center", "center", False, _types._director__drc_Circle__center),
             ("mode", "mode", False, _types._director__drc_Circle__mode),
             ("scale", "scale", False, _types._director__drc_Circle__scale),
-            ("add_int32_int32", "add_int32_int32", False, _types._director__drc_Circle__add_int32_int32),
             ("add_double_double", "add_double_double", False, _types._director__drc_Circle__add_double_double),
             ("greet", "greet", False, _types._director__drc_Circle__greet),
             ("quiet", "quiet", False, _types._director__drc_Circle__quiet),
@@ -921,6 +933,15 @@ class Circle(Shape):
                 _lib.drc_free(_out)
         return _runtime.decode(_out_data)
 
+    def _base_add(self, a, b):
+        """Calls the implementation of ``int32_t drc::Circle::add(int32_t a, int32_t b) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        a = _runtime.to_int(a, ctypes.c_int32, "a")
+        b = _runtime.to_int(b, ctypes.c_int32, "b")
+        _runtime.check(_bind().drc_Circle_director_base_add_int32_int32(self._dptr(), a, b, _out))
+        return _out.value
+
     def _base_sides(self):
         """Calls the implementation of ``int32_t drc::Shape::sides() const`` in C++: not the
         override of an object, which would call this one again."""
@@ -948,15 +969,6 @@ class Circle(Shape):
         override of an object, which would call this one again."""
         factor = _runtime.to_float(factor, ctypes.c_double, "factor")
         _runtime.check(_bind().drc_Circle_director_base_scale(self._dptr(), factor))
-
-    def _base_add_int32_int32(self, a, b):
-        """Calls the implementation of ``int32_t drc::Shape::add(int32_t a, int32_t b) const`` in C++: not the
-        override of an object, which would call this one again."""
-        _out = ctypes.c_int32()
-        a = _runtime.to_int(a, ctypes.c_int32, "a")
-        b = _runtime.to_int(b, ctypes.c_int32, "b")
-        _runtime.check(_bind().drc_Circle_director_base_add_int32_int32(self._dptr(), a, b, _out))
-        return _out.value
 
     def _base_add_double_double(self, a, b):
         """Calls the implementation of ``double drc::Shape::add(double a, double b) const`` in C++: not the
@@ -1036,12 +1048,6 @@ class Circle(Shape):
             return super().scale(factor)
         return self._base_scale(factor)
 
-    def add_int32_int32(self, a, b):
-        """Wraps ``int32_t drc::Shape::add(int32_t a, int32_t b) const``."""
-        if self._director is None:
-            return super().add_int32_int32(a, b)
-        return self._base_add_int32_int32(a, b)
-
     def add_double_double(self, a, b):
         """Wraps ``double drc::Shape::add(double a, double b) const``."""
         if self._director is None:
@@ -1091,6 +1097,16 @@ class Circle(Shape):
             if _out:
                 _lib.drc_free(_out)
         return _runtime.decode(_out_data)
+
+    def add(self, a, b):
+        """Wraps ``int32_t drc::Circle::add(int32_t a, int32_t b) const``."""
+        if self._director is not None:
+            return self._base_add(a, b)
+        _out = ctypes.c_int32()
+        a = _runtime.to_int(a, ctypes.c_int32, "a")
+        b = _runtime.to_int(b, ctypes.c_int32, "b")
+        _runtime.check(_bind().drc_Circle_add(self._ptr(), a, b, _out))
+        return _out.value
 
     def radius(self):
         """Wraps ``double drc::Circle::radius() const``."""

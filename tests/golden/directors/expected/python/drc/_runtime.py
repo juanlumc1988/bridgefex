@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "DRC_LIBRARY"
 
-API_FINGERPRINT = "e075ece729045021f2c7d9b038a1607b"
+API_FINGERPRINT = "0893e6846e07d3df43cb8024e7659c61"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32

@@ -3093,7 +3093,6 @@ class _Builder:
         method = slot.method
         location = method.location
         detail = f"{self.module.name}_detail"
-        cpp_base = info.cpp_name
         declarations: list[str] = []
         c_types = ["void*"]
         passed = ["ref_.user_data()"]
@@ -3121,7 +3120,10 @@ class _Builder:
         qualifiers = (" const" if method.is_const else "") + (
             " noexcept" if method.is_noexcept else ""
         )
-        base_call = f"{cpp_base}::{method.name}({names})"
+        # Qualified with the class that declares the method, not the class of the director:
+        # a derived class that declares another overload hides this one from its own name.
+        declaring = slot.owner.cpp_name
+        base_call = f"{declaring}::{method.name}({names})"
         if slot.hook.is_pure:
             fallback = "return;" if result_cpp == "void" else f"return {result_cpp}();"
             condition = "ref_.disabled()"
@@ -3149,7 +3151,7 @@ class _Builder:
                 "    template <typename... Args>",
                 f"    {result_cpp} bridgefex_base_{field}(Args&&... args){const}",
                 "    {",
-                f"        return this->{cpp_base}::{method.name}(static_cast<Args&&>(args)...);",
+                f"        return this->{declaring}::{method.name}(static_cast<Args&&>(args)...);",
                 "    }",
             ]
         )

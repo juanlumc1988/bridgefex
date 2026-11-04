@@ -487,6 +487,29 @@ def _director__drc_Circle__name(_user_data, _out_result):
 _director__drc_Circle__name = _director__drc_Circle__name__type(_director__drc_Circle__name)
 
 
+_director__drc_Circle__add_int32_int32__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Circle__add_int32_int32(_user_data, _arg1, _arg2, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    try:
+        _function = _runtime.director_method(_user_data, "add")
+        if _function is None:
+            return
+        _value = _function(_arg1, _arg2)
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'add', what="the result of the override"
+        )
+    except BaseException as _error:
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__add_int32_int32 = _director__drc_Circle__add_int32_int32__type(_director__drc_Circle__add_int32_int32)
+
+
 _director__drc_Circle__sides__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32))
 
 
@@ -572,29 +595,6 @@ def _director__drc_Circle__scale(_user_data, _arg1):
 
 # The thunk itself is never freed: C++ may call it at any time.
 _director__drc_Circle__scale = _director__drc_Circle__scale__type(_director__drc_Circle__scale)
-
-
-_director__drc_Circle__add_int32_int32__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32, ctypes.c_int32, ctypes.POINTER(ctypes.c_int32))
-
-
-def _director__drc_Circle__add_int32_int32(_user_data, _arg1, _arg2, _out_result):
-    # Called by C++ for a virtual method that the object overrides. An exception goes to
-    # the call that runs it, if there is one (see _runtime.fail_director).
-    try:
-        _function = _runtime.director_method(_user_data, "add_int32_int32")
-        if _function is None:
-            return
-        _value = _function(_arg1, _arg2)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'add_int32_int32', what="the result of the override"
-        )
-    except BaseException as _error:
-        if not _runtime.fail_director(_error):
-            raise
-
-
-# The thunk itself is never freed: C++ may call it at any time.
-_director__drc_Circle__add_int32_int32 = _director__drc_Circle__add_int32_int32__type(_director__drc_Circle__add_int32_int32)
 
 
 _director__drc_Circle__add_double_double__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_double, ctypes.c_double, ctypes.POINTER(ctypes.c_double))
@@ -696,11 +696,11 @@ class _drc_Circle_vtable(ctypes.Structure):
         ("release", _runtime.Release),
         ("area", _director__drc_Circle__area__type),
         ("name", _director__drc_Circle__name__type),
+        ("add_int32_int32", _director__drc_Circle__add_int32_int32__type),
         ("sides", _director__drc_Circle__sides__type),
         ("center", _director__drc_Circle__center__type),
         ("mode", _director__drc_Circle__mode__type),
         ("scale", _director__drc_Circle__scale__type),
-        ("add_int32_int32", _director__drc_Circle__add_int32_int32__type),
         ("add_double_double", _director__drc_Circle__add_double_double__type),
         ("greet", _director__drc_Circle__greet__type),
         ("quiet", _director__drc_Circle__quiet__type),

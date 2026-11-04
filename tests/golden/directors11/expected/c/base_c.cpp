@@ -256,7 +256,7 @@ public:
     ::dr1::Pair pair() const override
     {
         if (vt_.pair == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::pair();
+            return ::dr1::Base::pair();
         }
         dr1_Pair _result{};
         vt_.pair(ref_.user_data(), &_result);
@@ -272,7 +272,7 @@ public:
     ::dr1::Tagged tagged() const noexcept override
     {
         if (vt_.tagged == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::tagged();
+            return ::dr1::Base::tagged();
         }
         dr1_Tagged _result{};
         vt_.tagged(ref_.user_data(), &_result);
@@ -288,7 +288,7 @@ public:
     ::dr1::Kind kind(::dr1::Kind _arg1) const noexcept override
     {
         if (vt_.kind == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::kind(_arg1);
+            return ::dr1::Base::kind(_arg1);
         }
         dr1_Kind _result{};
         vt_.kind(ref_.user_data(), static_cast<dr1_Kind>(_arg1), &_result);
@@ -298,7 +298,7 @@ public:
     void touch(int32_t _arg1, const int32_t& _arg2) override
     {
         if (vt_.touch == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::touch(_arg1, _arg2);
+            return ::dr1::Base::touch(_arg1, _arg2);
         }
         vt_.touch(ref_.user_data(), _arg1, _arg2);
     }
@@ -306,7 +306,7 @@ public:
     int32_t value(int32_t _arg1) const override
     {
         if (vt_.value_int32 == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::value(_arg1);
+            return ::dr1::Base::value(_arg1);
         }
         int32_t _result{};
         vt_.value_int32(ref_.user_data(), _arg1, &_result);
@@ -316,7 +316,7 @@ public:
     double value(double _arg1) const override
     {
         if (vt_.value_double == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::value(_arg1);
+            return ::dr1::Base::value(_arg1);
         }
         double _result{};
         vt_.value_double(ref_.user_data(), _arg1, &_result);
@@ -326,7 +326,7 @@ public:
     bool flag(bool _arg1) const override
     {
         if (vt_.flag == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::flag(_arg1);
+            return ::dr1::Base::flag(_arg1);
         }
         bool _result{};
         vt_.flag(ref_.user_data(), _arg1, &_result);
@@ -336,7 +336,7 @@ public:
     uint64_t big(int64_t _arg1, float _arg2, uint8_t _arg3) const override
     {
         if (vt_.big == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::big(_arg1, _arg2, _arg3);
+            return ::dr1::Base::big(_arg1, _arg2, _arg3);
         }
         uint64_t _result{};
         vt_.big(ref_.user_data(), _arg1, _arg2, _arg3, &_result);
@@ -346,7 +346,7 @@ public:
     void hook() override
     {
         if (vt_.hook == nullptr || ref_.disabled()) {
-            return ::dr1::Derived::hook();
+            return ::dr1::Base::hook();
         }
         vt_.hook(ref_.user_data());
     }
@@ -360,55 +360,55 @@ public:
     template <typename... Args>
     ::dr1::Pair bridgefex_base_pair(Args&&... args) const
     {
-        return this->::dr1::Derived::pair(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::pair(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     ::dr1::Tagged bridgefex_base_tagged(Args&&... args) const
     {
-        return this->::dr1::Derived::tagged(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::tagged(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     ::dr1::Kind bridgefex_base_kind(Args&&... args) const
     {
-        return this->::dr1::Derived::kind(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::kind(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     void bridgefex_base_touch(Args&&... args)
     {
-        return this->::dr1::Derived::touch(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::touch(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     int32_t bridgefex_base_value_int32(Args&&... args) const
     {
-        return this->::dr1::Derived::value(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::value(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     double bridgefex_base_value_double(Args&&... args) const
     {
-        return this->::dr1::Derived::value(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::value(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     bool bridgefex_base_flag(Args&&... args) const
     {
-        return this->::dr1::Derived::flag(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::flag(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     uint64_t bridgefex_base_big(Args&&... args) const
     {
-        return this->::dr1::Derived::big(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::big(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
     void bridgefex_base_hook(Args&&... args)
     {
-        return this->::dr1::Derived::hook(static_cast<Args&&>(args)...);
+        return this->::dr1::Base::hook(static_cast<Args&&>(args)...);
     }
 
 private:

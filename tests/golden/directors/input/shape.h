@@ -50,6 +50,7 @@ public:
     Mode choose(Mode requested) const;
     std::string welcome(const std::string& who) const;
     std::int32_t sum(std::int32_t a, std::int32_t b) const;
+    double sum_double(double a, double b) const;
     std::int32_t total_of_three() const;
     std::int32_t how_quiet() const;
     // Calls the protected virtual method.
@@ -76,6 +77,9 @@ public:
 
     double area() const override;
     std::string name() const override;
+    // Hides Shape::add(double, double): a call of the implementation of the class must still
+    // run the overload of Shape that the director overrides, not this one with a conversion.
+    std::int32_t add(std::int32_t a, std::int32_t b) const override;
     double radius() const;
 
 private:

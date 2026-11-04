@@ -69,6 +69,8 @@ typedef struct drc_Circle_vtable {
     void (*area)(void*, double*);
     /* std::string drc::Circle::name() const */
     void (*name)(void*, drc_string_sink*);
+    /* int32_t drc::Circle::add(int32_t a, int32_t b) const */
+    void (*add_int32_int32)(void*, int32_t, int32_t, int32_t*);
     /* int32_t drc::Shape::sides() const */
     void (*sides)(void*, int32_t*);
     /* drc::Point drc::Shape::center() const */
@@ -77,8 +79,6 @@ typedef struct drc_Circle_vtable {
     void (*mode)(void*, drc_Mode, drc_Mode*);
     /* void drc::Shape::scale(double factor) */
     void (*scale)(void*, double);
-    /* int32_t drc::Shape::add(int32_t a, int32_t b) const */
-    void (*add_int32_int32)(void*, int32_t, int32_t, int32_t*);
     /* double drc::Shape::add(double a, double b) const */
     void (*add_double_double)(void*, double, double, double*);
     /* std::string drc::Shape::greet(const std::string& who, std::string_view tag, const char* mark) const */
@@ -150,6 +150,9 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_welcome(const drc_Shape* self, const 
 /* int32_t drc::Shape::sum(int32_t a, int32_t b) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_sum(const drc_Shape* self, int32_t a, int32_t b, int32_t* out_result);
 
+/* double drc::Shape::sum_double(double a, double b) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_sum_double(const drc_Shape* self, double a, double b, double* out_result);
+
 /* int32_t drc::Shape::total_of_three() const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_total_of_three(const drc_Shape* self, int32_t* out_result);
 
@@ -185,6 +188,9 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_area(const drc_Circle* self, double*
 
 /* std::string drc::Circle::name() const */
 DRC_NODISCARD DRC_API drc_status drc_Circle_name(const drc_Circle* self, char** out_result, size_t* out_result_size);
+
+/* int32_t drc::Circle::add(int32_t a, int32_t b) const */
+DRC_NODISCARD DRC_API drc_status drc_Circle_add(const drc_Circle* self, int32_t a, int32_t b, int32_t* out_result);
 
 /* double drc::Circle::radius() const */
 DRC_NODISCARD DRC_API drc_status drc_Circle_radius(const drc_Circle* self, double* out_result);
@@ -305,6 +311,10 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_area(drc_Circle_direct
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_name(drc_Circle_director* director, char** out_result, size_t* out_result_size);
 
+/* int32_t drc::Circle::add(int32_t a, int32_t b) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_add_int32_int32(drc_Circle_director* director, int32_t a, int32_t b, int32_t* out_result);
+
 /* int32_t drc::Shape::sides() const
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_sides(drc_Circle_director* director, int32_t* out_result);
@@ -320,10 +330,6 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_mode(drc_Circle_direct
 /* void drc::Shape::scale(double factor)
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_scale(drc_Circle_director* director, double factor);
-
-/* int32_t drc::Shape::add(int32_t a, int32_t b) const
- * calls the implementation of the class, without going through the vtable */
-DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_add_int32_int32(drc_Circle_director* director, int32_t a, int32_t b, int32_t* out_result);
 
 /* double drc::Shape::add(double a, double b) const
  * calls the implementation of the class, without going through the vtable */
