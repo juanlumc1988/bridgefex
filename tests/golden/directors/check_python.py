@@ -133,7 +133,6 @@ with Disc(1.0) as disc:
 assert alive() == 0
 
 
-
 # Circle declares add(int, int), which hides Shape::add(double, double) from its name: the
 # implementation that super() runs for the hidden overload is still Shape's.
 class Hiding(shape.Circle):
@@ -150,6 +149,7 @@ with Hiding(1.0) as hiding:
 with shape.Circle(1.0) as plain_circle:
     assert plain_circle.sum_double(2.5, 1.0) == 3.5
     assert plain_circle.sum(2, 1) == 1003
+
 
 # Without overrides the object is an ordinary one (no director).
 class Plainer(shape.Circle):
