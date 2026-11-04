@@ -238,6 +238,30 @@ def test_a_class_without_a_director_cannot_override_what_it_inherits(runtime: Mo
     assert Direct.f
 
 
+def test_a_name_that_only_a_base_director_calls_is_refused(runtime: ModuleType) -> None:
+    # Q declares f(int), which its wrapper calls f, while P calls it f_int: a subclass of Q that
+    # defines f_int overrides nothing, and C++ would never call it.
+    base = generated(runtime, "n_P")
+    base._director_slots = runtime.DirectorSlots(  # type: ignore[attr-defined]
+        "n_P", "n::P", Vtable, (("f_int", "a", False, "t1"), ("f_double", "b", False, "t2"))
+    )
+    derived = type("Derived", (base,), {"_cxx_class": "n_Q", "__slots__": ()})
+    derived._director_slots = runtime.DirectorSlots(  # type: ignore[attr-defined]
+        "n_Q", "n::Q", Vtable, (("f", "a", False, "t1"), ("f_double", "b", False, "t2"))
+    )
+    with pytest.raises(TypeError, match=r"defines f_int.*n::P but not of n::Q.*calls f, f_double"):
+
+        class Mine(derived):  # type: ignore[misc, valid-type]
+            def f_int(self) -> int:
+                return 1
+
+    class Fine(derived):  # type: ignore[misc, valid-type]
+        def f(self) -> int:
+            return 2
+
+    assert Fine.f
+
+
 def test_the_registry_keeps_an_object_weakly_until_c_plus_plus_owns_it(
     runtime: ModuleType,
 ) -> None:
@@ -264,9 +288,28 @@ def test_the_registry_keeps_an_object_weakly_until_c_plus_plus_owns_it(
     assert key not in runtime._callbacks
 
 
+def test_the_base_call_of_an_object_that_was_given_up_needs_one_of_its_overrides(
+    runtime: ModuleType,
+) -> None:
+    base = generated(runtime, "n_A")
+    obj = base.__new__(base)
+    obj._owned = [("destroy", "null")]  # type: ignore[attr-defined]
+    director = runtime.Director(obj)
+    director.pointer = "handle"
+    assert runtime.director_pointer(director, "A") == "handle"
+    obj._owned = []  # C++ owns it now (take())
+    with pytest.raises(ValueError, match="A object is closed"):
+        runtime.director_pointer(director, "A")
+    director.running.append(None)  # an override of the object runs, called by C++
+    assert runtime.director_pointer(director, "A") == "handle"
+    runtime.release(director.key)
+
+
 def test_the_base_call_needs_the_director_to_exist(runtime: ModuleType) -> None:
     base = generated(runtime, "n_A")
-    director = runtime.Director(base.__new__(base))
+    obj = base.__new__(base)
+    obj._owned = [("destroy", "null")]  # type: ignore[attr-defined]
+    director = runtime.Director(obj)
     director.pointer = "handle"
     assert runtime.director_pointer(director, "A") == "handle"
     runtime.release(director.key)
@@ -288,7 +331,11 @@ def test_the_thunk_finds_the_method_of_the_object(runtime: ModuleType) -> None:
     obj = Mine()
     director = runtime.Director(obj)
     assert runtime.director_method(director.key, "f")(1) == 2
+    assert director.running == [None]  # it runs until the thunk says it has returned
+    runtime.director_leave(director.key)
+    assert director.running == []
     runtime.release(director.key)
+    runtime.director_leave(director.key)  # an override that outlives its director
     with pytest.raises(RuntimeError, match="after its director was released"):
         runtime.director_method(director.key, "f")
     # A callback of another kind is not a director.

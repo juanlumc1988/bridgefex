@@ -300,8 +300,11 @@ class Object:
                 )
 {% if m.has_directors %}
             slots = cls._director_slots
-            if slots is not None and slots.c_type != cls._cxx_class:
-                slots.refuse(cls)
+            if slots is not None:
+                if slots.c_type != cls._cxx_class:
+                    slots.refuse(cls)
+                else:
+                    slots.stale(cls)
 {% endif %}
 
 
@@ -1084,13 +1087,17 @@ class Director:
     collection destroys the director), and strongly once C++ owns it (see take()).
     """
 
-    __slots__ = ("_ref", "_strong", "key", "pointer")
+    __slots__ = ("_ref", "_strong", "key", "pointer", "running")
 
     def __init__(self, obj):
         global _next_key
         if _disabled:
             raise RuntimeError("directors are disabled at exit, C++ would not call them")
         self.pointer = None
+        self.running = []
+        """One item for each override of the object that C++ is running: C++ is using the
+        object, so it must not be closed, and it may call its implementation although
+        Python gave the object up. (A list: appending and popping are atomic.)"""
         self._ref = weakref.ref(obj)
         self._strong = None
         with _callback_lock:
@@ -1157,6 +1164,29 @@ class DirectorSlots:
                 raise TypeError(f"{cls.__name__}.{name} must be a method to override C++")
         return [(field, thunk) for _, field, thunk in found]
 
+    def stale(self, cls):
+        """A class whose director names a method differently from a base class (the
+        overloads of a class that hides some) cannot define it by the name of the base."""
+        own = {name for name, _, _, _ in self.slots}
+        others = {}
+        for klass in cls.__mro__:
+            slots = vars(klass).get("_director_slots")
+            if slots is not None and slots is not self:
+                for name, _, _, _ in slots.slots:
+                    if name not in own:
+                        others.setdefault(name, slots.class_name)
+        names = []
+        for name in others:
+            owner = next((klass for klass in cls.__mro__ if name in vars(klass)), None)
+            if owner is not None and "_cxx_class" not in vars(owner):
+                names.append(name)
+        if names:
+            raise TypeError(
+                f"{cls.__name__} defines {', '.join(names)}, "
+                f"which name virtual methods of {', '.join(sorted(set(others.values())))} but not "
+                f"of {self.class_name}: its director calls {', '.join(sorted(own))}"
+            )
+
     def refuse(self, cls):
         """A class whose C++ class has no director, derived from one that has, cannot
         override the virtual methods: C++ would never call them."""
@@ -1182,9 +1212,18 @@ class DirectorSlots:
 
 
 def director_pointer(director, class_name):
-    """The handle of the director of an object for a base call, while it exists."""
+    """The handle of the director of an object for a base call, while it exists.
+
+    An object that Python gave up (to C++, as a std::unique_ptr) is closed for Python, as
+    for every other call, except while one of its overrides runs: C++ owns it and calls it,
+    and the override may run the implementation of the class (super()).
+    """
     if director is None or _callbacks.get(director.key) is not director:
         raise ValueError(f"{class_name} object is closed")
+    if not director.running:
+        obj = director.target()
+        if obj is None or not obj._owned:
+            raise ValueError(f"{class_name} object is closed")
     return director.pointer
 
 
@@ -1202,7 +1241,16 @@ def director_method(user_data, name):
         raise RuntimeError(
             f"a C++ virtual method was called after its director was released (user_data {user_data})"
         )
-    return getattr(obj, name)
+    method = getattr(obj, name)
+    director.running.append(None)
+    return method
+
+
+def director_leave(user_data):
+    """The override that ``director_method`` gave has returned."""
+    director = _callbacks.get(user_data)
+    if isinstance(director, Director) and director.running:
+        director.running.pop()
 
 
 def fail_director(error):

@@ -181,10 +181,13 @@ def _director__drc_Shape__area(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "area")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'area', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'area', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -204,8 +207,11 @@ def _director__drc_Shape__name(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "name")
         if _function is None:
             return
-        _value = _function()
-        _runtime.sink_set(_out_result, _value, 'name')
+        try:
+            _value = _function()
+            _runtime.sink_set(_out_result, _value, 'name')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -225,10 +231,13 @@ def _director__drc_Shape__sides(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "sides")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'sides', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'sides', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -248,8 +257,11 @@ def _director__drc_Shape__center(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "center")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _drc_Point__to_c(_value, 'center')
+        try:
+            _value = _function()
+            _out_result[0] = _drc_Point__to_c(_value, 'center')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -269,10 +281,13 @@ def _director__drc_Shape__mode(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "mode")
         if _function is None:
             return
-        _value = _function(_runtime.enum_result(drc_Mode, _arg1))
-        _out_result[0] = _runtime.to_enum(
-            _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
-        )
+        try:
+            _value = _function(_runtime.enum_result(drc_Mode, _arg1))
+            _out_result[0] = _runtime.to_enum(
+                _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -292,7 +307,10 @@ def _director__drc_Shape__scale(_user_data, _arg1):
         _function = _runtime.director_method(_user_data, "scale")
         if _function is None:
             return
-        _function(_arg1)
+        try:
+            _function(_arg1)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -312,10 +330,13 @@ def _director__drc_Shape__add_int32_int32(_user_data, _arg1, _arg2, _out_result)
         _function = _runtime.director_method(_user_data, "add_int32_int32")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'add_int32_int32', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'add_int32_int32', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -335,10 +356,13 @@ def _director__drc_Shape__add_double_double(_user_data, _arg1, _arg2, _out_resul
         _function = _runtime.director_method(_user_data, "add_double_double")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2)
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'add_double_double', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2)
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'add_double_double', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -358,12 +382,15 @@ def _director__drc_Shape__greet(_user_data, _arg1, _arg1_size, _arg2, _arg2_size
         _function = _runtime.director_method(_user_data, "greet")
         if _function is None:
             return
-        _value = _function(
-            _runtime.callback_string(_arg1, _arg1_size),
-            _runtime.callback_string(_arg2, _arg2_size),
-            _runtime.callback_c_string(_arg3),
-        )
-        _runtime.sink_set(_out_result, _value, 'greet')
+        try:
+            _value = _function(
+                _runtime.callback_string(_arg1, _arg1_size),
+                _runtime.callback_string(_arg2, _arg2_size),
+                _runtime.callback_c_string(_arg3),
+            )
+            _runtime.sink_set(_out_result, _value, 'greet')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -383,10 +410,13 @@ def _director__drc_Shape__quiet(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "quiet")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'quiet', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'quiet', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -406,7 +436,10 @@ def _director__drc_Shape__changed(_user_data, _arg1):
         _function = _runtime.director_method(_user_data, "changed")
         if _function is None:
             return
-        _function(_arg1)
+        try:
+            _function(_arg1)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -453,10 +486,13 @@ def _director__drc_Circle__area(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "area")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'area', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'area', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -476,8 +512,11 @@ def _director__drc_Circle__name(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "name")
         if _function is None:
             return
-        _value = _function()
-        _runtime.sink_set(_out_result, _value, 'name')
+        try:
+            _value = _function()
+            _runtime.sink_set(_out_result, _value, 'name')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -497,10 +536,13 @@ def _director__drc_Circle__add_int32_int32(_user_data, _arg1, _arg2, _out_result
         _function = _runtime.director_method(_user_data, "add")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'add', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'add', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -520,10 +562,13 @@ def _director__drc_Circle__sides(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "sides")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'sides', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'sides', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -543,8 +588,11 @@ def _director__drc_Circle__center(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "center")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _drc_Point__to_c(_value, 'center')
+        try:
+            _value = _function()
+            _out_result[0] = _drc_Point__to_c(_value, 'center')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -564,10 +612,13 @@ def _director__drc_Circle__mode(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "mode")
         if _function is None:
             return
-        _value = _function(_runtime.enum_result(drc_Mode, _arg1))
-        _out_result[0] = _runtime.to_enum(
-            _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
-        )
+        try:
+            _value = _function(_runtime.enum_result(drc_Mode, _arg1))
+            _out_result[0] = _runtime.to_enum(
+                _value, drc_Mode, ctypes.c_uint8, 'mode', None, what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -587,7 +638,10 @@ def _director__drc_Circle__scale(_user_data, _arg1):
         _function = _runtime.director_method(_user_data, "scale")
         if _function is None:
             return
-        _function(_arg1)
+        try:
+            _function(_arg1)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -607,10 +661,13 @@ def _director__drc_Circle__add_double_double(_user_data, _arg1, _arg2, _out_resu
         _function = _runtime.director_method(_user_data, "add_double_double")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2)
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'add_double_double', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2)
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'add_double_double', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -630,12 +687,15 @@ def _director__drc_Circle__greet(_user_data, _arg1, _arg1_size, _arg2, _arg2_siz
         _function = _runtime.director_method(_user_data, "greet")
         if _function is None:
             return
-        _value = _function(
-            _runtime.callback_string(_arg1, _arg1_size),
-            _runtime.callback_string(_arg2, _arg2_size),
-            _runtime.callback_c_string(_arg3),
-        )
-        _runtime.sink_set(_out_result, _value, 'greet')
+        try:
+            _value = _function(
+                _runtime.callback_string(_arg1, _arg1_size),
+                _runtime.callback_string(_arg2, _arg2_size),
+                _runtime.callback_c_string(_arg3),
+            )
+            _runtime.sink_set(_out_result, _value, 'greet')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -655,10 +715,13 @@ def _director__drc_Circle__quiet(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "quiet")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'quiet', what="the result of the override"
-        )
+        try:
+            _value = _function()
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'quiet', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -678,7 +741,10 @@ def _director__drc_Circle__changed(_user_data, _arg1):
         _function = _runtime.director_method(_user_data, "changed")
         if _function is None:
             return
-        _function(_arg1)
+        try:
+            _function(_arg1)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -725,8 +791,11 @@ def _director__drc_Stage__step(_user_data, _arg1, _arg2, _out_result):
         _function = _runtime.director_method(_user_data, "step")
         if _function is None:
             return
-        _value = _function(_runtime.enum_result(drc_Mode, _arg1), _arg2)
-        _runtime.sink_set(_out_result, _value, 'step')
+        try:
+            _value = _function(_runtime.enum_result(drc_Mode, _arg1), _arg2)
+            _runtime.sink_set(_out_result, _value, 'step')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -746,8 +815,11 @@ def _director__drc_Stage__origin(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "origin")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _drc_Point__to_c(_value, 'origin')
+        try:
+            _value = _function()
+            _out_result[0] = _drc_Point__to_c(_value, 'origin')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise

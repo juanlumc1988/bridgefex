@@ -2,7 +2,9 @@ name: Libraries
 
 # The C library that bridgefex generates for the demo example, built for every target and
 # run there (scripts/build_libraries.py): Linux x86_64, Linux aarch64, Linux armhf (32-bit
-# ARM, cross-compiled and run under QEMU) and Windows x64 (MSVC).
+# ARM, cross-compiled and run under QEMU) and Windows x64 (MSVC). The C programs of the
+# director examples (classes of C that override C++ virtual methods) are built and run there
+# too, and nothing is packaged if one fails.
 #
 # A push to main replaces the "nightly" pre-release, a tag v* makes a release, and the
 # README links to their files. On pull requests that change this workflow or the script,
@@ -72,7 +74,7 @@ jobs:
         env:
           CC: gcc-14
           CXX: g++-14
-        run: python scripts/build_libraries.py --target ${{ matrix.target }} --output dist
+        run: python scripts/build_libraries.py --target ${{ matrix.target }} --output dist --check-case directors --check-case directors11
       # The headers are parsed as the cross compiler sees them: its target and sysroot.
       - name: Build and run the libraries (32-bit ARM)
         if: matrix.target == 'linux-armhf'
@@ -80,10 +82,11 @@ jobs:
           python scripts/build_libraries.py --target linux-armhf --output dist \
             --cc arm-linux-gnueabihf-gcc-14 --cxx arm-linux-gnueabihf-g++-14 \
             --ar arm-linux-gnueabihf-ar --clang-target armv7a-linux-gnueabihf \
-            --runner "qemu-arm -L /usr/arm-linux-gnueabihf"
+            --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
+            --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)
         if: matrix.target == 'windows-x64'
-        run: python scripts/build_libraries.py --target windows-x64 --output dist
+        run: python scripts/build_libraries.py --target windows-x64 --output dist --check-case directors --check-case directors11
       - uses: actions/upload-artifact@v4
         with:
           name: libraries-${{ matrix.target }}

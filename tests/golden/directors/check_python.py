@@ -139,8 +139,22 @@ class Hiding(shape.Circle):
     def add_double_double(self, a, b):
         return super().add_double_double(a, b)
 
-    def add_int32_int32(self, a, b):
-        return super().add_int32_int32(a, b)
+    def add(self, a, b):  # Circle's own: the only add(int, int) that Circle shows is called add
+        return super().add(a, b)
+
+
+# The name that Shape gives that overload does nothing in a subclass of Circle: refused.
+try:
+
+    class WrongName(shape.Circle):
+        def add_int32_int32(self, a, b):
+            return 0
+
+except TypeError as error:
+    assert "defines add_int32_int32" in str(error), str(error)
+    assert "drc::Shape but not of drc::Circle" in str(error), str(error)
+else:
+    raise AssertionError("an override that C++ would never call was accepted")
 
 
 with Hiding(1.0) as hiding:
@@ -332,6 +346,40 @@ with shape.Holder() as holder:
     gc.collect()
     assert key in _runtime._callbacks
 assert key not in _runtime._callbacks
+assert alive() == 0
+
+
+# An object that Python gave up refuses what it refuses for any other call, even the
+# implementation of its class (unless one of its own overrides runs, which C++ calls).
+with shape.Holder() as holder:
+    given = Square.create_void()
+    holder.put(given)
+    try:
+        given.name()  # the override of Python, which calls super().name()
+    except ValueError as error:
+        assert "closed" in str(error), str(error)
+    else:
+        raise AssertionError("an object that was given up reached C++")
+    assert holder.describe() == "sq:shape: 4 units"
+
+
+# C++ is running a method on the object: closing it would free what the method uses.
+class Closer(shape.Shape):
+    def area(self):
+        return 4.0
+
+    def scale(self, factor):
+        self.close()
+
+
+with Closer.create_void() as closer:
+    try:
+        closer.scaled_area(2.0)
+    except RuntimeError as error:
+        assert "cannot be closed while one of its overrides runs" in str(error), str(error)
+    else:
+        raise AssertionError("an object was closed under the method that C++ runs")
+    assert closer.describe() == "shape: 4 units"  # it is still open and usable
 assert alive() == 0
 
 

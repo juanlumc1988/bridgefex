@@ -281,6 +281,17 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+{% if m.has_directors %}
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "{{ c.py_name }} object cannot be closed while one of its overrides runs"
+            )
+{% endif %}
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):

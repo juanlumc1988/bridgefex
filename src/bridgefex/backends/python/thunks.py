@@ -156,18 +156,17 @@ class PyDirectorThunk:
     statement: str | None
     """What gives a string or a struct result to C++ (None for the other types)."""
 
-    @property
-    def body(self) -> str:
-        """The statements that call ``_function`` and give its result to C++, indented for
-        the ``try`` of the thunk."""
+    def body(self, indent: int) -> str:
+        """The statements that call ``_function`` and give its result to C++, indented by
+        ``indent`` spaces."""
         if self.check is None and self.statement is None:
-            return python_call("_function", self.arguments, 8)
-        call = python_call("_value = _function", self.arguments, 8)
+            return python_call("_function", self.arguments, indent)
+        call = python_call("_value = _function", self.arguments, indent)
         if self.statement is not None:
-            return f"{call}\n        {self.statement}"
+            return f"{call}\n{' ' * indent}{self.statement}"
         assert self.check is not None
         head, *arguments = self.check
-        return f"{call}\n{python_call(f'_out_result[0] = {head}', arguments, 8)}"
+        return f"{call}\n{python_call(f'_out_result[0] = {head}', arguments, indent)}"
 
     @property
     def type_name(self) -> str:

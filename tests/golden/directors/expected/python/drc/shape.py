@@ -359,6 +359,15 @@ class Shape(_runtime.Object):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Shape object cannot be closed while one of its overrides runs"
+            )
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -876,6 +885,15 @@ class Circle(Shape):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Circle object cannot be closed while one of its overrides runs"
+            )
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -1204,6 +1222,15 @@ class Dot(Shape):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Dot object cannot be closed while one of its overrides runs"
+            )
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -1330,6 +1357,15 @@ class Plain(_runtime.Object):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Plain object cannot be closed while one of its overrides runs"
+            )
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -1455,6 +1491,15 @@ class Holder(_runtime.Object):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Holder object cannot be closed while one of its overrides runs"
+            )
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):

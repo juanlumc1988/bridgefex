@@ -159,7 +159,10 @@ def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
         _function = _runtime.director_method(_user_data, "{{ slot.name }}")
         if _function is None:
             return
-{{ slot.thunk.body }}
+        try:
+{{ slot.thunk.body(12) }}
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise

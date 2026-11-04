@@ -38,7 +38,7 @@ MODULE_GLOBALS = frozenset(
     """
     ctypes weakref threading _builtins _sys _runtime _types _lib _bind _bind_lock _watch
     _watchers
-    __all__ AttributeError IndexError
+    __all__ AttributeError IndexError RuntimeError
     """.split()
 )
 

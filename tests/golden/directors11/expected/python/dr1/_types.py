@@ -186,8 +186,11 @@ def _director__dr1_Base__text(_user_data, _arg1, _arg1_size, _out_result):
         _function = _runtime.director_method(_user_data, "text")
         if _function is None:
             return
-        _value = _function(_runtime.callback_string(_arg1, _arg1_size))
-        _runtime.sink_set(_out_result, _value, 'text')
+        try:
+            _value = _function(_runtime.callback_string(_arg1, _arg1_size))
+            _runtime.sink_set(_out_result, _value, 'text')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -207,8 +210,11 @@ def _director__dr1_Base__pair(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "pair")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _dr1_Pair__to_c(_value, 'pair')
+        try:
+            _value = _function()
+            _out_result[0] = _dr1_Pair__to_c(_value, 'pair')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -228,8 +234,11 @@ def _director__dr1_Base__tagged(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "tagged")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _dr1_Tagged__to_c(_value, 'tagged')
+        try:
+            _value = _function()
+            _out_result[0] = _dr1_Tagged__to_c(_value, 'tagged')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -249,10 +258,13 @@ def _director__dr1_Base__kind(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "kind")
         if _function is None:
             return
-        _value = _function(_runtime.enum_result(dr1_Kind, _arg1))
-        _out_result[0] = _runtime.to_enum(
-            _value, dr1_Kind, ctypes.c_int, 'kind', (0, 15), what="the result of the override"
-        )
+        try:
+            _value = _function(_runtime.enum_result(dr1_Kind, _arg1))
+            _out_result[0] = _runtime.to_enum(
+                _value, dr1_Kind, ctypes.c_int, 'kind', (0, 15), what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -272,7 +284,10 @@ def _director__dr1_Base__touch(_user_data, _arg1, _arg2):
         _function = _runtime.director_method(_user_data, "touch")
         if _function is None:
             return
-        _function(_arg1, _arg2)
+        try:
+            _function(_arg1, _arg2)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -292,10 +307,13 @@ def _director__dr1_Base__value_int32(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "value_int32")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'value_int32', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'value_int32', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -315,10 +333,13 @@ def _director__dr1_Base__value_double(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "value_double")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'value_double', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'value_double', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -338,8 +359,11 @@ def _director__dr1_Base__flag(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "flag")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -359,10 +383,13 @@ def _director__dr1_Base__big(_user_data, _arg1, _arg2, _arg3, _out_result):
         _function = _runtime.director_method(_user_data, "big")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2, _arg3)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_uint64, 'big', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2, _arg3)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_uint64, 'big', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -382,7 +409,10 @@ def _director__dr1_Base__hook(_user_data):
         _function = _runtime.director_method(_user_data, "hook")
         if _function is None:
             return
-        _function()
+        try:
+            _function()
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -428,8 +458,11 @@ def _director__dr1_Derived__text(_user_data, _arg1, _arg1_size, _out_result):
         _function = _runtime.director_method(_user_data, "text")
         if _function is None:
             return
-        _value = _function(_runtime.callback_string(_arg1, _arg1_size))
-        _runtime.sink_set(_out_result, _value, 'text')
+        try:
+            _value = _function(_runtime.callback_string(_arg1, _arg1_size))
+            _runtime.sink_set(_out_result, _value, 'text')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -449,8 +482,11 @@ def _director__dr1_Derived__pair(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "pair")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _dr1_Pair__to_c(_value, 'pair')
+        try:
+            _value = _function()
+            _out_result[0] = _dr1_Pair__to_c(_value, 'pair')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -470,8 +506,11 @@ def _director__dr1_Derived__tagged(_user_data, _out_result):
         _function = _runtime.director_method(_user_data, "tagged")
         if _function is None:
             return
-        _value = _function()
-        _out_result[0] = _dr1_Tagged__to_c(_value, 'tagged')
+        try:
+            _value = _function()
+            _out_result[0] = _dr1_Tagged__to_c(_value, 'tagged')
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -491,10 +530,13 @@ def _director__dr1_Derived__kind(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "kind")
         if _function is None:
             return
-        _value = _function(_runtime.enum_result(dr1_Kind, _arg1))
-        _out_result[0] = _runtime.to_enum(
-            _value, dr1_Kind, ctypes.c_int, 'kind', (0, 15), what="the result of the override"
-        )
+        try:
+            _value = _function(_runtime.enum_result(dr1_Kind, _arg1))
+            _out_result[0] = _runtime.to_enum(
+                _value, dr1_Kind, ctypes.c_int, 'kind', (0, 15), what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -514,7 +556,10 @@ def _director__dr1_Derived__touch(_user_data, _arg1, _arg2):
         _function = _runtime.director_method(_user_data, "touch")
         if _function is None:
             return
-        _function(_arg1, _arg2)
+        try:
+            _function(_arg1, _arg2)
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -534,10 +579,13 @@ def _director__dr1_Derived__value_int32(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "value_int32")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'value_int32', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_int32, 'value_int32', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -557,10 +605,13 @@ def _director__dr1_Derived__value_double(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "value_double")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_float(
-            _value, ctypes.c_double, 'value_double', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_float(
+                _value, ctypes.c_double, 'value_double', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -580,8 +631,11 @@ def _director__dr1_Derived__flag(_user_data, _arg1, _out_result):
         _function = _runtime.director_method(_user_data, "flag")
         if _function is None:
             return
-        _value = _function(_arg1)
-        _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+        try:
+            _value = _function(_arg1)
+            _out_result[0] = _runtime.to_bool(_value, 'flag', what="the result of the override")
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -601,10 +655,13 @@ def _director__dr1_Derived__big(_user_data, _arg1, _arg2, _arg3, _out_result):
         _function = _runtime.director_method(_user_data, "big")
         if _function is None:
             return
-        _value = _function(_arg1, _arg2, _arg3)
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_uint64, 'big', what="the result of the override"
-        )
+        try:
+            _value = _function(_arg1, _arg2, _arg3)
+            _out_result[0] = _runtime.to_int(
+                _value, ctypes.c_uint64, 'big', what="the result of the override"
+            )
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise
@@ -624,7 +681,10 @@ def _director__dr1_Derived__hook(_user_data):
         _function = _runtime.director_method(_user_data, "hook")
         if _function is None:
             return
-        _function()
+        try:
+            _function()
+        finally:
+            _runtime.director_leave(_user_data)
     except BaseException as _error:
         if not _runtime.fail_director(_error):
             raise

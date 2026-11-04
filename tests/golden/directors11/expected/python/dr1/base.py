@@ -316,6 +316,15 @@ class Base(_runtime.Object):
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
         try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Base object cannot be closed while one of its overrides runs"
+            )
+        try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
             return
@@ -703,6 +712,15 @@ class Derived(Base):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            raise RuntimeError(
+                "Derived object cannot be closed while one of its overrides runs"
+            )
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):

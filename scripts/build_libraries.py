@@ -52,6 +52,9 @@ class Case:
     check: Path
     """The C program that uses the library and exits with 0 if it works."""
 
+    annotations: tuple[Path, ...] = ()
+    """The annotation files of the case (the classes that ask for a director...)."""
+
 
 def load_case(name: str) -> Case:
     directory = GOLDEN / name
@@ -65,8 +68,9 @@ def load_case(name: str) -> Case:
         input_dir=directory / "input",
         implementation=tuple(sorted((directory / "impl").glob("*.cpp"))),
         check=directory / "check_c.c",
+        annotations=tuple(directory / item for item in config.get("annotations", ())),
     )
-    if config.get("annotations") or not case.check.exists() or not case.implementation:
+    if not case.check.exists() or not case.implementation:
         raise SystemExit(f"the case '{name}' cannot be built as a library on its own")
     return case
 
@@ -138,7 +142,8 @@ class Build:
         self.include = work / "c"
         self.lib = work / "lib"
         self.macro = case.module.upper()
-        self.std = case.std
+        # The STL of MSVC needs C++14, also for the libclang that parses it.
+        self.std = "c++14" if self.msvc and case.std == "c++11" else case.std
         self.sources: list[Path] = []
 
     # Names -------------------------------------------------------------------------
@@ -161,7 +166,10 @@ class Build:
 
     def generate(self, clang_args: tuple[str, ...]) -> None:
         options = bridgefex.Options(
-            module=self.case.module, std=self.case.std, clang_args=clang_args
+            module=self.case.module,
+            std=self.std,
+            clang_args=clang_args,
+            annotations=self.case.annotations,
         )
         result = bridgefex.generate(self.case.headers, options)
         bridgefex.write_files(result.files, self.work)
@@ -385,6 +393,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--clang-target", help="parse the headers for this target, with the headers of --cxx"
     )
+    parser.add_argument(
+        "--check-case",
+        action="append",
+        default=[],
+        help="another golden case to build and run, without packaging it (repeatable)",
+    )
     parser.add_argument("--runner", default="", help="command that runs a program of the target")
     parser.add_argument("--work", type=Path, help="working directory (default: temporary)")
     args = parser.parse_args(argv)
@@ -397,20 +411,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         if shutil.which(tool) is None:
             raise SystemExit(f"{tool}: compiler not found")
 
-    case = load_case(args.case)
-    work = (args.work or ROOT / "build" / "libraries" / args.target).resolve()
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True)
-    build = Build(case, Tools(cc, cxx, ar, shlex.split(args.runner)), work)
-
+    tools = Tools(cc, cxx, ar, shlex.split(args.runner))
     clang_args = cross_clang_args(cxx, args.clang_target) if args.clang_target else ()
-    build.generate(clang_args)
-    build.build_shared()
-    build.build_static()
-    build.check(static=False)
-    build.check(static=True)
-    compilers = first_line([cxx])
-    archive = package(build, args.target, args.output.resolve(), compilers)
+    base = (args.work or ROOT / "build" / "libraries" / args.target).resolve()
+    shutil.rmtree(base, ignore_errors=True)
+
+    def built(name: str) -> Build:
+        build = Build(load_case(name), tools, base / name)
+        build.work.mkdir(parents=True)
+        build.generate(clang_args)
+        build.build_shared()
+        build.build_static()
+        build.check(static=False)
+        build.check(static=True)
+        return build
+
+    # The cases that are only checked first: nothing is packaged if one fails.
+    for name in args.check_case:
+        built(name)
+    archive = package(built(args.case), args.target, args.output.resolve(), first_line([cxx]))
     print(f"{archive} ({archive.stat().st_size} bytes)")
     return 0
 
