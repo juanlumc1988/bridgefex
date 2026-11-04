@@ -44,6 +44,8 @@ def _bind():
             lib.drc_Shape_sides.restype = _runtime.Status
             lib.drc_Shape_center.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point)]
             lib.drc_Shape_center.restype = _runtime.Status
+            lib.drc_Shape_move.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
+            lib.drc_Shape_move.restype = _runtime.Status
             lib.drc_Shape_mode.argtypes = [_types._drc_Shape__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Shape_mode.restype = _runtime.Status
             lib.drc_Shape_scale.argtypes = [_types._drc_Shape__p, ctypes.c_double]
@@ -66,6 +68,8 @@ def _bind():
             lib.drc_Shape_scaled_area.restype = _runtime.Status
             lib.drc_Shape_middle.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
             lib.drc_Shape_middle.restype = _runtime.Status
+            lib.drc_Shape_call_move.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
+            lib.drc_Shape_call_move.restype = _runtime.Status
             lib.drc_Shape_choose.argtypes = [_types._drc_Shape__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Shape_choose.restype = _runtime.Status
             lib.drc_Shape_welcome.argtypes = [_types._drc_Shape__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -146,6 +150,8 @@ def _bind():
             lib.drc_Shape_director_base_sides.restype = _runtime.Status
             lib.drc_Shape_director_base_center.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(_types._drc_Point)]
             lib.drc_Shape_director_base_center.restype = _runtime.Status
+            lib.drc_Shape_director_base_move.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
+            lib.drc_Shape_director_base_move.restype = _runtime.Status
             lib.drc_Shape_director_base_mode.argtypes = [_types._drc_Shape_director__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Shape_director_base_mode.restype = _runtime.Status
             lib.drc_Shape_director_base_scale.argtypes = [_types._drc_Shape_director__p, ctypes.c_double]
@@ -174,6 +180,8 @@ def _bind():
             lib.drc_Circle_director_base_sides.restype = _runtime.Status
             lib.drc_Circle_director_base_center.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(_types._drc_Point)]
             lib.drc_Circle_director_base_center.restype = _runtime.Status
+            lib.drc_Circle_director_base_move.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
+            lib.drc_Circle_director_base_move.restype = _runtime.Status
             lib.drc_Circle_director_base_mode.argtypes = [_types._drc_Circle_director__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Circle_director_base_mode.restype = _runtime.Status
             lib.drc_Circle_director_base_scale.argtypes = [_types._drc_Circle_director__p, ctypes.c_double]
@@ -202,7 +210,7 @@ class Shape(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Shape"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "greet", "mode", "name", "quiet", "scale", "sides", "total",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "greet", "mode", "move", "name", "quiet", "scale", "sides", "total",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -214,6 +222,7 @@ class Shape(_runtime.Object):
             ("name", "name", False, _types._director__drc_Shape__name),
             ("sides", "sides", False, _types._director__drc_Shape__sides),
             ("center", "center", False, _types._director__drc_Shape__center),
+            ("move", "move", False, _types._director__drc_Shape__move),
             ("mode", "mode", False, _types._director__drc_Shape__mode),
             ("scale", "scale", False, _types._director__drc_Shape__scale),
             ("add_int32_int32", "add_int32_int32", False, _types._director__drc_Shape__add_int32_int32),
@@ -435,6 +444,15 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_director_base_center(self._dptr(), _out))
         return _types._drc_Point__from_c(_out)
 
+    def _base_move(self, by, other):
+        """Calls the implementation of ``drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = _types._drc_Point()
+        by = _types._drc_Point__to_c(by, "by")
+        other = _types._drc_Point__to_c(other, "other")
+        _runtime.check(_bind().drc_Shape_director_base_move(self._dptr(), by, other, _out))
+        return _types._drc_Point__from_c(_out)
+
     def _base_mode(self, requested):
         """Calls the implementation of ``drc::Mode drc::Shape::mode(drc::Mode requested) const`` in C++: not the
         override of an object, which would call this one again."""
@@ -555,6 +573,16 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_center(self._ptr_drc_Shape(), _out))
         return _types._drc_Point__from_c(_out)
 
+    def move(self, by, other):
+        """Wraps ``drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const``."""
+        if self._director is not None:
+            return self._base_move(by, other)
+        _out = _types._drc_Point()
+        by = _types._drc_Point__to_c(by, "by")
+        other = _types._drc_Point__to_c(other, "other")
+        _runtime.check(_bind().drc_Shape_move(self._ptr_drc_Shape(), by, other, _out))
+        return _types._drc_Point__from_c(_out)
+
     def mode(self, requested):
         """Wraps ``drc::Mode drc::Shape::mode(drc::Mode requested) const``."""
         if self._director is not None:
@@ -667,6 +695,13 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_middle(self._ptr_drc_Shape(), other, _out))
         return _types._drc_Point__from_c(_out)
 
+    def call_move(self, by):
+        """Wraps ``drc::Point drc::Shape::call_move(drc::Point by) const``."""
+        _out = _types._drc_Point()
+        by = _types._drc_Point__to_c(by, "by")
+        _runtime.check(_bind().drc_Shape_call_move(self._ptr_drc_Shape(), by, _out))
+        return _types._drc_Point__from_c(_out)
+
     def choose(self, requested):
         """Wraps ``drc::Mode drc::Shape::choose(drc::Mode requested) const``."""
         _out = ctypes.c_uint8()
@@ -765,7 +800,7 @@ class Circle(Shape):
 
     __slots__ = ()
     _cxx_class = "drc_Circle"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "greet", "mode", "name", "quiet", "scale", "sides",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "greet", "mode", "move", "name", "quiet", "scale", "sides",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -778,6 +813,7 @@ class Circle(Shape):
             ("add", "add_int32_int32", False, _types._director__drc_Circle__add_int32_int32),
             ("sides", "sides", False, _types._director__drc_Circle__sides),
             ("center", "center", False, _types._director__drc_Circle__center),
+            ("move", "move", False, _types._director__drc_Circle__move),
             ("mode", "mode", False, _types._director__drc_Circle__mode),
             ("scale", "scale", False, _types._director__drc_Circle__scale),
             ("add_double_double", "add_double_double", False, _types._director__drc_Circle__add_double_double),
@@ -981,6 +1017,15 @@ class Circle(Shape):
         _runtime.check(_bind().drc_Circle_director_base_center(self._dptr(), _out))
         return _types._drc_Point__from_c(_out)
 
+    def _base_move(self, by, other):
+        """Calls the implementation of ``drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = _types._drc_Point()
+        by = _types._drc_Point__to_c(by, "by")
+        other = _types._drc_Point__to_c(other, "other")
+        _runtime.check(_bind().drc_Circle_director_base_move(self._dptr(), by, other, _out))
+        return _types._drc_Point__from_c(_out)
+
     def _base_mode(self, requested):
         """Calls the implementation of ``drc::Mode drc::Shape::mode(drc::Mode requested) const`` in C++: not the
         override of an object, which would call this one again."""
@@ -1060,6 +1105,12 @@ class Circle(Shape):
         if self._director is None:
             return _builtins.super(__class__, self).center()
         return self._base_center()
+
+    def move(self, by, other):
+        """Wraps ``drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).move(by, other)
+        return self._base_move(by, other)
 
     def mode(self, requested):
         """Wraps ``drc::Mode drc::Shape::mode(drc::Mode requested) const``."""

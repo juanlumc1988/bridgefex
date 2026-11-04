@@ -32,6 +32,8 @@ public:
     virtual std::string name() const;
     virtual std::int32_t sides() const;
     virtual Point center() const;
+    // Structs as parameters: by value, and by const reference.
+    virtual Point move(Point by, const Point& other) const;
     virtual Mode mode(Mode requested) const;
     virtual void scale(double factor);
     virtual std::int32_t add(std::int32_t a, std::int32_t b) const;
@@ -47,6 +49,7 @@ public:
     std::string describe() const;
     double scaled_area(double factor);
     Point middle(const Point& other) const;
+    Point call_move(Point by) const;
     Mode choose(Mode requested) const;
     std::string welcome(const std::string& who) const;
     std::int32_t sum(std::int32_t a, std::int32_t b) const;

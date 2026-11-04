@@ -1,16 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 # What every backend must do when a class of its language overrides virtual methods of C++
-# (see tests/conformance/scenarios.py).
+# (see tests/conformance/scenarios.py). An override is named as the member of the vtable
+# of the C API; the calls go through C++, which is what runs the overrides.
 
 [[scenario]]
 name = "C++ runs the overrides of a class of the language"
 steps = [
-  { derive = "shape.Shape", named = "Square", overrides = { area = { returns = 4.0 }, name = { returns = "sq" }, sides = { returns = 4 } } },
+  { derive = "shape.Shape", named = "Square", overrides = { area = { returns = 4.0 }, name = { returns = "sq" }, quiet = { returns = 9 } } },
   { new = "Square", overload = "_void", as = "s" },
-  { call = "s.area", expect = 4.0 },
   { call = "s.describe", expect = "sq: 4 units" },
-  { call = "s.sides", expect = 4 },
+  { call = "s.how_quiet", expect = 9 },
   { call = "s.fixed", expect = 7 },
+]
+
+[[scenario]]
+name = "a method that is not overridden keeps the implementation of the class"
+steps = [
+  { derive = "shape.Shape", named = "Labelled", overrides = { area = { returns = 1.0 } } },
+  { new = "Labelled", overload = "_string_int32", args = ["box", 3], as = "l" },
+  { call = "l.describe", expect = "box: 1 units" },
+  { call = "l.sides", expect = 3 },
+  { call = "l.label", expect = "box" },
 ]
 
 [[scenario]]
@@ -18,21 +28,30 @@ name = "an override can run the implementation of its base class"
 steps = [
   { derive = "shape.Shape", named = "Boxed", overrides = { area = { returns = 1.0 }, name = { base = true } } },
   { new = "Boxed", overload = "_string_int32", args = ["box", 3], as = "b" },
-  { call = "b.name", expect = "box" },
-  { call = "b.sides", expect = 3 },
   { call = "b.describe", expect = "box: 1 units" },
+  { call = "b.welcome", args = ["Ann"], expect = ">> hello Ann, I am box" },
 ]
 
 [[scenario]]
 name = "enums, structs and strings cross in both directions"
 steps = [
-  { derive = "shape.Shape", named = "Typed", overrides = { area = { returns = 2.0 }, center = { returns = { struct = "shape.Point", x = 4.0, y = 6.0 } }, mode = { argument = 0 }, greet = { argument = 0 }, add_int32_int32 = { returns = 99 }, add_double_double = { argument = 1 } } },
+  { derive = "shape.Shape", named = "Typed", overrides = { area = { returns = 2.0 }, center = { returns = { struct = "shape.Point", x = 4.0, y = 6.0 } }, mode = { argument = 0 }, greet = { argument = 0 }, add_int32_int32 = { returns = 99 }, add_double_double = { argument = 1 }, move = { argument = 1 } } },
   { new = "Typed", overload = "_void", as = "t" },
   { call = "t.middle", args = [{ struct = "shape.Point", x = 2.0, y = 0.0 }], expect = { struct = "shape.Point", x = 3.0, y = 3.0 } },
   { call = "t.choose", args = [{ enum = "shape.Mode", member = "Auto" }], expect = { enum = "shape.Mode", member = "Auto" } },
   { call = "t.choose", args = [{ enum = "shape.Mode", member = "On" }], expect = { enum = "shape.Mode", member = "On" } },
   { call = "t.welcome", args = ["Ann"], expect = "Ann" },
   { call = "t.sum", args = [1, 2], expect = 99 },
+  { call = "t.sum_double", args = [2.5, 1.0], expect = 1.0 },
+  { call = "t.call_move", args = [{ struct = "shape.Point", x = 1.0, y = 1.0 }], expect = { struct = "shape.Point", x = 4.0, y = 6.0 } },
+]
+
+[[scenario]]
+name = "a struct crosses by value"
+steps = [
+  { derive = "shape.Shape", named = "Mover", overrides = { area = { returns = 1.0 }, move = { argument = 0 } } },
+  { new = "Mover", overload = "_void", as = "m" },
+  { call = "m.call_move", args = [{ struct = "shape.Point", x = 1.0, y = 2.0 }], expect = { struct = "shape.Point", x = 1.0, y = 2.0 } },
 ]
 
 [[scenario]]
@@ -43,6 +62,19 @@ steps = [
   { call = "f.describe", error = "override", message = "boom" },
   { call = "f.sum", args = [1, 2], expect = 3 },
   { call = "f.describe", error = "override", message = "boom" },
+]
+
+[[scenario]]
+name = "a protected virtual method is overridden too, and C++ calls it"
+steps = [
+  { derive = "shape.Shape", named = "Noisy", overrides = { area = { returns = 1.0 }, changed = { raises = "changed" }, scale = { raises = "scaled" } } },
+  { new = "Noisy", overload = "_void", as = "n" },
+  { call = "n.notify", args = [5], error = "override", message = "changed" },
+  { call = "n.scaled_area", args = [2.0], error = "override", message = "scaled" },
+  { derive = "shape.Shape", named = "Quiet", overrides = { area = { returns = 1.0 }, changed = { base = true } } },
+  { new = "Quiet", overload = "_void", as = "q" },
+  { call = "q.notify", args = [5] },
+  { call = "q.last_reason", expect = 5 },
 ]
 
 [[scenario]]
@@ -63,4 +95,13 @@ steps = [
   { new = "Disc", args = [1.0], as = "d" },
   { call = "d.describe", expect = "disc: 3 units" },
   { call = "d.radius", expect = 1.0 },
+]
+
+[[scenario]]
+name = "a derived class that declares one overload hides the others, but its fallback is not lost"
+steps = [
+  { derive = "shape.Circle", named = "Hiding", overrides = { name = { returns = "hiding" }, add_double_double = { base = true }, add_int32_int32 = { returns = 5 } } },
+  { new = "Hiding", args = [1.0], as = "h" },
+  { call = "h.sum_double", args = [2.5, 1.0], expect = 3.5 },
+  { call = "h.sum", args = [2, 1], expect = 5 },
 ]

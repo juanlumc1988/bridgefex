@@ -162,8 +162,13 @@ class Player:
         """A class that derives from ``base`` and overrides the methods that ``overrides``
         names, as the scenario says (see scenarios.py)."""
         made: list[type] = []
+        # The scenario names a method as the vtable of the C API does; the method that
+        # overrides it has the name of its wrapper in the class (or a keyword's with a '_').
+        names = {field: name for name, field, _, _ in base._director_slots.slots}  # type: ignore[attr-defined]
         methods = {
-            name_of(field): self.behavior(name_of(field), spec, made)
+            names.get(field, name_of(field)): self.behavior(
+                names.get(field, name_of(field)), spec, made
+            )
             for field, spec in overrides.items()
         }
         derived = type(named, (base,), methods)

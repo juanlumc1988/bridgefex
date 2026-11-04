@@ -130,6 +130,22 @@ public:
         }
     }
 
+    ::drc::Point move(::drc::Point _arg1, const ::drc::Point& _arg2) const override
+    {
+        if (vt_.move == nullptr || ref_.disabled()) {
+            return ::drc::Shape::move(_arg1, _arg2);
+        }
+        drc_Point _result{};
+        vt_.move(ref_.user_data(), drc_detail::address_of(drc_detail::to_c(_arg1)), drc_detail::address_of(drc_detail::to_c(_arg2)), &_result);
+        try {
+            return drc_detail::from_c(_result);
+        } catch (const drc_detail::argument_error&) {
+            // A member that is not valid (an enum out of range) gives the zero
+            // value, as it does when it is the result itself.
+            return ::drc::Point();
+        }
+    }
+
     ::drc::Mode mode(::drc::Mode _arg1) const override
     {
         if (vt_.mode == nullptr || ref_.disabled()) {
@@ -212,6 +228,12 @@ public:
     ::drc::Point bridgefex_base_center(Args&&... args) const
     {
         return this->::drc::Shape::center(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::drc::Point bridgefex_base_move(Args&&... args) const
+    {
+        return this->::drc::Shape::move(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -323,6 +345,22 @@ public:
         }
     }
 
+    ::drc::Point move(::drc::Point _arg1, const ::drc::Point& _arg2) const override
+    {
+        if (vt_.move == nullptr || ref_.disabled()) {
+            return ::drc::Shape::move(_arg1, _arg2);
+        }
+        drc_Point _result{};
+        vt_.move(ref_.user_data(), drc_detail::address_of(drc_detail::to_c(_arg1)), drc_detail::address_of(drc_detail::to_c(_arg2)), &_result);
+        try {
+            return drc_detail::from_c(_result);
+        } catch (const drc_detail::argument_error&) {
+            // A member that is not valid (an enum out of range) gives the zero
+            // value, as it does when it is the result itself.
+            return ::drc::Point();
+        }
+    }
+
     ::drc::Mode mode(::drc::Mode _arg1) const override
     {
         if (vt_.mode == nullptr || ref_.disabled()) {
@@ -407,6 +445,12 @@ public:
     ::drc::Point bridgefex_base_center(Args&&... args) const
     {
         return this->::drc::Shape::center(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::drc::Point bridgefex_base_move(Args&&... args) const
+    {
+        return this->::drc::Shape::move(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -522,6 +566,26 @@ drc_status drc_Shape_center(const drc_Shape* self, drc_Point* out_result)
         return drc_detail::null_argument("drc_Shape_center: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<const ::drc::Shape*>(self)->center()); });
+}
+
+// drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const
+drc_status drc_Shape_move(const drc_Shape* self, const drc_Point* by, const drc_Point* other, drc_Point* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->move(drc_detail::from_c(*by), ::drc::Point())))*) != 0,
+                  "'drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_move: 'self' is NULL");
+    }
+    if (by == nullptr) {
+        return drc_detail::null_argument("drc_Shape_move: 'by' is NULL");
+    }
+    if (other == nullptr) {
+        return drc_detail::null_argument("drc_Shape_move: 'other' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_move: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<const ::drc::Shape*>(self)->move(drc_detail::from_c(*by), static_cast<const ::drc::Point&>(drc_detail::from_c(*other)))); });
 }
 
 // drc::Mode drc::Shape::mode(drc::Mode requested) const
@@ -682,6 +746,21 @@ drc_status drc_Shape_middle(const drc_Shape* self, const drc_Point* other, drc_P
         return drc_detail::null_argument("drc_Shape_middle: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<const ::drc::Shape*>(self)->middle(static_cast<const ::drc::Point&>(drc_detail::from_c(*other)))); });
+}
+
+// drc::Point drc::Shape::call_move(drc::Point by) const
+drc_status drc_Shape_call_move(const drc_Shape* self, const drc_Point* by, drc_Point* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_move: 'self' is NULL");
+    }
+    if (by == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_move: 'by' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_move: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<const ::drc::Shape*>(self)->call_move(drc_detail::from_c(*by))); });
 }
 
 // drc::Mode drc::Shape::choose(drc::Mode requested) const
@@ -1163,6 +1242,26 @@ drc_status drc_Shape_director_base_center(drc_Shape_director* director, drc_Poin
     return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_center()); });
 }
 
+// drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const
+drc_status drc_Shape_director_base_move(drc_Shape_director* director, const drc_Point* by, const drc_Point* other, drc_Point* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_move(drc_detail::from_c(*by), ::drc::Point())))*) != 0,
+                  "'drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_move: 'director' is NULL");
+    }
+    if (by == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_move: 'by' is NULL");
+    }
+    if (other == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_move: 'other' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_move: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_move(drc_detail::from_c(*by), static_cast<const ::drc::Point&>(drc_detail::from_c(*other)))); });
+}
+
 // drc::Mode drc::Shape::mode(drc::Mode requested) const
 drc_status drc_Shape_director_base_mode(drc_Shape_director* director, drc_Mode requested, drc_Mode* out_result)
 {
@@ -1344,6 +1443,26 @@ drc_status drc_Circle_director_base_center(drc_Circle_director* director, drc_Po
         return drc_detail::null_argument("drc_Circle_director_base_center: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_center()); });
+}
+
+// drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const
+drc_status drc_Circle_director_base_move(drc_Circle_director* director, const drc_Point* by, const drc_Point* other, drc_Point* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_move(drc_detail::from_c(*by), ::drc::Point())))*) != 0,
+                  "'drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_move: 'director' is NULL");
+    }
+    if (by == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_move: 'by' is NULL");
+    }
+    if (other == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_move: 'other' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_move: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_move(drc_detail::from_c(*by), static_cast<const ::drc::Point&>(drc_detail::from_c(*other)))); });
 }
 
 // drc::Mode drc::Shape::mode(drc::Mode requested) const

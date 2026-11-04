@@ -40,6 +40,16 @@ Point Shape::center() const
     return Point{0.0, 0.0};
 }
 
+Point Shape::move(Point by, const Point& other) const
+{
+    return Point{by.x + other.x, by.y + other.y};
+}
+
+Point Shape::call_move(Point by) const
+{
+    return move(by, center());
+}
+
 Mode Shape::mode(Mode requested) const
 {
     return requested == Mode::Auto ? Mode::On : requested;

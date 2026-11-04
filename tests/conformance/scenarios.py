@@ -113,6 +113,24 @@ _KEYS = frozenset(
     }
 )
 _BEHAVIORS = frozenset({"returns", "base", "argument", "raises"})
+_DERIVE_KEYS = frozenset({"derive", "named", "overrides"})
+_INTEGER_BITS = {
+    "bool": None,
+    "signed char": (8, True),
+    "unsigned char": (8, False),
+    "short": (16, True),
+    "unsigned short": (16, False),
+    "int": (32, True),
+    "unsigned int": (32, False),
+    "int8_t": (8, True),
+    "uint8_t": (8, False),
+    "int16_t": (16, True),
+    "uint16_t": (16, False),
+    "int32_t": (32, True),
+    "uint32_t": (32, False),
+    "int64_t": (64, True),
+    "uint64_t": (64, False),
+}
 _VALUE_TABLES = frozenset({"int", "null", "ref", "enum", "struct"})
 
 
@@ -273,6 +291,8 @@ def _option_problems(step: Mapping[str, object]) -> list[str]:
         problems.append("a step cannot expect a result and an error")
     if step.get("error", "exception") not in ERROR_KINDS:
         problems.append(f"unknown error kind {step['error']!r}")
+    if step.get("error") == "override" and "message" not in step:
+        problems.append("an override error says the message of the failure that it reports")
     if "message" in step and step.get("error") not in {*CXX_ERRORS, "override"}:
         problems.append(
             f"message goes with an error of the C++ code: {sorted(CXX_ERRORS)}, or an override"
@@ -404,7 +424,10 @@ def _derive_problems(
         return [f"no class {target!r}"]
     if cls.director is None:
         return [f"{target} has no director: nothing can derive from it"]
-    problems = []
+    problems = [
+        f"a derive step has no {key!r}: it is not played"
+        for key in sorted(set(step) - _DERIVE_KEYS)
+    ]
     if (
         not isinstance(named, str)
         or named in derived
@@ -439,20 +462,57 @@ def _behavior_problems(behavior: object, entry: DirectorEntry, index: _Index) ->
         return [f"an override does exactly one of {sorted(_BEHAVIORS)}: {behavior!r}"]
     (kind,) = behavior
     value = behavior[kind]
+    result = entry.callback.result.type
+    void = isinstance(result, ScalarType) and result.is_void
     if kind == "returns":
-        result = entry.callback.result.type
-        if isinstance(result, ScalarType) and result.is_void:
+        if void:
             return ["the method returns nothing: there is nothing to return"]
         problems = _check_value(value, index, {})
         reason = _kind_problem(value, result, index, {}, result=True)
+        if reason is None:
+            reason = _result_problem(value, result)
         return problems + ([f"the result: {reason}"] if reason is not None else [])
     if kind == "base":
         return ["a pure virtual method has no implementation to call"] if entry.is_pure else []
     if kind == "argument":
-        count = len(entry.callback.arguments)
-        fits = isinstance(value, int) and not isinstance(value, bool) and 0 <= value < count
-        return [] if fits else [f"argument is the position of one of its {count} arguments"]
+        arguments = entry.callback.arguments
+        if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < len(arguments):
+            return [f"argument is the position of one of its {len(arguments)} arguments"]
+        if void:
+            return ["the method returns nothing: it cannot give an argument back"]
+        if not _same_type(arguments[value].type, result):
+            return [f"argument {value} is not of the type of the result"]
+        return []
     return [] if isinstance(value, str) else ["raises takes the message of the failure"]
+
+
+def _result_problem(value: object, result: Type) -> str | None:
+    """What the checks of the types leave: an override cannot give null for a string, and
+    an integer must fit the type of the result."""
+    if isinstance(result, StringType) and isinstance(value, dict):
+        return f"{value!r}: an override gives a string, not null"
+    if isinstance(result, ScalarType) and result.c_name in _INTEGER_BITS:
+        bits = _INTEGER_BITS[result.c_name]
+        number = int(value["int"]) if isinstance(value, dict) else value
+        if bits is not None and isinstance(number, int) and not isinstance(number, bool):
+            width, signed = bits
+            low, high = (-(2 ** (width - 1)), 2 ** (width - 1) - 1) if signed else (0, 2**width - 1)
+            if not low <= number <= high:
+                return f"{number} does not fit a {result.c_name} ([{low}, {high}])"
+    return None
+
+
+def _same_type(first: Type, second: Type) -> bool:
+    """Whether a value of ``first`` can be given back as a ``second``."""
+    if isinstance(first, StringType) and isinstance(second, StringType):
+        return True
+    if isinstance(first, ScalarType) and isinstance(second, ScalarType):
+        return first.c_name == second.c_name
+    if isinstance(first, EnumRef) and isinstance(second, EnumRef):
+        return first.usr == second.usr
+    if isinstance(first, StructRef) and isinstance(second, StructRef):
+        return first.usr == second.usr
+    return False
 
 
 def _callable(

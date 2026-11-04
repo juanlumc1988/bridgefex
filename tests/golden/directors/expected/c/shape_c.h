@@ -32,6 +32,8 @@ typedef struct drc_Shape_vtable {
     void (*sides)(void*, int32_t*);
     /* drc::Point drc::Shape::center() const */
     void (*center)(void*, drc_Point*);
+    /* drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const */
+    void (*move)(void*, const drc_Point*, const drc_Point*, drc_Point*);
     /* drc::Mode drc::Shape::mode(drc::Mode requested) const */
     void (*mode)(void*, drc_Mode, drc_Mode*);
     /* void drc::Shape::scale(double factor) */
@@ -75,6 +77,8 @@ typedef struct drc_Circle_vtable {
     void (*sides)(void*, int32_t*);
     /* drc::Point drc::Shape::center() const */
     void (*center)(void*, drc_Point*);
+    /* drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const */
+    void (*move)(void*, const drc_Point*, const drc_Point*, drc_Point*);
     /* drc::Mode drc::Shape::mode(drc::Mode requested) const */
     void (*mode)(void*, drc_Mode, drc_Mode*);
     /* void drc::Shape::scale(double factor) */
@@ -108,6 +112,9 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_sides(const drc_Shape* self, int32_t*
 /* drc::Point drc::Shape::center() const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_center(const drc_Shape* self, drc_Point* out_result);
 
+/* drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_move(const drc_Shape* self, const drc_Point* by, const drc_Point* other, drc_Point* out_result);
+
 /* drc::Mode drc::Shape::mode(drc::Mode requested) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_mode(const drc_Shape* self, drc_Mode requested, drc_Mode* out_result);
 
@@ -140,6 +147,9 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_scaled_area(drc_Shape* self, double f
 
 /* drc::Point drc::Shape::middle(const drc::Point& other) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_middle(const drc_Shape* self, const drc_Point* other, drc_Point* out_result);
+
+/* drc::Point drc::Shape::call_move(drc::Point by) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_move(const drc_Shape* self, const drc_Point* by, drc_Point* out_result);
 
 /* drc::Mode drc::Shape::choose(drc::Mode requested) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_choose(const drc_Shape* self, drc_Mode requested, drc_Mode* out_result);
@@ -268,6 +278,10 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_sides(drc_Shape_directo
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_center(drc_Shape_director* director, drc_Point* out_result);
 
+/* drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_move(drc_Shape_director* director, const drc_Point* by, const drc_Point* other, drc_Point* out_result);
+
 /* drc::Mode drc::Shape::mode(drc::Mode requested) const
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_mode(drc_Shape_director* director, drc_Mode requested, drc_Mode* out_result);
@@ -322,6 +336,10 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_sides(drc_Circle_direc
 /* drc::Point drc::Shape::center() const
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_center(drc_Circle_director* director, drc_Point* out_result);
+
+/* drc::Point drc::Shape::move(drc::Point by, const drc::Point& other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_move(drc_Circle_director* director, const drc_Point* by, const drc_Point* other, drc_Point* out_result);
 
 /* drc::Mode drc::Shape::mode(drc::Mode requested) const
  * calls the implementation of the class, without going through the vtable */

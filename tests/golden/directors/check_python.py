@@ -3,7 +3,11 @@
 virtual methods of the C++ classes, which C++ calls back."""
 
 import gc
+import signal
 import sys
+import threading
+import time
+import weakref
 
 from drc import _runtime, shape, stage
 
@@ -93,11 +97,14 @@ class Incomplete(shape.Shape):
         return "x"
 
 
-for make in (Incomplete.create_void, shape.Shape.create_void):
+for make, expected in (
+    (Incomplete.create_void, "Incomplete is abstract: it must override area"),
+    (shape.Shape.create_void, "Shape cannot be instantiated itself"),
+):
     try:
         make()
     except TypeError as error:
-        assert "area" in str(error) or "itself" in str(error), str(error)
+        assert expected in str(error), str(error)
     else:
         raise AssertionError("an abstract class was instantiated")
 assert alive() == 0
@@ -320,8 +327,8 @@ with shape.Holder() as holder:
     holder.put(obj)
     try:
         obj.describe()
-    except ValueError:
-        pass  # the Python object is closed: C++ has the object now
+    except ValueError as error:
+        assert str(error) == "Shape object is closed", str(error)  # C++ has the object now
     else:
         raise AssertionError("an object that was given up was used")
     del obj
@@ -425,6 +432,165 @@ try:
 finally:
     sys.unraisablehook = previous_hook
 assert [str(error) for error in reported] == ["on a thread"], reported
+
+
+# A subclass of Circle that overrides something: the name that Shape gives add(int, int)
+# reaches the director of Circle (it used to reach that of Shape, with a handle of another type).
+class Named(shape.Circle):
+    def name(self):
+        return "named"
+
+
+with Named(1.0) as named:
+    assert named.add_int32_int32(2, 1) == 1003
+    assert named.add(2, 1) == 1003
+
+
+# The virtual methods that C++ cannot call from Python are refused, not silently ignored.
+for method, why in (
+    ("fixed", "final"),
+    ("total", "types"),
+    ("add", "overloaded"),
+):
+    try:
+        type("NoWay", (shape.Shape,), {method: lambda self, *args: 0, "area": lambda self: 1.0})
+    except TypeError as error:
+        assert f"defines {method}, a virtual method of drc_Shape that C++ cannot call" in str(
+            error
+        ), str(error)
+    else:
+        raise AssertionError(f"{method} ({why}) was accepted")
+try:
+
+    class NoDirector(shape.Plain):
+        def value(self):
+            return 1
+
+except TypeError as error:
+    assert "drc_Plain has no director" in str(error), str(error)
+else:
+    raise AssertionError("an override of a class without director was accepted")
+
+
+# Coroutines and generators are not run by C++: refused when the object is made.
+class Coroutine(shape.Shape):
+    def area(self):
+        return 1.0
+
+    async def scale(self, factor):
+        pass
+
+
+try:
+    Coroutine.create_void()
+except TypeError as error:
+    assert "Coroutine.scale is a coroutine or a generator function" in str(error), str(error)
+else:
+    raise AssertionError("a coroutine function overrode a method")
+
+
+# There is no implementation of a pure virtual method to call.
+class PureSuper(shape.Shape):
+    def area(self):
+        return super().area()
+
+
+with PureSuper.create_void() as pure_super:
+    try:
+        pure_super.describe()
+    except NotImplementedError as error:
+        assert "pure virtual method" in str(error), str(error)
+    else:
+        raise AssertionError("the implementation of a pure virtual method was called")
+
+
+# Once Python gave an object up, only the thread that runs one of its overrides can call
+# the implementation of its class: another thread would use what C++ may free.
+seen = []
+
+
+class Probe(shape.Shape):
+    def area(self):
+        def other():
+            try:
+                self.sides()
+            except ValueError:
+                seen.append("closed")
+            else:
+                seen.append("reached")
+
+        thread = threading.Thread(target=other)
+        thread.start()
+        thread.join()
+        seen.append(self.sides())  # this thread runs the override: allowed
+        return 1.0
+
+
+with shape.Holder() as holder:
+    holder.put(Probe.create_void())
+    assert holder.describe() == "shape: 1 units"
+assert seen == ["closed", 0], seen
+
+
+# C++ releasing the director frees the Python object at once, without the collector.
+gc.collect()
+gc.disable()
+try:
+    with shape.Holder() as holder:
+        released = Square.create_void()
+        reference = weakref.ref(released)
+        holder.put(released)
+        del released
+        assert reference() is not None  # C++ owns it
+    assert reference() is None
+finally:
+    gc.enable()
+
+
+# Signals at any point of an override leave nothing running: every object can be closed.
+class Quick(shape.Shape):
+    def area(self):
+        return 1.0
+
+
+armed = [True]
+
+
+def interrupt(signum, frame):
+    if armed[0]:
+        raise KeyboardInterrupt
+
+
+signal.signal(signal.SIGALRM, interrupt)
+objects = [Quick.create_void() for _ in range(8)]
+interrupted = 0
+deadline = time.monotonic() + 0.7
+signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
+try:
+    finished = False
+    while not finished:
+        try:
+            while time.monotonic() < deadline:
+                for quick in objects:
+                    quick.describe()
+            finished = True
+        except KeyboardInterrupt:
+            interrupted += 1
+finally:
+    # A signal that is already pending may still interrupt this, until the timer is stopped
+    # and the handler stops raising (it stays installed: a pending signal finds it).
+    while armed[0]:
+        try:
+            armed[0] = False
+            signal.setitimer(signal.ITIMER_REAL, 0, 0)
+        except KeyboardInterrupt:
+            interrupted += 1
+assert interrupted > 0, "no signal arrived"
+for quick in objects:
+    assert quick._director.running == {}
+    quick.close()
+assert alive() == 0
+
 
 # An object that C++ holds when the interpreter exits (the director is disabled and left
 # alone, as the callbacks are).

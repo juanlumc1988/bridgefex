@@ -75,8 +75,10 @@ is a tree of frozen dataclasses:
   subclass belongs to the shared C layer (`DirectorPlan.glue`), so every language
   gets the same one; a backend implements the table: it builds the functions of the
   vtable from its own overrides, keeps what they need alive until `release`, and
-  calls the base variants for `super()`. `DirectorEntry.location` says where the
-  method is declared, so that a backend finds the wrapper of a public one.
+  calls the base variants for `super()`. `DirectorEntry.method` is the declaration
+  of the method (the same object as `CallablePlan.source` of its wrapper, so that a
+  backend finds the wrapper of a public one: a location is not enough, a macro can
+  declare several methods at one), and `DirectorEntry.key` names its hook.
   `HeaderPlan.c_functions` is what the bindings call; `HeaderPlan.director_functions`
   is the rest of what the C header declares.
 
@@ -84,10 +86,11 @@ is a tree of frozen dataclasses:
   with one fixed thunk per virtual method, whose `user_data` is the key of a registry
   entry that holds the object (weakly while Python owns the C++ object, strongly once
   C++ does). A class that overrides a method with the Python name of its wrapper makes
-  its objects through the create function of the director; the wrappers of the class
-  call the base function of the director of the object, so `super().method()` does not
-  call the override again. An exception of an override goes to the call that made C++
-  run it, as for a callback.
+  its objects through the create function of the director, which registers the entry
+  when the object exists; the wrappers of the class call the base function of the
+  director of the object, so `super().method()` does not call the override again. An
+  exception of an override goes to the call that made C++ run it, as for a callback,
+  and an object cannot be closed while one of its overrides runs.
 
 The plan never says how a language spells any of it. The C layer is rendered from
 it by `generator.render`, with the templates in `src/bridgefex/templates/`.
