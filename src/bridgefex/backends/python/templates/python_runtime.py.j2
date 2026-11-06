@@ -153,6 +153,19 @@ def load(path=None):
 {% if m.has_directors %}
         library.{{ m.string_sink_set }}.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
         library.{{ m.string_sink_set }}.restype = None
+        library.{{ m.vector_sink_set }}.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+        ]
+        library.{{ m.vector_sink_set }}.restype = None
+        library.{{ m.vector_sink_set_strings }}.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
+        library.{{ m.vector_sink_set_strings }}.restype = None
 {% endif %}
         # An earlier interpreter of the process may have disabled a release
         # function at the address of this one (ctypes reuses freed closures).
@@ -1365,6 +1378,27 @@ def sink_set(sink, value, name):
         error.add_note(f"(the result of the override {name!r})")
         raise
     _library.{{ m.string_sink_set }}(sink, data, len(data))
+
+
+def override_result(name, make):
+    """What ``make()`` builds from the result of an override; its errors say whose
+    result it was."""
+    try:
+        return make()
+    except (TypeError, ValueError, OverflowError) as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
+
+
+def sink_container(sink, array, length=None, name=""):
+    """Give the container that an override returns to the sink of the vtable function:
+    a ctypes array of C elements, or of strings (``length``: the size of a std::array)."""
+    if length is not None:
+        fixed(array, length, name)
+    if getattr(array, "_type_", None) is StringIn:
+        _library.{{ m.vector_sink_set_strings }}(sink, array, len(array))
+    else:
+        _library.{{ m.vector_sink_set }}(sink, array, len(array), ctypes.sizeof(array._type_))
 
 {% endif %}
 

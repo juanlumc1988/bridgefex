@@ -173,6 +173,39 @@ extern "C" void {{ m.string_sink_set }}({{ m.string_sink_type }}* sink, const ch
     }
     {{ m.detail_namespace }}::guard_silently([&]() { sink->value.assign(size == 0 ? "" : data, size); });
 }
+
+extern "C" void {{ m.vector_sink_set }}({{ m.vector_sink_type }}* sink, const void* data, size_t count, size_t element_size)
+{
+    if (sink == nullptr || element_size == 0 || (data == nullptr && count != 0)) {
+        return;
+    }
+    {{ m.detail_namespace }}::guard_silently([&]() {
+        const size_t bytes = {{ m.detail_namespace }}::checked_mul(count, element_size);
+        const unsigned char* first = static_cast<const unsigned char*>(data);
+        std::vector<unsigned char> copy(first, first + bytes);
+        sink->bytes.swap(copy);
+        sink->count = count;
+        sink->element_size = element_size;
+    });
+}
+
+extern "C" void {{ m.vector_sink_set_strings }}({{ m.vector_sink_type }}* sink, const {{ m.string_type }}* items, size_t count)
+{
+    if (sink == nullptr || (items == nullptr && count != 0)) {
+        return;
+    }
+    {{ m.detail_namespace }}::guard_silently([&]() {
+        std::vector<std::string> strings;
+        strings.reserve(count);
+        for (size_t index = 0; index != count; ++index) {
+            if (items[index].data == nullptr && items[index].size != 0) {
+                return;
+            }
+            strings.emplace_back(items[index].size == 0 ? "" : items[index].data, items[index].size);
+        }
+        sink->strings.swap(strings);
+    });
+}
 {% endif %}
 
 extern "C" void {{ m.disable_callbacks }}(void (*release)(void*))

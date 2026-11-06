@@ -88,8 +88,8 @@ def test_the_director_api(tmp_path: Path) -> None:
             "no public or protected virtual method to override",
         ),
         (
-            "namespace n { class Shape { public: Shape(); virtual ~Shape();"
-            " virtual void f(const std::vector<int>& v) = 0; }; }",
+            "namespace n { class Other { public: Other(); }; class Shape { public: Shape();"
+            " virtual ~Shape(); virtual void f(const Other& v) = 0; }; }",
             "the pure virtual method 'Shape::f' cannot be overridden from another language",
         ),
         (
@@ -133,9 +133,10 @@ def test_a_method_that_cannot_be_overridden_keeps_the_class(tmp_path: Path) -> N
         generate(
             tmp_path,
             """
-            namespace n { class Shape { public: Shape(); virtual ~Shape();
+            namespace n { class Other { public: Other(); };
+              class Shape { public: Shape(); virtual ~Shape();
               virtual std::int32_t a() const;
-              virtual std::int32_t b(const std::vector<int>& v) const;
+              virtual std::int32_t b(const Other& v) const;
               virtual std::int32_t c() const final; }; }
             """,
             "n_Shape",
@@ -579,3 +580,98 @@ def test_the_implicitly_deleted_default_constructor_of_an_abstract_class(tmp_pat
     assert "implicitly-deleted default constructor" in text
     assert "annotations.toml:1: the class asks for a director" in text
     assert "api.h:" in text  # and where the class is
+
+
+CONTAINERS = """
+namespace n {
+enum class Mode : std::uint8_t { Off, On };
+struct Point { double x; double y; };
+class Shape {
+public:
+    Shape();
+    virtual ~Shape();
+    virtual std::vector<std::int32_t> numbers(const std::vector<std::int32_t>& v) const;
+    virtual std::vector<std::string> words(std::vector<std::string> w) const;
+    virtual std::vector<Mode> modes(const std::vector<Mode>& m) const;
+    virtual std::vector<Point> points(const std::vector<Point>& p) const;
+    virtual std::vector<bool> flags(const std::vector<bool>& b) const;
+    virtual std::array<double, 3> triple(const std::array<double, 3>& t) const;
+    virtual std::int32_t total(std::vector<std::int32_t>&& v) const;
+};
+}
+"""
+
+
+def test_containers_cross_a_vtable_as_pointers_and_sinks(tmp_path: Path) -> None:
+    result = generate(tmp_path, "#include <array>\n" + CONTAINERS, "n_Shape")
+    vtable = header_of(result).split("n_Shape_vtable {")[1].split("} n_Shape_vtable")[0]
+    for member in (
+        "void (*numbers)(void*, const int32_t*, size_t, mod_vector_sink*);",
+        "void (*words)(void*, const mod_string*, size_t, mod_vector_sink*);",
+        "void (*modes)(void*, const n_Mode*, size_t, mod_vector_sink*);",
+        "void (*points)(void*, const n_Point*, size_t, mod_vector_sink*);",
+        "void (*flags)(void*, const bool*, size_t, mod_vector_sink*);",
+        "void (*triple)(void*, const double*, mod_vector_sink*);",
+        "void (*total)(void*, const int32_t*, size_t, int32_t*);",
+    ):
+        assert member in vtable, member
+    runtime = result.files["c/mod_runtime.h"]
+    assert "void mod_vector_sink_set(mod_vector_sink* sink, const void* data" in runtime
+    assert (
+        "void mod_vector_sink_set_strings(mod_vector_sink* sink, const mod_string* items" in runtime
+    )
+    source = result.files["c/api_c.cpp"]
+    # A std::vector<bool> has no data(): its elements are copied into a block.
+    assert "elements_out<bool>(_arg1)" in source
+    assert "_arg1.data()" in source  # the scalars of the other vectors are not copied
+
+
+def test_a_module_without_container_overrides_still_has_the_sinks(tmp_path: Path) -> None:
+    result = generate(tmp_path, SHAPE, "n_Shape")
+    assert "mod_vector_sink_set" in result.files["c/mod_runtime.h"]
+
+
+def test_containers_that_an_override_cannot_give_or_take(tmp_path: Path) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        namespace n { class Shape { public: Shape(); virtual ~Shape();
+          virtual const std::vector<std::int32_t>& f() const = 0; }; }
+        """,
+        "n_Shape",
+    )
+    assert "the result is a reference: an override cannot return one" in text
+
+
+def test_a_span_is_taken_but_not_given(tmp_path: Path) -> None:
+    header = tmp_path / "api.h"
+    header.write_text(
+        PRELUDE
+        + "#include <span>\n"
+        + """
+namespace n {
+class Shape {
+public:
+    Shape();
+    virtual ~Shape();
+    virtual std::int32_t total(std::span<const std::int32_t> v) const;
+    virtual std::span<const std::int32_t> view() const = 0;
+};
+}
+""",
+        encoding="utf-8",
+    )
+    annotations = tmp_path / "annotations.toml"
+    annotations.write_bytes(b'directors = ["n_Shape"]\n')
+    with pytest.raises(BridgefexError) as raised:
+        bridgefex.generate(
+            [header], bridgefex.Options("mod", std="c++20", annotations=(annotations,))
+        )
+    assert "the result is a view of elements that the override would not own" in str(raised.value)
+    header.write_text(header.read_text(encoding="utf-8").replace("= 0;", "{ return {}; }"))
+    result = bridgefex.generate(
+        [header], bridgefex.Options("mod", std="c++20", annotations=(annotations,))
+    )
+    vtable = result.files["c/api_c.h"].split("n_Shape_vtable {")[1].split("} n_Shape_vtable")[0]
+    assert "void (*total)(void*, const int32_t*, size_t, int32_t*);" in vtable
+    assert "view" not in vtable

@@ -89,6 +89,92 @@ std::int32_t Shape::total(const std::vector<std::int32_t>& values) const
     return total;
 }
 
+std::vector<std::int32_t> Shape::numbers(const std::vector<std::int32_t>& values) const
+{
+    return std::vector<std::int32_t>(values.rbegin(), values.rend());
+}
+
+std::vector<std::string> Shape::words(std::vector<std::string> input) const
+{
+    for (std::string& word : input) {
+        word += "!";
+    }
+    return input;
+}
+
+std::vector<Mode> Shape::modes(const std::vector<Mode>& wanted) const
+{
+    return wanted;
+}
+
+std::vector<Point> Shape::points(const std::vector<Point>& list) const
+{
+    std::vector<Point> result;
+    for (const Point& point : list) {
+        result.push_back(Point{point.y, point.x});
+    }
+    return result;
+}
+
+std::vector<bool> Shape::flags(const std::vector<bool>& input) const
+{
+    std::vector<bool> result;
+    for (bool flag : input) {
+        result.push_back(!flag);
+    }
+    return result;
+}
+
+std::array<double, 3> Shape::triple(const std::array<double, 3>& values) const
+{
+    return {values[0] * 2, values[1] * 2, values[2] * 2};
+}
+
+std::int32_t Shape::peek(const Holder& holder) const
+{
+    return holder.empty() ? 1 : 2;
+}
+
+std::int32_t Shape::call_total(const std::vector<std::int32_t>& values) const
+{
+    return total(values);
+}
+
+std::vector<std::int32_t> Shape::call_numbers(const std::vector<std::int32_t>& values) const
+{
+    return numbers(values);
+}
+
+std::vector<std::string> Shape::call_words(const std::vector<std::string>& input) const
+{
+    return words(input);
+}
+
+std::vector<Mode> Shape::call_modes(const std::vector<Mode>& wanted) const
+{
+    return modes(wanted);
+}
+
+std::vector<Point> Shape::call_points(const std::vector<Point>& list) const
+{
+    return points(list);
+}
+
+std::vector<bool> Shape::call_flags(const std::vector<bool>& input) const
+{
+    return flags(input);
+}
+
+std::array<double, 3> Shape::call_triple(const std::array<double, 3>& values) const
+{
+    return triple(values);
+}
+
+std::int32_t Shape::call_peek(const Holder& holder) const
+{
+    return peek(holder);
+}
+
 std::int32_t Shape::fixed() const
 {
     return 7;

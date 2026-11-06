@@ -57,6 +57,7 @@ from .model import (
     Struct,
     StructRef,
     Type,
+    TypeCategory,
 )
 
 
@@ -333,6 +334,8 @@ class CallbackPart:
     type: Type
     enum: EnumPlan | None = None
     struct: StructPlan | None = None
+    element: ElementSpec | None = None
+    """What the elements of a container are, if the part is one (an override only)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1003,6 +1006,19 @@ class ModulePlan:
     @property
     def string_sink_set(self) -> str:
         return f"{self.name}_string_sink_set"
+
+    @property
+    def vector_sink_type(self) -> str:
+        """The elements of a container that a function of a vtable gives back."""
+        return f"{self.name}_vector_sink"
+
+    @property
+    def vector_sink_set(self) -> str:
+        return f"{self.name}_vector_sink_set"
+
+    @property
+    def vector_sink_set_strings(self) -> str:
+        return f"{self.name}_vector_sink_set_strings"
 
     @property
     def disable_callbacks(self) -> str:
@@ -1906,6 +1922,12 @@ class _Builder:
             return CallbackPart(type_, enum=self._enum(type_, location))
         if isinstance(type_, StructRef):
             return CallbackPart(type_, struct=self._struct(type_, location))
+        if isinstance(type_, ContainerType):
+            element = self._element(type_.element, location)
+            assert element is not None  # checked
+            return CallbackPart(
+                type_, element=ElementSpec(type_.element, element.enum, element.struct)
+            )
         return CallbackPart(type_)
 
     def _callback_argument(
@@ -1981,6 +2003,20 @@ class _Builder:
         )
         return f"{self._spell(type_.result, False, location)} ({arguments})"
 
+    def _container_spelling(self, part: ContainerType, location: Location) -> str:
+        """A container as a signature declares it, fully qualified."""
+        element = self._element(part.element, location)
+        assert element is not None  # checked
+        if part.kind is ContainerKind.ARRAY:
+            name = f"::std::array<{element.cpp}, {part.length}>"
+        elif part.kind is ContainerKind.SPAN:
+            name = f"::std::span<const {element.cpp}>"
+        else:
+            name = f"::std::vector<{element.cpp}>"
+        if part.rvalue_reference:
+            return f"{name}&&"
+        return f"const {name}&" if part.by_reference else name
+
     def _spell(self, part: Type, reference: bool, location: Location) -> str:
         """A scalar, enum, struct or string as a signature declares it, fully qualified
         (the C++ spelling of the model is not a libclang one)."""
@@ -1995,6 +2031,8 @@ class _Builder:
                 return "const char*"
             name = f"::std::{part.kind.value}"
             return f"const {name}&" if part.by_reference else name
+        elif isinstance(part, ContainerType):
+            return self._container_spelling(part, location)
         else:
             assert isinstance(part, ScalarType)
             name = part.c_name
@@ -2796,6 +2834,19 @@ class _Builder:
         self._reserve_c_name(
             f"{name}_string_sink_set", "the function that sets a string of the vtables", None
         )
+        self._reserve_c_name(
+            f"{name}_vector_sink", "the container sink of the vtables", None, tag=True
+        )
+        self._reserve_c_name(
+            f"{name}_vector_sink_set",
+            "the function that sets the elements of a container of the vtables",
+            None,
+        )
+        self._reserve_c_name(
+            f"{name}_vector_sink_set_strings",
+            "the function that sets the strings of a container of the vtables",
+            None,
+        )
 
     def unknown_directors(self) -> list[Diagnostic]:
         """The classes that the annotations file asks a director for, and are not wrapped."""
@@ -2881,10 +2932,19 @@ class _Builder:
                 problems.append(f"{what}: the enum '{type_.qualified_name}' is not wrapped")
             elif isinstance(type_, StructRef) and type_.usr not in self._structs:
                 problems.append(f"{what}: the struct '{type_.qualified_name}' is not wrapped")
+            elif isinstance(type_, ContainerType):
+                inner = type_.element
+                if isinstance(inner, EnumRef) and inner.usr not in self._enums:
+                    problems.append(f"{what}: the enum '{inner.qualified_name}' is not wrapped")
+                elif isinstance(inner, StructRef) and inner.usr not in self._structs:
+                    problems.append(f"{what}: the struct '{inner.qualified_name}' is not wrapped")
+                else:
+                    return True
             elif not isinstance(type_, ScalarType | EnumRef | StructRef | StringType):
                 problems.append(
                     f"{what}: '{_spelling(type_)}' is not a type that an override can take "
-                    "or give yet (scalars, enums, strings and value structs are)"
+                    "or give yet (scalars, enums, strings, value structs and containers of "
+                    "them are)"
                 )
             else:
                 return True
@@ -2902,6 +2962,13 @@ class _Builder:
             )
         elif isinstance(result, ScalarType) and result.is_void:
             pass
+        elif isinstance(result, ContainerType) and result.kind is ContainerKind.SPAN:
+            problems.append(
+                "the result is a view of elements that the override would not own: "
+                "return a std::vector"
+            )
+        elif isinstance(result, ContainerType) and result.rvalue_reference:
+            problems.append("the result is a reference: an override cannot return one")
         else:
             supported(result, "the result")
         return problems
@@ -3061,6 +3128,86 @@ class _Builder:
             glue=glue,
         )
 
+    def _director_argument(
+        self, type_: Type, local: str, position: int, location: Location
+    ) -> tuple[list[str], list[str], list[str], str]:
+        """How an argument of an override crosses to the function of the vtable: (its C
+        types, the C arguments, the statements that make what they refer to, which live
+        until the call returns, the token of the signature name)."""
+        if not isinstance(type_, ContainerType):
+            lowered = self._callback_argument(type_, local, location)
+            assert lowered is not None  # checked
+            _, c_args, pass_c, token = lowered
+            return c_args, pass_c, [], token
+        detail = f"{self.module.name}_detail"
+        element = self._element(type_.element, location)
+        assert element is not None  # checked
+        pointer = f"const {element.c_type}*"
+        temporary = f"_elements{position}"
+        before: list[str] = []
+        if isinstance(type_.element, StringType):
+            before.append(
+                f"const auto {temporary} = "
+                f"{detail}::strings_out<{self.module.name}_string>({local});"
+            )
+            data = f"{temporary}.data()"
+        elif element.to_c is None and not (
+            type_.kind is ContainerKind.VECTOR
+            and isinstance(type_.element, ScalarType)
+            and type_.element.category is TypeCategory.BOOL
+        ):
+            data = f"{local}.data()"  # the elements are the C ones, in a block
+        else:
+            convert = "" if element.to_c is None else f", {element.to_c}"
+            before.append(
+                f"const auto {temporary} = "
+                f"{detail}::elements_out<{element.c_type}>({local}{convert});"
+            )
+            data = f"{temporary}.data()"
+        if type_.kind is ContainerKind.ARRAY:
+            return [pointer], [data], before, f"array{type_.length}_{element.token}"
+        return [pointer, "size_t"], [data, f"{local}.size()"], before, f"vector_{element.token}"
+
+    def _director_container_result(
+        self, type_: ContainerType, location: Location
+    ) -> tuple[str, str, str, list[str], list[str]]:
+        """The result of an override that is a container: it comes through a sink, as
+        the elements of the C ones, and is converted when the function returns."""
+        detail = f"{self.module.name}_detail"
+        sink = f"{self.module.name}_vector_sink"
+        element = self._element(type_.element, location)
+        assert element is not None  # checked
+        cpp = self._container_spelling(
+            dataclasses.replace(type_, by_reference=False, rvalue_reference=False), location
+        )
+        prefix = "sink_array_" if type_.kind is ContainerKind.ARRAY else "sink_"
+        if isinstance(type_.element, StringType):
+            read = f"{detail}::{prefix}strings<{cpp}>(_result)"
+        else:
+            convert = (
+                ""
+                if element.to_cpp is None
+                else ", " + element.to_cpp.replace("{name}", "the result")
+            )
+            read = f"{detail}::{prefix}elements<{cpp}, {element.c_type}>(_result{convert})"
+        shape = f"array{type_.length}" if type_.kind is ContainerKind.ARRAY else "vector"
+        token = f"{shape}_{element.token}"
+        return (
+            cpp,
+            f"{sink}*",
+            token,
+            [f"{sink} _result;"],
+            [
+                "try {",
+                f"    return {read};",
+                f"}} catch (const {detail}::argument_error&) {{",
+                "    // An element that is not valid (an enum out of range) gives the empty",
+                "    // container, as it gives the zero value when it is the result itself.",
+                f"    return {cpp}();",
+                "}",
+            ],
+        )
+
     def _director_result(
         self, type_: Type, location: Location
     ) -> tuple[str, str | None, str, list[str], list[str]]:
@@ -3068,6 +3215,8 @@ class _Builder:
         of its output parameter or None, token of the signature, statements before the
         call, statements after it)."""
         detail = f"{self.module.name}_detail"
+        if isinstance(type_, ContainerType):
+            return self._director_container_result(type_, location)
         if isinstance(type_, StringType):
             sink = f"{self.module.name}_string_sink"
             return (
@@ -3123,25 +3272,33 @@ class _Builder:
         passed = ["ref_.user_data()"]
         tokens: list[str] = []
         parts: list[CallbackPart] = []
+        temporaries: list[str] = []
         for position, parameter in enumerate(method.parameters, start=1):
             local = f"_arg{position}"
             declarations.append(
                 f"{self._spell(parameter.type, parameter.by_reference, location)} {local}"
             )
-            lowered = self._callback_argument(parameter.type, local, location)
-            assert lowered is not None  # checked
-            _, c_args, pass_c, token = lowered
+            c_args, pass_c, prepare, token = self._director_argument(
+                parameter.type, local, position, location
+            )
             c_types += c_args
             passed += pass_c
+            temporaries += prepare
             tokens.append(token)
             parts.append(self._callback_part(parameter.type, location))
         result_cpp, result_c, result_token, before, after = self._director_result(
             method.result, location
         )
+        before = [*temporaries, *before]
         if result_c is not None:
             c_types.append(result_c)
             passed.append("&_result")
-        names = ", ".join(f"_arg{i}" for i in range(1, len(method.parameters) + 1))
+        names = ", ".join(
+            f"static_cast<{self._container_spelling(parameter.type, location)}>(_arg{position})"
+            if isinstance(parameter.type, ContainerType) and parameter.type.rvalue_reference
+            else f"_arg{position}"
+            for position, parameter in enumerate(method.parameters, start=1)
+        )
         qualifiers = (" const" if method.is_const else "") + (
             " noexcept" if method.is_noexcept else ""
         )

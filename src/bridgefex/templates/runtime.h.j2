@@ -64,6 +64,9 @@ typedef struct {{ m.string_type }} {
 
 /* The string that a function of a vtable gives back: see {{ m.string_sink_set }}(). */
 typedef struct {{ m.string_sink_type }} {{ m.string_sink_type }};
+
+/* The elements of a container that a function of a vtable gives back: see {{ m.vector_sink_set }}(). */
+typedef struct {{ m.vector_sink_type }} {{ m.vector_sink_type }};
 {% endif %}
 
 /* Success. */
@@ -139,6 +142,20 @@ extern "C" {
  * string. NULL is ignored.
  */
 {{ P }}_API void {{ m.string_sink_set }}({{ m.string_sink_type }}* sink, const char* data, size_t size);
+
+/*
+ * Gives the container that a function of a vtable returns (a std::vector or std::array
+ * result of a virtual method that another language overrides): call it once, from that
+ * function, with 'count' elements of 'element_size' bytes at 'data', laid out as the C
+ * type of the element is (a scalar, an enum or a struct of the C API). They are copied
+ * before it returns, so the caller keeps the memory. Elements of another size than the
+ * type of the result, a count that overflows, and NULL, are ignored; not calling it gives
+ * the empty container (an array: the zero array, also when 'count' is not its size).
+ */
+{{ P }}_API void {{ m.vector_sink_set }}({{ m.vector_sink_type }}* sink, const void* data, size_t count, size_t element_size);
+
+/* The same for a container of strings: 'count' entries, each with 'size' bytes at 'data'. */
+{{ P }}_API void {{ m.vector_sink_set_strings }}({{ m.vector_sink_type }}* sink, const {{ m.string_type }}* items, size_t count);
 {% endif %}
 
 #ifdef __cplusplus

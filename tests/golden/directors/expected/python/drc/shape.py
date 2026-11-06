@@ -60,6 +60,20 @@ def _bind():
             lib.drc_Shape_quiet.restype = _runtime.Status
             lib.drc_Shape_total.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_total.restype = _runtime.Status
+            lib.drc_Shape_numbers.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int32)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_numbers.restype = _runtime.Status
+            lib.drc_Shape_words.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_runtime.String)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_words.restype = _runtime.Status
+            lib.drc_Shape_modes.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_modes.restype = _runtime.Status
+            lib.drc_Shape_points.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_types._drc_Point)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_points.restype = _runtime.Status
+            lib.drc_Shape_flags.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_bool)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_flags.restype = _runtime.Status
+            lib.drc_Shape_triple.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_triple.restype = _runtime.Status
+            lib.drc_Shape_peek.argtypes = [_types._drc_Shape__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_peek.restype = _runtime.Status
             lib.drc_Shape_fixed.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_fixed.restype = _runtime.Status
             lib.drc_Shape_describe.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -70,6 +84,22 @@ def _bind():
             lib.drc_Shape_middle.restype = _runtime.Status
             lib.drc_Shape_call_move.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.POINTER(_types._drc_Point)]
             lib.drc_Shape_call_move.restype = _runtime.Status
+            lib.drc_Shape_call_total.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_call_total.restype = _runtime.Status
+            lib.drc_Shape_call_numbers.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int32)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_call_numbers.restype = _runtime.Status
+            lib.drc_Shape_call_words.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_runtime.String)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_call_words.restype = _runtime.Status
+            lib.drc_Shape_call_modes.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_call_modes.restype = _runtime.Status
+            lib.drc_Shape_call_points.argtypes = [_types._drc_Shape__p, ctypes.POINTER(_types._drc_Point), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_types._drc_Point)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_call_points.restype = _runtime.Status
+            lib.drc_Shape_call_flags.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_bool)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_call_flags.restype = _runtime.Status
+            lib.drc_Shape_call_triple.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_call_triple.restype = _runtime.Status
+            lib.drc_Shape_call_peek.argtypes = [_types._drc_Shape__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_call_peek.restype = _runtime.Status
             lib.drc_Shape_choose.argtypes = [_types._drc_Shape__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Shape_choose.restype = _runtime.Status
             lib.drc_Shape_welcome.argtypes = [_types._drc_Shape__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -164,6 +194,20 @@ def _bind():
             lib.drc_Shape_director_base_greet.restype = _runtime.Status
             lib.drc_Shape_director_base_quiet.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_director_base_quiet.restype = _runtime.Status
+            lib.drc_Shape_director_base_total.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_director_base_total.restype = _runtime.Status
+            lib.drc_Shape_director_base_numbers.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int32)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_director_base_numbers.restype = _runtime.Status
+            lib.drc_Shape_director_base_words.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_runtime.String)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_director_base_words.restype = _runtime.Status
+            lib.drc_Shape_director_base_modes.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_director_base_modes.restype = _runtime.Status
+            lib.drc_Shape_director_base_points.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(_types._drc_Point), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_types._drc_Point)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_director_base_points.restype = _runtime.Status
+            lib.drc_Shape_director_base_flags.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_bool)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Shape_director_base_flags.restype = _runtime.Status
+            lib.drc_Shape_director_base_triple.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_director_base_triple.restype = _runtime.Status
             lib.drc_Shape_director_base_changed.argtypes = [_types._drc_Shape_director__p, ctypes.c_int32]
             lib.drc_Shape_director_base_changed.restype = _runtime.Status
             lib.drc_Circle_director_create.argtypes = [ctypes.POINTER(_types._drc_Circle__p), ctypes.POINTER(_types._drc_Circle_director__p), ctypes.POINTER(_types._drc_Circle_vtable), ctypes.c_double]
@@ -192,6 +236,20 @@ def _bind():
             lib.drc_Circle_director_base_greet.restype = _runtime.Status
             lib.drc_Circle_director_base_quiet.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Circle_director_base_quiet.restype = _runtime.Status
+            lib.drc_Circle_director_base_total.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_director_base_total.restype = _runtime.Status
+            lib.drc_Circle_director_base_numbers.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int32)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Circle_director_base_numbers.restype = _runtime.Status
+            lib.drc_Circle_director_base_words.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_runtime.String)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Circle_director_base_words.restype = _runtime.Status
+            lib.drc_Circle_director_base_modes.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Circle_director_base_modes.restype = _runtime.Status
+            lib.drc_Circle_director_base_points.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(_types._drc_Point), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(_types._drc_Point)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Circle_director_base_points.restype = _runtime.Status
+            lib.drc_Circle_director_base_flags.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_bool)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.drc_Circle_director_base_flags.restype = _runtime.Status
+            lib.drc_Circle_director_base_triple.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Circle_director_base_triple.restype = _runtime.Status
             lib.drc_Circle_director_base_changed.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32]
             lib.drc_Circle_director_base_changed.restype = _runtime.Status
             _lib = lib
@@ -210,7 +268,7 @@ class Shape(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Shape"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "greet", "mode", "move", "name", "quiet", "scale", "sides", "total",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "flags", "greet", "mode", "modes", "move", "name", "numbers", "peek", "points", "quiet", "scale", "sides", "total", "triple", "words",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -229,6 +287,13 @@ class Shape(_runtime.Object):
             ("add_double_double", "add_double_double", False, _types._director__drc_Shape__add_double_double),
             ("greet", "greet", False, _types._director__drc_Shape__greet),
             ("quiet", "quiet", False, _types._director__drc_Shape__quiet),
+            ("total", "total", False, _types._director__drc_Shape__total),
+            ("numbers", "numbers", False, _types._director__drc_Shape__numbers),
+            ("words", "words", False, _types._director__drc_Shape__words),
+            ("modes", "modes", False, _types._director__drc_Shape__modes),
+            ("points", "points", False, _types._director__drc_Shape__points),
+            ("flags", "flags", False, _types._director__drc_Shape__flags),
+            ("triple", "triple", False, _types._director__drc_Shape__triple),
             ("changed", "changed", False, _types._director__drc_Shape__changed),
         ),
     )
@@ -519,6 +584,133 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_director_base_quiet(self._dptr(), _out))
         return _out.value
 
+    def _base_total(self, values):
+        """Calls the implementation of ``int32_t drc::Shape::total(const std::vector<int32_t>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.check(_bind().drc_Shape_director_base_total(
+            self._dptr(),
+            values,
+            values_size,
+            _out,
+        ))
+        return _out.value
+
+    def _base_numbers(self, values):
+        """Calls the implementation of ``std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_int32)()
+        _out_size = ctypes.c_size_t()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        try:
+            _runtime.check(_bind().drc_Shape_director_base_numbers(
+                self._dptr(),
+                values,
+                values_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_words(self, input):
+        """Calls the implementation of ``std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(_runtime.String)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_string_array(input, "input")
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_director_base_words(
+                self._dptr(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.string_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.decode_all(_out_data)
+
+    def _base_modes(self, wanted):
+        """Calls the implementation of ``std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_uint8)()
+        _out_size = ctypes.c_size_t()
+        wanted = _runtime.to_enum_array(wanted, _types.drc_Mode, ctypes.c_uint8, "wanted")
+        wanted_size = _builtins.len(wanted)
+        try:
+            _runtime.check(_bind().drc_Shape_director_base_modes(
+                self._dptr(),
+                wanted,
+                wanted_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.enum_results(_types.drc_Mode, _out_data)
+
+    def _base_points(self, list):
+        """Calls the implementation of ``std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(_types._drc_Point)()
+        _out_size = ctypes.c_size_t()
+        list = _runtime.to_struct_array(list, _types._drc_Point, _types._drc_Point__fill, "list")
+        list_size = _builtins.len(list)
+        try:
+            _runtime.check(_bind().drc_Shape_director_base_points(
+                self._dptr(),
+                list,
+                list_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.struct_items(_out, _out_size.value, _types._drc_Point__from_c)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_flags(self, input):
+        """Calls the implementation of ``std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_bool)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_array(input, ctypes.c_bool, "input", _runtime.check_bool)
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_director_base_flags(
+                self._dptr(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_triple(self, values):
+        """Calls the implementation of ``std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = (ctypes.c_double * 3)()
+        values = _runtime.fixed(_runtime.to_array(values, ctypes.c_double, "values", _runtime.check_float), 3, "values")
+        _runtime.check(_bind().drc_Shape_director_base_triple(self._dptr(), values, _out))
+        return _runtime.array_items(_out, 3)
+
     def _base_changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++: not the
         override of an object, which would call this one again."""
@@ -657,10 +849,138 @@ class Shape(_runtime.Object):
 
     def total(self, values):
         """Wraps ``int32_t drc::Shape::total(const std::vector<int32_t>& values) const``."""
+        if self._director is not None:
+            return self._base_total(values)
         _out = ctypes.c_int32()
         values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
         values_size = _builtins.len(values)
         _runtime.check(_bind().drc_Shape_total(self._ptr_drc_Shape(), values, values_size, _out))
+        return _out.value
+
+    def numbers(self, values):
+        """Wraps ``std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const``."""
+        if self._director is not None:
+            return self._base_numbers(values)
+        _out = ctypes.POINTER(ctypes.c_int32)()
+        _out_size = ctypes.c_size_t()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        try:
+            _runtime.check(_bind().drc_Shape_numbers(
+                self._ptr_drc_Shape(),
+                values,
+                values_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def words(self, input):
+        """Wraps ``std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const``."""
+        if self._director is not None:
+            return self._base_words(input)
+        _out = ctypes.POINTER(_runtime.String)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_string_array(input, "input")
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_words(
+                self._ptr_drc_Shape(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.string_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.decode_all(_out_data)
+
+    def modes(self, wanted):
+        """Wraps ``std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const``."""
+        if self._director is not None:
+            return self._base_modes(wanted)
+        _out = ctypes.POINTER(ctypes.c_uint8)()
+        _out_size = ctypes.c_size_t()
+        wanted = _runtime.to_enum_array(wanted, _types.drc_Mode, ctypes.c_uint8, "wanted")
+        wanted_size = _builtins.len(wanted)
+        try:
+            _runtime.check(_bind().drc_Shape_modes(
+                self._ptr_drc_Shape(),
+                wanted,
+                wanted_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.enum_results(_types.drc_Mode, _out_data)
+
+    def points(self, list):
+        """Wraps ``std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const``."""
+        if self._director is not None:
+            return self._base_points(list)
+        _out = ctypes.POINTER(_types._drc_Point)()
+        _out_size = ctypes.c_size_t()
+        list = _runtime.to_struct_array(list, _types._drc_Point, _types._drc_Point__fill, "list")
+        list_size = _builtins.len(list)
+        try:
+            _runtime.check(_bind().drc_Shape_points(
+                self._ptr_drc_Shape(),
+                list,
+                list_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.struct_items(_out, _out_size.value, _types._drc_Point__from_c)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def flags(self, input):
+        """Wraps ``std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const``."""
+        if self._director is not None:
+            return self._base_flags(input)
+        _out = ctypes.POINTER(ctypes.c_bool)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_array(input, ctypes.c_bool, "input", _runtime.check_bool)
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_flags(
+                self._ptr_drc_Shape(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def triple(self, values):
+        """Wraps ``std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const``."""
+        if self._director is not None:
+            return self._base_triple(values)
+        _out = (ctypes.c_double * 3)()
+        values = _runtime.fixed(_runtime.to_array(values, ctypes.c_double, "values", _runtime.check_float), 3, "values")
+        _runtime.check(_bind().drc_Shape_triple(self._ptr_drc_Shape(), values, _out))
+        return _runtime.array_items(_out, 3)
+
+    def peek(self, holder):
+        """Wraps ``int32_t drc::Shape::peek(const drc::Holder& holder) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(holder, Holder, "holder")
+        _runtime.check(_bind().drc_Shape_peek(self._ptr_drc_Shape(), holder._ptr(), _out))
         return _out.value
 
     def fixed(self):
@@ -701,6 +1021,133 @@ class Shape(_runtime.Object):
         by = _types._drc_Point__to_c(by, "by")
         _runtime.check(_bind().drc_Shape_call_move(self._ptr_drc_Shape(), by, _out))
         return _types._drc_Point__from_c(_out)
+
+    def call_total(self, values):
+        """Wraps ``int32_t drc::Shape::call_total(const std::vector<int32_t>& values) const``."""
+        _out = ctypes.c_int32()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.check(_bind().drc_Shape_call_total(
+            self._ptr_drc_Shape(),
+            values,
+            values_size,
+            _out,
+        ))
+        return _out.value
+
+    def call_numbers(self, values):
+        """Wraps ``std::vector<int32_t> drc::Shape::call_numbers(const std::vector<int32_t>& values) const``."""
+        _out = ctypes.POINTER(ctypes.c_int32)()
+        _out_size = ctypes.c_size_t()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        try:
+            _runtime.check(_bind().drc_Shape_call_numbers(
+                self._ptr_drc_Shape(),
+                values,
+                values_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def call_words(self, input):
+        """Wraps ``std::vector<std::string> drc::Shape::call_words(const std::vector<std::string>& input) const``."""
+        _out = ctypes.POINTER(_runtime.String)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_string_array(input, "input")
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_call_words(
+                self._ptr_drc_Shape(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.string_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.decode_all(_out_data)
+
+    def call_modes(self, wanted):
+        """Wraps ``std::vector<drc::Mode> drc::Shape::call_modes(const std::vector<drc::Mode>& wanted) const``."""
+        _out = ctypes.POINTER(ctypes.c_uint8)()
+        _out_size = ctypes.c_size_t()
+        wanted = _runtime.to_enum_array(wanted, _types.drc_Mode, ctypes.c_uint8, "wanted")
+        wanted_size = _builtins.len(wanted)
+        try:
+            _runtime.check(_bind().drc_Shape_call_modes(
+                self._ptr_drc_Shape(),
+                wanted,
+                wanted_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.enum_results(_types.drc_Mode, _out_data)
+
+    def call_points(self, list):
+        """Wraps ``std::vector<drc::Point> drc::Shape::call_points(const std::vector<drc::Point>& list) const``."""
+        _out = ctypes.POINTER(_types._drc_Point)()
+        _out_size = ctypes.c_size_t()
+        list = _runtime.to_struct_array(list, _types._drc_Point, _types._drc_Point__fill, "list")
+        list_size = _builtins.len(list)
+        try:
+            _runtime.check(_bind().drc_Shape_call_points(
+                self._ptr_drc_Shape(),
+                list,
+                list_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.struct_items(_out, _out_size.value, _types._drc_Point__from_c)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def call_flags(self, input):
+        """Wraps ``std::vector<bool> drc::Shape::call_flags(const std::vector<bool>& input) const``."""
+        _out = ctypes.POINTER(ctypes.c_bool)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_array(input, ctypes.c_bool, "input", _runtime.check_bool)
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Shape_call_flags(
+                self._ptr_drc_Shape(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def call_triple(self, values):
+        """Wraps ``std::array<double, 3> drc::Shape::call_triple(const std::array<double, 3>& values) const``."""
+        _out = (ctypes.c_double * 3)()
+        values = _runtime.fixed(_runtime.to_array(values, ctypes.c_double, "values", _runtime.check_float), 3, "values")
+        _runtime.check(_bind().drc_Shape_call_triple(self._ptr_drc_Shape(), values, _out))
+        return _runtime.array_items(_out, 3)
+
+    def call_peek(self, holder):
+        """Wraps ``int32_t drc::Shape::call_peek(const drc::Holder& holder) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(holder, Holder, "holder")
+        _runtime.check(_bind().drc_Shape_call_peek(self._ptr_drc_Shape(), holder._ptr(), _out))
+        return _out.value
 
     def choose(self, requested):
         """Wraps ``drc::Mode drc::Shape::choose(drc::Mode requested) const``."""
@@ -800,7 +1247,7 @@ class Circle(Shape):
 
     __slots__ = ()
     _cxx_class = "drc_Circle"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "greet", "mode", "move", "name", "quiet", "scale", "sides",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "flags", "greet", "mode", "modes", "move", "name", "numbers", "points", "quiet", "scale", "sides", "total", "triple", "words",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -819,6 +1266,13 @@ class Circle(Shape):
             ("add_double_double", "add_double_double", False, _types._director__drc_Circle__add_double_double),
             ("greet", "greet", False, _types._director__drc_Circle__greet),
             ("quiet", "quiet", False, _types._director__drc_Circle__quiet),
+            ("total", "total", False, _types._director__drc_Circle__total),
+            ("numbers", "numbers", False, _types._director__drc_Circle__numbers),
+            ("words", "words", False, _types._director__drc_Circle__words),
+            ("modes", "modes", False, _types._director__drc_Circle__modes),
+            ("points", "points", False, _types._director__drc_Circle__points),
+            ("flags", "flags", False, _types._director__drc_Circle__flags),
+            ("triple", "triple", False, _types._director__drc_Circle__triple),
             ("changed", "changed", False, _types._director__drc_Circle__changed),
         ),
     )
@@ -1088,6 +1542,133 @@ class Circle(Shape):
         _runtime.check(_bind().drc_Circle_director_base_quiet(self._dptr(), _out))
         return _out.value
 
+    def _base_total(self, values):
+        """Calls the implementation of ``int32_t drc::Shape::total(const std::vector<int32_t>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.check(_bind().drc_Circle_director_base_total(
+            self._dptr(),
+            values,
+            values_size,
+            _out,
+        ))
+        return _out.value
+
+    def _base_numbers(self, values):
+        """Calls the implementation of ``std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_int32)()
+        _out_size = ctypes.c_size_t()
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        try:
+            _runtime.check(_bind().drc_Circle_director_base_numbers(
+                self._dptr(),
+                values,
+                values_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_words(self, input):
+        """Calls the implementation of ``std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(_runtime.String)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_string_array(input, "input")
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Circle_director_base_words(
+                self._dptr(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.string_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.decode_all(_out_data)
+
+    def _base_modes(self, wanted):
+        """Calls the implementation of ``std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_uint8)()
+        _out_size = ctypes.c_size_t()
+        wanted = _runtime.to_enum_array(wanted, _types.drc_Mode, ctypes.c_uint8, "wanted")
+        wanted_size = _builtins.len(wanted)
+        try:
+            _runtime.check(_bind().drc_Circle_director_base_modes(
+                self._dptr(),
+                wanted,
+                wanted_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _runtime.enum_results(_types.drc_Mode, _out_data)
+
+    def _base_points(self, list):
+        """Calls the implementation of ``std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(_types._drc_Point)()
+        _out_size = ctypes.c_size_t()
+        list = _runtime.to_struct_array(list, _types._drc_Point, _types._drc_Point__fill, "list")
+        list_size = _builtins.len(list)
+        try:
+            _runtime.check(_bind().drc_Circle_director_base_points(
+                self._dptr(),
+                list,
+                list_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.struct_items(_out, _out_size.value, _types._drc_Point__from_c)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_flags(self, input):
+        """Calls the implementation of ``std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_bool)()
+        _out_size = ctypes.c_size_t()
+        input = _runtime.to_array(input, ctypes.c_bool, "input", _runtime.check_bool)
+        input_size = _builtins.len(input)
+        try:
+            _runtime.check(_bind().drc_Circle_director_base_flags(
+                self._dptr(),
+                input,
+                input_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.drc_free(_out)
+        return _out_data
+
+    def _base_triple(self, values):
+        """Calls the implementation of ``std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = (ctypes.c_double * 3)()
+        values = _runtime.fixed(_runtime.to_array(values, ctypes.c_double, "values", _runtime.check_float), 3, "values")
+        _runtime.check(_bind().drc_Circle_director_base_triple(self._dptr(), values, _out))
+        return _runtime.array_items(_out, 3)
+
     def _base_changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++: not the
         override of an object, which would call this one again."""
@@ -1141,6 +1722,48 @@ class Circle(Shape):
         if self._director is None:
             return _builtins.super(__class__, self).quiet()
         return self._base_quiet()
+
+    def total(self, values):
+        """Wraps ``int32_t drc::Shape::total(const std::vector<int32_t>& values) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).total(values)
+        return self._base_total(values)
+
+    def numbers(self, values):
+        """Wraps ``std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).numbers(values)
+        return self._base_numbers(values)
+
+    def words(self, input):
+        """Wraps ``std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).words(input)
+        return self._base_words(input)
+
+    def modes(self, wanted):
+        """Wraps ``std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).modes(wanted)
+        return self._base_modes(wanted)
+
+    def points(self, list):
+        """Wraps ``std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).points(list)
+        return self._base_points(list)
+
+    def flags(self, input):
+        """Wraps ``std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).flags(input)
+        return self._base_flags(input)
+
+    def triple(self, values):
+        """Wraps ``std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).triple(values)
+        return self._base_triple(values)
 
     def changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++ (protected: only

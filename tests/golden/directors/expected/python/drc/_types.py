@@ -450,6 +450,178 @@ def _director__drc_Shape__quiet(_user_data, _out_result):
 _director__drc_Shape__quiet = _director__drc_Shape__quiet__type(_director__drc_Shape__quiet)
 
 
+_director__drc_Shape__total__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Shape__total(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "total")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'total', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__total = _director__drc_Shape__total__type(_director__drc_Shape__total)
+
+
+_director__drc_Shape__numbers__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Shape__numbers(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "numbers")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('numbers', lambda: _runtime.to_array(_value, ctypes.c_int32, 'numbers', _runtime.check_int)), None, 'numbers')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__numbers = _director__drc_Shape__numbers__type(_director__drc_Shape__numbers)
+
+
+_director__drc_Shape__words__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(_runtime.String), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Shape__words(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "words")
+        if _function is None:
+            return
+        _value = _function(_runtime.decode_all(_runtime.string_items(_arg1, _arg1_size)))
+        _runtime.sink_container(_out_result, _runtime.override_result('words', lambda: _runtime.to_string_array(_value, 'words')), None, 'words')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__words = _director__drc_Shape__words__type(_director__drc_Shape__words)
+
+
+_director__drc_Shape__modes__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Shape__modes(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "modes")
+        if _function is None:
+            return
+        _value = _function(
+            _runtime.enum_results(drc_Mode, _runtime.array_items(_arg1, _arg1_size))
+        )
+        _runtime.sink_container(_out_result, _runtime.override_result('modes', lambda: _runtime.to_enum_array(_value, drc_Mode, ctypes.c_uint8, 'modes')), None, 'modes')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__modes = _director__drc_Shape__modes__type(_director__drc_Shape__modes)
+
+
+_director__drc_Shape__points__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(_drc_Point), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Shape__points(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "points")
+        if _function is None:
+            return
+        _value = _function(_runtime.struct_items(_arg1, _arg1_size, _drc_Point__from_c))
+        _runtime.sink_container(_out_result, _runtime.override_result('points', lambda: _runtime.to_struct_array(_value, _drc_Point, _drc_Point__fill, 'points')), None, 'points')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__points = _director__drc_Shape__points__type(_director__drc_Shape__points)
+
+
+_director__drc_Shape__flags__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Shape__flags(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "flags")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('flags', lambda: _runtime.to_array(_value, ctypes.c_bool, 'flags', _runtime.check_bool)), None, 'flags')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__flags = _director__drc_Shape__flags__type(_director__drc_Shape__flags)
+
+
+_director__drc_Shape__triple__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_void_p)
+
+
+def _director__drc_Shape__triple(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "triple")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, 3))
+        _runtime.sink_container(_out_result, _runtime.override_result('triple', lambda: _runtime.to_array(_value, ctypes.c_double, 'triple', _runtime.check_float)), 3, 'triple')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__triple = _director__drc_Shape__triple__type(_director__drc_Shape__triple)
+
+
 _director__drc_Shape__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32)
 
 
@@ -490,6 +662,13 @@ class _drc_Shape_vtable(ctypes.Structure):
         ("add_double_double", _director__drc_Shape__add_double_double__type),
         ("greet", _director__drc_Shape__greet__type),
         ("quiet", _director__drc_Shape__quiet__type),
+        ("total", _director__drc_Shape__total__type),
+        ("numbers", _director__drc_Shape__numbers__type),
+        ("words", _director__drc_Shape__words__type),
+        ("modes", _director__drc_Shape__modes__type),
+        ("points", _director__drc_Shape__points__type),
+        ("flags", _director__drc_Shape__flags__type),
+        ("triple", _director__drc_Shape__triple__type),
         ("changed", _director__drc_Shape__changed__type),
     ]
 
@@ -780,6 +959,178 @@ def _director__drc_Circle__quiet(_user_data, _out_result):
 _director__drc_Circle__quiet = _director__drc_Circle__quiet__type(_director__drc_Circle__quiet)
 
 
+_director__drc_Circle__total__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Circle__total(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "total")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'total', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__total = _director__drc_Circle__total__type(_director__drc_Circle__total)
+
+
+_director__drc_Circle__numbers__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Circle__numbers(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "numbers")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('numbers', lambda: _runtime.to_array(_value, ctypes.c_int32, 'numbers', _runtime.check_int)), None, 'numbers')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__numbers = _director__drc_Circle__numbers__type(_director__drc_Circle__numbers)
+
+
+_director__drc_Circle__words__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(_runtime.String), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Circle__words(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "words")
+        if _function is None:
+            return
+        _value = _function(_runtime.decode_all(_runtime.string_items(_arg1, _arg1_size)))
+        _runtime.sink_container(_out_result, _runtime.override_result('words', lambda: _runtime.to_string_array(_value, 'words')), None, 'words')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__words = _director__drc_Circle__words__type(_director__drc_Circle__words)
+
+
+_director__drc_Circle__modes__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Circle__modes(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "modes")
+        if _function is None:
+            return
+        _value = _function(
+            _runtime.enum_results(drc_Mode, _runtime.array_items(_arg1, _arg1_size))
+        )
+        _runtime.sink_container(_out_result, _runtime.override_result('modes', lambda: _runtime.to_enum_array(_value, drc_Mode, ctypes.c_uint8, 'modes')), None, 'modes')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__modes = _director__drc_Circle__modes__type(_director__drc_Circle__modes)
+
+
+_director__drc_Circle__points__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(_drc_Point), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Circle__points(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "points")
+        if _function is None:
+            return
+        _value = _function(_runtime.struct_items(_arg1, _arg1_size, _drc_Point__from_c))
+        _runtime.sink_container(_out_result, _runtime.override_result('points', lambda: _runtime.to_struct_array(_value, _drc_Point, _drc_Point__fill, 'points')), None, 'points')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__points = _director__drc_Circle__points__type(_director__drc_Circle__points)
+
+
+_director__drc_Circle__flags__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__drc_Circle__flags(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "flags")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('flags', lambda: _runtime.to_array(_value, ctypes.c_bool, 'flags', _runtime.check_bool)), None, 'flags')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__flags = _director__drc_Circle__flags__type(_director__drc_Circle__flags)
+
+
+_director__drc_Circle__triple__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_double), ctypes.c_void_p)
+
+
+def _director__drc_Circle__triple(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "triple")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, 3))
+        _runtime.sink_container(_out_result, _runtime.override_result('triple', lambda: _runtime.to_array(_value, ctypes.c_double, 'triple', _runtime.check_float)), 3, 'triple')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__triple = _director__drc_Circle__triple__type(_director__drc_Circle__triple)
+
+
 _director__drc_Circle__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32)
 
 
@@ -820,6 +1171,13 @@ class _drc_Circle_vtable(ctypes.Structure):
         ("add_double_double", _director__drc_Circle__add_double_double__type),
         ("greet", _director__drc_Circle__greet__type),
         ("quiet", _director__drc_Circle__quiet__type),
+        ("total", _director__drc_Circle__total__type),
+        ("numbers", _director__drc_Circle__numbers__type),
+        ("words", _director__drc_Circle__words__type),
+        ("modes", _director__drc_Circle__modes__type),
+        ("points", _director__drc_Circle__points__type),
+        ("flags", _director__drc_Circle__flags__type),
+        ("triple", _director__drc_Circle__triple__type),
         ("changed", _director__drc_Circle__changed__type),
     ]
 
