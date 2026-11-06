@@ -14,8 +14,10 @@ extern "C" {
  * A NULL member of the vtable keeps the implementation of the class; the
  * members of its pure virtual methods must be set. The functions run on whatever
  * thread C++ calls the method, may be called many times and must not throw nor
- * longjmp. A result is written through the last parameter, which is value-initialized
- * beforehand. user_data is passed to every function; release(user_data) is called once, when
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with dr1_Base_destroy() of its object).
  */
 typedef struct dr1_Base_director dr1_Base_director;
@@ -55,8 +57,10 @@ typedef struct dr1_Base_vtable {
  * A NULL member of the vtable keeps the implementation of the class; the
  * members of its pure virtual methods must be set. The functions run on whatever
  * thread C++ calls the method, may be called many times and must not throw nor
- * longjmp. A result is written through the last parameter, which is value-initialized
- * beforehand. user_data is passed to every function; release(user_data) is called once, when
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with dr1_Derived_destroy() of its object).
  */
 typedef struct dr1_Derived_director dr1_Derived_director;

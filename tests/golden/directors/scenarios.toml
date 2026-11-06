@@ -151,3 +151,13 @@ steps = [
   { call = "k.call_numbers", args = [[1]], error = "override", message = "no numbers" },
   { call = "k.call_total", args = [[1, 2]], expect = 3 },
 ]
+
+[[scenario]]
+name = "arrays and enums reach the override as they are"
+steps = [
+  { derive = "shape.Shape", named = "Echo", overrides = { area = { returns = 1.0 }, triple = { argument = 0 }, modes = { argument = 0 } } },
+  { new = "Echo", overload = "_void", as = "e" },
+  { call = "e.call_triple", args = [[1.0, 2.0, 3.0]], expect = [1.0, 2.0, 3.0] },
+  { call = "e.call_triple", args = [[9.0, 8.0, 7.0]], expect = [9.0, 8.0, 7.0] },
+  { call = "e.call_modes", args = [[{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }]], expect = [{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }] },
+]
