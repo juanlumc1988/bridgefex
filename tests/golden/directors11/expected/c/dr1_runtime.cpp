@@ -156,7 +156,7 @@ extern "C" const char* dr1_last_error(void)
 
 extern "C" const char* dr1_api_fingerprint(void)
 {
-    return "25c73bb4b7f102c6885f0ae66f51b8ee";
+    return "5f194a9431cd0aa03aef5f84d8ebeff2";
 }
 
 extern "C" void dr1_free(void* memory)

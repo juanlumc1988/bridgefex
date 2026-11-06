@@ -516,6 +516,16 @@ static void shape_numbers_wrong_size(void* user_data, const int32_t* values, siz
     drc_vector_sink_set(NULL, values, size, sizeof values[0]);       /* ignored */
 }
 
+static void shape_flags_raw(void* user_data, const bool* input, size_t size,
+                            drc_vector_sink* out_result)
+{
+    (void)user_data;
+    (void)input;
+    (void)size;
+    const unsigned char raw[3] = {0, 1, 2}; /* not a bool: it is read as true */
+    drc_vector_sink_set(out_result, raw, 3, 1);
+}
+
 static void check_containers(void)
 {
     state user;
@@ -583,12 +593,18 @@ static void check_containers(void)
     /* A container that is not what the result is: the empty one, or the zero array. */
     vtable.triple = shape_triple_short;
     vtable.numbers = shape_numbers_wrong_size;
+    vtable.flags = shape_flags_raw;
     drc_Shape_director* other_director = NULL;
     drc_Shape* other = NULL;
     check(drc_Shape_director_create_void(&other, &other_director, &vtable) == DRC_OK, "create");
     check(drc_Shape_call_triple(other, triple, out) == DRC_OK && out[0] == 0.0 && out[1] == 0.0 &&
               out[2] == 0.0,
           "an array of another size is the zero array");
+    check(drc_Shape_call_flags(other, flags, 3, &back, &count) == DRC_OK && count == 3 &&
+              ((unsigned char*)back)[0] == 0 && ((unsigned char*)back)[1] == 1 &&
+              ((unsigned char*)back)[2] == 1,
+          "a byte of a bool that is neither 0 nor 1 is true");
+    drc_free(back);
     check(drc_Shape_call_numbers(other, values, 3, &numbers, &count) == DRC_OK && count == 0,
           "elements of another size are ignored");
     drc_free(numbers);

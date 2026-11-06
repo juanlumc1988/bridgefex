@@ -144,7 +144,8 @@ DR1_API void dr1_string_sink_set(dr1_string_sink* sink, const char* data, size_t
  * result of a virtual method that another language overrides): call it once, from that
  * function, with 'count' elements of 'element_size' bytes at 'data', laid out as the C
  * type of the element is (a scalar, an enum or a struct of the C API). They are copied
- * before it returns, so the caller keeps the memory. Elements of another size than the
+ * before it returns, so the caller keeps the memory. The sink is only valid during that
+ * function: do not keep it. Elements of another size than the
  * type of the result, a count that overflows, and NULL, are ignored; not calling it gives
  * the empty container (an array: the zero array, also when 'count' is not its size).
  */

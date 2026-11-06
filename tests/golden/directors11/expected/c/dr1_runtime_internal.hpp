@@ -315,6 +315,14 @@ CType sink_item(const dr1_vector_sink& sink, size_t index)
     return item;
 }
 
+// A bool is read from its byte: any other byte than 0 is true, instead of a bool that
+// is neither.
+template <>
+inline bool sink_item<bool>(const dr1_vector_sink& sink, size_t index)
+{
+    return sink.bytes[index] != 0;
+}
+
 template <typename Vector, typename CType, typename Convert>
 Vector sink_elements(const dr1_vector_sink& sink, Convert convert)
 {
