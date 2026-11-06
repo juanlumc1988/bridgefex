@@ -681,7 +681,9 @@ for key, (args, why, value, error) in bad_results.items():
         try:
             getattr(bad, f"call_{name}")(args)
         except error as raised:
-            assert name in str(raised) or any(name in note for note in raised.__notes__), (
+            assert f"override {name!r}" in str(raised) or any(
+                name in note for note in raised.__notes__
+            ), (
                 why,
                 raised,
             )

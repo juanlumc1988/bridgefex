@@ -1393,8 +1393,10 @@ def override_result(name, make):
 def sink_container(sink, array, length=None, name=""):
     """Give the container that an override returns to the sink of the vtable function:
     a ctypes array of C elements, or of strings (``length``: the size of a std::array)."""
-    if length is not None:
-        fixed(array, length, name)
+    if length is not None and len(array) != length:
+        raise ValueError(
+            f"the result of the override {name!r} must have {length} elements, got {len(array)}"
+        )
     if getattr(array, "_type_", None) is StringIn:
         _library.{{ m.vector_sink_set_strings }}(sink, array, len(array))
     else:
