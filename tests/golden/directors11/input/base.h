@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace dr1 {
 
@@ -33,9 +34,12 @@ public:
     virtual double value(double x) const;
     virtual bool flag(bool on) const;
     virtual std::uint64_t big(std::int64_t x, float f, std::uint8_t byte) const;
+    // Containers, with the integers that are 64 bits wide on a 32-bit target too.
+    virtual std::vector<std::int64_t> series(const std::vector<std::uint8_t>& bytes) const;
     std::string show() const;
     bool show_flag(bool on) const;
     std::uint64_t show_big(std::int64_t x, float f, std::uint8_t byte) const;
+    std::vector<std::int64_t> show_series(const std::vector<std::uint8_t>& bytes) const;
     Tagged show_tagged() const;
     Kind show_kind(Kind requested) const;
     std::int32_t seed() const;

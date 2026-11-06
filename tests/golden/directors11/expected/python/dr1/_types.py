@@ -399,6 +399,30 @@ def _director__dr1_Base__big(_user_data, _arg1, _arg2, _arg3, _out_result):
 _director__dr1_Base__big = _director__dr1_Base__big__type(_director__dr1_Base__big)
 
 
+_director__dr1_Base__series__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__dr1_Base__series(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "series")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('series', lambda: _runtime.to_array(_value, ctypes.c_int64, 'series', _runtime.check_int)), None, 'series')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Base__series = _director__dr1_Base__series__type(_director__dr1_Base__series)
+
+
 _director__dr1_Base__hook__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
@@ -437,6 +461,7 @@ class _dr1_Base_vtable(ctypes.Structure):
         ("value_double", _director__dr1_Base__value_double__type),
         ("flag", _director__dr1_Base__flag__type),
         ("big", _director__dr1_Base__big__type),
+        ("series", _director__dr1_Base__series__type),
         ("hook", _director__dr1_Base__hook__type),
     ]
 
@@ -671,6 +696,30 @@ def _director__dr1_Derived__big(_user_data, _arg1, _arg2, _arg3, _out_result):
 _director__dr1_Derived__big = _director__dr1_Derived__big__type(_director__dr1_Derived__big)
 
 
+_director__dr1_Derived__series__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.c_void_p)
+
+
+def _director__dr1_Derived__series(_user_data, _arg1, _arg1_size, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "series")
+        if _function is None:
+            return
+        _value = _function(_runtime.array_items(_arg1, _arg1_size))
+        _runtime.sink_container(_out_result, _runtime.override_result('series', lambda: _runtime.to_array(_value, ctypes.c_int64, 'series', _runtime.check_int)), None, 'series')
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__dr1_Derived__series = _director__dr1_Derived__series__type(_director__dr1_Derived__series)
+
+
 _director__dr1_Derived__hook__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
 
@@ -709,5 +758,6 @@ class _dr1_Derived_vtable(ctypes.Structure):
         ("value_double", _director__dr1_Derived__value_double__type),
         ("flag", _director__dr1_Derived__flag__type),
         ("big", _director__dr1_Derived__big__type),
+        ("series", _director__dr1_Derived__series__type),
         ("hook", _director__dr1_Derived__hook__type),
     ]

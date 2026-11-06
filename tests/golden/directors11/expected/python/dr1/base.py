@@ -53,12 +53,16 @@ def _bind():
             lib.dr1_Base_flag.restype = _runtime.Status
             lib.dr1_Base_big.argtypes = [_types._dr1_Base__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
             lib.dr1_Base_big.restype = _runtime.Status
+            lib.dr1_Base_series.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int64)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.dr1_Base_series.restype = _runtime.Status
             lib.dr1_Base_show.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.dr1_Base_show.restype = _runtime.Status
             lib.dr1_Base_show_flag.argtypes = [_types._dr1_Base__p, ctypes.c_bool, ctypes.POINTER(ctypes.c_bool)]
             lib.dr1_Base_show_flag.restype = _runtime.Status
             lib.dr1_Base_show_big.argtypes = [_types._dr1_Base__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
             lib.dr1_Base_show_big.restype = _runtime.Status
+            lib.dr1_Base_show_series.argtypes = [_types._dr1_Base__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int64)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.dr1_Base_show_series.restype = _runtime.Status
             lib.dr1_Base_show_tagged.argtypes = [_types._dr1_Base__p, ctypes.POINTER(_types._dr1_Tagged)]
             lib.dr1_Base_show_tagged.restype = _runtime.Status
             lib.dr1_Base_show_kind.argtypes = [_types._dr1_Base__p, ctypes.c_int, ctypes.POINTER(ctypes.c_int)]
@@ -99,6 +103,8 @@ def _bind():
             lib.dr1_Base_director_base_flag.restype = _runtime.Status
             lib.dr1_Base_director_base_big.argtypes = [_types._dr1_Base_director__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
             lib.dr1_Base_director_base_big.restype = _runtime.Status
+            lib.dr1_Base_director_base_series.argtypes = [_types._dr1_Base_director__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int64)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.dr1_Base_director_base_series.restype = _runtime.Status
             lib.dr1_Base_director_base_hook.argtypes = [_types._dr1_Base_director__p]
             lib.dr1_Base_director_base_hook.restype = _runtime.Status
             lib.dr1_Derived_director_create.argtypes = [ctypes.POINTER(_types._dr1_Derived__p), ctypes.POINTER(_types._dr1_Derived_director__p), ctypes.POINTER(_types._dr1_Derived_vtable)]
@@ -123,6 +129,8 @@ def _bind():
             lib.dr1_Derived_director_base_flag.restype = _runtime.Status
             lib.dr1_Derived_director_base_big.argtypes = [_types._dr1_Derived_director__p, ctypes.c_int64, ctypes.c_float, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint64)]
             lib.dr1_Derived_director_base_big.restype = _runtime.Status
+            lib.dr1_Derived_director_base_series.argtypes = [_types._dr1_Derived_director__p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_size_t, ctypes.POINTER(ctypes.POINTER(ctypes.c_int64)), ctypes.POINTER(ctypes.c_size_t)]
+            lib.dr1_Derived_director_base_series.restype = _runtime.Status
             lib.dr1_Derived_director_base_hook.argtypes = [_types._dr1_Derived_director__p]
             lib.dr1_Derived_director_base_hook.restype = _runtime.Status
             _lib = lib
@@ -141,7 +149,7 @@ class Base(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "dr1_Base"
-    _virtual_names = ("big", "flag", "hook", "kind", "pair", "tagged", "text", "touch", "value", "value_double", "value_int32",)
+    _virtual_names = ("big", "flag", "hook", "kind", "pair", "series", "tagged", "text", "touch", "value", "value_double", "value_int32",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -158,6 +166,7 @@ class Base(_runtime.Object):
             ("value_double", "value_double", False, _types._director__dr1_Base__value_double),
             ("flag", "flag", False, _types._director__dr1_Base__flag),
             ("big", "big", False, _types._director__dr1_Base__big),
+            ("series", "series", False, _types._director__dr1_Base__series),
             ("hook", "hook", False, _types._director__dr1_Base__hook),
         ),
     )
@@ -433,6 +442,27 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_director_base_big(self._dptr(), x, f, byte, _out))
         return _out.value
 
+    def _base_series(self, bytes):
+        """Calls the implementation of ``std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_int64)()
+        _out_size = ctypes.c_size_t()
+        bytes = _runtime.to_array(bytes, ctypes.c_uint8, "bytes", _runtime.check_int, True)
+        bytes_size = _builtins.len(bytes)
+        try:
+            _runtime.check(_bind().dr1_Base_director_base_series(
+                self._dptr(),
+                bytes,
+                bytes_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.dr1_free(_out)
+        return _out_data
+
     def _base_hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++: not the
         override of an object, which would call this one again."""
@@ -541,6 +571,28 @@ class Base(_runtime.Object):
         _runtime.check(_bind().dr1_Base_big(self._ptr_dr1_Base(), x, f, byte, _out))
         return _out.value
 
+    def series(self, bytes):
+        """Wraps ``std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const``."""
+        if self._director is not None:
+            return self._base_series(bytes)
+        _out = ctypes.POINTER(ctypes.c_int64)()
+        _out_size = ctypes.c_size_t()
+        bytes = _runtime.to_array(bytes, ctypes.c_uint8, "bytes", _runtime.check_int, True)
+        bytes_size = _builtins.len(bytes)
+        try:
+            _runtime.check(_bind().dr1_Base_series(
+                self._ptr_dr1_Base(),
+                bytes,
+                bytes_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.dr1_free(_out)
+        return _out_data
+
     def show(self):
         """Wraps ``std::string dr1::Base::show() const``."""
         _out = ctypes.c_void_p()
@@ -568,6 +620,26 @@ class Base(_runtime.Object):
         byte = _runtime.to_int(byte, ctypes.c_uint8, "byte")
         _runtime.check(_bind().dr1_Base_show_big(self._ptr_dr1_Base(), x, f, byte, _out))
         return _out.value
+
+    def show_series(self, bytes):
+        """Wraps ``std::vector<int64_t> dr1::Base::show_series(const std::vector<uint8_t>& bytes) const``."""
+        _out = ctypes.POINTER(ctypes.c_int64)()
+        _out_size = ctypes.c_size_t()
+        bytes = _runtime.to_array(bytes, ctypes.c_uint8, "bytes", _runtime.check_int, True)
+        bytes_size = _builtins.len(bytes)
+        try:
+            _runtime.check(_bind().dr1_Base_show_series(
+                self._ptr_dr1_Base(),
+                bytes,
+                bytes_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.dr1_free(_out)
+        return _out_data
 
     def show_tagged(self):
         """Wraps ``dr1::Tagged dr1::Base::show_tagged() const``."""
@@ -601,7 +673,7 @@ class Derived(Base):
 
     __slots__ = ()
     _cxx_class = "dr1_Derived"
-    _virtual_names = ("big", "flag", "hook", "kind", "pair", "tagged", "text", "touch", "value_double", "value_int32",)
+    _virtual_names = ("big", "flag", "hook", "kind", "pair", "series", "tagged", "text", "touch", "value_double", "value_int32",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -618,6 +690,7 @@ class Derived(Base):
             ("value_double", "value_double", False, _types._director__dr1_Derived__value_double),
             ("flag", "flag", False, _types._director__dr1_Derived__flag),
             ("big", "big", False, _types._director__dr1_Derived__big),
+            ("series", "series", False, _types._director__dr1_Derived__series),
             ("hook", "hook", False, _types._director__dr1_Derived__hook),
         ),
     )
@@ -854,6 +927,27 @@ class Derived(Base):
         _runtime.check(_bind().dr1_Derived_director_base_big(self._dptr(), x, f, byte, _out))
         return _out.value
 
+    def _base_series(self, bytes):
+        """Calls the implementation of ``std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.POINTER(ctypes.c_int64)()
+        _out_size = ctypes.c_size_t()
+        bytes = _runtime.to_array(bytes, ctypes.c_uint8, "bytes", _runtime.check_int, True)
+        bytes_size = _builtins.len(bytes)
+        try:
+            _runtime.check(_bind().dr1_Derived_director_base_series(
+                self._dptr(),
+                bytes,
+                bytes_size,
+                _out,
+                _out_size,
+            ))
+            _out_data = _runtime.array_items(_out, _out_size.value)
+        finally:
+            if _out:
+                _lib.dr1_free(_out)
+        return _out_data
+
     def _base_hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++: not the
         override of an object, which would call this one again."""
@@ -906,6 +1000,12 @@ class Derived(Base):
         if self._director is None:
             return _builtins.super(__class__, self).big(x, f, byte)
         return self._base_big(x, f, byte)
+
+    def series(self, bytes):
+        """Wraps ``std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).series(bytes)
+        return self._base_series(bytes)
 
     def hook(self):
         """Calls the implementation of ``void dr1::Base::hook()`` in C++ (protected: only

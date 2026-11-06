@@ -42,6 +42,8 @@ typedef struct dr1_Base_vtable {
     void (*flag)(void*, bool, bool*);
     /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
     void (*big)(void*, int64_t, float, uint8_t, uint64_t*);
+    /* std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const */
+    void (*series)(void*, const uint8_t*, size_t, dr1_vector_sink*);
     /* void dr1::Base::hook() */
     void (*hook)(void*);
 } dr1_Base_vtable;
@@ -81,6 +83,8 @@ typedef struct dr1_Derived_vtable {
     void (*flag)(void*, bool, bool*);
     /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
     void (*big)(void*, int64_t, float, uint8_t, uint64_t*);
+    /* std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const */
+    void (*series)(void*, const uint8_t*, size_t, dr1_vector_sink*);
     /* void dr1::Base::hook() */
     void (*hook)(void*);
 } dr1_Derived_vtable;
@@ -122,6 +126,9 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_flag(const dr1_Base* self, bool on, bo
 /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result);
 
+/* std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_series(const dr1_Base* self, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size);
+
 /* std::string dr1::Base::show() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_result_size);
 
@@ -130,6 +137,9 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_show_flag(const dr1_Base* self, bool o
 
 /* uint64_t dr1::Base::show_big(int64_t x, float f, uint8_t byte) const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, uint64_t* out_result);
+
+/* std::vector<int64_t> dr1::Base::show_series(const std::vector<uint8_t>& bytes) const */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_show_series(const dr1_Base* self, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size);
 
 /* dr1::Tagged dr1::Base::show_tagged() const */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_show_tagged(const dr1_Base* self, dr1_Tagged* out_result);
@@ -202,6 +212,10 @@ DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_flag(dr1_Base_director* 
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_big(dr1_Base_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result);
 
+/* std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_series(dr1_Base_director* director, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size);
+
 /* void dr1::Base::hook()
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Base_director_base_hook(dr1_Base_director* director);
@@ -248,6 +262,10 @@ DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_flag(dr1_Derived_dire
 /* uint64_t dr1::Base::big(int64_t x, float f, uint8_t byte) const
  * calls the implementation of the class, without going through the vtable */
 DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_big(dr1_Derived_director* director, int64_t x, float f, uint8_t byte, uint64_t* out_result);
+
+/* std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const
+ * calls the implementation of the class, without going through the vtable */
+DR1_NODISCARD DR1_API dr1_status dr1_Derived_director_base_series(dr1_Derived_director* director, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size);
 
 /* void dr1::Base::hook()
  * calls the implementation of the class, without going through the vtable */
