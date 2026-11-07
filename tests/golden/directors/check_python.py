@@ -554,37 +554,34 @@ class Quick(shape.Shape):
 
 
 def signals_stress():
-    armed = [True]
+    # The handler raises only while the test is inside its try, and only once each time it
+    # enters it: a signal can never arrive where nothing catches it (between the end of a
+    # try and the next statement, in an except clause...).
+    inside = [False]
+    interrupted = [0]
 
     def interrupt(signum, frame):
-        if armed[0]:
+        if inside[0]:
+            inside[0] = False
+            interrupted[0] += 1
             raise KeyboardInterrupt
 
     signal.signal(signal.SIGALRM, interrupt)
     objects = [Quick.create_void() for _ in range(8)]
-    interrupted = 0
     deadline = time.monotonic() + 0.7
     signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
-    try:
-        finished = False
-        while not finished:
-            try:
-                while time.monotonic() < deadline:
-                    for quick in objects:
-                        quick.describe()
-                finished = True
-            except KeyboardInterrupt:
-                interrupted += 1
-    finally:
-        # A signal that is already pending may still interrupt this, until the timer is stopped
-        # and the handler stops raising (it stays installed: a pending signal finds it).
-        while armed[0]:
-            try:
-                armed[0] = False
-                signal.setitimer(signal.ITIMER_REAL, 0, 0)
-            except KeyboardInterrupt:
-                interrupted += 1
-    assert interrupted > 0, "no signal arrived"
+    while True:
+        try:
+            inside[0] = True
+            while time.monotonic() < deadline:
+                for quick in objects:
+                    quick.describe()
+            inside[0] = False
+            break
+        except KeyboardInterrupt:
+            pass
+    signal.setitimer(signal.ITIMER_REAL, 0, 0)
+    assert interrupted[0] > 0, "no signal arrived"
     for quick in objects:
         assert quick._director.running == {}
         quick.close()
