@@ -8,10 +8,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...model import EnumRef, ScalarType, StringKind, StringType, StructRef, TypeCategory
+from ...model import (
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringKind,
+    StringType,
+    StructRef,
+    TypeCategory,
+)
 from ...plan import CallbackPart, CallbackSpec
 from .ffi import ctypes_scalar
-from .lower import callback_thunk_name, enum_ctypes
+from .lower import callback_thunk_name, element, enum_ctypes
 from .model import python_call
 
 # Callback thunks ---------------------------------------------------------------
@@ -48,6 +57,11 @@ class PyThunk:
         return f"{self.name}__type"
 
 
+def _in_types(code: str) -> str:
+    """Code of the header modules (``_types.X``) as ``_types.py`` itself writes it."""
+    return code.replace("_types.", "")
+
+
 def _thunk_argument(part: CallbackPart, local: str) -> tuple[list[str], list[str], str]:
     """(the ctypes types, the Python parameters, the Python value) of an argument."""
     type_ = part.type
@@ -70,6 +84,17 @@ def _thunk_argument(part: CallbackPart, local: str) -> tuple[list[str], list[str
         assert part.struct is not None
         mirror = f"_{part.struct.c_type}"
         return [f"ctypes.POINTER({mirror})"], [local], f"{mirror}__from_c({local}.contents)"
+    if isinstance(type_, ContainerType):
+        assert part.element is not None
+        py = element(part.element)
+        pointer = f"ctypes.POINTER({_in_types(py.ctypes_out)})"
+        if type_.kind is ContainerKind.ARRAY:
+            size, types, names = str(type_.length), [pointer], [local]
+        else:
+            size = f"{local}_size"
+            types, names = [pointer, "ctypes.c_size_t"], [local, size]
+        items = f"{py.py_read}({local}, {size}{_in_types(py.read_extra)})"
+        return types, names, _in_types(py.py_value.replace("{data}", items))
     assert isinstance(type_, ScalarType)
     return [f"ctypes.{ctypes_scalar(type_.c_name)}"], [local], local
 
@@ -191,6 +216,18 @@ def director_thunk(c_type: str, field: str, method: str, callback: CallbackSpec)
         ctypes_args.append("ctypes.c_void_p")
         params.append("_out_result")
         statement = f"_runtime.sink_set(_out_result, _value, {name})"
+    elif isinstance(result.type, ContainerType):
+        assert result.element is not None
+        ctypes_args.append("ctypes.c_void_p")
+        params.append("_out_result")
+        make = _in_types(
+            element(result.element).py_in.replace('"{name}"', name).replace("{name}", "_value")
+        )
+        length = result.type.length if result.type.kind is ContainerKind.ARRAY else None
+        statement = (
+            "_runtime.sink_container(_out_result, "
+            f"_runtime.override_result({name}, lambda: {make}), {length}, {name})"
+        )
     elif isinstance(result.type, StructRef):
         assert result.struct is not None
         mirror = f"_{result.struct.c_type}"

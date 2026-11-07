@@ -63,6 +63,9 @@ typedef struct dr1_string {
 /* The string that a function of a vtable gives back: see dr1_string_sink_set(). */
 typedef struct dr1_string_sink dr1_string_sink;
 
+/* The elements of a container that a function of a vtable gives back: see dr1_vector_sink_set(). */
+typedef struct dr1_vector_sink dr1_vector_sink;
+
 /* Success. */
 #define DR1_OK 0
 /* The C++ code threw a std::exception; dr1_last_error() has its what(). */
@@ -135,6 +138,21 @@ DR1_API void dr1_enable_callbacks(void (*release)(void*));
  * string. NULL is ignored.
  */
 DR1_API void dr1_string_sink_set(dr1_string_sink* sink, const char* data, size_t size);
+
+/*
+ * Gives the container that a function of a vtable returns (a std::vector or std::array
+ * result of a virtual method that another language overrides): call it once, from that
+ * function, with 'count' elements of 'element_size' bytes at 'data', laid out as the C
+ * type of the element is (a scalar, an enum or a struct of the C API). They are copied
+ * before it returns, so the caller keeps the memory. The sink is only valid during that
+ * function: do not keep it. Elements of another size than the
+ * type of the result, a count that overflows, and NULL, are ignored; not calling it gives
+ * the empty container (an array: the zero array, also when 'count' is not its size).
+ */
+DR1_API void dr1_vector_sink_set(dr1_vector_sink* sink, const void* data, size_t count, size_t element_size);
+
+/* The same for a container of strings: 'count' entries, each with 'size' bytes at 'data'. */
+DR1_API void dr1_vector_sink_set_strings(dr1_vector_sink* sink, const dr1_string* items, size_t count);
 
 #ifdef __cplusplus
 }

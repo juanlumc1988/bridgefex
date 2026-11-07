@@ -4,6 +4,7 @@
 // value structs, overloads, noexcept, and the constructors of a base class.
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -12,6 +13,8 @@
 #include <vector>
 
 namespace drc {
+
+class Holder;
 
 enum class Mode : std::uint8_t { Off, On, Auto = 5 };
 
@@ -40,8 +43,17 @@ public:
     virtual double add(double a, double b) const;
     virtual std::string greet(const std::string& who, std::string_view tag, const char* mark) const;
     virtual std::int32_t quiet() const noexcept;
-    // Not overridable from another language (yet): the C++ implementation is kept.
+    // Containers, in both directions.
     virtual std::int32_t total(const std::vector<std::int32_t>& values) const;
+    virtual std::vector<std::int32_t> numbers(const std::vector<std::int32_t>& values) const;
+    virtual std::vector<std::string> words(std::vector<std::string> input) const;
+    virtual std::vector<Mode> modes(const std::vector<Mode>& wanted) const;
+    virtual std::vector<Point> points(const std::vector<Point>& list) const;
+    virtual std::vector<bool> flags(const std::vector<bool>& input) const;
+    virtual std::array<double, 3> triple(const std::array<double, 3>& values) const;
+    // Not overridable from another language (yet): a class as a parameter, so the C++
+    // implementation is kept.
+    virtual std::int32_t peek(const Holder& holder) const;
     // Cannot be overridden at all.
     virtual std::int32_t fixed() const final;
 
@@ -50,6 +62,14 @@ public:
     double scaled_area(double factor);
     Point middle(const Point& other) const;
     Point call_move(Point by) const;
+    std::int32_t call_total(const std::vector<std::int32_t>& values) const;
+    std::vector<std::int32_t> call_numbers(const std::vector<std::int32_t>& values) const;
+    std::vector<std::string> call_words(const std::vector<std::string>& input) const;
+    std::vector<Mode> call_modes(const std::vector<Mode>& wanted) const;
+    std::vector<Point> call_points(const std::vector<Point>& list) const;
+    std::vector<bool> call_flags(const std::vector<bool>& input) const;
+    std::array<double, 3> call_triple(const std::array<double, 3>& values) const;
+    std::int32_t call_peek(const Holder& holder) const;
     Mode choose(Mode requested) const;
     std::string welcome(const std::string& who) const;
     std::int32_t sum(std::int32_t a, std::int32_t b) const;

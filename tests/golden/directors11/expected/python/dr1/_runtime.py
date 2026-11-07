@@ -16,7 +16,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "DR1_LIBRARY"
 
-API_FINGERPRINT = "159052f510105a65212d5fe49767e5a4"
+API_FINGERPRINT = "f79fa307460bad6f2ed35d82920b4179"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -150,6 +150,19 @@ def load(path=None):
         library.dr1_enable_callbacks.restype = None
         library.dr1_string_sink_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
         library.dr1_string_sink_set.restype = None
+        library.dr1_vector_sink_set.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+        ]
+        library.dr1_vector_sink_set.restype = None
+        library.dr1_vector_sink_set_strings.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
+        library.dr1_vector_sink_set_strings.restype = None
         # An earlier interpreter of the process may have disabled a release
         # function at the address of this one (ctypes reuses freed closures).
         library.dr1_enable_callbacks(release)
@@ -1350,6 +1363,29 @@ def sink_set(sink, value, name):
         error.add_note(f"(the result of the override {name!r})")
         raise
     _library.dr1_string_sink_set(sink, data, len(data))
+
+
+def override_result(name, make):
+    """What ``make()`` builds from the result of an override; its errors say whose
+    result it was."""
+    try:
+        return make()
+    except (TypeError, ValueError, OverflowError) as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
+
+
+def sink_container(sink, array, length=None, name=""):
+    """Give the container that an override returns to the sink of the vtable function:
+    a ctypes array of C elements, or of strings (``length``: the size of a std::array)."""
+    if length is not None and len(array) != length:
+        raise ValueError(
+            f"the result of the override {name!r} must have {length} elements, got {len(array)}"
+        )
+    if getattr(array, "_type_", None) is StringIn:
+        _library.dr1_vector_sink_set_strings(sink, array, len(array))
+    else:
+        _library.dr1_vector_sink_set(sink, array, len(array), ctypes.sizeof(array._type_))
 
 
 def _disable_callbacks():

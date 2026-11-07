@@ -29,6 +29,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <array>
 #include <functional>
 #include <memory>
 
@@ -204,6 +205,116 @@ public:
         return _result;
     }
 
+    int32_t total(const ::std::vector<int32_t>& _arg1) const override
+    {
+        if (vt_.total == nullptr || ref_.disabled()) {
+            return ::drc::Shape::total(_arg1);
+        }
+        int32_t _result{};
+        vt_.total(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        return _result;
+    }
+
+    ::std::vector<int32_t> numbers(const ::std::vector<int32_t>& _arg1) const override
+    {
+        if (vt_.numbers == nullptr || ref_.disabled()) {
+            return ::drc::Shape::numbers(_arg1);
+        }
+        drc_vector_sink _result;
+        vt_.numbers(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<int32_t>, int32_t>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<int32_t>();
+        }
+    }
+
+    ::std::vector<std::string> words(::std::vector<std::string> _arg1) const override
+    {
+        if (vt_.words == nullptr || ref_.disabled()) {
+            return ::drc::Shape::words(_arg1);
+        }
+        const auto _elements1 = drc_detail::strings_out<drc_string>(_arg1);
+        drc_vector_sink _result;
+        vt_.words(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_strings<::std::vector<std::string>>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<std::string>();
+        }
+    }
+
+    ::std::vector<::drc::Mode> modes(const ::std::vector<::drc::Mode>& _arg1) const override
+    {
+        if (vt_.modes == nullptr || ref_.disabled()) {
+            return ::drc::Shape::modes(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<drc_Mode>(_arg1, drc_detail::cast_to<drc_Mode>());
+        drc_vector_sink _result;
+        vt_.modes(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<::drc::Mode>, drc_Mode>(_result, drc_detail::cast_to<::drc::Mode>());
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<::drc::Mode>();
+        }
+    }
+
+    ::std::vector<::drc::Point> points(const ::std::vector<::drc::Point>& _arg1) const override
+    {
+        if (vt_.points == nullptr || ref_.disabled()) {
+            return ::drc::Shape::points(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<drc_Point>(_arg1, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); });
+        drc_vector_sink _result;
+        vt_.points(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<::drc::Point>, drc_Point>(_result, [](const drc_Point& _item) { return drc_detail::from_c(_item); });
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<::drc::Point>();
+        }
+    }
+
+    ::std::vector<bool> flags(const ::std::vector<bool>& _arg1) const override
+    {
+        if (vt_.flags == nullptr || ref_.disabled()) {
+            return ::drc::Shape::flags(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<bool>(_arg1);
+        drc_vector_sink _result;
+        vt_.flags(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<bool>, bool>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<bool>();
+        }
+    }
+
+    ::std::array<double, 3> triple(const ::std::array<double, 3>& _arg1) const override
+    {
+        if (vt_.triple == nullptr || ref_.disabled()) {
+            return ::drc::Shape::triple(_arg1);
+        }
+        drc_vector_sink _result;
+        vt_.triple(ref_.user_data(), _arg1.data(), &_result);
+        try {
+            return drc_detail::sink_array_elements<::std::array<double, 3>, double>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::array<double, 3>();
+        }
+    }
+
     void changed(int32_t _arg1) override
     {
         if (vt_.changed == nullptr || ref_.disabled()) {
@@ -270,6 +381,48 @@ public:
     int32_t bridgefex_base_quiet(Args&&... args) const
     {
         return this->::drc::Shape::quiet(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    int32_t bridgefex_base_total(Args&&... args) const
+    {
+        return this->::drc::Shape::total(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<int32_t> bridgefex_base_numbers(Args&&... args) const
+    {
+        return this->::drc::Shape::numbers(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<std::string> bridgefex_base_words(Args&&... args) const
+    {
+        return this->::drc::Shape::words(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<::drc::Mode> bridgefex_base_modes(Args&&... args) const
+    {
+        return this->::drc::Shape::modes(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<::drc::Point> bridgefex_base_points(Args&&... args) const
+    {
+        return this->::drc::Shape::points(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<bool> bridgefex_base_flags(Args&&... args) const
+    {
+        return this->::drc::Shape::flags(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::array<double, 3> bridgefex_base_triple(Args&&... args) const
+    {
+        return this->::drc::Shape::triple(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -409,6 +562,116 @@ public:
         return _result;
     }
 
+    int32_t total(const ::std::vector<int32_t>& _arg1) const override
+    {
+        if (vt_.total == nullptr || ref_.disabled()) {
+            return ::drc::Shape::total(_arg1);
+        }
+        int32_t _result{};
+        vt_.total(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        return _result;
+    }
+
+    ::std::vector<int32_t> numbers(const ::std::vector<int32_t>& _arg1) const override
+    {
+        if (vt_.numbers == nullptr || ref_.disabled()) {
+            return ::drc::Shape::numbers(_arg1);
+        }
+        drc_vector_sink _result;
+        vt_.numbers(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<int32_t>, int32_t>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<int32_t>();
+        }
+    }
+
+    ::std::vector<std::string> words(::std::vector<std::string> _arg1) const override
+    {
+        if (vt_.words == nullptr || ref_.disabled()) {
+            return ::drc::Shape::words(_arg1);
+        }
+        const auto _elements1 = drc_detail::strings_out<drc_string>(_arg1);
+        drc_vector_sink _result;
+        vt_.words(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_strings<::std::vector<std::string>>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<std::string>();
+        }
+    }
+
+    ::std::vector<::drc::Mode> modes(const ::std::vector<::drc::Mode>& _arg1) const override
+    {
+        if (vt_.modes == nullptr || ref_.disabled()) {
+            return ::drc::Shape::modes(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<drc_Mode>(_arg1, drc_detail::cast_to<drc_Mode>());
+        drc_vector_sink _result;
+        vt_.modes(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<::drc::Mode>, drc_Mode>(_result, drc_detail::cast_to<::drc::Mode>());
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<::drc::Mode>();
+        }
+    }
+
+    ::std::vector<::drc::Point> points(const ::std::vector<::drc::Point>& _arg1) const override
+    {
+        if (vt_.points == nullptr || ref_.disabled()) {
+            return ::drc::Shape::points(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<drc_Point>(_arg1, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); });
+        drc_vector_sink _result;
+        vt_.points(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<::drc::Point>, drc_Point>(_result, [](const drc_Point& _item) { return drc_detail::from_c(_item); });
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<::drc::Point>();
+        }
+    }
+
+    ::std::vector<bool> flags(const ::std::vector<bool>& _arg1) const override
+    {
+        if (vt_.flags == nullptr || ref_.disabled()) {
+            return ::drc::Shape::flags(_arg1);
+        }
+        const auto _elements1 = drc_detail::elements_out<bool>(_arg1);
+        drc_vector_sink _result;
+        vt_.flags(ref_.user_data(), _elements1.data(), _arg1.size(), &_result);
+        try {
+            return drc_detail::sink_elements<::std::vector<bool>, bool>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<bool>();
+        }
+    }
+
+    ::std::array<double, 3> triple(const ::std::array<double, 3>& _arg1) const override
+    {
+        if (vt_.triple == nullptr || ref_.disabled()) {
+            return ::drc::Shape::triple(_arg1);
+        }
+        drc_vector_sink _result;
+        vt_.triple(ref_.user_data(), _arg1.data(), &_result);
+        try {
+            return drc_detail::sink_array_elements<::std::array<double, 3>, double>(_result);
+        } catch (const drc_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::array<double, 3>();
+        }
+    }
+
     void changed(int32_t _arg1) override
     {
         if (vt_.changed == nullptr || ref_.disabled()) {
@@ -481,6 +744,48 @@ public:
     int32_t bridgefex_base_quiet(Args&&... args) const
     {
         return this->::drc::Shape::quiet(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    int32_t bridgefex_base_total(Args&&... args) const
+    {
+        return this->::drc::Shape::total(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<int32_t> bridgefex_base_numbers(Args&&... args) const
+    {
+        return this->::drc::Shape::numbers(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<std::string> bridgefex_base_words(Args&&... args) const
+    {
+        return this->::drc::Shape::words(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<::drc::Mode> bridgefex_base_modes(Args&&... args) const
+    {
+        return this->::drc::Shape::modes(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<::drc::Point> bridgefex_base_points(Args&&... args) const
+    {
+        return this->::drc::Shape::points(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<bool> bridgefex_base_flags(Args&&... args) const
+    {
+        return this->::drc::Shape::flags(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::array<double, 3> bridgefex_base_triple(Args&&... args) const
+    {
+        return this->::drc::Shape::triple(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -690,6 +995,149 @@ drc_status drc_Shape_total(const drc_Shape* self, const int32_t* values, size_t 
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Shape*>(self)->total(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))); });
 }
 
+// std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const
+drc_status drc_Shape_numbers(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->numbers(std::vector<int32_t>())))*) != 0,
+                  "'std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_numbers: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_numbers: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_numbers: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Shape_numbers: 'values' is NULL and 'values_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->numbers(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))), out_result, out_result_size); });
+}
+
+// std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const
+drc_status drc_Shape_words(const drc_Shape* self, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_words: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_words: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_words: 'self' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_words: 'input' is NULL and 'input_size' is not 0");
+    }
+    if (drc_detail::has_null_string(input, input_size)) {
+        return drc_detail::null_argument("drc_Shape_words: an element of 'input' is NULL with a size that is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out_strings(reinterpret_cast<const ::drc::Shape*>(self)->words(drc_detail::strings_in<std::vector<std::string>>(input, input_size)), out_result, out_result_size); });
+}
+
+// std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const
+drc_status drc_Shape_modes(const drc_Shape* self, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->modes(std::vector<::drc::Mode>())))*) != 0,
+                  "'std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_modes: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_modes: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_modes: 'self' is NULL");
+    }
+    if (wanted == nullptr && wanted_size != 0) {
+        return drc_detail::null_argument("drc_Shape_modes: 'wanted' is NULL and 'wanted_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->modes(static_cast<const std::vector<::drc::Mode>&>(drc_detail::vector_in<std::vector<::drc::Mode>>(wanted, wanted_size, drc_detail::cast_to<::drc::Mode>()))), out_result, out_result_size, drc_detail::cast_to<drc_Mode>()); });
+}
+
+// std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const
+drc_status drc_Shape_points(const drc_Shape* self, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->points(std::vector<::drc::Point>())))*) != 0,
+                  "'std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_points: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_points: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_points: 'self' is NULL");
+    }
+    if (list == nullptr && list_size != 0) {
+        return drc_detail::null_argument("drc_Shape_points: 'list' is NULL and 'list_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->points(static_cast<const std::vector<::drc::Point>&>(drc_detail::vector_in<std::vector<::drc::Point>>(list, list_size, [](const drc_Point& _item) { return drc_detail::from_c(_item); }))), out_result, out_result_size, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); }); });
+}
+
+// std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const
+drc_status drc_Shape_flags(const drc_Shape* self, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->flags(std::vector<bool>())))*) != 0,
+                  "'std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_flags: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_flags: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_flags: 'self' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_flags: 'input' is NULL and 'input_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->flags(static_cast<const std::vector<bool>&>(drc_detail::vector_in<std::vector<bool>>(input, input_size))), out_result, out_result_size); });
+}
+
+// std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
+drc_status drc_Shape_triple(const drc_Shape* self, const double values[3], double out_result[3])
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->triple(std::array<double, 3>())))*) != 0,
+                  "'std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_triple: 'self' is NULL");
+    }
+    if (values == nullptr) {
+        return drc_detail::null_argument("drc_Shape_triple: 'values' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_triple: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_to<std::array<double, 3>>(reinterpret_cast<const ::drc::Shape*>(self)->triple(static_cast<const std::array<double, 3>&>(*drc_detail::array_on_heap<std::array<double, 3>>(values))), out_result); });
+}
+
+// int32_t drc::Shape::peek(const drc::Holder& holder) const
+drc_status drc_Shape_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_peek: 'self' is NULL");
+    }
+    if (holder == nullptr) {
+        return drc_detail::null_argument("drc_Shape_peek: 'holder' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_peek: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Shape*>(self)->peek(*reinterpret_cast<const ::drc::Holder*>(holder)); });
+}
+
 // int32_t drc::Shape::fixed() const
 drc_status drc_Shape_fixed(const drc_Shape* self, int32_t* out_result)
 {
@@ -761,6 +1209,168 @@ drc_status drc_Shape_call_move(const drc_Shape* self, const drc_Point* by, drc_P
         return drc_detail::null_argument("drc_Shape_call_move: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = drc_detail::to_c(reinterpret_cast<const ::drc::Shape*>(self)->call_move(drc_detail::from_c(*by))); });
+}
+
+// int32_t drc::Shape::call_total(const std::vector<int32_t>& values) const
+drc_status drc_Shape_call_total(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_total(std::vector<int32_t>())))*) != 0,
+                  "'int32_t drc::Shape::call_total(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_total: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_total: 'values' is NULL and 'values_size' is not 0");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_total: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Shape*>(self)->call_total(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))); });
+}
+
+// std::vector<int32_t> drc::Shape::call_numbers(const std::vector<int32_t>& values) const
+drc_status drc_Shape_call_numbers(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_numbers(std::vector<int32_t>())))*) != 0,
+                  "'std::vector<int32_t> drc::Shape::call_numbers(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_numbers: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_numbers: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_numbers: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_numbers: 'values' is NULL and 'values_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->call_numbers(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))), out_result, out_result_size); });
+}
+
+// std::vector<std::string> drc::Shape::call_words(const std::vector<std::string>& input) const
+drc_status drc_Shape_call_words(const drc_Shape* self, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_words(std::vector<std::string>())))*) != 0,
+                  "'std::vector<std::string> drc::Shape::call_words(const std::vector<std::string>& input) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_words: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_words: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_words: 'self' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_words: 'input' is NULL and 'input_size' is not 0");
+    }
+    if (drc_detail::has_null_string(input, input_size)) {
+        return drc_detail::null_argument("drc_Shape_call_words: an element of 'input' is NULL with a size that is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out_strings(reinterpret_cast<const ::drc::Shape*>(self)->call_words(static_cast<const std::vector<std::string>&>(drc_detail::strings_in<std::vector<std::string>>(input, input_size))), out_result, out_result_size); });
+}
+
+// std::vector<drc::Mode> drc::Shape::call_modes(const std::vector<drc::Mode>& wanted) const
+drc_status drc_Shape_call_modes(const drc_Shape* self, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_modes(std::vector<::drc::Mode>())))*) != 0,
+                  "'std::vector<drc::Mode> drc::Shape::call_modes(const std::vector<drc::Mode>& wanted) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_modes: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_modes: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_modes: 'self' is NULL");
+    }
+    if (wanted == nullptr && wanted_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_modes: 'wanted' is NULL and 'wanted_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->call_modes(static_cast<const std::vector<::drc::Mode>&>(drc_detail::vector_in<std::vector<::drc::Mode>>(wanted, wanted_size, drc_detail::cast_to<::drc::Mode>()))), out_result, out_result_size, drc_detail::cast_to<drc_Mode>()); });
+}
+
+// std::vector<drc::Point> drc::Shape::call_points(const std::vector<drc::Point>& list) const
+drc_status drc_Shape_call_points(const drc_Shape* self, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_points(std::vector<::drc::Point>())))*) != 0,
+                  "'std::vector<drc::Point> drc::Shape::call_points(const std::vector<drc::Point>& list) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_points: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_points: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_points: 'self' is NULL");
+    }
+    if (list == nullptr && list_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_points: 'list' is NULL and 'list_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->call_points(static_cast<const std::vector<::drc::Point>&>(drc_detail::vector_in<std::vector<::drc::Point>>(list, list_size, [](const drc_Point& _item) { return drc_detail::from_c(_item); }))), out_result, out_result_size, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); }); });
+}
+
+// std::vector<bool> drc::Shape::call_flags(const std::vector<bool>& input) const
+drc_status drc_Shape_call_flags(const drc_Shape* self, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_flags(std::vector<bool>())))*) != 0,
+                  "'std::vector<bool> drc::Shape::call_flags(const std::vector<bool>& input) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_flags: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_flags: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_flags: 'self' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_call_flags: 'input' is NULL and 'input_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<const ::drc::Shape*>(self)->call_flags(static_cast<const std::vector<bool>&>(drc_detail::vector_in<std::vector<bool>>(input, input_size))), out_result, out_result_size); });
+}
+
+// std::array<double, 3> drc::Shape::call_triple(const std::array<double, 3>& values) const
+drc_status drc_Shape_call_triple(const drc_Shape* self, const double values[3], double out_result[3])
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::drc::Shape*>(self)->call_triple(std::array<double, 3>())))*) != 0,
+                  "'std::array<double, 3> drc::Shape::call_triple(const std::array<double, 3>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_triple: 'self' is NULL");
+    }
+    if (values == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_triple: 'values' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_triple: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_to<std::array<double, 3>>(reinterpret_cast<const ::drc::Shape*>(self)->call_triple(static_cast<const std::array<double, 3>&>(*drc_detail::array_on_heap<std::array<double, 3>>(values))), out_result); });
+}
+
+// int32_t drc::Shape::call_peek(const drc::Holder& holder) const
+drc_status drc_Shape_call_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_peek: 'self' is NULL");
+    }
+    if (holder == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_peek: 'holder' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_call_peek: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Shape*>(self)->call_peek(*reinterpret_cast<const ::drc::Holder*>(holder)); });
 }
 
 // drc::Mode drc::Shape::choose(drc::Mode requested) const
@@ -1347,6 +1957,151 @@ drc_status drc_Shape_director_base_quiet(drc_Shape_director* director, int32_t* 
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_quiet(); });
 }
 
+// int32_t drc::Shape::total(const std::vector<int32_t>& values) const
+drc_status drc_Shape_director_base_total(drc_Shape_director* director, const int32_t* values, size_t values_size, int32_t* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_total(std::vector<int32_t>())))*) != 0,
+                  "'int32_t drc::Shape::total(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_total: 'director' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_total: 'values' is NULL and 'values_size' is not 0");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_total: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_total(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))); });
+}
+
+// std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const
+drc_status drc_Shape_director_base_numbers(drc_Shape_director* director, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_numbers(std::vector<int32_t>())))*) != 0,
+                  "'std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_numbers: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_numbers: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_numbers: 'director' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_numbers: 'values' is NULL and 'values_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_numbers(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))), out_result, out_result_size); });
+}
+
+// std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const
+drc_status drc_Shape_director_base_words(drc_Shape_director* director, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_words: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_words: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_words: 'director' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_words: 'input' is NULL and 'input_size' is not 0");
+    }
+    if (drc_detail::has_null_string(input, input_size)) {
+        return drc_detail::null_argument("drc_Shape_director_base_words: an element of 'input' is NULL with a size that is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out_strings(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_words(drc_detail::strings_in<std::vector<std::string>>(input, input_size)), out_result, out_result_size); });
+}
+
+// std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const
+drc_status drc_Shape_director_base_modes(drc_Shape_director* director, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_modes(std::vector<::drc::Mode>())))*) != 0,
+                  "'std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_modes: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_modes: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_modes: 'director' is NULL");
+    }
+    if (wanted == nullptr && wanted_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_modes: 'wanted' is NULL and 'wanted_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_modes(static_cast<const std::vector<::drc::Mode>&>(drc_detail::vector_in<std::vector<::drc::Mode>>(wanted, wanted_size, drc_detail::cast_to<::drc::Mode>()))), out_result, out_result_size, drc_detail::cast_to<drc_Mode>()); });
+}
+
+// std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const
+drc_status drc_Shape_director_base_points(drc_Shape_director* director, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_points(std::vector<::drc::Point>())))*) != 0,
+                  "'std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_points: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_points: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_points: 'director' is NULL");
+    }
+    if (list == nullptr && list_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_points: 'list' is NULL and 'list_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_points(static_cast<const std::vector<::drc::Point>&>(drc_detail::vector_in<std::vector<::drc::Point>>(list, list_size, [](const drc_Point& _item) { return drc_detail::from_c(_item); }))), out_result, out_result_size, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); }); });
+}
+
+// std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const
+drc_status drc_Shape_director_base_flags(drc_Shape_director* director, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_flags(std::vector<bool>())))*) != 0,
+                  "'std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_flags: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_flags: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_flags: 'director' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Shape_director_base_flags: 'input' is NULL and 'input_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_flags(static_cast<const std::vector<bool>&>(drc_detail::vector_in<std::vector<bool>>(input, input_size))), out_result, out_result_size); });
+}
+
+// std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
+drc_status drc_Shape_director_base_triple(drc_Shape_director* director, const double values[3], double out_result[3])
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_triple(std::array<double, 3>())))*) != 0,
+                  "'std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_triple: 'director' is NULL");
+    }
+    if (values == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_triple: 'values' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Shape_director_base_triple: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_to<std::array<double, 3>>(reinterpret_cast<drc_detail::drc_Shape_director_impl*>(director)->bridgefex_base_triple(static_cast<const std::array<double, 3>&>(*drc_detail::array_on_heap<std::array<double, 3>>(values))), out_result); });
+}
+
 // void drc::Shape::changed(int32_t reason)
 drc_status drc_Shape_director_base_changed(drc_Shape_director* director, int32_t reason)
 {
@@ -1536,6 +2291,151 @@ drc_status drc_Circle_director_base_quiet(drc_Circle_director* director, int32_t
         return drc_detail::null_argument("drc_Circle_director_base_quiet: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_quiet(); });
+}
+
+// int32_t drc::Shape::total(const std::vector<int32_t>& values) const
+drc_status drc_Circle_director_base_total(drc_Circle_director* director, const int32_t* values, size_t values_size, int32_t* out_result)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_total(std::vector<int32_t>())))*) != 0,
+                  "'int32_t drc::Shape::total(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_total: 'director' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_total: 'values' is NULL and 'values_size' is not 0");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_total: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_total(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))); });
+}
+
+// std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const
+drc_status drc_Circle_director_base_numbers(drc_Circle_director* director, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_numbers(std::vector<int32_t>())))*) != 0,
+                  "'std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_numbers: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_numbers: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_numbers: 'director' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_numbers: 'values' is NULL and 'values_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_numbers(static_cast<const std::vector<int32_t>&>(drc_detail::vector_in<std::vector<int32_t>>(values, values_size))), out_result, out_result_size); });
+}
+
+// std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const
+drc_status drc_Circle_director_base_words(drc_Circle_director* director, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size)
+{
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_words: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_words: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_words: 'director' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_words: 'input' is NULL and 'input_size' is not 0");
+    }
+    if (drc_detail::has_null_string(input, input_size)) {
+        return drc_detail::null_argument("drc_Circle_director_base_words: an element of 'input' is NULL with a size that is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out_strings(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_words(drc_detail::strings_in<std::vector<std::string>>(input, input_size)), out_result, out_result_size); });
+}
+
+// std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const
+drc_status drc_Circle_director_base_modes(drc_Circle_director* director, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_modes(std::vector<::drc::Mode>())))*) != 0,
+                  "'std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_modes: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_modes: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_modes: 'director' is NULL");
+    }
+    if (wanted == nullptr && wanted_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_modes: 'wanted' is NULL and 'wanted_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_modes(static_cast<const std::vector<::drc::Mode>&>(drc_detail::vector_in<std::vector<::drc::Mode>>(wanted, wanted_size, drc_detail::cast_to<::drc::Mode>()))), out_result, out_result_size, drc_detail::cast_to<drc_Mode>()); });
+}
+
+// std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const
+drc_status drc_Circle_director_base_points(drc_Circle_director* director, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_points(std::vector<::drc::Point>())))*) != 0,
+                  "'std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_points: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_points: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_points: 'director' is NULL");
+    }
+    if (list == nullptr && list_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_points: 'list' is NULL and 'list_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_points(static_cast<const std::vector<::drc::Point>&>(drc_detail::vector_in<std::vector<::drc::Point>>(list, list_size, [](const drc_Point& _item) { return drc_detail::from_c(_item); }))), out_result, out_result_size, [](const ::drc::Point& _item) noexcept { return drc_detail::to_c(_item); }); });
+}
+
+// std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const
+drc_status drc_Circle_director_base_flags(drc_Circle_director* director, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_flags(std::vector<bool>())))*) != 0,
+                  "'std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_flags: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_flags: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_flags: 'director' is NULL");
+    }
+    if (input == nullptr && input_size != 0) {
+        return drc_detail::null_argument("drc_Circle_director_base_flags: 'input' is NULL and 'input_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_out(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_flags(static_cast<const std::vector<bool>&>(drc_detail::vector_in<std::vector<bool>>(input, input_size))), out_result, out_result_size); });
+}
+
+// std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
+drc_status drc_Circle_director_base_triple(drc_Circle_director* director, const double values[3], double out_result[3])
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_triple(std::array<double, 3>())))*) != 0,
+                  "'std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const' must accept temporaries: it would keep a dangling reference");
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_triple: 'director' is NULL");
+    }
+    if (values == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_triple: 'values' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Circle_director_base_triple: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::copy_to<std::array<double, 3>>(reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_triple(static_cast<const std::array<double, 3>&>(*drc_detail::array_on_heap<std::array<double, 3>>(values))), out_result); });
 }
 
 // void drc::Shape::changed(int32_t reason)

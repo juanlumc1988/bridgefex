@@ -14,8 +14,10 @@ extern "C" {
  * A NULL member of the vtable keeps the implementation of the class; the
  * members of its pure virtual methods must be set. The functions run on whatever
  * thread C++ calls the method, may be called many times and must not throw nor
- * longjmp. A result is written through the last parameter, which is value-initialized
- * beforehand. user_data is passed to every function; release(user_data) is called once, when
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with drc_Shape_destroy() of its object).
  */
 typedef struct drc_Shape_director drc_Shape_director;
@@ -46,6 +48,20 @@ typedef struct drc_Shape_vtable {
     void (*greet)(void*, const char*, size_t, const char*, size_t, const char*, drc_string_sink*);
     /* int32_t drc::Shape::quiet() const */
     void (*quiet)(void*, int32_t*);
+    /* int32_t drc::Shape::total(const std::vector<int32_t>& values) const */
+    void (*total)(void*, const int32_t*, size_t, int32_t*);
+    /* std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const */
+    void (*numbers)(void*, const int32_t*, size_t, drc_vector_sink*);
+    /* std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const */
+    void (*words)(void*, const drc_string*, size_t, drc_vector_sink*);
+    /* std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const */
+    void (*modes)(void*, const drc_Mode*, size_t, drc_vector_sink*);
+    /* std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const */
+    void (*points)(void*, const drc_Point*, size_t, drc_vector_sink*);
+    /* std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const */
+    void (*flags)(void*, const bool*, size_t, drc_vector_sink*);
+    /* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const */
+    void (*triple)(void*, const double*, drc_vector_sink*);
     /* void drc::Shape::changed(int32_t reason) */
     void (*changed)(void*, int32_t);
 } drc_Shape_vtable;
@@ -57,8 +73,10 @@ typedef struct drc_Shape_vtable {
  * A NULL member of the vtable keeps the implementation of the class; the
  * members of its pure virtual methods must be set. The functions run on whatever
  * thread C++ calls the method, may be called many times and must not throw nor
- * longjmp. A result is written through the last parameter, which is value-initialized
- * beforehand. user_data is passed to every function; release(user_data) is called once, when
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with drc_Circle_destroy() of its object).
  */
 typedef struct drc_Circle_director drc_Circle_director;
@@ -89,6 +107,20 @@ typedef struct drc_Circle_vtable {
     void (*greet)(void*, const char*, size_t, const char*, size_t, const char*, drc_string_sink*);
     /* int32_t drc::Shape::quiet() const */
     void (*quiet)(void*, int32_t*);
+    /* int32_t drc::Shape::total(const std::vector<int32_t>& values) const */
+    void (*total)(void*, const int32_t*, size_t, int32_t*);
+    /* std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const */
+    void (*numbers)(void*, const int32_t*, size_t, drc_vector_sink*);
+    /* std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const */
+    void (*words)(void*, const drc_string*, size_t, drc_vector_sink*);
+    /* std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const */
+    void (*modes)(void*, const drc_Mode*, size_t, drc_vector_sink*);
+    /* std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const */
+    void (*points)(void*, const drc_Point*, size_t, drc_vector_sink*);
+    /* std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const */
+    void (*flags)(void*, const bool*, size_t, drc_vector_sink*);
+    /* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const */
+    void (*triple)(void*, const double*, drc_vector_sink*);
     /* void drc::Shape::changed(int32_t reason) */
     void (*changed)(void*, int32_t);
 } drc_Circle_vtable;
@@ -136,6 +168,27 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_quiet(const drc_Shape* self, int32_t*
 /* int32_t drc::Shape::total(const std::vector<int32_t>& values) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_total(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t* out_result);
 
+/* std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_numbers(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size);
+
+/* std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_words(const drc_Shape* self, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_modes(const drc_Shape* self, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_points(const drc_Shape* self, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size);
+
+/* std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_flags(const drc_Shape* self, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size);
+
+/* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_triple(const drc_Shape* self, const double values[3], double out_result[3]);
+
+/* int32_t drc::Shape::peek(const drc::Holder& holder) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result);
+
 /* int32_t drc::Shape::fixed() const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_fixed(const drc_Shape* self, int32_t* out_result);
 
@@ -150,6 +203,30 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_middle(const drc_Shape* self, const d
 
 /* drc::Point drc::Shape::call_move(drc::Point by) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_call_move(const drc_Shape* self, const drc_Point* by, drc_Point* out_result);
+
+/* int32_t drc::Shape::call_total(const std::vector<int32_t>& values) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_total(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t* out_result);
+
+/* std::vector<int32_t> drc::Shape::call_numbers(const std::vector<int32_t>& values) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_numbers(const drc_Shape* self, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size);
+
+/* std::vector<std::string> drc::Shape::call_words(const std::vector<std::string>& input) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_words(const drc_Shape* self, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Mode> drc::Shape::call_modes(const std::vector<drc::Mode>& wanted) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_modes(const drc_Shape* self, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Point> drc::Shape::call_points(const std::vector<drc::Point>& list) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_points(const drc_Shape* self, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size);
+
+/* std::vector<bool> drc::Shape::call_flags(const std::vector<bool>& input) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_flags(const drc_Shape* self, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size);
+
+/* std::array<double, 3> drc::Shape::call_triple(const std::array<double, 3>& values) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_triple(const drc_Shape* self, const double values[3], double out_result[3]);
+
+/* int32_t drc::Shape::call_peek(const drc::Holder& holder) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result);
 
 /* drc::Mode drc::Shape::choose(drc::Mode requested) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_choose(const drc_Shape* self, drc_Mode requested, drc_Mode* out_result);
@@ -306,6 +383,34 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_greet(drc_Shape_directo
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_quiet(drc_Shape_director* director, int32_t* out_result);
 
+/* int32_t drc::Shape::total(const std::vector<int32_t>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_total(drc_Shape_director* director, const int32_t* values, size_t values_size, int32_t* out_result);
+
+/* std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_numbers(drc_Shape_director* director, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size);
+
+/* std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_words(drc_Shape_director* director, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_modes(drc_Shape_director* director, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_points(drc_Shape_director* director, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size);
+
+/* std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_flags(drc_Shape_director* director, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size);
+
+/* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_triple(drc_Shape_director* director, const double values[3], double out_result[3]);
+
 /* void drc::Shape::changed(int32_t reason)
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_changed(drc_Shape_director* director, int32_t reason);
@@ -360,6 +465,34 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_greet(drc_Circle_direc
 /* int32_t drc::Shape::quiet() const
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_quiet(drc_Circle_director* director, int32_t* out_result);
+
+/* int32_t drc::Shape::total(const std::vector<int32_t>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_total(drc_Circle_director* director, const int32_t* values, size_t values_size, int32_t* out_result);
+
+/* std::vector<int32_t> drc::Shape::numbers(const std::vector<int32_t>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_numbers(drc_Circle_director* director, const int32_t* values, size_t values_size, int32_t** out_result, size_t* out_result_size);
+
+/* std::vector<std::string> drc::Shape::words(std::vector<std::string> input) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_words(drc_Circle_director* director, const drc_string* input, size_t input_size, drc_string** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Mode> drc::Shape::modes(const std::vector<drc::Mode>& wanted) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_modes(drc_Circle_director* director, const drc_Mode* wanted, size_t wanted_size, drc_Mode** out_result, size_t* out_result_size);
+
+/* std::vector<drc::Point> drc::Shape::points(const std::vector<drc::Point>& list) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_points(drc_Circle_director* director, const drc_Point* list, size_t list_size, drc_Point** out_result, size_t* out_result_size);
+
+/* std::vector<bool> drc::Shape::flags(const std::vector<bool>& input) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_flags(drc_Circle_director* director, const bool* input, size_t input_size, bool** out_result, size_t* out_result_size);
+
+/* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_triple(drc_Circle_director* director, const double values[3], double out_result[3]);
 
 /* void drc::Shape::changed(int32_t reason)
  * calls the implementation of the class, without going through the vtable */

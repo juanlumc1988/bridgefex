@@ -27,6 +27,7 @@
 #include "base_c.h"
 #include "dr1_runtime_internal.hpp"
 #include <string>
+#include <vector>
 
 // The code below names the wrapped declarations to expose them, deprecated
 // ones too: that is no reason to warn here. Nor is a member that a default
@@ -170,6 +171,22 @@ public:
         return _result;
     }
 
+    ::std::vector<int64_t> series(const ::std::vector<uint8_t>& _arg1) const override
+    {
+        if (vt_.series == nullptr || ref_.disabled()) {
+            return ::dr1::Base::series(_arg1);
+        }
+        dr1_vector_sink _result;
+        vt_.series(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        try {
+            return dr1_detail::sink_elements<::std::vector<int64_t>, int64_t>(_result);
+        } catch (const dr1_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<int64_t>();
+        }
+    }
+
     void hook() override
     {
         if (vt_.hook == nullptr || ref_.disabled()) {
@@ -224,6 +241,12 @@ public:
     uint64_t bridgefex_base_big(Args&&... args) const
     {
         return this->::dr1::Base::big(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<int64_t> bridgefex_base_series(Args&&... args) const
+    {
+        return this->::dr1::Base::series(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -343,6 +366,22 @@ public:
         return _result;
     }
 
+    ::std::vector<int64_t> series(const ::std::vector<uint8_t>& _arg1) const override
+    {
+        if (vt_.series == nullptr || ref_.disabled()) {
+            return ::dr1::Base::series(_arg1);
+        }
+        dr1_vector_sink _result;
+        vt_.series(ref_.user_data(), _arg1.data(), _arg1.size(), &_result);
+        try {
+            return dr1_detail::sink_elements<::std::vector<int64_t>, int64_t>(_result);
+        } catch (const dr1_detail::argument_error&) {
+            // An element that is not valid (an enum out of range) gives the empty
+            // container, as it gives the zero value when it is the result itself.
+            return ::std::vector<int64_t>();
+        }
+    }
+
     void hook() override
     {
         if (vt_.hook == nullptr || ref_.disabled()) {
@@ -403,6 +442,12 @@ public:
     uint64_t bridgefex_base_big(Args&&... args) const
     {
         return this->::dr1::Base::big(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    ::std::vector<int64_t> bridgefex_base_series(Args&&... args) const
+    {
+        return this->::dr1::Base::series(static_cast<Args&&>(args)...);
     }
 
     template <typename... Args>
@@ -564,6 +609,28 @@ dr1_status dr1_Base_big(const dr1_Base* self, int64_t x, float f, uint8_t byte, 
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->big(x, f, byte); });
 }
 
+// std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const
+dr1_status dr1_Base_series(const dr1_Base* self, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::dr1::Base*>(self)->series(std::vector<uint8_t>())))*) != 0,
+                  "'std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_series: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_series: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_series: 'self' is NULL");
+    }
+    if (bytes == nullptr && bytes_size != 0) {
+        return dr1_detail::null_argument("dr1_Base_series: 'bytes' is NULL and 'bytes_size' is not 0");
+    }
+    return dr1_detail::guard([&]() { dr1_detail::copy_out(reinterpret_cast<const ::dr1::Base*>(self)->series(static_cast<const std::vector<uint8_t>&>(dr1_detail::vector_in<std::vector<uint8_t>>(bytes, bytes_size))), out_result, out_result_size); });
+}
+
 // std::string dr1::Base::show() const
 dr1_status dr1_Base_show(const dr1_Base* self, char** out_result, size_t* out_result_size)
 {
@@ -603,6 +670,28 @@ dr1_status dr1_Base_show_big(const dr1_Base* self, int64_t x, float f, uint8_t b
         return dr1_detail::null_argument("dr1_Base_show_big: 'out_result' is NULL");
     }
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<const ::dr1::Base*>(self)->show_big(x, f, byte); });
+}
+
+// std::vector<int64_t> dr1::Base::show_series(const std::vector<uint8_t>& bytes) const
+dr1_status dr1_Base_show_series(const dr1_Base* self, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<const ::dr1::Base*>(self)->show_series(std::vector<uint8_t>())))*) != 0,
+                  "'std::vector<int64_t> dr1::Base::show_series(const std::vector<uint8_t>& bytes) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_series: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_series: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (self == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_show_series: 'self' is NULL");
+    }
+    if (bytes == nullptr && bytes_size != 0) {
+        return dr1_detail::null_argument("dr1_Base_show_series: 'bytes' is NULL and 'bytes_size' is not 0");
+    }
+    return dr1_detail::guard([&]() { dr1_detail::copy_out(reinterpret_cast<const ::dr1::Base*>(self)->show_series(static_cast<const std::vector<uint8_t>&>(dr1_detail::vector_in<std::vector<uint8_t>>(bytes, bytes_size))), out_result, out_result_size); });
 }
 
 // dr1::Tagged dr1::Base::show_tagged() const
@@ -864,6 +953,28 @@ dr1_status dr1_Base_director_base_big(dr1_Base_director* director, int64_t x, fl
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_big(x, f, byte); });
 }
 
+// std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const
+dr1_status dr1_Base_director_base_series(dr1_Base_director* director, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_series(std::vector<uint8_t>())))*) != 0,
+                  "'std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_series: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_series: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Base_director_base_series: 'director' is NULL");
+    }
+    if (bytes == nullptr && bytes_size != 0) {
+        return dr1_detail::null_argument("dr1_Base_director_base_series: 'bytes' is NULL and 'bytes_size' is not 0");
+    }
+    return dr1_detail::guard([&]() { dr1_detail::copy_out(reinterpret_cast<dr1_detail::dr1_Base_director_impl*>(director)->bridgefex_base_series(static_cast<const std::vector<uint8_t>&>(dr1_detail::vector_in<std::vector<uint8_t>>(bytes, bytes_size))), out_result, out_result_size); });
+}
+
 // void dr1::Base::hook()
 dr1_status dr1_Base_director_base_hook(dr1_Base_director* director)
 {
@@ -1013,6 +1124,28 @@ dr1_status dr1_Derived_director_base_big(dr1_Derived_director* director, int64_t
         return dr1_detail::null_argument("dr1_Derived_director_base_big: 'out_result' is NULL");
     }
     return dr1_detail::guard([&]() { *out_result = reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_big(x, f, byte); });
+}
+
+// std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const
+dr1_status dr1_Derived_director_base_series(dr1_Derived_director* director, const uint8_t* bytes, size_t bytes_size, int64_t** out_result, size_t* out_result_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_series(std::vector<uint8_t>())))*) != 0,
+                  "'std::vector<int64_t> dr1::Base::series(const std::vector<uint8_t>& bytes) const' must accept temporaries: it would keep a dangling reference");
+    if (out_result == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_series: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (out_result_size == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_series: 'out_result_size' is NULL");
+    }
+    *out_result_size = 0;
+    if (director == nullptr) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_series: 'director' is NULL");
+    }
+    if (bytes == nullptr && bytes_size != 0) {
+        return dr1_detail::null_argument("dr1_Derived_director_base_series: 'bytes' is NULL and 'bytes_size' is not 0");
+    }
+    return dr1_detail::guard([&]() { dr1_detail::copy_out(reinterpret_cast<dr1_detail::dr1_Derived_director_impl*>(director)->bridgefex_base_series(static_cast<const std::vector<uint8_t>&>(dr1_detail::vector_in<std::vector<uint8_t>>(bytes, bytes_size))), out_result, out_result_size); });
 }
 
 // void dr1::Base::hook()

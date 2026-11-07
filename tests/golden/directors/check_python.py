@@ -449,7 +449,7 @@ with Named(1.0) as named:
 # The virtual methods that C++ cannot call from Python are refused, not silently ignored.
 for method, why in (
     ("fixed", "final"),
-    ("total", "types"),
+    ("peek", "types"),
     ("add", "overloaded"),
 ):
     try:
@@ -554,37 +554,34 @@ class Quick(shape.Shape):
 
 
 def signals_stress():
-    armed = [True]
+    # The handler raises only while the test is inside its try, and only once each time it
+    # enters it: a signal can never arrive where nothing catches it (between the end of a
+    # try and the next statement, in an except clause...).
+    inside = [False]
+    interrupted = [0]
 
     def interrupt(signum, frame):
-        if armed[0]:
+        if inside[0]:
+            inside[0] = False
+            interrupted[0] += 1
             raise KeyboardInterrupt
 
     signal.signal(signal.SIGALRM, interrupt)
     objects = [Quick.create_void() for _ in range(8)]
-    interrupted = 0
     deadline = time.monotonic() + 0.7
     signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
-    try:
-        finished = False
-        while not finished:
-            try:
-                while time.monotonic() < deadline:
-                    for quick in objects:
-                        quick.describe()
-                finished = True
-            except KeyboardInterrupt:
-                interrupted += 1
-    finally:
-        # A signal that is already pending may still interrupt this, until the timer is stopped
-        # and the handler stops raising (it stays installed: a pending signal finds it).
-        while armed[0]:
-            try:
-                armed[0] = False
-                signal.setitimer(signal.ITIMER_REAL, 0, 0)
-            except KeyboardInterrupt:
-                interrupted += 1
-    assert interrupted > 0, "no signal arrived"
+    while True:
+        try:
+            inside[0] = True
+            while time.monotonic() < deadline:
+                for quick in objects:
+                    quick.describe()
+            inside[0] = False
+            break
+        except KeyboardInterrupt:
+            pass
+    signal.setitimer(signal.ITIMER_REAL, 0, 0)
+    assert interrupted[0] > 0, "no signal arrived"
     for quick in objects:
         assert quick._director.running == {}
         quick.close()
@@ -594,6 +591,121 @@ def signals_stress():
 if hasattr(signal, "setitimer"):  # not on Windows
     signals_stress()
 
+
+# Containers, in both directions: lists go in and come back, each element checked.
+class Lists(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def numbers(self, values):
+        assert isinstance(values, list) and all(type(item) is int for item in values), values
+        return [item * 2 for item in values]
+
+    def total(self, values):
+        return sum(values) + 1000
+
+    def words(self, input):
+        assert input == ["ab", "c\0d", "é"], input
+        return [word + "?" for word in reversed(input)]
+
+    def modes(self, wanted):
+        assert wanted == [shape.Mode.On, shape.Mode.Auto] and all(
+            isinstance(item, shape.Mode) for item in wanted
+        )
+        return (shape.Mode.Off, shape.Mode.Auto)  # a tuple will do
+
+    def points(self, list):
+        assert list == [shape.Point(1.0, 2.0)], list
+        return [shape.Point(p.y, p.x) for p in list] * 2
+
+    def flags(self, input):
+        assert input == [True, False, True] and all(type(item) is bool for item in input)
+        return [not item for item in input]
+
+    def triple(self, values):
+        assert values == [1.0, 2.0, 3.0], values
+        return values[::-1]
+
+
+with Lists.create_void() as lists:
+    assert lists.call_numbers([1, 2, 3]) == [2, 4, 6]
+    assert lists.call_numbers([]) == []
+    assert lists.call_total([5, 6]) == 1011
+    assert lists.call_words(["ab", "c\0d", "é"]) == ["é?", "c\0d?", "ab?"]
+    assert lists.call_modes([shape.Mode.On, shape.Mode.Auto]) == [shape.Mode.Off, shape.Mode.Auto]
+    assert lists.call_points([shape.Point(1.0, 2.0)]) == [shape.Point(2.0, 1.0)] * 2
+    assert lists.call_flags([True, False, True]) == [False, True, False]
+    assert lists.call_triple([1.0, 2.0, 3.0]) == [3.0, 2.0, 1.0]
+
+
+class ListsAgain(shape.Shape):
+    """The implementations of the class, through super(), with containers."""
+
+    def area(self):
+        return 1.0
+
+    def numbers(self, values):
+        return [*super().numbers(values), len(values)]
+
+    def words(self, input):
+        return super().words(input)[:1]
+
+    def triple(self, values):
+        return [2 * item for item in super().triple(values)]
+
+
+with ListsAgain.create_void() as again:
+    assert again.call_numbers([1, 2]) == [2, 1, 2]
+    assert again.call_words(["a", "b"]) == ["a!"]
+    assert again.call_triple([1.0, 2.0, 3.0]) == [4.0, 8.0, 12.0]
+
+# What an override gives back that is not what the result is: the call reports it.
+bad_results = {
+    "numbers": ([1, 2, 3], "not a sequence", 5, TypeError),
+    "numbers ": ([1], "an element of another type", [1, "x"], TypeError),
+    "numbers  ": ([1], "an element out of range", [2**40], OverflowError),
+    "numbers   ": ([1], "a string", "ab", TypeError),
+    "words": (["a"], "a number", [1], TypeError),
+    "modes": ([shape.Mode.On], "a number beyond the type", [shape.Mode.On, 300], OverflowError),
+    "points": ([shape.Point(1.0, 2.0)], "a tuple", [(1.0, 2.0)], TypeError),
+    "triple": ([1.0, 2.0, 3.0], "two elements for three", [1.0, 2.0], ValueError),
+    "triple ": ([1.0, 2.0, 3.0], "an iterator", iter([1.0, 2.0, 3.0]), TypeError),
+}
+for key, (args, why, value, error) in bad_results.items():
+    name = key.strip()
+    cls = type("Bad", (shape.Shape,), {"area": lambda self: 1.0, name: lambda self, *a, v=value: v})
+    with cls.create_void() as bad:
+        try:
+            getattr(bad, f"call_{name}")(args)
+        except error as raised:
+            assert f"override {name!r}" in str(raised) or any(
+                name in note for note in raised.__notes__
+            ), (
+                why,
+                raised,
+            )
+        else:
+            raise AssertionError(f"{name}: {why} was accepted")
+        assert bad._director.running == {}
+
+
+# A container the override does not give is the empty one.
+class Silent(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def numbers(self, values):
+        return None if values else []
+
+
+with Silent.create_void() as silent:
+    try:
+        silent.call_numbers([1])
+    except TypeError as raised:
+        assert "numbers" in "".join([str(raised), *raised.__notes__])
+    else:
+        raise AssertionError("None was accepted for a container")
+    assert silent.call_numbers([]) == []
 
 # An object that C++ holds when the interpreter exits (the director is disabled and left
 # alone, as the callbacks are).

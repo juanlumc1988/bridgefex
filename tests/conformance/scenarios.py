@@ -70,6 +70,7 @@ from pathlib import Path
 
 from bridgefex.model import (
     ClassRef,
+    ContainerKind,
     ContainerType,
     EnumRef,
     ScalarType,
@@ -383,7 +384,16 @@ def _kind_problem(
             " (a result of a class can only be null here)" if result else ""
         )
     if isinstance(type_, ContainerType):
-        return None if isinstance(value, list) else f"{value!r} is not a list"
+        if not isinstance(value, list):
+            return f"{value!r} is not a list"
+        # (An argument of another length is how a scenario asks for a 'length' error.)
+        if result and type_.kind is ContainerKind.ARRAY and len(value) != type_.length:
+            return f"{value!r} needs {type_.length} elements"
+        for position, item in enumerate(value):
+            reason = _kind_problem(item, type_.element, index, variables, result=result)
+            if reason is not None:
+                return f"element {position}: {reason}"
+        return None
     return "callbacks are not in the scenarios yet"
 
 
@@ -488,7 +498,13 @@ def _behavior_problems(behavior: object, entry: DirectorEntry, index: _Index) ->
 
 def _result_problem(value: object, result: Type) -> str | None:
     """What the checks of the types leave: an override cannot give null for a string, and
-    an integer must fit the type of the result."""
+    an integer must fit the type of the result (also in the elements of a container)."""
+    if isinstance(result, ContainerType) and isinstance(value, list):
+        for position, item in enumerate(value):
+            reason = _result_problem(item, result.element)
+            if reason is not None:
+                return f"element {position}: {reason}"
+        return None
     if isinstance(result, StringType) and isinstance(value, dict):
         return f"{value!r}: an override gives a string, not null"
     if isinstance(result, ScalarType) and result.c_name in _INTEGER_BITS:
@@ -512,6 +528,12 @@ def _same_type(first: Type, second: Type) -> bool:
         return first.usr == second.usr
     if isinstance(first, StructRef) and isinstance(second, StructRef):
         return first.usr == second.usr
+    if isinstance(first, ContainerType) and isinstance(second, ContainerType):
+        return (
+            _same_type(first.element, second.element)
+            and (first.kind is ContainerKind.ARRAY) == (second.kind is ContainerKind.ARRAY)
+            and first.length == second.length
+        )
     return False
 
 

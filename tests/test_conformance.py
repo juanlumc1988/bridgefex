@@ -282,6 +282,26 @@ _UNTRUE_TYPES = {
         [_DERIVE + "{ area = { returns = 1.0 }, name = { returns = { null = true } } }"],
         "an override gives a string, not null",
     ),
+    "a list with an element of another type": (
+        "directors",
+        [_DERIVE + '{ area = { returns = 1.0 }, numbers = { returns = [1, "x"] } }'],
+        "element 1",
+    ),
+    "an array of another length": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, triple = { returns = [1.0, 2.0] } }"],
+        "needs 3 elements",
+    ),
+    "an element beyond the range of its type": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, numbers = { returns = [1, 2147483648] } }"],
+        "element 1: 2147483648 does not fit a int32_t",
+    ),
+    "null as an element of a list of strings": (
+        "directors",
+        [_DERIVE + "{ area = { returns = 1.0 }, words = { returns = [{ null = true }] } }"],
+        "an override gives a string, not null",
+    ),
     "an override error without its message": (
         "directors",
         [
@@ -457,6 +477,16 @@ _UNTRUE_OVERRIDES = {
         'new = "Sq", overload = "_void", as = "s"',
         'call = "s.middle", args = [{ struct = "shape.Point", x = 2.0, y = 0.0 }], '
         'expect = { struct = "shape.Point", x = 3.0, y = 4.0 }',
+    ),
+    "a list that differs": (
+        "{ area = { returns = 1.0 }, numbers = { returns = [10, 20] } }",
+        'new = "Sq", overload = "_void", as = "s"',
+        'call = "s.call_numbers", args = [[1]], expect = [10, 21]',
+    ),
+    "a list that is given back": (
+        "{ area = { returns = 1.0 }, words = { argument = 0 } }",
+        'new = "Sq", overload = "_void", as = "s"',
+        'call = "s.call_words", args = [["a", "b"]], expect = ["b", "a"]',
     ),
     "a struct that is given back": (
         "{ area = { returns = 1.0 }, move = { argument = 0 } }",

@@ -156,7 +156,7 @@ extern "C" const char* dr1_last_error(void)
 
 extern "C" const char* dr1_api_fingerprint(void)
 {
-    return "159052f510105a65212d5fe49767e5a4";
+    return "f79fa307460bad6f2ed35d82920b4179";
 }
 
 extern "C" void dr1_free(void* memory)
@@ -170,6 +170,39 @@ extern "C" void dr1_string_sink_set(dr1_string_sink* sink, const char* data, siz
         return;
     }
     dr1_detail::guard_silently([&]() { sink->value.assign(size == 0 ? "" : data, size); });
+}
+
+extern "C" void dr1_vector_sink_set(dr1_vector_sink* sink, const void* data, size_t count, size_t element_size)
+{
+    if (sink == nullptr || element_size == 0 || (data == nullptr && count != 0)) {
+        return;
+    }
+    dr1_detail::guard_silently([&]() {
+        const size_t bytes = dr1_detail::checked_mul(count, element_size);
+        const unsigned char* first = static_cast<const unsigned char*>(data);
+        std::vector<unsigned char> copy(first, first + bytes);
+        sink->bytes.swap(copy);
+        sink->count = count;
+        sink->element_size = element_size;
+    });
+}
+
+extern "C" void dr1_vector_sink_set_strings(dr1_vector_sink* sink, const dr1_string* items, size_t count)
+{
+    if (sink == nullptr || (items == nullptr && count != 0)) {
+        return;
+    }
+    dr1_detail::guard_silently([&]() {
+        std::vector<std::string> strings;
+        strings.reserve(count);
+        for (size_t index = 0; index != count; ++index) {
+            if (items[index].data == nullptr && items[index].size != 0) {
+                return;
+            }
+            strings.emplace_back(items[index].size == 0 ? "" : items[index].data, items[index].size);
+        }
+        sink->strings.swap(strings);
+    });
 }
 
 extern "C" void dr1_disable_callbacks(void (*release)(void*))

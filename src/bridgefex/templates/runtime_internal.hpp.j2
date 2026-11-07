@@ -18,11 +18,21 @@
 #endif
 
 {% if m.has_directors %}
+#include <memory>
 #include <string>
+#include <vector>
 
 // What a function of a vtable gives back when it returns a string (see {{ m.runtime_header }}).
 struct {{ m.string_sink_type }} {
     ::std::string value;
+};
+
+// ... and when it returns a container: the C elements (their bytes, or their strings).
+struct {{ m.vector_sink_type }} {
+    ::std::vector<unsigned char> bytes;
+    size_t count = 0;
+    size_t element_size = 0;
+    ::std::vector<::std::string> strings;
 };
 
 {% endif %}
@@ -242,6 +252,149 @@ void copy_out_strings(const Range& items, {{ m.string_type }}** out, size_t* out
     *out_size = count;
 }
 
+{% if m.has_directors %}
+// The elements of a container argument of a function of a vtable, as the C elements, in
+// a block that lives as long as the caller keeps it (not a std::vector: std::vector<bool>
+// has no data()).
+template <typename CType>
+struct c_elements {
+    ::std::unique_ptr<CType[]> items;
+
+    explicit c_elements(size_t count) : items(new CType[count == 0 ? 1 : count]()) {}
+
+    const CType* data() const noexcept
+    {
+        return items.get();
+    }
+};
+
+template <typename CType, typename Range, typename Convert>
+c_elements<CType> elements_out(const Range& items, Convert convert)
+{
+    c_elements<CType> result(items.size());
+    size_t index = 0;
+    for (auto item = items.begin(); item != items.end(); ++item, ++index) {
+        result.items[index] = convert(*item);
+    }
+    return result;
+}
+
+template <typename CType, typename Range>
+c_elements<CType> elements_out(const Range& items)
+{
+    c_elements<CType> result(items.size());
+    size_t index = 0;
+    for (auto item = items.begin(); item != items.end(); ++item, ++index) {
+        result.items[index] = static_cast<CType>(*item);
+    }
+    return result;
+}
+
+// The strings of a container argument: views of the strings of the container.
+template <typename CType, typename Range>
+c_elements<CType> strings_out(const Range& items)
+{
+    c_elements<CType> result(items.size());
+    size_t index = 0;
+    for (auto item = items.begin(); item != items.end(); ++item, ++index) {
+        result.items[index].data = item->data();
+        result.items[index].size = item->size();
+    }
+    return result;
+}
+
+// The elements that a function of a vtable gave to a sink: none if it gave elements of
+// another size than CType.
+template <typename CType>
+size_t sink_count(const {{ m.vector_sink_type }}& sink)
+{
+    return sink.element_size == sizeof(CType) ? sink.count : 0;
+}
+
+template <typename CType>
+CType sink_item(const {{ m.vector_sink_type }}& sink, size_t index)
+{
+    CType item;
+    std::memcpy(&item, sink.bytes.data() + index * sizeof(CType), sizeof(CType));
+    return item;
+}
+
+// A bool is read from its byte: any other byte than 0 is true, instead of a bool that
+// is neither.
+template <>
+inline bool sink_item<bool>(const {{ m.vector_sink_type }}& sink, size_t index)
+{
+    return sink.bytes[index] != 0;
+}
+
+template <typename Vector, typename CType, typename Convert>
+Vector sink_elements(const {{ m.vector_sink_type }}& sink, Convert convert)
+{
+    Vector result;
+    const size_t count = sink_count<CType>(sink);
+    result.reserve(count);
+    for (size_t index = 0; index != count; ++index) {
+        result.push_back(convert(sink_item<CType>(sink, index)));
+    }
+    return result;
+}
+
+template <typename Vector, typename CType>
+Vector sink_elements(const {{ m.vector_sink_type }}& sink)
+{
+    Vector result;
+    const size_t count = sink_count<CType>(sink);
+    result.reserve(count);
+    for (size_t index = 0; index != count; ++index) {
+        result.push_back(sink_item<CType>(sink, index));
+    }
+    return result;
+}
+
+template <typename Vector>
+Vector sink_strings(const {{ m.vector_sink_type }}& sink)
+{
+    return Vector(sink.strings.begin(), sink.strings.end());
+}
+
+// An array takes the elements only if they are exactly its size (the zero array otherwise).
+template <typename Array, typename CType, typename Convert>
+Array sink_array_elements(const {{ m.vector_sink_type }}& sink, Convert convert)
+{
+    Array result{};
+    if (sink_count<CType>(sink) == result.size()) {
+        for (size_t index = 0; index != result.size(); ++index) {
+            result[index] = convert(sink_item<CType>(sink, index));
+        }
+    }
+    return result;
+}
+
+template <typename Array, typename CType>
+Array sink_array_elements(const {{ m.vector_sink_type }}& sink)
+{
+    Array result{};
+    if (sink_count<CType>(sink) == result.size()) {
+        for (size_t index = 0; index != result.size(); ++index) {
+            result[index] = sink_item<CType>(sink, index);
+        }
+    }
+    return result;
+}
+
+template <typename Array>
+Array sink_array_strings(const {{ m.vector_sink_type }}& sink)
+{
+    Array result{};
+    if (sink.strings.size() == result.size()) {
+        for (size_t index = 0; index != result.size(); ++index) {
+            result[index] = sink.strings[index];
+        }
+    }
+    return result;
+}
+
+{% endif %}
 // A container argument from count elements at items (NULL when count is 0).
 template <typename Vector, typename CType>
 Vector vector_in(const CType* items, size_t count)

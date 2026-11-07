@@ -56,6 +56,20 @@ bool Base::show_flag(bool on) const
     return flag(on);
 }
 
+std::vector<std::int64_t> Base::series(const std::vector<std::uint8_t>& bytes) const
+{
+    std::vector<std::int64_t> result;
+    for (std::size_t index = 0; index != bytes.size(); ++index) {
+        result.push_back(-static_cast<std::int64_t>(bytes[index]));
+    }
+    return result;
+}
+
+std::vector<std::int64_t> Base::show_series(const std::vector<std::uint8_t>& bytes) const
+{
+    return series(bytes);
+}
+
 std::uint64_t Base::show_big(std::int64_t x, float f, std::uint8_t byte) const
 {
     return big(x, f, byte);

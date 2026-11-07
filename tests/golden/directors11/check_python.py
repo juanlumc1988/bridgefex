@@ -48,6 +48,10 @@ class Mine(base.Base):
         assert isinstance(on, bool)  # a bool arrives as a bool
         return on  # the implementation of the class gives the opposite
 
+    def series(self, bytes):
+        assert isinstance(bytes, list) and bytes == [1, 255], bytes
+        return [2**63 - 1, -(2**63)]
+
     def big(self, x, f, byte):
         assert isinstance(f, float) and isinstance(byte, int)
         return 2**63 + x + int(f) + byte  # beyond the range of an int64
@@ -73,6 +77,7 @@ with Mine.create_int32(5) as mine:
     assert mine.show_flag(True) is True
     assert mine.show_flag(False) is False
     assert mine.show_big(-3, 2.5, 200) == 2**63 + 199
+    assert mine.show_series([1, 255]) == [2**63 - 1, -(2**63)]  # 64-bit elements both ways
 with Mine.create_dr1_Kind_int32(base.Kind.Large, 1) as mine:
     assert mine.seed() == 11
 with Mine.create_void() as mine:  # the protected constructor
@@ -89,6 +94,7 @@ class Quiet(base.Base):
 
 
 with Quiet.create_int32(2) as quiet:
+    assert quiet.show_series([3, 4]) == [-3, -4]  # the implementation of the class
     assert quiet.show() == "p"
     assert quiet.show_tagged() == base.Tagged(kind=base.Kind.Large, number=7)
     try:

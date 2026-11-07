@@ -78,7 +78,11 @@ is a tree of frozen dataclasses:
   calls the base variants for `super()`. `DirectorEntry.method` is the declaration
   of the method (the same object as `CallablePlan.source` of its wrapper, so that a
   backend finds the wrapper of a public one: a location is not enough, a macro can
-  declare several methods at one), and `DirectorEntry.key` names its hook.
+  declare several methods at one), and `DirectorEntry.key` names its hook. The part of
+  a callback that is a container (`CallbackPart.element`) arrives as a pointer and a
+  size, or a pointer for a `std::array`, and a result is given with the container
+  sinks of the runtime (`<module>_vector_sink_set`, `..._set_strings`), as a string is
+  with its own.
   `HeaderPlan.c_functions` is what the bindings call; `HeaderPlan.director_functions`
   is the rest of what the C header declares.
 

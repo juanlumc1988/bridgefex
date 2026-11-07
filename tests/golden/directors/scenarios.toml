@@ -105,3 +105,59 @@ steps = [
   { call = "h.sum_double", args = [2.5, 1.0], expect = 3.5 },
   { call = "h.sum", args = [2, 1], expect = 5 },
 ]
+
+[[scenario]]
+name = "containers cross in both directions"
+steps = [
+  { derive = "shape.Shape", named = "Lists", overrides = { area = { returns = 1.0 }, total = { returns = 77 }, numbers = { returns = [10, 20] }, words = { argument = 0 }, modes = { returns = [{ enum = "shape.Mode", member = "On" }, { enum = "shape.Mode", member = "Auto" }] }, points = { argument = 0 }, flags = { argument = 0 }, triple = { returns = [3.0, 2.0, 1.0] } } },
+  { new = "Lists", overload = "_void", as = "l" },
+  { call = "l.call_total", args = [[1, 2, 3]], expect = 77 },
+  { call = "l.call_numbers", args = [[1, 2, 3]], expect = [10, 20] },
+  { call = "l.call_numbers", args = [[]], expect = [10, 20] },
+  { call = "l.call_words", args = [["ab", "c\u0000d", "é"]], expect = ["ab", "c\u0000d", "é"] },
+  { call = "l.call_words", args = [[]], expect = [] },
+  { call = "l.call_modes", args = [[]], expect = [{ enum = "shape.Mode", member = "On" }, { enum = "shape.Mode", member = "Auto" }] },
+  { call = "l.call_points", args = [[{ struct = "shape.Point", x = 1.0, y = 2.0 }, { struct = "shape.Point", x = 3.0, y = 4.0 }]], expect = [{ struct = "shape.Point", x = 1.0, y = 2.0 }, { struct = "shape.Point", x = 3.0, y = 4.0 }] },
+  { call = "l.call_flags", args = [[true, false, true]], expect = [true, false, true] },
+  { call = "l.call_triple", args = [[1.0, 2.0, 3.0]], expect = [3.0, 2.0, 1.0] },
+]
+
+[[scenario]]
+name = "a container that is not overridden keeps the implementation of the class"
+steps = [
+  { derive = "shape.Shape", named = "Plain", overrides = { area = { returns = 1.0 } } },
+  { new = "Plain", overload = "_void", as = "p" },
+  { call = "p.call_numbers", args = [[1, 2, 3]], expect = [3, 2, 1] },
+  { call = "p.call_words", args = [["a", "b"]], expect = ["a!", "b!"] },
+  { call = "p.call_flags", args = [[true, false]], expect = [false, true] },
+  { call = "p.call_triple", args = [[1.0, 2.0, 3.0]], expect = [2.0, 4.0, 6.0] },
+  { call = "p.call_total", args = [[1, 2, 3]], expect = 6 },
+]
+
+[[scenario]]
+name = "an override runs the implementation of the class with a container"
+steps = [
+  { derive = "shape.Shape", named = "Base", overrides = { area = { returns = 1.0 }, numbers = { base = true }, points = { base = true } } },
+  { new = "Base", overload = "_void", as = "b" },
+  { call = "b.call_numbers", args = [[1, 2, 3]], expect = [3, 2, 1] },
+  { call = "b.call_points", args = [[{ struct = "shape.Point", x = 1.0, y = 2.0 }]], expect = [{ struct = "shape.Point", x = 2.0, y = 1.0 }] },
+]
+
+[[scenario]]
+name = "the failure of an override with a container reaches the call"
+steps = [
+  { derive = "shape.Shape", named = "Broken", overrides = { area = { returns = 1.0 }, numbers = { raises = "no numbers" } } },
+  { new = "Broken", overload = "_void", as = "k" },
+  { call = "k.call_numbers", args = [[1]], error = "override", message = "no numbers" },
+  { call = "k.call_total", args = [[1, 2]], expect = 3 },
+]
+
+[[scenario]]
+name = "arrays and enums reach the override as they are"
+steps = [
+  { derive = "shape.Shape", named = "Echo", overrides = { area = { returns = 1.0 }, triple = { argument = 0 }, modes = { argument = 0 } } },
+  { new = "Echo", overload = "_void", as = "e" },
+  { call = "e.call_triple", args = [[1.0, 2.0, 3.0]], expect = [1.0, 2.0, 3.0] },
+  { call = "e.call_triple", args = [[9.0, 8.0, 7.0]], expect = [9.0, 8.0, 7.0] },
+  { call = "e.call_modes", args = [[{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }]], expect = [{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }] },
+]

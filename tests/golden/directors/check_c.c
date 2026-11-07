@@ -433,8 +433,200 @@ static void check_other_classes(void)
     drc_Plain_destroy(plain);
 }
 
+/* Containers, in both directions. */
+static void shape_numbers(void* user_data, const int32_t* values, size_t size,
+                          drc_vector_sink* out_result)
+{
+    (void)user_data;
+    int32_t doubled[8];
+    for (size_t i = 0; i < size && i < 8; ++i) {
+        doubled[i] = values[i] * 2;
+    }
+    drc_vector_sink_set(out_result, doubled, size, sizeof doubled[0]);
+}
+
+static void shape_total(void* user_data, const int32_t* values, size_t size, int32_t* out_result)
+{
+    (void)user_data;
+    *out_result = (int32_t)size * 1000 + (size == 0 ? 0 : values[size - 1]);
+}
+
+static void shape_words(void* user_data, const drc_string* input, size_t size,
+                        drc_vector_sink* out_result)
+{
+    (void)user_data;
+    drc_string out[3];
+    memset(out, 0, sizeof out);
+    for (size_t i = 0; i < size && i < 3; ++i) {
+        out[i] = input[size - 1 - i]; /* reversed; the data belongs to the caller of C++ */
+    }
+    drc_vector_sink_set_strings(out_result, out, size < 3 ? size : 3);
+}
+
+static void shape_modes(void* user_data, const drc_Mode* wanted, size_t size,
+                        drc_vector_sink* out_result)
+{
+    (void)user_data;
+    (void)wanted;
+    (void)size;
+    drc_Mode one[2] = {1, 5};
+    drc_vector_sink_set(out_result, one, 2, sizeof one[0]);
+}
+
+static void shape_points(void* user_data, const drc_Point* list, size_t size,
+                         drc_vector_sink* out_result)
+{
+    (void)user_data;
+    drc_Point out[4];
+    for (size_t i = 0; i < size && i < 4; ++i) {
+        out[i].x = list[i].x + 1;
+        out[i].y = list[i].y;
+    }
+    drc_vector_sink_set(out_result, out, size, sizeof out[0]);
+}
+
+static void shape_flags(void* user_data, const bool* input, size_t size, drc_vector_sink* out_result)
+{
+    (void)user_data;
+    bool out[4];
+    for (size_t i = 0; i < size && i < 4; ++i) {
+        out[i] = input[i];
+    }
+    drc_vector_sink_set(out_result, out, size, sizeof out[0]);
+}
+
+static void shape_triple(void* user_data, const double* values, drc_vector_sink* out_result)
+{
+    (void)user_data;
+    double out[3] = {values[2], values[1], values[0]};
+    drc_vector_sink_set(out_result, out, 3, sizeof out[0]);
+}
+
+static void shape_triple_short(void* user_data, const double* values, drc_vector_sink* out_result)
+{
+    (void)user_data;
+    drc_vector_sink_set(out_result, values, 2, sizeof values[0]); /* not 3 elements */
+}
+
+static void shape_numbers_wrong_size(void* user_data, const int32_t* values, size_t size,
+                                     drc_vector_sink* out_result)
+{
+    (void)user_data;
+    drc_vector_sink_set(out_result, values, size, sizeof(int64_t)); /* not an int32_t */
+    drc_vector_sink_set(NULL, values, size, sizeof values[0]);       /* ignored */
+}
+
+static void shape_flags_raw(void* user_data, const bool* input, size_t size,
+                            drc_vector_sink* out_result)
+{
+    (void)user_data;
+    (void)input;
+    (void)size;
+    const unsigned char raw[3] = {0, 1, 2}; /* not a bool: it is read as true */
+    drc_vector_sink_set(out_result, raw, 3, 1);
+}
+
+static void check_containers(void)
+{
+    state user;
+    memset(&user, 0, sizeof user);
+    drc_Shape_vtable vtable = shape_vtable(&user);
+    vtable.numbers = shape_numbers;
+    vtable.total = shape_total;
+    vtable.words = shape_words;
+    vtable.modes = shape_modes;
+    vtable.points = shape_points;
+    vtable.flags = shape_flags;
+    vtable.triple = shape_triple;
+    drc_Shape_director* director = NULL;
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_OK, "create");
+
+    const int32_t values[3] = {1, 2, 3};
+    int32_t* numbers = NULL;
+    size_t count = 0;
+    check(drc_Shape_call_numbers(shape, values, 3, &numbers, &count) == DRC_OK && count == 3 &&
+              numbers[0] == 2 && numbers[1] == 4 && numbers[2] == 6,
+          "numbers go in and come back");
+    drc_free(numbers);
+    check(drc_Shape_call_numbers(shape, NULL, 0, &numbers, &count) == DRC_OK && count == 0,
+          "no numbers");
+    drc_free(numbers);
+    int32_t total = 0;
+    check(drc_Shape_call_total(shape, values, 3, &total) == DRC_OK && total == 3003,
+          "a container and a scalar result");
+
+    const drc_string input[2] = {{"ab", 2}, {"c\0d", 3}};
+    drc_string* words = NULL;
+    check(drc_Shape_call_words(shape, input, 2, &words, &count) == DRC_OK && count == 2 &&
+              words[0].size == 3 && memcmp(words[0].data, "c\0d", 3) == 0 &&
+              words[1].size == 2 && memcmp(words[1].data, "ab", 2) == 0,
+          "strings, NULs included");
+    drc_free(words);
+
+    const drc_Mode wanted[1] = {0};
+    drc_Mode* modes = NULL;
+    check(drc_Shape_call_modes(shape, wanted, 1, &modes, &count) == DRC_OK && count == 2 &&
+              modes[0] == 1 && modes[1] == 5,
+          "enums");
+    drc_free(modes);
+
+    const drc_Point list[2] = {{1.0, 2.0}, {3.0, 4.0}};
+    drc_Point* points = NULL;
+    check(drc_Shape_call_points(shape, list, 2, &points, &count) == DRC_OK && count == 2 &&
+              points[0].x == 2.0 && points[1].y == 4.0,
+          "structs");
+    drc_free(points);
+
+    const bool flags[3] = {true, false, true};
+    bool* back = NULL;
+    check(drc_Shape_call_flags(shape, flags, 3, &back, &count) == DRC_OK && count == 3 &&
+              back[0] && !back[1] && back[2],
+          "a std::vector<bool>");
+    drc_free(back);
+
+    const double triple[3] = {1.0, 2.0, 3.0};
+    double out[3] = {0};
+    check(drc_Shape_call_triple(shape, triple, out) == DRC_OK && out[0] == 3.0 && out[2] == 1.0,
+          "a std::array");
+
+    /* A container that is not what the result is: the empty one, or the zero array. */
+    vtable.triple = shape_triple_short;
+    vtable.numbers = shape_numbers_wrong_size;
+    vtable.flags = shape_flags_raw;
+    drc_Shape_director* other_director = NULL;
+    drc_Shape* other = NULL;
+    check(drc_Shape_director_create_void(&other, &other_director, &vtable) == DRC_OK, "create");
+    check(drc_Shape_call_triple(other, triple, out) == DRC_OK && out[0] == 0.0 && out[1] == 0.0 &&
+              out[2] == 0.0,
+          "an array of another size is the zero array");
+    check(drc_Shape_call_flags(other, flags, 3, &back, &count) == DRC_OK && count == 3 &&
+              ((unsigned char*)back)[0] == 0 && ((unsigned char*)back)[1] == 1 &&
+              ((unsigned char*)back)[2] == 1,
+          "a byte of a bool that is neither 0 nor 1 is true");
+    drc_free(back);
+    check(drc_Shape_call_numbers(other, values, 3, &numbers, &count) == DRC_OK && count == 0,
+          "elements of another size are ignored");
+    drc_free(numbers);
+
+    /* Not given: the implementation of the class. */
+    vtable.numbers = NULL;
+    vtable.words = NULL;
+    drc_Shape_director* plain_director = NULL;
+    drc_Shape* plain = NULL;
+    check(drc_Shape_director_create_void(&plain, &plain_director, &vtable) == DRC_OK, "create");
+    check(drc_Shape_call_numbers(plain, values, 3, &numbers, &count) == DRC_OK && count == 3 &&
+              numbers[0] == 3 && numbers[2] == 1,
+          "the implementation of the class");
+    drc_free(numbers);
+    drc_Shape_destroy(plain);
+    drc_Shape_destroy(other);
+    drc_Shape_destroy(shape);
+}
+
 int main(void)
 {
+    check_containers();
     check_a_director_of_an_abstract_class();
     check_what_a_vtable_must_have();
     check_the_constructors_of_the_class();
