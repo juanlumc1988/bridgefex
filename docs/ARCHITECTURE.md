@@ -82,7 +82,12 @@ is a tree of frozen dataclasses:
   a callback that is a container (`CallbackPart.element`) arrives as a pointer and a
   size, or a pointer for a `std::array`, and a result is given with the container
   sinks of the runtime (`<module>_vector_sink_set`, `..._set_strings`), as a string is
-  with its own.
+  with its own. An object
+  (`CallbackPart.cls`) is a pointer to its handle type: lent for the call if the C++ type
+  is a reference or a raw pointer, given up to the language if it is a `std::unique_ptr`
+  (a `std::unique_ptr` result is a `T**` that C++ takes). A backend that wants to give the
+  override the object it already has for a director object finds it by address: the
+  address of the C++ object as each class it may be passed as.
   `HeaderPlan.c_functions` is what the bindings call; `HeaderPlan.director_functions`
   is the rest of what the C header declares.
 

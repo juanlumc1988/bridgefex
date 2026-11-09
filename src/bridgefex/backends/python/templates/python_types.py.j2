@@ -156,7 +156,13 @@ def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
     # Called by C++ for a virtual method that the object overrides. An exception goes to
     # the call that runs it, if there is one (see _runtime.fail_director).
     _active = None
+{% if slot.thunk.lends %}
+    _lend = _runtime.Lend()
+{% endif %}
     try:
+{% for line in slot.thunk.prologue %}
+        {{ line }}
+{% endfor %}
         # _active is the token of this override, which ends with this frame.
         _function, _active = _runtime.director_method(_user_data, "{{ slot.name }}")
         if _function is None:
@@ -166,6 +172,11 @@ def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
         _active = None
         if not _runtime.fail_director(_error):
             raise
+{% if slot.thunk.lends %}
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+{% endif %}
 
 
 # The thunk itself is never freed: C++ may call it at any time.

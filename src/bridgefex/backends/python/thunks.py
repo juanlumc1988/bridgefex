@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ...model import (
+    ClassForm,
+    ClassRef,
     ContainerKind,
     ContainerType,
     EnumRef,
@@ -84,6 +86,17 @@ def _thunk_argument(part: CallbackPart, local: str) -> tuple[list[str], list[str
         assert part.struct is not None
         mirror = f"_{part.struct.c_type}"
         return [f"ctypes.POINTER({mirror})"], [local], f"{mirror}__from_c({local}.contents)"
+    if isinstance(type_, ClassRef):
+        info = part.cls
+        assert info is not None
+        where = f'"{info.c_type}", "{info.header.stem}"'
+        if type_.form is ClassForm.UNIQUE:
+            # Wrapped before anything else can fail: C++ has given the object up already.
+            value = f"_owned{local.removeprefix('_arg')}"
+        else:
+            readonly = type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
+            value = f"_runtime.callback_object({where}, {local}, {readonly}, _lend)"
+        return [f"_{info.c_type}__p"], [local], value
     if isinstance(type_, ContainerType):
         assert part.element is not None
         py = element(part.element)
@@ -181,6 +194,14 @@ class PyDirectorThunk:
     statement: str | None
     """What gives a string or a struct result to C++ (None for the other types)."""
 
+    prologue: tuple[str, ...] = ()
+    """What runs first in the ``try``: the objects that C++ gave up are wrapped before
+    anything can fail, so that whatever happens next destroys them."""
+
+    lends: bool = False
+    """It gets objects that C++ lends for the duration of the call (a reference or a pointer
+    to a class): they are valid until the thunk returns."""
+
     def body(self, indent: int) -> str:
         """The statements that call ``_function`` and give its result to C++, indented by
         ``indent`` spaces."""
@@ -203,11 +224,16 @@ def director_thunk(c_type: str, field: str, method: str, callback: CallbackSpec)
     ctypes_args = ["ctypes.c_void_p"]
     params = ["_user_data"]
     arguments: list[str] = []
+    prologue: list[str] = []
     for position, part in enumerate(callback.arguments, start=1):
         types, names, value = _thunk_argument(part, f"_arg{position}")
         ctypes_args += types
         params += names
         arguments.append(value)
+        if isinstance(part.type, ClassRef) and part.type.form is ClassForm.UNIQUE:
+            assert part.cls is not None
+            where = f'"{part.cls.c_type}", "{part.cls.header.stem}"'
+            prologue.append(f"_owned{position} = _runtime.callback_owned({where}, _arg{position})")
     check: tuple[str, ...] | None = None
     statement: str | None = None
     result = callback.result
@@ -227,6 +253,17 @@ def director_thunk(c_type: str, field: str, method: str, callback: CallbackSpec)
         statement = (
             "_runtime.sink_container(_out_result, "
             f"_runtime.override_result({name}, lambda: {make}), {length}, {name})"
+        )
+    elif isinstance(result.type, ClassRef):
+        info = result.cls
+        assert info is not None
+        ctypes_args.append(f"ctypes.POINTER(_{info.c_type}__p)")
+        params.append("_out_result")
+        view = f'"_mptr_{info.c_type}"' if info.is_base else "None"
+        exact = info.is_base and not info.model.virtual_destructor
+        statement = (
+            f'_out_result[0] = _runtime.give_object(_value, "{info.c_type}", '
+            f'"{info.header.stem}", {name}, {view}, {exact})'
         )
     elif isinstance(result.type, StructRef):
         assert result.struct is not None
@@ -248,4 +285,9 @@ def director_thunk(c_type: str, field: str, method: str, callback: CallbackSpec)
         arguments=tuple(arguments),
         check=check,
         statement=statement,
+        prologue=tuple(prologue),
+        lends=any(
+            isinstance(part.type, ClassRef) and part.type.form is not ClassForm.UNIQUE
+            for part in callback.arguments
+        ),
     )

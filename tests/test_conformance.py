@@ -302,6 +302,46 @@ _UNTRUE_TYPES = {
         [_DERIVE + "{ area = { returns = 1.0 }, words = { returns = [{ null = true }] } }"],
         "an override gives a string, not null",
     ),
+    "asks of an argument that is not an object": (
+        "directors",
+        [
+            _DERIVE + "{ area = { returns = 1.0 }, add_double_double = "
+            '{ asks = { argument = 0, call = "x" } } }'
+        ],
+        "is not an object of a wrapped class",
+    ),
+    "asks of a method that is not there": (
+        "directors",
+        [
+            _DERIVE
+            + '{ area = { returns = 1.0 }, grow = { asks = { argument = 0, call = "nothing" } } }'
+        ],
+        "no method 'nothing'",
+    ),
+    "asks of a method of another type than the result": (
+        "directors",
+        [
+            _DERIVE + "{ area = { returns = 1.0 }, compare = "
+            '{ asks = { argument = 0, call = "call_total", args = [[1]] } } }'
+        ],
+        "does not give the type of the result",
+    ),
+    "makes where the result is not a std::unique_ptr": (
+        "directors",
+        [
+            _DERIVE
+            + '{ area = { returns = 1.0 }, grow = { makes = { new = "shape.Beam", args = [1] } } }'
+        ],
+        "the result of the method is not a std::unique_ptr",
+    ),
+    "makes an object of another class": (
+        "directors",
+        [
+            _DERIVE + "{ area = { returns = 1.0 }, make_beam = "
+            '{ makes = { new = "shape.Circle", args = [1.0] } } }'
+        ],
+        "Circle is not a drc::Beam",
+    ),
     "an override error without its message": (
         "directors",
         [

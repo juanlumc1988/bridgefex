@@ -46,9 +46,13 @@ is named as the member of the vtable of the C API (``add_int32_int32``) and does
 (it calls the implementation of the class with its arguments and gives what it gives),
 ``{ argument = 0 }`` (it gives its first argument, which has the type of its result) or
 ``{ raises = "message" }`` (it fails: the call that made C++ run it reports it, as an
-``override`` error whose text has the message). The constructors of a derived class are
-those that the class shows (``overload`` is their suffix), or, if it shows none, those of
-its director.
+``override`` error whose text has the message). Objects: ``{ asks = { argument = 0, call =
+"length", args = [] } }`` (it calls a method of the object that C++ lends it, or gives it,
+as its first argument, and gives what the method gives) and ``{ makes = { new = "shapes.Beam",
+overload = "_int32", args = [3] } }`` (a ``std::unique_ptr`` result: it gives C++ a new
+object); ``{ returns = { null = true } }`` gives a NULL pointer. The constructors of a
+derived class are those that the class shows (``overload`` is their suffix), or, if it
+shows none, those of its director.
 
 Values: numbers, booleans and strings are themselves; a list is a list; a table is one
 of ``{ int = "18446744073709551615" }`` (beyond 64-bit signed TOML integers),
@@ -69,6 +73,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bridgefex.model import (
+    ClassForm,
     ClassRef,
     ContainerKind,
     ContainerType,
@@ -113,7 +118,7 @@ _KEYS = frozenset(
         "overrides",
     }
 )
-_BEHAVIORS = frozenset({"returns", "base", "argument", "raises"})
+_BEHAVIORS = frozenset({"returns", "base", "argument", "raises", "asks", "makes"})
 _DERIVE_KEYS = frozenset({"derive", "named", "overrides"})
 _INTEGER_BITS = {
     "bool": None,
@@ -493,7 +498,73 @@ def _behavior_problems(behavior: object, entry: DirectorEntry, index: _Index) ->
         if not _same_type(arguments[value].type, result):
             return [f"argument {value} is not of the type of the result"]
         return []
+    if kind == "asks":
+        return _asks_problems(value, entry, index)
+    if kind == "makes":
+        return _makes_problems(value, entry, index)
     return [] if isinstance(value, str) else ["raises takes the message of the failure"]
+
+
+def _asks_problems(value: object, entry: DirectorEntry, index: _Index) -> list[str]:
+    """``asks``: a method of an object that the override gets, and what it gives."""
+    keys = {"argument", "call", "args"}
+    if not isinstance(value, dict) or not {"argument", "call"} <= set(value) <= keys:
+        return ["asks is { argument = N, call = 'method', args = [...] }"]
+    arguments = entry.callback.arguments
+    position = value["argument"]
+    if (
+        not isinstance(position, int)
+        or isinstance(position, bool)
+        or not 0 <= position < len(arguments)
+    ):
+        return [f"asks: argument is the position of one of its {len(arguments)} arguments"]
+    type_ = arguments[position].type
+    owner = index.by_usr.get(type_.usr) if isinstance(type_, ClassRef) else None
+    if owner is None:
+        return [f"asks: argument {position} is not an object of a wrapped class"]
+    name = value["call"]
+    found = None
+    for ancestor in index.methods(owner):
+        found = _member(ancestor, str(name), static=False)
+        if found is not None:
+            break
+    if found is None:
+        return [f"asks: no method {name!r} in {owner.model.name}"]
+    args = value.get("args", [])
+    if not isinstance(args, list):
+        return ["asks: args is a list"]
+    problems = _argument_problems(args, found, str(name), index, {}, set(), {})
+    problems += [problem for item in args for problem in _check_value(item, index, {})]
+    if type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER) and not found.is_const:
+        problems.append(f"asks: {name} changes the object, which C++ lends as const")
+    result = entry.callback.result.type
+    if found.result is None:
+        problems.append(f"asks: {name} returns nothing")
+    elif not _same_type(found.result.type, result):
+        problems.append(f"asks: {name} does not give the type of the result")
+    return problems
+
+
+def _makes_problems(value: object, entry: DirectorEntry, index: _Index) -> list[str]:
+    """``makes``: a new object, for a ``std::unique_ptr`` result."""
+    result = entry.callback.result.type
+    if not isinstance(result, ClassRef) or result.form is not ClassForm.UNIQUE:
+        return ["makes: the result of the method is not a std::unique_ptr"]
+    if not isinstance(value, dict) or not {"new"} <= set(value) <= {"new", "overload", "args"}:
+        return ["makes is { new = 'header.Class', overload = '_suffix', args = [...] }"]
+    cls = _class(value["new"], index) if isinstance(value["new"], str) else None
+    if cls is None:
+        return [f"makes: no class {value['new']!r}"]
+    if result.usr not in {ancestor.model.usr for ancestor in index.methods(cls)}:
+        return [f"makes: {cls.model.name} is not a {result.qualified_name}"]
+    constructor, problems = _constructor(cls, value.get("overload"))
+    args = value.get("args", [])
+    if not isinstance(args, list):
+        return [*problems, "makes: args is a list"]
+    if constructor is not None:
+        problems += _argument_problems(args, constructor, cls.model.name, index, {}, set(), {})
+    problems += [problem for item in args for problem in _check_value(item, index, {})]
+    return problems
 
 
 def _result_problem(value: object, result: Type) -> str | None:

@@ -9,9 +9,9 @@ from . import _runtime, _types
 __all__ = [
     "Mode",
     "Point",
+    "Beam",
     "Shape",
     "Circle",
-    "Beam",
     "Dot",
     "Plain",
     "Holder",
@@ -35,6 +35,16 @@ def _bind():
     lib = _runtime.library()
     with _bind_lock:
         if _lib is None:
+            lib.drc_Beam_create.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.c_int32]
+            lib.drc_Beam_create.restype = _runtime.Status
+            lib.drc_Beam_destroy.argtypes = [_types._drc_Beam__p]
+            lib.drc_Beam_destroy.restype = None
+            lib.drc_Beam_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_length.restype = _runtime.Status
+            lib.drc_Beam_call_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_call_length.restype = _runtime.Status
+            lib.drc_Beam_made_by.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_made_by.restype = _runtime.Status
             lib.drc_Shape_destroy.argtypes = [_types._drc_Shape__p]
             lib.drc_Shape_destroy.restype = None
             lib.drc_Shape_area.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_double)]
@@ -75,6 +85,18 @@ def _bind():
             lib.drc_Shape_triple.restype = _runtime.Status
             lib.drc_Shape_peek.argtypes = [_types._drc_Shape__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_peek.restype = _runtime.Status
+            lib.drc_Shape_compare.argtypes = [_types._drc_Shape__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_compare.restype = _runtime.Status
+            lib.drc_Shape_same.argtypes = [_types._drc_Shape__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.drc_Shape_same.restype = _runtime.Status
+            lib.drc_Shape_grow.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_grow.restype = _runtime.Status
+            lib.drc_Shape_adopt.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_adopt.restype = _runtime.Status
+            lib.drc_Shape_make_beam.argtypes = [_types._drc_Shape__p, ctypes.c_int32, ctypes.POINTER(_types._drc_Beam__p)]
+            lib.drc_Shape_make_beam.restype = _runtime.Status
+            lib.drc_Shape_by_value.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_by_value.restype = _runtime.Status
             lib.drc_Shape_fixed.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_fixed.restype = _runtime.Status
             lib.drc_Shape_describe.argtypes = [_types._drc_Shape__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -101,6 +123,18 @@ def _bind():
             lib.drc_Shape_call_triple.restype = _runtime.Status
             lib.drc_Shape_call_peek.argtypes = [_types._drc_Shape__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Shape_call_peek.restype = _runtime.Status
+            lib.drc_Shape_call_compare.argtypes = [_types._drc_Shape__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_call_compare.restype = _runtime.Status
+            lib.drc_Shape_call_same.argtypes = [_types._drc_Shape__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.drc_Shape_call_same.restype = _runtime.Status
+            lib.drc_Shape_call_grow.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_call_grow.restype = _runtime.Status
+            lib.drc_Shape_call_adopt.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_call_adopt.restype = _runtime.Status
+            lib.drc_Shape_call_make_beam.argtypes = [_types._drc_Shape__p, ctypes.c_int32, ctypes.POINTER(_types._drc_Beam__p)]
+            lib.drc_Shape_call_make_beam.restype = _runtime.Status
+            lib.drc_Shape_call_by_value.argtypes = [_types._drc_Shape__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_call_by_value.restype = _runtime.Status
             lib.drc_Shape_choose.argtypes = [_types._drc_Shape__p, ctypes.c_uint8, ctypes.POINTER(ctypes.c_uint8)]
             lib.drc_Shape_choose.restype = _runtime.Status
             lib.drc_Shape_welcome.argtypes = [_types._drc_Shape__p, ctypes.c_char_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -137,16 +171,6 @@ def _bind():
             lib.drc_Circle_add.restype = _runtime.Status
             lib.drc_Circle_radius.argtypes = [_types._drc_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.drc_Circle_radius.restype = _runtime.Status
-            lib.drc_Beam_create.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.c_int32]
-            lib.drc_Beam_create.restype = _runtime.Status
-            lib.drc_Beam_destroy.argtypes = [_types._drc_Beam__p]
-            lib.drc_Beam_destroy.restype = None
-            lib.drc_Beam_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
-            lib.drc_Beam_length.restype = _runtime.Status
-            lib.drc_Beam_call_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
-            lib.drc_Beam_call_length.restype = _runtime.Status
-            lib.drc_Beam_made_by.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
-            lib.drc_Beam_made_by.restype = _runtime.Status
             lib.drc_Dot_create.argtypes = [ctypes.POINTER(_types._drc_Dot__p)]
             lib.drc_Dot_create.restype = _runtime.Status
             lib.drc_Dot_destroy.argtypes = [_types._drc_Dot__p]
@@ -173,12 +197,24 @@ def _bind():
             lib.drc_Holder_take.restype = _runtime.Status
             lib.drc_Holder_empty.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_bool)]
             lib.drc_Holder_empty.restype = _runtime.Status
+            lib.drc_Holder_compare_held.argtypes = [_types._drc_Holder__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Holder_compare_held.restype = _runtime.Status
             lib.drc_Holder_describe.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.drc_Holder_describe.restype = _runtime.Status
             lib.drc_Holder_describe_on_thread.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.drc_Holder_describe_on_thread.restype = _runtime.Status
             lib.drc_Holder_apply.argtypes = [_types._drc_Holder__p, _types._callback__int32__int32__type, ctypes.c_void_p, _runtime.Release, ctypes.POINTER(ctypes.c_int32)]
             lib.drc_Holder_apply.restype = _runtime.Status
+            lib.drc_Beam_director_create_int32.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_int32]
+            lib.drc_Beam_director_create_int32.restype = _runtime.Status
+            lib.drc_Beam_director_create_void.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable)]
+            lib.drc_Beam_director_create_void.restype = _runtime.Status
+            lib.drc_Beam_director_create_string.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_char_p, ctypes.c_size_t]
+            lib.drc_Beam_director_create_string.restype = _runtime.Status
+            lib.drc_Beam_director_object.argtypes = [_types._drc_Beam_director__p]
+            lib.drc_Beam_director_object.restype = _types._drc_Beam__p
+            lib.drc_Beam_director_base_length.argtypes = [_types._drc_Beam_director__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_director_base_length.restype = _runtime.Status
             lib.drc_Shape_director_create_void.argtypes = [ctypes.POINTER(_types._drc_Shape__p), ctypes.POINTER(_types._drc_Shape_director__p), ctypes.POINTER(_types._drc_Shape_vtable)]
             lib.drc_Shape_director_create_void.restype = _runtime.Status
             lib.drc_Shape_director_create_string_int32.argtypes = [ctypes.POINTER(_types._drc_Shape__p), ctypes.POINTER(_types._drc_Shape_director__p), ctypes.POINTER(_types._drc_Shape_vtable), ctypes.c_char_p, ctypes.c_size_t, ctypes.c_int32]
@@ -219,6 +255,18 @@ def _bind():
             lib.drc_Shape_director_base_flags.restype = _runtime.Status
             lib.drc_Shape_director_base_triple.argtypes = [_types._drc_Shape_director__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
             lib.drc_Shape_director_base_triple.restype = _runtime.Status
+            lib.drc_Shape_director_base_peek.argtypes = [_types._drc_Shape_director__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_director_base_peek.restype = _runtime.Status
+            lib.drc_Shape_director_base_compare.argtypes = [_types._drc_Shape_director__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Shape_director_base_compare.restype = _runtime.Status
+            lib.drc_Shape_director_base_same.argtypes = [_types._drc_Shape_director__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.drc_Shape_director_base_same.restype = _runtime.Status
+            lib.drc_Shape_director_base_grow.argtypes = [_types._drc_Shape_director__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_director_base_grow.restype = _runtime.Status
+            lib.drc_Shape_director_base_adopt.argtypes = [_types._drc_Shape_director__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Shape_director_base_adopt.restype = _runtime.Status
+            lib.drc_Shape_director_base_make_beam.argtypes = [_types._drc_Shape_director__p, ctypes.c_int32, ctypes.POINTER(_types._drc_Beam__p)]
+            lib.drc_Shape_director_base_make_beam.restype = _runtime.Status
             lib.drc_Shape_director_base_changed.argtypes = [_types._drc_Shape_director__p, ctypes.c_int32]
             lib.drc_Shape_director_base_changed.restype = _runtime.Status
             lib.drc_Circle_director_create.argtypes = [ctypes.POINTER(_types._drc_Circle__p), ctypes.POINTER(_types._drc_Circle_director__p), ctypes.POINTER(_types._drc_Circle_vtable), ctypes.c_double]
@@ -261,20 +309,259 @@ def _bind():
             lib.drc_Circle_director_base_flags.restype = _runtime.Status
             lib.drc_Circle_director_base_triple.argtypes = [_types._drc_Circle_director__p, ctypes.POINTER(ctypes.c_double), ctypes.POINTER(ctypes.c_double)]
             lib.drc_Circle_director_base_triple.restype = _runtime.Status
+            lib.drc_Circle_director_base_peek.argtypes = [_types._drc_Circle_director__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_director_base_peek.restype = _runtime.Status
+            lib.drc_Circle_director_base_compare.argtypes = [_types._drc_Circle_director__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Circle_director_base_compare.restype = _runtime.Status
+            lib.drc_Circle_director_base_same.argtypes = [_types._drc_Circle_director__p, _types._drc_Shape__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.drc_Circle_director_base_same.restype = _runtime.Status
+            lib.drc_Circle_director_base_grow.argtypes = [_types._drc_Circle_director__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_director_base_grow.restype = _runtime.Status
+            lib.drc_Circle_director_base_adopt.argtypes = [_types._drc_Circle_director__p, _types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Circle_director_base_adopt.restype = _runtime.Status
+            lib.drc_Circle_director_base_make_beam.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32, ctypes.POINTER(_types._drc_Beam__p)]
+            lib.drc_Circle_director_base_make_beam.restype = _runtime.Status
             lib.drc_Circle_director_base_changed.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32]
             lib.drc_Circle_director_base_changed.restype = _runtime.Status
-            lib.drc_Beam_director_create_int32.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_int32]
-            lib.drc_Beam_director_create_int32.restype = _runtime.Status
-            lib.drc_Beam_director_create_void.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable)]
-            lib.drc_Beam_director_create_void.restype = _runtime.Status
-            lib.drc_Beam_director_create_string.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_char_p, ctypes.c_size_t]
-            lib.drc_Beam_director_create_string.restype = _runtime.Status
-            lib.drc_Beam_director_object.argtypes = [_types._drc_Beam_director__p]
-            lib.drc_Beam_director_object.restype = _types._drc_Beam__p
-            lib.drc_Beam_director_base_length.argtypes = [_types._drc_Beam_director__p, ctypes.POINTER(ctypes.c_int32)]
-            lib.drc_Beam_director_base_length.restype = _runtime.Status
             _lib = lib
     return _lib
+
+
+class Beam(_runtime.Object):
+    """Wraps ``drc::Beam``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "drc_Beam"
+    _virtual_names = ("length",)
+    # The virtual methods that a subclass may override: (method, member of the vtable,
+    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
+    _director_slots = _runtime.DirectorSlots(
+        "drc_Beam",
+        "drc::Beam",
+        _types._drc_Beam_vtable,
+        (
+            ("length", "length", False, _types._director__drc_Beam__length),
+        ),
+    )
+
+    def __init__(self, length):
+        """Wraps ``drc::Beam::Beam(int32_t length)``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Beam object is already initialized")
+        _found = self._director_slots.overrides(_builtins.type(self))
+        if _found:
+            self._init_director(_found, length)
+            return
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _handle = self._watch()
+        _runtime.check(_bind().drc_Beam_create(_handle, length))
+        self._adopt(_handle)
+
+    def _init_director(self, _found, length):
+        """Wraps ``drc::Beam::Beam(int32_t length) of the director``."""
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _handle, _director = self._watch_director()
+        _vtable, _record = self._director_slots.make(self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_int32(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            length,
+        ))
+        self._adopt_director(_handle, _director, _record)
+
+    @_builtins.classmethod
+    def create_void(cls):
+        """Wraps ``drc::Beam::Beam() of the director``.
+
+        Only a subclass can call it: the constructor is protected.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+
+    @_builtins.classmethod
+    def create_string(cls, label):
+        """Wraps ``drc::Beam::Beam(const std::string& label) of the director``.
+
+        Only a subclass can call it: the constructor is protected.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        label = _runtime.to_bytes(label, "label")
+        label_size = _builtins.len(label)
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_string(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            label,
+            label_size,
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._drc_Beam__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._director = None
+        self._finalizer = _runtime.watch(self, handle, _bind().drc_Beam_destroy)
+        return handle
+
+    def _watch_director(self):
+        """Like _watch(), and the handle for the create function to write the director to."""
+        return self._watch(), _types._drc_Beam_director__p()
+
+    def _adopt_director(self, handle, director, record):
+        self._adopt(handle)
+        record.pointer = director
+        self._director = record
+        _runtime.register_object(self)
+
+    def _dptr(self):
+        """The handle of the director, for the calls of the implementation of the class."""
+        return _runtime.director_pointer(self._director, "Beam")
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "drc::Beam: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().drc_Beam_destroy, _types._drc_Beam__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Beam object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Beam object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Beam object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Beam")
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Beam objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Beam objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Beam objects cannot be pickled")
+
+    def _base_length(self):
+        """Calls the implementation of ``int32_t drc::Beam::length() const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_director_base_length(self._dptr(), _out))
+        return _out.value
+
+    def length(self):
+        """Wraps ``int32_t drc::Beam::length() const``."""
+        if self._director is not None:
+            return self._base_length()
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_length(self._ptr(), _out))
+        return _out.value
+
+    def call_length(self):
+        """Wraps ``int32_t drc::Beam::call_length() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_call_length(self._ptr(), _out))
+        return _out.value
+
+    def made_by(self):
+        """Wraps ``int32_t drc::Beam::made_by() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_made_by(self._ptr(), _out))
+        return _out.value
 
 
 class Shape(_runtime.Object):
@@ -289,7 +576,7 @@ class Shape(_runtime.Object):
 
     __slots__ = ()
     _cxx_class = "drc_Shape"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "fixed", "flags", "greet", "mode", "modes", "move", "name", "numbers", "peek", "points", "quiet", "scale", "sides", "total", "triple", "words",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "adopt", "area", "by_value", "center", "changed", "compare", "fixed", "flags", "greet", "grow", "make_beam", "mode", "modes", "move", "name", "numbers", "peek", "points", "quiet", "same", "scale", "sides", "total", "triple", "words",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -315,6 +602,12 @@ class Shape(_runtime.Object):
             ("points", "points", False, _types._director__drc_Shape__points),
             ("flags", "flags", False, _types._director__drc_Shape__flags),
             ("triple", "triple", False, _types._director__drc_Shape__triple),
+            ("peek", "peek", False, _types._director__drc_Shape__peek),
+            ("compare", "compare", False, _types._director__drc_Shape__compare),
+            ("same", "same", False, _types._director__drc_Shape__same),
+            ("grow", "grow", False, _types._director__drc_Shape__grow),
+            ("adopt", "adopt", False, _types._director__drc_Shape__adopt),
+            ("make_beam", "make_beam", False, _types._director__drc_Shape__make_beam),
             ("changed", "changed", False, _types._director__drc_Shape__changed),
         ),
     )
@@ -405,6 +698,7 @@ class Shape(_runtime.Object):
         self._adopt(handle)
         record.pointer = director
         self._director = record
+        _runtime.register_object(self)
 
     def _dptr(self):
         """The handle of the director, for the calls of the implementation of the class."""
@@ -732,6 +1026,68 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_director_base_triple(self._dptr(), values, _out))
         return _runtime.array_items(_out, 3)
 
+    def _base_peek(self, holder):
+        """Calls the implementation of ``int32_t drc::Shape::peek(const drc::Holder& holder) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(holder, Holder, "holder")
+        _runtime.check(_bind().drc_Shape_director_base_peek(self._dptr(), holder._ptr(), _out))
+        return _out.value
+
+    def _base_compare(self, other):
+        """Calls the implementation of ``double drc::Shape::compare(const drc::Shape& other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Shape_director_base_compare(
+            self._dptr(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def _base_same(self, other):
+        """Calls the implementation of ``bool drc::Shape::same(const drc::Shape* other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_bool()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Shape_director_base_same(
+            self._dptr(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def _base_grow(self, beam):
+        """Calls the implementation of ``int32_t drc::Shape::grow(drc::Beam& beam) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Shape_director_base_grow(self._dptr(), beam._mptr(), _out))
+        return _out.value
+
+    def _base_adopt(self, beam):
+        """Calls the implementation of ``int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _c = _bind().drc_Shape_director_base_adopt
+        _h1 = self._dptr()
+        [_h2] = _runtime.take(self._retained, (beam, "beam"), keep=self)
+        _runtime.check(_c(_h1, _h2, _out))
+        return _out.value
+
+    def _base_make_beam(self, length):
+        """Calls the implementation of ``std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _result = Beam.__new__(Beam)
+        _out = _result._watch()
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _runtime.check(_bind().drc_Shape_director_base_make_beam(self._dptr(), length, _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
     def _base_changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++: not the
         override of an object, which would call this one again."""
@@ -999,9 +1355,73 @@ class Shape(_runtime.Object):
 
     def peek(self, holder):
         """Wraps ``int32_t drc::Shape::peek(const drc::Holder& holder) const``."""
+        if self._director is not None:
+            return self._base_peek(holder)
         _out = ctypes.c_int32()
         _runtime.check_object(holder, Holder, "holder")
         _runtime.check(_bind().drc_Shape_peek(self._ptr_drc_Shape(), holder._ptr(), _out))
+        return _out.value
+
+    def compare(self, other):
+        """Wraps ``double drc::Shape::compare(const drc::Shape& other) const``."""
+        if self._director is not None:
+            return self._base_compare(other)
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Shape_compare(
+            self._ptr_drc_Shape(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def same(self, other):
+        """Wraps ``bool drc::Shape::same(const drc::Shape* other) const``."""
+        if self._director is not None:
+            return self._base_same(other)
+        _out = ctypes.c_bool()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Shape_same(self._ptr_drc_Shape(), other._ptr_drc_Shape(), _out))
+        return _out.value
+
+    def grow(self, beam):
+        """Wraps ``int32_t drc::Shape::grow(drc::Beam& beam) const``."""
+        if self._director is not None:
+            return self._base_grow(beam)
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Shape_grow(self._ptr_drc_Shape(), beam._mptr(), _out))
+        return _out.value
+
+    def adopt(self, beam):
+        """Wraps ``int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const``."""
+        if self._director is not None:
+            return self._base_adopt(beam)
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _c = _bind().drc_Shape_adopt
+        _h1 = self._ptr_drc_Shape()
+        [_h2] = _runtime.take(self._retained, (beam, "beam"), keep=self)
+        _runtime.check(_c(_h1, _h2, _out))
+        return _out.value
+
+    def make_beam(self, length):
+        """Wraps ``std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const``."""
+        if self._director is not None:
+            return self._base_make_beam(length)
+        _result = Beam.__new__(Beam)
+        _out = _result._watch()
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _runtime.check(_bind().drc_Shape_make_beam(self._ptr_drc_Shape(), length, _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+    def by_value(self, beam):
+        """Wraps ``int32_t drc::Shape::by_value(drc::Beam beam) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Shape_by_value(self._ptr_drc_Shape(), beam._ptr(), _out))
         return _out.value
 
     def fixed(self):
@@ -1170,6 +1590,62 @@ class Shape(_runtime.Object):
         _runtime.check(_bind().drc_Shape_call_peek(self._ptr_drc_Shape(), holder._ptr(), _out))
         return _out.value
 
+    def call_compare(self, other):
+        """Wraps ``double drc::Shape::call_compare(const drc::Shape& other) const``."""
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Shape_call_compare(
+            self._ptr_drc_Shape(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def call_same(self, other):
+        """Wraps ``bool drc::Shape::call_same(const drc::Shape* other) const``."""
+        _out = ctypes.c_bool()
+        _runtime.check_object(other, Shape, "other", nullable=True)
+        _runtime.check(_bind().drc_Shape_call_same(
+            self._ptr_drc_Shape(),
+            (other._ptr_drc_Shape() if other is not None else None),
+            _out,
+        ))
+        return _out.value
+
+    def call_grow(self, beam):
+        """Wraps ``int32_t drc::Shape::call_grow(drc::Beam& beam) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Shape_call_grow(self._ptr_drc_Shape(), beam._mptr(), _out))
+        return _out.value
+
+    def call_adopt(self, beam):
+        """Wraps ``int32_t drc::Shape::call_adopt(std::unique_ptr<drc::Beam> beam) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _c = _bind().drc_Shape_call_adopt
+        _h1 = self._ptr_drc_Shape()
+        [_h2] = _runtime.take(self._retained, (beam, "beam"), keep=self)
+        _runtime.check(_c(_h1, _h2, _out))
+        return _out.value
+
+    def call_make_beam(self, length):
+        """Wraps ``std::unique_ptr<drc::Beam> drc::Shape::call_make_beam(int32_t length) const``."""
+        _result = Beam.__new__(Beam)
+        _out = _result._watch()
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _runtime.check(_bind().drc_Shape_call_make_beam(self._ptr_drc_Shape(), length, _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+    def call_by_value(self, beam):
+        """Wraps ``int32_t drc::Shape::call_by_value(const drc::Beam& beam) const``."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Shape_call_by_value(self._ptr_drc_Shape(), beam._ptr(), _out))
+        return _out.value
+
     def choose(self, requested):
         """Wraps ``drc::Mode drc::Shape::choose(drc::Mode requested) const``."""
         _out = ctypes.c_uint8()
@@ -1268,7 +1744,7 @@ class Circle(Shape):
 
     __slots__ = ()
     _cxx_class = "drc_Circle"
-    _virtual_names = ("add", "add_double_double", "add_int32_int32", "area", "center", "changed", "flags", "greet", "mode", "modes", "move", "name", "numbers", "points", "quiet", "scale", "sides", "total", "triple", "words",)
+    _virtual_names = ("add", "add_double_double", "add_int32_int32", "adopt", "area", "center", "changed", "compare", "flags", "greet", "grow", "make_beam", "mode", "modes", "move", "name", "numbers", "peek", "points", "quiet", "same", "scale", "sides", "total", "triple", "words",)
     # The virtual methods that a subclass may override: (method, member of the vtable,
     # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
     _director_slots = _runtime.DirectorSlots(
@@ -1294,6 +1770,12 @@ class Circle(Shape):
             ("points", "points", False, _types._director__drc_Circle__points),
             ("flags", "flags", False, _types._director__drc_Circle__flags),
             ("triple", "triple", False, _types._director__drc_Circle__triple),
+            ("peek", "peek", False, _types._director__drc_Circle__peek),
+            ("compare", "compare", False, _types._director__drc_Circle__compare),
+            ("same", "same", False, _types._director__drc_Circle__same),
+            ("grow", "grow", False, _types._director__drc_Circle__grow),
+            ("adopt", "adopt", False, _types._director__drc_Circle__adopt),
+            ("make_beam", "make_beam", False, _types._director__drc_Circle__make_beam),
             ("changed", "changed", False, _types._director__drc_Circle__changed),
         ),
     )
@@ -1351,6 +1833,7 @@ class Circle(Shape):
         self._adopt(handle)
         record.pointer = director
         self._director = record
+        _runtime.register_object(self)
 
     def _dptr(self):
         """The handle of the director, for the calls of the implementation of the class."""
@@ -1690,6 +2173,68 @@ class Circle(Shape):
         _runtime.check(_bind().drc_Circle_director_base_triple(self._dptr(), values, _out))
         return _runtime.array_items(_out, 3)
 
+    def _base_peek(self, holder):
+        """Calls the implementation of ``int32_t drc::Shape::peek(const drc::Holder& holder) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(holder, Holder, "holder")
+        _runtime.check(_bind().drc_Circle_director_base_peek(self._dptr(), holder._ptr(), _out))
+        return _out.value
+
+    def _base_compare(self, other):
+        """Calls the implementation of ``double drc::Shape::compare(const drc::Shape& other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Circle_director_base_compare(
+            self._dptr(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def _base_same(self, other):
+        """Calls the implementation of ``bool drc::Shape::same(const drc::Shape* other) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_bool()
+        _runtime.check_object(other, Shape, "other")
+        _runtime.check(_bind().drc_Circle_director_base_same(
+            self._dptr(),
+            other._ptr_drc_Shape(),
+            _out,
+        ))
+        return _out.value
+
+    def _base_grow(self, beam):
+        """Calls the implementation of ``int32_t drc::Shape::grow(drc::Beam& beam) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _runtime.check(_bind().drc_Circle_director_base_grow(self._dptr(), beam._mptr(), _out))
+        return _out.value
+
+    def _base_adopt(self, beam):
+        """Calls the implementation of ``int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check_object(beam, Beam, "beam")
+        _c = _bind().drc_Circle_director_base_adopt
+        _h1 = self._dptr()
+        [_h2] = _runtime.take(self._retained, (beam, "beam"), keep=self)
+        _runtime.check(_c(_h1, _h2, _out))
+        return _out.value
+
+    def _base_make_beam(self, length):
+        """Calls the implementation of ``std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const`` in C++: not the
+        override of an object, which would call this one again."""
+        _result = Beam.__new__(Beam)
+        _out = _result._watch()
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _runtime.check(_bind().drc_Circle_director_base_make_beam(self._dptr(), length, _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
     def _base_changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++: not the
         override of an object, which would call this one again."""
@@ -1786,6 +2331,42 @@ class Circle(Shape):
             return _builtins.super(__class__, self).triple(values)
         return self._base_triple(values)
 
+    def peek(self, holder):
+        """Wraps ``int32_t drc::Shape::peek(const drc::Holder& holder) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).peek(holder)
+        return self._base_peek(holder)
+
+    def compare(self, other):
+        """Wraps ``double drc::Shape::compare(const drc::Shape& other) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).compare(other)
+        return self._base_compare(other)
+
+    def same(self, other):
+        """Wraps ``bool drc::Shape::same(const drc::Shape* other) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).same(other)
+        return self._base_same(other)
+
+    def grow(self, beam):
+        """Wraps ``int32_t drc::Shape::grow(drc::Beam& beam) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).grow(beam)
+        return self._base_grow(beam)
+
+    def adopt(self, beam):
+        """Wraps ``int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).adopt(beam)
+        return self._base_adopt(beam)
+
+    def make_beam(self, length):
+        """Wraps ``std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const``."""
+        if self._director is None:
+            return _builtins.super(__class__, self).make_beam(length)
+        return self._base_make_beam(length)
+
     def changed(self, reason):
         """Calls the implementation of ``void drc::Shape::changed(int32_t reason)`` in C++ (protected: only
         an override of a subclass that overrides virtual methods can call it)."""
@@ -1836,242 +2417,6 @@ class Circle(Shape):
         """Wraps ``double drc::Circle::radius() const``."""
         _out = ctypes.c_double()
         _runtime.check(_bind().drc_Circle_radius(self._ptr(), _out))
-        return _out.value
-
-
-class Beam(_runtime.Object):
-    """Wraps ``drc::Beam``.
-
-    The C++ object is destroyed by close(), at the end of a ``with`` block or
-    when this object is garbage collected, whichever comes first. Objects still
-    alive when the interpreter exits are not destroyed. An object obtained by
-    reference or pointer (borrowed) is never destroyed by Python: it stays usable
-    while the objects it was obtained from are open.
-    """
-
-    __slots__ = ()
-    _cxx_class = "drc_Beam"
-    _virtual_names = ("length",)
-    # The virtual methods that a subclass may override: (method, member of the vtable,
-    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
-    _director_slots = _runtime.DirectorSlots(
-        "drc_Beam",
-        "drc::Beam",
-        _types._drc_Beam_vtable,
-        (
-            ("length", "length", False, _types._director__drc_Beam__length),
-        ),
-    )
-
-    def __init__(self, length):
-        """Wraps ``drc::Beam::Beam(int32_t length)``."""
-        if _builtins.getattr(self, "_owned", None) is not None:
-            raise _builtins.TypeError("Beam object is already initialized")
-        _found = self._director_slots.overrides(_builtins.type(self))
-        if _found:
-            self._init_director(_found, length)
-            return
-        length = _runtime.to_int(length, ctypes.c_int32, "length")
-        _handle = self._watch()
-        _runtime.check(_bind().drc_Beam_create(_handle, length))
-        self._adopt(_handle)
-
-    def _init_director(self, _found, length):
-        """Wraps ``drc::Beam::Beam(int32_t length) of the director``."""
-        length = _runtime.to_int(length, ctypes.c_int32, "length")
-        _handle, _director = self._watch_director()
-        _vtable, _record = self._director_slots.make(self, _found)
-        _runtime.check(_bind().drc_Beam_director_create_int32(
-            _handle,
-            _director,
-            _record.register(_vtable),
-            length,
-        ))
-        self._adopt_director(_handle, _director, _record)
-
-    @_builtins.classmethod
-    def create_void(cls):
-        """Wraps ``drc::Beam::Beam() of the director``.
-
-        Only a subclass can call it: the constructor is protected.
-        """
-        _found = cls._director_slots.overrides(cls, subclass=True)
-        _self = cls.__new__(cls)
-        _handle, _director = _self._watch_director()
-        _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().drc_Beam_director_create_void(
-            _handle,
-            _director,
-            _record.register(_vtable),
-        ))
-        _self._adopt_director(_handle, _director, _record)
-        return _self
-
-    @_builtins.classmethod
-    def create_string(cls, label):
-        """Wraps ``drc::Beam::Beam(const std::string& label) of the director``.
-
-        Only a subclass can call it: the constructor is protected.
-        """
-        _found = cls._director_slots.overrides(cls, subclass=True)
-        label = _runtime.to_bytes(label, "label")
-        label_size = _builtins.len(label)
-        _self = cls.__new__(cls)
-        _handle, _director = _self._watch_director()
-        _vtable, _record = cls._director_slots.make(_self, _found)
-        _runtime.check(_bind().drc_Beam_director_create_string(
-            _handle,
-            _director,
-            _record.register(_vtable),
-            label,
-            label_size,
-        ))
-        _self._adopt_director(_handle, _director, _record)
-        return _self
-
-    def _watch(self):
-        """Return the handle for a constructor to write, already watched.
-
-        The collection of self destroys the object from the moment the C call
-        writes the handle, before any Python code runs again: a signal raised
-        right after the call does not leak it.
-        """
-        handle = _types._drc_Beam__p()
-        self._handle = None
-        self._owned = []
-        self._owners = ()
-        self._readonly = False
-        # What the C++ object keeps pointers to (see _runtime.retain).
-        self._retained = {}
-        self._director = None
-        self._finalizer = _runtime.watch(self, handle, _bind().drc_Beam_destroy)
-        return handle
-
-    def _watch_director(self):
-        """Like _watch(), and the handle for the create function to write the director to."""
-        return self._watch(), _types._drc_Beam_director__p()
-
-    def _adopt_director(self, handle, director, record):
-        self._adopt(handle)
-        record.pointer = director
-        self._director = record
-
-    def _dptr(self):
-        """The handle of the director, for the calls of the implementation of the class."""
-        return _runtime.director_pointer(self._director, "Beam")
-
-    def _adopt(self, handle):
-        if not handle:
-            raise _builtins.RuntimeError(
-                "drc::Beam: the C layer returned a NULL handle"
-            )
-        self._handle = handle
-        # Whoever pops it destroys the object: close() is safe in several threads.
-        self._owned.append((_bind().drc_Beam_destroy, _types._drc_Beam__p()))
-        _runtime.recover(self._retained, handle)
-
-    def _ptr(self):
-        if not self._owned or self._collected():
-            raise _builtins.ValueError("Beam object is closed")
-        for owner in self._owners:
-            if not owner._owned or owner._collected():
-                raise _builtins.ValueError(
-                    "Beam object is no longer valid: an object it was obtained "
-                    "from is closed"
-                )
-        return self._handle
-
-    def _mptr(self):
-        if self._readonly:
-            raise _builtins.TypeError(
-                "Beam object is read-only: it was obtained through a const "
-                "reference or pointer"
-            )
-        return self._ptr()
-
-
-    def _collected(self):
-        # Cyclic garbage, in a __del__: the collection cleared the reference
-        # and destroyed the object, unless it was disarmed at exit. (A borrowed
-        # object has no finalizer.)
-        armed = self._finalizer
-        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
-
-    def close(self):
-        """Destroy the C++ object now (not if it is borrowed). Calling it again
-        does nothing."""
-        # Only self and builtins: in a __del__ at interpreter exit, the globals
-        # of this module may be gone already.
-        try:
-            director = self._director
-        except AttributeError:
-            director = None
-        if director is not None and director.running:
-            # C++ is running a method on the object: destroying it would free what it uses.
-            director.cannot_close("Beam")
-        try:
-            destroy, null = self._owned.pop()
-        except (AttributeError, IndexError):
-            return
-        if destroy is None:
-            # Borrowed: the C++ object belongs to another one.
-            self._handle = None
-            return
-        if self._collected():
-            self._handle = None
-            return
-        handle = self._handle
-        self._handle = None
-        # Nothing from here to the destruction checks for signals (no Python
-        # function starts): the collection must not destroy the object again,
-        # and this destruction must not be skipped.
-        self._finalizer._as_parameter_ = null
-        destroy(handle)
-        # What the object kept pointers to may go now, after its destructor. In
-        # place: the objects borrowed from this one share the list (and are
-        # invalid now).
-        self._retained.clear()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc_info):
-        self.close()
-
-    def __copy__(self):
-        raise _builtins.TypeError("Beam objects cannot be copied")
-
-    def __deepcopy__(self, memo):
-        raise _builtins.TypeError("Beam objects cannot be copied")
-
-    def __reduce__(self):
-        raise _builtins.TypeError("Beam objects cannot be pickled")
-
-    def _base_length(self):
-        """Calls the implementation of ``int32_t drc::Beam::length() const`` in C++: not the
-        override of an object, which would call this one again."""
-        _out = ctypes.c_int32()
-        _runtime.check(_bind().drc_Beam_director_base_length(self._dptr(), _out))
-        return _out.value
-
-    def length(self):
-        """Wraps ``int32_t drc::Beam::length() const``."""
-        if self._director is not None:
-            return self._base_length()
-        _out = ctypes.c_int32()
-        _runtime.check(_bind().drc_Beam_length(self._ptr(), _out))
-        return _out.value
-
-    def call_length(self):
-        """Wraps ``int32_t drc::Beam::call_length() const``."""
-        _out = ctypes.c_int32()
-        _runtime.check(_bind().drc_Beam_call_length(self._ptr(), _out))
-        return _out.value
-
-    def made_by(self):
-        """Wraps ``int32_t drc::Beam::made_by() const``."""
-        _out = ctypes.c_int32()
-        _runtime.check(_bind().drc_Beam_made_by(self._ptr(), _out))
         return _out.value
 
 
@@ -2497,6 +2842,13 @@ class Holder(_runtime.Object):
         """Wraps ``bool drc::Holder::empty() const``."""
         _out = ctypes.c_bool()
         _runtime.check(_bind().drc_Holder_empty(self._ptr(), _out))
+        return _out.value
+
+    def compare_held(self, other):
+        """Wraps ``double drc::Holder::compare_held(const drc::Holder& other) const``."""
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Holder, "other")
+        _runtime.check(_bind().drc_Holder_compare_held(self._ptr(), other._ptr(), _out))
         return _out.value
 
     def describe(self):

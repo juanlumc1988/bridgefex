@@ -512,7 +512,8 @@ static void shape_numbers_wrong_size(void* user_data, const int32_t* values, siz
                                      drc_vector_sink* out_result)
 {
     (void)user_data;
-    drc_vector_sink_set(out_result, values, size, sizeof(int64_t)); /* not an int32_t */
+    const int64_t wide[8] = {0}; /* elements of another size than the int32_t of the result */
+    drc_vector_sink_set(out_result, wide, size < 8 ? size : 8, sizeof wide[0]);
     drc_vector_sink_set(NULL, values, size, sizeof values[0]);       /* ignored */
 }
 
@@ -624,8 +625,86 @@ static void check_containers(void)
     drc_Shape_destroy(shape);
 }
 
+/* Objects in the signatures. */
+static int beams_destroyed_by_the_vtable = 0;
+static const drc_Shape* seen_by_compare = NULL;
+
+static void shape_compare(void* user_data, const drc_Shape* other, double* out_result)
+{
+    (void)user_data;
+    seen_by_compare = other; /* lent: valid during this call only */
+    double area = 0.0;
+    check(drc_Shape_area(other, &area) == DRC_OK, "the lent object works");
+    *out_result = area + 1.0;
+}
+
+static void shape_same(void* user_data, const drc_Shape* other, bool* out_result)
+{
+    (void)user_data;
+    *out_result = other == NULL; /* NULL is a NULL pointer */
+}
+
+static void shape_adopt(void* user_data, drc_Beam* beam, int32_t* out_result)
+{
+    (void)user_data;
+    int32_t length = 0;
+    check(drc_Beam_call_length(beam, &length) == DRC_OK, "the object that is given");
+    *out_result = length + 100;
+    drc_Beam_destroy(beam); /* it is the override's now */
+    ++beams_destroyed_by_the_vtable;
+}
+
+static void shape_make_beam(void* user_data, int32_t length, drc_Beam** out_result)
+{
+    (void)user_data;
+    if (length < 0) {
+        return; /* not written: a NULL pointer */
+    }
+    check(drc_Beam_create(out_result, length * 3) == DRC_OK, "make the object to give");
+}
+
+static void check_objects(void)
+{
+    state user;
+    memset(&user, 0, sizeof user);
+    drc_Shape_vtable vtable = shape_vtable(&user);
+    vtable.compare = shape_compare;
+    vtable.same = shape_same;
+    vtable.adopt = shape_adopt;
+    vtable.make_beam = shape_make_beam;
+    drc_Shape_director* director = NULL;
+    drc_Shape* shape = NULL;
+    check(drc_Shape_director_create_void(&shape, &director, &vtable) == DRC_OK, "create");
+
+    double result = 0.0;
+    check(drc_Shape_call_compare(shape, shape, &result) == DRC_OK && result == 7.5 &&
+              seen_by_compare == shape,
+          "a reference to an object: its own address");
+    bool same = false;
+    check(drc_Shape_call_same(shape, NULL, &same) == DRC_OK && same, "a NULL pointer");
+    check(drc_Shape_call_same(shape, shape, &same) == DRC_OK && !same, "a pointer");
+
+    drc_Beam* beam = NULL;
+    check(drc_Beam_create(&beam, 5) == DRC_OK, "a Beam");
+    int32_t value = 0;
+    check(drc_Shape_call_adopt(shape, beam, &value) == DRC_OK && value == 105 &&
+              beams_destroyed_by_the_vtable == 1,
+          "a std::unique_ptr that C++ gives: the override destroys it");
+
+    drc_Beam* made = NULL;
+    check(drc_Shape_call_make_beam(shape, 4, &made) == DRC_OK && made != NULL &&
+              drc_Beam_call_length(made, &value) == DRC_OK && value == 12,
+          "a std::unique_ptr that the override gives");
+    drc_Beam_destroy(made);
+    made = (drc_Beam*)1;
+    check(drc_Shape_call_make_beam(shape, -1, &made) == DRC_OK && made == NULL,
+          "a std::unique_ptr that is not given is NULL");
+    drc_Shape_destroy(shape);
+}
+
 int main(void)
 {
+    check_objects();
     check_containers();
     check_a_director_of_an_abstract_class();
     check_what_a_vtable_must_have();

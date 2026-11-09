@@ -281,6 +281,7 @@ class Base(_runtime.Object):
         self._adopt(handle)
         record.pointer = director
         self._director = record
+        _runtime.register_object(self)
 
     def _dptr(self):
         """The handle of the director, for the calls of the implementation of the class."""
@@ -745,6 +746,7 @@ class Derived(Base):
         self._adopt(handle)
         record.pointer = director
         self._director = record
+        _runtime.register_object(self)
 
     def _dptr(self):
         """The handle of the director, for the calls of the implementation of the class."""

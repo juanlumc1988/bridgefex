@@ -175,6 +175,9 @@ class ClassRef:
     system: bool = False
     """Declared in a system header (which is wrapped only if given as one)."""
 
+    rvalue_reference: bool = False
+    """``std::unique_ptr<T>&&``, which is not the same parameter (an override declares it)."""
+
     @property
     def is_void(self) -> bool:
         return False

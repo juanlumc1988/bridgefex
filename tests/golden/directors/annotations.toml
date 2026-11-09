@@ -1,2 +1,6 @@
 # The classes that other languages may derive from, overriding their virtual methods.
 directors = ["drc_Shape", "drc_Circle", "drc_Stage", "drc_Beam"]
+
+# A pointer that may be NULL (None).
+[drc_Shape_call_same]
+other = "nullable"

@@ -336,6 +336,8 @@ class CallbackPart:
     struct: StructPlan | None = None
     element: ElementSpec | None = None
     """What the elements of a container are, if the part is one (an override only)."""
+    cls: ClassInfo | None = None
+    """The class, if the part is an object (an override only)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1084,6 +1086,12 @@ class _Slot:
     owner: ClassInfo
     hook: Hook
     method: Method
+    """The declaration with its classes as :class:`ClassRef` (a class that the header only
+    declares is a struct to the parser)."""
+
+    declared: Method
+    """The declaration as the model has it, which the bindings of the public methods compare
+    with."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1638,6 +1646,16 @@ class _Builder:
             return ClassRef(type_.usr, type_.qualified_name, type_.definition, form, type_.system)
         return None
 
+    def _classified(self, method: Method) -> Method:
+        """``method`` with the classes in its signature as :class:`ClassRef`."""
+        parameters = tuple(
+            dataclasses.replace(parameter, type=self._as_class(parameter.type) or parameter.type)
+            for parameter in method.parameters
+        )
+        return dataclasses.replace(
+            method, parameters=parameters, result=self._as_class(method.result) or method.result
+        )
+
     def _class(self, ref: ClassRef, location: Location) -> ClassInfo | None:
         """The class of a reference, or None (reported) if it is no class of the module."""
         info = self._classes.get(ref.usr)
@@ -1922,6 +1940,8 @@ class _Builder:
             return CallbackPart(type_, enum=self._enum(type_, location))
         if isinstance(type_, StructRef):
             return CallbackPart(type_, struct=self._struct(type_, location))
+        if isinstance(type_, ClassRef):
+            return CallbackPart(type_, cls=self._class(type_, location))
         if isinstance(type_, ContainerType):
             element = self._element(type_.element, location)
             assert element is not None  # checked
@@ -2003,6 +2023,32 @@ class _Builder:
         )
         return f"{self._spell(type_.result, False, location)} ({arguments})"
 
+    def _forwarded(self, type_: Type, local: str, location: Location) -> str:
+        """The argument of a call of the implementation of the class for a parameter of the
+        override: an object that is moved (an rvalue reference, a std::unique_ptr) is cast."""
+        if isinstance(type_, ContainerType) and type_.rvalue_reference:
+            return f"static_cast<{self._container_spelling(type_, location)}>({local})"
+        if isinstance(type_, ClassRef) and type_.form is ClassForm.UNIQUE:
+            info = self._class(type_, location)
+            assert info is not None  # checked
+            return f"static_cast<::std::unique_ptr<{info.cpp_name}>&&>({local})"
+        return local
+
+    def _class_spelling(self, part: ClassRef, location: Location) -> str:
+        """A class as a signature declares it, fully qualified."""
+        info = self._class(part, location)
+        assert info is not None  # checked
+        name = info.cpp_name
+        return {
+            ClassForm.VALUE: name,
+            ClassForm.REFERENCE: f"{name}&",
+            ClassForm.CONST_REFERENCE: f"const {name}&",
+            ClassForm.POINTER: f"{name}*",
+            ClassForm.CONST_POINTER: f"const {name}*",
+            ClassForm.UNIQUE: f"::std::unique_ptr<{name}>"
+            + ("&&" if part.rvalue_reference else ""),
+        }[part.form]
+
     def _container_spelling(self, part: ContainerType, location: Location) -> str:
         """A container as a signature declares it, fully qualified."""
         element = self._element(part.element, location)
@@ -2033,6 +2079,8 @@ class _Builder:
             return f"const {name}&" if part.by_reference else name
         elif isinstance(part, ContainerType):
             return self._container_spelling(part, location)
+        elif isinstance(part, ClassRef):
+            return self._class_spelling(part, location)
         else:
             assert isinstance(part, ScalarType)
             name = part.c_name
@@ -2915,7 +2963,7 @@ class _Builder:
                 if hook.method is None:
                     unreadable.append((owner, hook))
                 else:
-                    slots[key] = _Slot(owner, hook, hook.method)
+                    slots[key] = _Slot(owner, hook, self._classified(hook.method), hook.method)
         for key in ambiguous:
             slot = slots.get(key)
             if slot is not None and not slot.hook.is_pure:
@@ -2927,7 +2975,29 @@ class _Builder:
         method = slot.method
         problems: list[str] = []
 
-        def supported(type_: Type, what: str) -> bool:
+        def supported(type_: Type, what: str, *, result: bool = False) -> bool:
+            if isinstance(type_, ClassRef):
+                if type_.usr not in self._classes:
+                    problems.append(f"{what}: the class '{type_.qualified_name}' is not wrapped")
+                elif type_.form is ClassForm.VALUE and not result:
+                    problems.append(
+                        f"{what}: '{type_.qualified_name}' by value is a copy that an override "
+                        "cannot take: take it by reference"
+                    )
+                elif type_.form is ClassForm.UNIQUE and type_.rvalue_reference:
+                    problems.append(
+                        f"{what}: a std::unique_ptr&& may be left with the caller, which an "
+                        "override cannot say: take it by value"
+                    )
+                elif result and type_.form is not ClassForm.UNIQUE:
+                    problems.append(
+                        f"{what}: an override can only give an object to C++ as a "
+                        "std::unique_ptr (a pointer or reference would be to an object "
+                        "that the override owns)"
+                    )
+                else:
+                    return True
+                return False
             if isinstance(type_, EnumRef) and type_.usr not in self._enums:
                 problems.append(f"{what}: the enum '{type_.qualified_name}' is not wrapped")
             elif isinstance(type_, StructRef) and type_.usr not in self._structs:
@@ -2970,7 +3040,7 @@ class _Builder:
         elif isinstance(result, ContainerType) and result.rvalue_reference:
             problems.append("the result is a reference: an override cannot return one")
         else:
-            supported(result, "the result")
+            supported(result, "the result", result=True)
         return problems
 
     def _director_eligible(
@@ -3134,6 +3204,8 @@ class _Builder:
         """How an argument of an override crosses to the function of the vtable: (its C
         types, the C arguments, the statements that make what they refer to, which live
         until the call returns, the token of the signature name)."""
+        if isinstance(type_, ClassRef):
+            return self._director_object_argument(type_, local, location)
         if not isinstance(type_, ContainerType):
             lowered = self._callback_argument(type_, local, location)
             assert lowered is not None  # checked
@@ -3167,6 +3239,32 @@ class _Builder:
         if type_.kind is ContainerKind.ARRAY:
             return [pointer], [data], before, f"array{type_.length}_{element.token}"
         return [pointer, "size_t"], [data, f"{local}.size()"], before, f"vector_{element.token}"
+
+    def _director_object_argument(
+        self, type_: ClassRef, local: str, location: Location
+    ) -> tuple[list[str], list[str], list[str], str]:
+        """An object that C++ gives to an override: borrowed during the call (a reference or
+        a pointer), or given up to the language, which destroys it (a std::unique_ptr)."""
+        detail = f"{self.module.name}_detail"
+        info = self._class(type_, location)
+        assert info is not None  # checked
+        if type_.form is ClassForm.UNIQUE:
+            return (
+                [f"{info.c_type}*"],
+                [f"reinterpret_cast<{info.c_type}*>({local}.release())"],
+                [],
+                f"unique_{info.c_type}",
+            )
+        constant = type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
+        qualifier = "const " if constant else ""
+        pointer = type_.form in (ClassForm.POINTER, ClassForm.CONST_POINTER)
+        address = local if pointer else f"{detail}::object_address({local})"
+        return (
+            [f"{qualifier}{info.c_type}*"],
+            [f"reinterpret_cast<{qualifier}{info.c_type}*>({address})"],
+            [],
+            f"{type_.form.value}_{info.c_type}",
+        )
 
     def _director_container_result(
         self, type_: ContainerType, location: Location
@@ -3217,6 +3315,17 @@ class _Builder:
         detail = f"{self.module.name}_detail"
         if isinstance(type_, ContainerType):
             return self._director_container_result(type_, location)
+        if isinstance(type_, ClassRef):
+            info = self._class(type_, location)
+            assert info is not None  # checked
+            cpp = f"::std::unique_ptr<{info.cpp_name}>"
+            return (
+                cpp,
+                f"{info.c_type}**",
+                f"unique_{info.c_type}",
+                [f"{info.c_type}* _result = nullptr;"],
+                [f"return {cpp}(reinterpret_cast<{info.cpp_name}*>(_result));"],
+            )
         if isinstance(type_, StringType):
             sink = f"{self.module.name}_string_sink"
             return (
@@ -3294,9 +3403,7 @@ class _Builder:
             c_types.append(result_c)
             passed.append("&_result")
         names = ", ".join(
-            f"static_cast<{self._container_spelling(parameter.type, location)}>(_arg{position})"
-            if isinstance(parameter.type, ContainerType) and parameter.type.rvalue_reference
-            else f"_arg{position}"
+            self._forwarded(parameter.type, f"_arg{position}", location)
             for position, parameter in enumerate(method.parameters, start=1)
         )
         qualifiers = (" const" if method.is_const else "") + (
@@ -3396,7 +3503,7 @@ class _Builder:
             thunk_key="__".join([result_token, *tokens]),
             function_params=", ".join(c_types),
             base=base,
-            method=method,
+            method=slot.declared,
             key=slot.hook.key,
             location=location,
         )

@@ -598,3 +598,13 @@ def test_an_error_on_a_thread_of_cxx_is_not_given_to_any_call(runtime: ModuleTyp
     # A thread of Python gets its own check, which another thread does not see.
     assert run_on_thread(lambda: runtime.fail_director(ValueError("y"))) is True
     runtime.check(runtime.OK)  # nothing for this thread
+
+
+def test_what_the_objects_lent_to_an_override_retain_lives_for_ever(runtime: ModuleType) -> None:
+    """The lent objects belong to C++, which outlives the call: what they keep pointers to
+    must not die with it."""
+    lend = runtime.Lend()
+    assert lend._retained is runtime.forever
+    assert lend._owned
+    lend.end()
+    assert not lend._owned
