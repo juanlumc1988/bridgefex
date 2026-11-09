@@ -26,7 +26,10 @@ from .naming import CS_KEYWORDS, RESERVED_MEMBERS, identifier, pascal
 from .source import Source
 
 _FILE_TYPES = frozenset(
-    "Runtime Native Lease ObjectHandle BridgefexObject BridgefexException Functions".split()
+    """
+    Runtime Native Lease Claim Keep ObjectHandle BridgefexObject BridgefexException
+    BridgefexFunction BridgefexFunctionAttribute Functions
+    """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""
 

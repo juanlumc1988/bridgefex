@@ -26,7 +26,8 @@ LOCAL_PREFIX = "__"
 RESERVED_MEMBERS = frozenset(
     """
     Dispose Close Equals GetHashCode GetType ToString Finalize MemberwiseClone ReferenceEquals
-    IsClosed Handle Hold
+    IsClosed Handle Hold Owners ReadOnly Retained Origin CppType Retain Attach Surrender KeepOf
+    ClaimToGive CollectOwning RetainForever Borrow
     """.split()
 )
 
