@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lang",
         choices=(*generator.LANGUAGES, "none"),
         default="python",
-        help="bindings generated on top of the C layer (default: python)",
+        help=f"bindings generated on top of the C layer (default: {generator.DEFAULT_LANGUAGES[0]})",
     )
     parser.add_argument(
         "--std", default="c++17", help="C++ standard used to parse the headers (default: c++17)"

@@ -225,6 +225,46 @@ def check(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[str]:
     return problems
 
 
+def resolve(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[dict[str, object]]:
+    """A copy of ``scenarios`` (already checked) in which every ``new`` and ``call`` says
+    the C function that it wraps (``c``): a runner for a language that finds what to call by
+    that name does not have to know how the language names things."""
+    index = _Index.of(plan)
+    resolved: list[dict[str, object]] = []
+    for scenario in scenarios:
+        variables: dict[str, ClassPlan | None] = {}
+        derived: dict[str, ClassPlan] = {}
+        steps: list[dict[str, object]] = []
+        for step in scenario["steps"]:  # type: ignore[attr-defined]
+            step = dict(step)
+            produced: ClassPlan | None = None
+            if "new" in step:
+                target = str(step["new"])
+                cls = derived.get(target) or _class(target, index)
+                assert cls is not None
+                constructor, _ = _constructor(cls, step.get("overload"), director=target in derived)
+                assert constructor is not None
+                step["c"] = constructor.function.name
+                produced = cls
+            elif "call" in step:
+                found = _callable(str(step["call"]), index, variables)
+                assert not isinstance(found, str), found
+                call, produced = found
+                step["c"] = call.function.name
+            elif "derive" in step:
+                derived[str(step["named"])] = _class(str(step["derive"]), index)  # type: ignore[assignment]
+            if "as" in step:
+                variables[str(step["as"])] = produced
+            steps.append(step)
+        resolved.append({**scenario, "steps": steps})
+    return resolved
+
+
+def enum_types(plan: ModulePlan) -> dict[str, EnumPlan]:
+    """The enums that the scenarios name (``stem.Name`` or ``stem.Class.Name``)."""
+    return dict(_Index.of(plan).enums)
+
+
 def _check_step(
     step: Mapping[str, object],
     index: _Index,

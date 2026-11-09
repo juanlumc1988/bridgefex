@@ -13,7 +13,7 @@ from . import libclang, naming
 from .annotations import load as load_annotations
 from .backends import reservations
 from .errors import ConfigurationError, Diagnostic, GenerationError
-from .generator import LANGUAGES, render
+from .generator import DEFAULT_LANGUAGES, LANGUAGES, render
 from .model import Header, Module
 from .parser import ParseOptions, macro_defined_after, parse_header, selects_cxx11, system_names
 from .plan import build_plan
@@ -39,7 +39,7 @@ class Options:
     """Directory that the ``#include`` paths of the generated sources are relative
     to. By default each header is included by its file name."""
 
-    languages: tuple[str, ...] = LANGUAGES
+    languages: tuple[str, ...] = DEFAULT_LANGUAGES
 
     annotations: tuple[Path, ...] = ()
     """TOML files that say who owns the objects that cross the boundary (see

@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from bridgefex.backends import registry
-from tests.conformance import scenarios
+from tests.conformance import runner_csharp, scenarios
 from tests.support.build import build
 from tests.support.cases import GOLDEN_DIR, Case, all_cases, load_case
 from tests.support.plans import plan_of
@@ -60,7 +60,28 @@ def run_python(
 
 RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProcess[str]]] = {
     "python": run_python,
+    "csharp": runner_csharp.run,
 }
+
+# What each backend can already play: the cases whose scenarios use only what it supports.
+SUPPORTED: dict[str, frozenset[str] | None] = {
+    "python": None,
+    "csharp": frozenset({"scalars"}),
+}
+
+
+def supports(language: str, case: Case) -> bool:
+    cases = SUPPORTED[language]
+    return cases is None or case.name in cases
+
+
+@pytest.fixture(autouse=True)
+def _dotnet(request: pytest.FixtureRequest) -> None:
+    """The C# runner needs the .NET SDK."""
+    callspec = getattr(request.node, "callspec", None)
+    if callspec is not None and callspec.params.get("language") == "csharp":
+        if not runner_csharp.available():
+            pytest.skip("needs the .NET SDK")
 
 
 def test_every_backend_has_a_runner() -> None:
@@ -91,6 +112,8 @@ def built(
 @pytest.mark.parametrize("language", sorted(RUNNERS))
 def test_backend_conforms(language: str, built: tuple[Case, Path, Path]) -> None:
     case, library, output = built
+    if not supports(language, case):
+        pytest.skip(f"the {language} backend does not play the {case.name} case yet")
     completed = RUNNERS[language](case, library, output, case.scenarios)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "conformance OK" in completed.stdout
@@ -543,6 +566,8 @@ def test_a_scenario_of_overrides_that_is_not_true_fails(
     language: str, wrong: str, directors: tuple[Case, Path, Path], tmp_path: Path
 ) -> None:
     case, library, output = directors
+    if not supports(language, case):
+        pytest.skip(f"the {language} backend does not override virtual methods yet")
     overrides, new, step = _UNTRUE_OVERRIDES[wrong]
     path = tmp_path / "wrong.toml"
     path.write_text(
