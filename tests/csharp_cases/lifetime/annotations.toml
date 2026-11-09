@@ -1,0 +1,8 @@
+[life_Holder_set]
+res = "retain"
+
+[life_Holder_setThenThrow]
+res = "retain"
+
+[life_Holder_inner]
+return = "borrowed"

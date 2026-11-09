@@ -17,10 +17,19 @@ import pytest
 
 from tests.conformance import runner_csharp
 from tests.support.build import build
-from tests.support.cases import Case, all_cases
+from tests.support.cases import Case, all_cases, load_case
 from tests.support.toolchain import Toolchain
 
-CASES = [case for case in all_cases() if case.check_csharp.exists()]
+# The golden cases that have a check, and the cases of the C# bindings alone (tests/csharp_cases).
+EXTRA_DIR = Path(__file__).parent / "csharp_cases"
+CASES = [
+    case
+    for case in [
+        *all_cases(),
+        *(load_case(path.parent) for path in sorted(EXTRA_DIR.glob("*/case.toml"))),
+    ]
+    if case.check_csharp.exists()
+]
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded", "dotnet")
 
@@ -28,7 +37,14 @@ Built = tuple[Case, Path, Path]
 
 
 def test_there_are_checks() -> None:
-    assert {case.name for case in CASES} >= {"demo", "edge", "inherit", "ownership", "strings"}
+    assert {case.name for case in CASES} >= {
+        "demo",
+        "edge",
+        "inherit",
+        "ownership",
+        "strings",
+        "lifetime",
+    }
 
 
 @pytest.fixture(scope="module", params=CASES, ids=lambda case: case.name)

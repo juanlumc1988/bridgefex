@@ -169,6 +169,16 @@ class _Lowerer:
         for name, local, lease in self.transfers:
             body.add(f"{local} = {lease}.Give();")
             body.add(f"{name}?.Surrender();")
+        # What C++ may keep is retained before the call: a call that stores a pointer and then
+        # throws has kept it all the same. A constructor that throws has kept nothing.
+        target = (
+            "Retain"
+            if plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
+            else "BridgefexObject.RetainForever"
+        )
+        if plan.kind is not CallableKind.CONSTRUCTOR:
+            for name in self.retained:
+                body.add(f"{target}({name});")
         if out.checks_after:
             body.add(f"int {L}status = {call};")
             for line in out.after_call:
@@ -176,15 +186,9 @@ class _Lowerer:
             body.add(f"Runtime.Check({L}status);")
         else:
             body.add(f"Runtime.Check({call});")
-        # What C++ keeps is retained once the call succeeded (the arguments are held until the
-        # end of the method), so that a failed call keeps nothing.
-        target = (
-            "Retain"
-            if plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
-            else "BridgefexObject.RetainForever"
-        )
-        for name in self.retained:
-            body.add(f"{target}({name});")
+        if plan.kind is CallableKind.CONSTRUCTOR:
+            for name in self.retained:
+                body.add(f"{target}({name});")
         for line in out.after_check:
             body.add(line)
         self.lowering.body = body.finish()
@@ -271,7 +275,9 @@ class _Lowerer:
             self.body.add(
                 f'Runtime.CheckEnum((long){name}, {valid[0]}, {valid[1]}, "{spec.name}");'
             )
-        self.arguments[spec.name] = f"({underlying.native}){name}"
+        self.arguments[spec.name] = underlying.to_native.replace(
+            "{}", f"({underlying.public}){name}"
+        )
 
     def string_param(self, spec: ParamSpec, position: int, name: str) -> None:
         body = self.body
@@ -304,22 +310,15 @@ class _Lowerer:
         )
         mutable = "false" if constant else "true"
         lease, view = f"{L}t{position}", f"{L}h{position}"
-        hold = f"Hold_{info.c_type}({mutable})" if info.is_base else f"Hold({mutable})"
+        # A call that gives the object also needs it for itself alone (see Hold).
+        arguments = f"{mutable}, true" if "transfer" in spec.words else mutable
+        hold = f"Hold_{info.c_type}({arguments})" if info.is_base else f"Hold({arguments})"
         if not nullable:
             body.add(f"ArgumentNullException.ThrowIfNull({name});")
-        if "transfer" in spec.words:
-            if info.is_base and not info.model.virtual_destructor:
-                # C++ destroys the object through this class: only an object of exactly it.
-                check = (
-                    f'Runtime.CheckExact({name}, typeof({self.names.cls(info)}), "{spec.name}");'
-                )
-                body.add(f"if ({name} is not null) {check}" if nullable else check)
-            # Before anything else: two calls cannot give the same object.
-            claim = f"{L}c{position}"
-            if nullable:
-                body.add(f"using var {claim} = {name} is null ? default : {name}.ClaimToGive();")
-            else:
-                body.add(f"using var {claim} = {name}.ClaimToGive();")
+        if "transfer" in spec.words and info.is_base and not info.model.virtual_destructor:
+            # C++ destroys the object through this class: only an object of exactly it.
+            check = f'Runtime.CheckExact({name}, typeof({self.names.cls(info)}), "{spec.name}");'
+            body.add(f"if ({name} is not null) {check}" if nullable else check)
         if nullable:
             body.add(f"using var {lease} = {name} is null ? default : {name}.{hold};")
         else:
@@ -358,7 +357,8 @@ class _Lowerer:
             underlying = scalar(spec.enum.model.underlying.c_name)
             body.add(f"{underlying.native} {L}result;")
             self.arguments["out_result"] = f"&{L}result"
-            out.after_check = [f"return ({returns}){L}result;"]
+            raw = underlying.from_native.replace("{}", f"{L}result")
+            out.after_check = [f"return ({returns}){raw};"]
         elif isinstance(type_, StringType):
             self.string_result(type_, spec.as_bytes, out)
         elif isinstance(type_, StructRef):

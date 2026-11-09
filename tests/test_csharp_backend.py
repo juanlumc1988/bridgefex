@@ -246,6 +246,31 @@ def test_hostile_names_compile(tmp_path: Path) -> None:
     generate(tmp_path, HOSTILE, verify=True)
 
 
+@needs_dotnet
+def test_a_module_without_classes_compiles(tmp_path: Path) -> None:
+    """Functions, enums and structs only: the runtime of the objects is there all the same,
+    and warnings are errors."""
+    code = "enum class E { A, B };\nstruct P { int x; };\nint add(int a, int b);"
+    generate(tmp_path, code, verify=True)
+
+
+@needs_dotnet
+def test_the_fields_of_a_struct_do_not_take_the_names_of_its_members(tmp_path: Path) -> None:
+    code = "struct S { int Default; int toNative; int fromNative; int equals; int getType; };"
+    text = generate(tmp_path, code, verify=True)["csharp/Mod/Api.cs"]
+    for name in ("Default_", "ToNative_", "FromNative_", "Equals_", "GetType_"):
+        assert re.search(rf"public int {name};", text), name
+
+
+@needs_dotnet
+def test_enums_with_an_underlying_type_of_c_long_compile(tmp_path: Path) -> None:
+    code = (
+        "enum class L : long { A = -2, B = 2 };\nenum class U : unsigned long { A = 0, B = 2 };\n"
+        "struct H { L l; U u; L ls[2]; };\nL f(L l, U u);\nH g(const H& h);"
+    )
+    generate(tmp_path, code, verify=True)
+
+
 @pytest.mark.parametrize(
     "name", ["Runtime", "Native", "Lease", "Claim", "Keep", "Functions", "BridgefexObject"]
 )

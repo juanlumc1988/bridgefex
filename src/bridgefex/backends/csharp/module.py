@@ -278,10 +278,8 @@ def _handle_class(src: Source, cls: ClassPlan, handle: str) -> None:
     src.line(f"public {handle}(bool owns) : base(owns)")
     src.open()
     src.close()
-    src.open("protected override bool ReleaseHandle()")
+    src.open("protected override void Destroy()")
     src.line(f"Native.{cls.destroy.name}(handle);")
-    src.line("ReleaseKept();")
-    src.line("return true;")
     src.close()
     src.close()
     src.line()
@@ -311,12 +309,15 @@ def _views(src: Source, cls: ClassPlan, chain: set[str]) -> None:
     (and as itself, if others derive from it)."""
     if cls.is_base:
         src.line()
-        src.line(f"internal virtual Lease Hold_{cls.c_type}(bool mutable) => Hold(mutable);")
+        src.line(
+            f"internal virtual Lease Hold_{cls.c_type}(bool mutable, bool give = false) "
+            "=> Hold(mutable, give);"
+        )
     for view in cls.views:
         if view.c_type in chain and view.c_type != cls.c_type:
             src.line()
-            src.open(f"internal override Lease Hold_{view.c_type}(bool mutable)")
-            src.line("Lease lease = Hold(mutable);")
+            src.open(f"internal override Lease Hold_{view.c_type}(bool mutable, bool give = false)")
+            src.line("Lease lease = Hold(mutable, give);")
             src.line(
                 f"return lease.As(mutable ? Native.{view.upcast.name}(lease.Pointer) "
                 f": Native.{view.const_upcast.name}(lease.Pointer));"
@@ -407,8 +408,8 @@ def _secondary_base(
     base_name = pascal(base.model.name)
     base_type = names.classes[base.c_type]
     src.line()
-    src.open(f"internal Lease Hold_{base.c_type}(bool mutable)")
-    src.line("Lease lease = Hold(mutable);")
+    src.open(f"internal Lease Hold_{base.c_type}(bool mutable, bool give = false)")
+    src.line("Lease lease = Hold(mutable, give);")
     src.line(
         f"return lease.As(mutable ? Native.{view.upcast.name}(lease.Pointer) "
         f": Native.{view.const_upcast.name}(lease.Pointer));"
@@ -492,8 +493,22 @@ class _Member:
     check: str | None
 
 
+_STRUCT_MEMBERS = (
+    "Default",
+    "ToNative",
+    "FromNative",
+    "Equals",
+    "GetHashCode",
+    "ToString",
+    "GetType",
+)
+
+
 def _members(struct: StructPlan, names: Names) -> list[_Member]:
-    taken = {pascal(struct.model.name)} | {pascal(nested.model.name) for nested in struct.enums}
+    # A field cannot take the name of the struct, of a type it defines, nor of a member that
+    # the generated struct has (or hides, if it is one of ValueType).
+    taken = {pascal(struct.model.name), *_STRUCT_MEMBERS}
+    taken |= {pascal(nested.model.name) for nested in struct.enums}
     result: list[_Member] = []
     for field_plan in struct.fields:
         model = field_plan.model
@@ -511,8 +526,8 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
             enum = names.enum_plans[type_.usr]
             info = scalar(enum.model.underlying.c_name)
             public, native = names.enum(enum), info.native
-            to_native = f"({info.native}){{}}"
-            from_native = f"({public}){{}}"
+            to_native = info.to_native.replace("{}", f"({info.public}){{}}")
+            from_native = f"({public}){info.from_native}"
             valid = enum.model.valid_range
             if valid is not None:
                 check = f"{valid[0]}, {valid[1]}"
