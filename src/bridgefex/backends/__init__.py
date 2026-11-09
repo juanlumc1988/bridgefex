@@ -10,13 +10,17 @@ renders it first.
 from __future__ import annotations
 
 from ..plan import Reservations
-from . import python
+from . import csharp, python
 from .base import Backend
 
-__all__ = ["BACKENDS", "Backend", "registry", "reservations"]
+__all__ = ["BACKENDS", "DEFAULT_LANGUAGES", "Backend", "registry", "reservations"]
 
-BACKENDS: tuple[Backend, ...] = (python.BACKEND,)
+BACKENDS: tuple[Backend, ...] = (python.BACKEND, csharp.BACKEND)
 """Every backend, in the order their files are generated."""
+
+
+DEFAULT_LANGUAGES: tuple[str, ...] = (python.BACKEND.name,)
+"""The languages that are generated when none is asked for."""
 
 
 def registry() -> dict[str, Backend]:

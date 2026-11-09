@@ -12,9 +12,10 @@ from .errors import (
     LibclangError,
     Location,
 )
-from .generator import LANGUAGES, write_files
+from .generator import DEFAULT_LANGUAGES, LANGUAGES, write_files
 
 __all__ = [
+    "DEFAULT_LANGUAGES",
     "LANGUAGES",
     "BridgefexError",
     "ConfigurationError",

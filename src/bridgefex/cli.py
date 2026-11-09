@@ -30,13 +30,17 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         type=Path,
         metavar="DIR",
-        help="output directory; the files go to its c/ and python/ subdirectories",
+        help="output directory; the files go to its c/ subdirectory and one for each language",
     )
     parser.add_argument(
         "--lang",
+        action="append",
         choices=(*generator.LANGUAGES, "none"),
-        default="python",
-        help="bindings generated on top of the C layer (default: python)",
+        metavar="LANG",
+        help=(
+            f"bindings generated on top of the C layer: {', '.join(generator.LANGUAGES)} or "
+            f"none (repeatable; default: {', '.join(generator.DEFAULT_LANGUAGES)})"
+        ),
     )
     parser.add_argument(
         "--std", default="c++17", help="C++ standard used to parse the headers (default: c++17)"
@@ -110,8 +114,12 @@ def _tolerant_output() -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     _tolerant_output()
-    args = build_parser().parse_args(argv)
-    languages = () if args.lang == "none" else (args.lang,)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    chosen = list(dict.fromkeys(args.lang or generator.DEFAULT_LANGUAGES))
+    if "none" in chosen and len(chosen) > 1:
+        parser.error("--lang none (only the C layer) cannot be combined with a language")
+    languages = tuple(language for language in chosen if language != "none")
     options = api.Options(
         module=args.module,
         std=args.std,

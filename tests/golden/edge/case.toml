@@ -2,3 +2,4 @@
 module = "edge"
 headers = ["edge.h"]
 std = "c++17"
+languages = ["python", "csharp"]

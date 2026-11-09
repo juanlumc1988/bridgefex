@@ -6,19 +6,20 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from .backends import registry
+from .backends import DEFAULT_LANGUAGES, registry
 from .plan import ModulePlan, api_fingerprint
 from .rendering import Renderer, write_files
 
-__all__ = ["LANGUAGES", "render", "write_files"]
+__all__ = ["DEFAULT_LANGUAGES", "LANGUAGES", "render", "write_files"]
 
 LANGUAGES = tuple(registry())
 """Languages that bindings can be generated for, on top of the C layer."""
 
+
 _TEMPLATES = Path(__file__).parent / "templates"
 
 
-def render(plan: ModulePlan, languages: Sequence[str] = LANGUAGES) -> dict[str, str]:
+def render(plan: ModulePlan, languages: Sequence[str] = DEFAULT_LANGUAGES) -> dict[str, str]:
     """Generate every file of a module.
 
     Returns a mapping from relative POSIX paths (``c/...`` and

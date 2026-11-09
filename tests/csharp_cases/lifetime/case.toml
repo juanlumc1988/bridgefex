@@ -1,0 +1,7 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): the lifetime of the objects
+# under threads and under the garbage collector, found by an adversarial review.
+module = "life"
+headers = ["life.h"]
+std = "c++17"
+annotations = ["annotations.toml"]
+languages = ["csharp"]

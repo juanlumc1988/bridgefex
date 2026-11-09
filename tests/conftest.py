@@ -8,6 +8,7 @@ import pytest
 
 from bridgefex import libclang
 from bridgefex.errors import LibclangError
+from tests.conformance import runner_csharp
 from tests.support import toolchain as toolchain_module
 
 
@@ -47,3 +48,10 @@ def toolchain() -> toolchain_module.Toolchain:
 @pytest.fixture(scope="session")
 def probe_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return tmp_path_factory.mktemp("probe")
+
+
+@pytest.fixture(scope="session")
+def dotnet() -> None:
+    """The .NET SDK, which builds the C# bindings. Missing is a skip, unless the environment
+    sets BRIDGEFEX_REQUIRE_DOTNET (the CI does)."""
+    runner_csharp.skip_without_dotnet()

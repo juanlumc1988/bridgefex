@@ -18,8 +18,9 @@ from bridgefex.plan import build_plan
 
 
 def test_every_backend_is_registered_by_its_language() -> None:
-    assert [backend.name for backend in BACKENDS] == ["python"]
-    assert tuple(registry()) == bridgefex.LANGUAGES == ("python",)
+    assert [backend.name for backend in BACKENDS] == ["python", "csharp"]
+    assert tuple(registry()) == bridgefex.LANGUAGES == ("python", "csharp")
+    assert bridgefex.DEFAULT_LANGUAGES == ("python",)
 
 
 def test_the_c_layer_does_not_depend_on_the_languages() -> None:
@@ -68,8 +69,8 @@ def test_a_backend_only_writes_below_its_language() -> None:
 
 
 def test_an_unknown_language_is_refused() -> None:
-    with pytest.raises(ValueError, match="unknown languages: csharp"):
-        render(build_plan(Module("m", ())), ("csharp",))
+    with pytest.raises(ValueError, match="unknown languages: cobol"):
+        render(build_plan(Module("m", ())), ("cobol",))
 
 
 def _python_files() -> dict[str, str]:

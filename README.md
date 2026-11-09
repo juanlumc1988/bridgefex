@@ -4,13 +4,14 @@ Generate a pure C API from C++ headers, plus ready-to-use bindings for other lan
 
 ```
 C++ headers ──libclang──▶ model ──▶ pure C layer (extern "C") ──▶ Python (ctypes) bindings
+                                                                ├▶ C# (P/Invoke) bindings
                                                                 └▶ more languages later
 ```
 
 bridgefex reads your C++ headers with libclang and writes:
 
 1. **A C layer**: a C header and a C++ source file per input header. The source wraps the C++ API behind `extern "C"` functions, opaque handles and status codes, so no C++ type or exception crosses the boundary.
-2. **Bindings** for another language that call the C layer. The first target is Python (`ctypes`, no compiled extension needed).
+2. **Bindings** for another language that call the C layer: Python (`ctypes`, no compiled extension needed) and C# (P/Invoke, .NET 8; a first version, see [The C# bindings](#the-c-bindings)).
 
 There is no runtime library to ship. The generated sources are compiled into the same shared library as your code, which makes the tool suitable for embedded and cross-compiled projects.
 
@@ -92,16 +93,16 @@ bridgefex --module demo --output out include/counter.h include/geometry.h
 
 | Option | Meaning |
 |---|---|
-| `-m`, `--module NAME` | Module name, required. It prefixes the runtime C symbols (`demo_status`, `demo_last_error`, `DEMO_API`...) and names the Python package. Lowercase letters and digits, with single `_` between them. |
+| `-m`, `--module NAME` | Module name, required. It prefixes the runtime C symbols (`demo_status`, `demo_last_error`, `DEMO_API`...) and names the Python package and the C# namespace. Lowercase letters and digits, with single `_` between them. |
 | `-o`, `--output DIR` | Output directory. |
-| `--lang {python,none}` | Bindings to generate on top of the C layer (default: `python`). |
+| `--lang {python,csharp,none}` | Bindings to generate on top of the C layer (default: `python`). Repeat it for several (`--lang python --lang csharp`); `none` generates the C layer only. |
 | `--std STD` | C++ standard used to parse the headers (default: `c++17`). C++11 or later: the generated code needs it. |
 | `-I DIR`, `-D NAME[=VALUE]` | Include directories and macros for parsing. |
 | `--clang-arg=ARG` | Any other libclang argument. |
 | `--include-root DIR` | Make the `#include` lines of the generated sources relative to `DIR` (default: each header by its file name). |
 | `--annotations FILE` | TOML file that says who owns the objects that cross the boundary (repeatable; see Ownership). |
 | `--libclang PATH` | libclang shared library. |
-| `--no-verify` | Do not compile the generated C layer with libclang before writing it (see below). |
+| `--no-verify` | Do not compile the generated C layer with libclang (nor the C# project with `dotnet build`) before writing it (see below). |
 
 Output:
 
@@ -114,11 +115,19 @@ out/
 │   ├── counter_c.h               one header and one source per input header
 │   ├── counter_c.cpp
 │   └── ...
-└── python/
-    └── demo/
-        ├── __init__.py           load(), Error, status constants
-        ├── _runtime.py
-        ├── counter.py            one module per input header
+├── python/                       with --lang python (the default)
+│   └── demo/
+│       ├── __init__.py           load(), Error, status constants
+│       ├── _runtime.py
+│       ├── counter.py            one module per input header
+│       └── ...
+└── csharp/                       with --lang csharp
+    └── Demo/
+        ├── Demo.csproj           the .NET 8 project
+        ├── Runtime.cs            errors, strings, loading the library
+        ├── Objects.cs            the base of the wrapped classes
+        ├── Native.cs             the P/Invoke declarations
+        ├── Counter.cs            one file per input header
         └── ...
 ```
 
@@ -235,6 +244,22 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
   On Windows, a library's own dependencies are found in its directory and the system directories. Use `os.add_dll_directory()` for others.
 - Objects are as thread-safe as the C++ class. ctypes releases the GIL during calls, so do not use one object from several threads without your own locking. That includes `close()`: closing an object while another thread, a `sys.setprofile`/`sys.settrace` hook or a signal handler is about to call a method of it is not supported. A cyclic object whose class defines `__del__` finds itself closed there, because CPython runs weak-reference callbacks before finalizers on cyclic garbage; use `with` or `close()` for such objects. Calling `__init__` again from inside the conversion of its own arguments is not supported either. Loading and binding are thread-safe, reentrant (a `__del__` may call into the bindings) and safe across `os.fork()`.
 
+## The C# bindings
+
+`--lang csharp` writes a .NET 8 project, `csharp/<Module>/` (`<Module>.csproj`, `Runtime.cs`, `Objects.cs`, `Native.cs` with the P/Invoke declarations, and a `<Header>.cs` per header). Add the project to your solution (or its files to your project: C# 12, `<Nullable>enable</Nullable>` and `<AllowUnsafeBlocks>`). Its assembly is `Demo.Bindings`, not `Demo`: where the file system ignores the case (Windows, macOS) `Demo.dll` would be the file of the native library `demo.dll`. It needs nothing but the .NET SDK, and the C library that you build as for any other language.
+
+This is the first version of the backend: functions, classes, constructors, methods, static methods, enums, value structs, strings, inheritance and ownership work as described here. Containers (`std::vector`, `std::array`), spans, callbacks (`std::function`) and overriding virtual methods from C# are not there yet: a header that uses a container, a span or a callback is refused with a `C#:` error that names the declaration and the place (the Python bindings of the same header are generated all the same), and a class that asks for a director in the annotations file is generated as a plain class that C# cannot derive from to override. They come next.
+
+- **Names.** The module `demo` is the namespace `Demo` (the runtime: `BridgefexException`, `BridgefexObject`), and each header has its own, `Demo.Counter`, with the classes of the header and a `static class Functions` for its free functions: `Demo.Geometry.Functions.Distance(...)`. Methods and functions are in PascalCase (`liveInstances` is `LiveInstances`, `set_name` is `SetName`), constructors are constructors, and overloads keep the suffix of the C API (`AddInt32`, `AddDouble`). Constructors that C# cannot tell apart (a `const std::string&` and a `const char*` are both a `string`; a `long` and a `long long` both a `long`) are static methods named `Create` and that suffix (`G.CreateString(...)`, `G.CreateCstr(...)`), as in the Python bindings. C# keywords are written with `@` (`@object`). A member that would take the name of one that every object has (`Dispose`, `Close`, `Equals`, `ToString`, `IsClosed`...) or of its own class gets a trailing `_`; a parameter named like what the wrappers use (`Runtime`, `Native`, `Handle`, `Hold`...) gets one too; a module, a header or a class cannot be named like a type or a namespace of the generated code or of .NET (`Runtime`, `Native`, `Objects`, `System`, `Functions`...: the generation says so). Each wrapper has the attribute `[BridgefexFunction("demo_Counter_increment")]`, the C function it wraps. Parameters renamed by the C layer (`int32_t_`) keep the renamed name.
+- **Types.** Integers map to the C# type of their width (`int32_t` is `int`, `size_t` is `nuint`; a C `long` is a C# `long`, converted with a check: a value that does not fit the 32 bits of a `long` on Windows and on 32-bit ARM throws `OverflowException`), `bool`, `float` and `double` to themselves. A `std::string`, a `std::string_view` and a `const char*` are `string`: UTF-8, strictly (`ArgumentException` for a lone surrogate, `DecoderFallbackException` for invalid UTF-8 in a result), a `const char*` parameter refuses NUL (`ArgumentException`), a NULL `const char*` result is `null`, and a result that the annotations say `bytes` is `byte[]`. Enums are C# `enum`s with the underlying type of the C++ one (`ArgumentOutOfRangeException` for a value that an enum without a fixed type cannot hold). Value structs are `partial struct`s with public fields (arrays are `T[]` of the exact length, checked when they are passed; a copy of the struct shares the array, which is a reference) and `Default()`, which is what a default-constructed C++ struct holds. A struct is converted in place, and a big one (a C array of megabytes) in native memory, never on the stack.
+- **Objects.** A wrapped class is a `BridgefexObject`, an `IDisposable`: `Dispose()` (or `Close()`, or a `using`) destroys the C++ object, and the garbage collector does if it was forgotten (it is destroyed once, whichever comes first; the destructor then runs on the thread of the finalizer, so close the objects whose destructor must run on another one, and the objects that are big: the collector does not know the size of what C++ allocates, so forgetting many of them can use a lot of memory before it runs). Using a closed object throws `ObjectDisposedException`, from the moment it is closed. A call holds the object (and the objects it is borrowed from) until it returns: closing it from another thread meanwhile destroys it when the call ends.
+- **Ownership** is the one of the [annotations file](#ownership). A result by value or in a `std::unique_ptr` is a new object that C# owns. A reference or an annotated pointer is **borrowed**: it keeps the objects it came from alive, `IsClosed` is true (and calls throw `ObjectDisposedException`) once one of them is closed, and one obtained through a `const` reference or pointer throws `InvalidOperationException` (read-only) from a method that modifies it. An object that is *given* (a `std::unique_ptr` parameter, or `transfer`) is closed by the call (even if C++ then throws: it was taken), and the call refuses, before giving anything, an object that is closed (`ObjectDisposedException`), that is borrowed, that another call is using or giving, or that the C++ object of another one points to (`InvalidOperationException`), the same object twice, or as `this` and an argument (`ArgumentException`), and an object of a derived class where C++ destroys through a base class that has no virtual destructor (`ArgumentException`: only the exact class, or a C# subclass of it). What `retain` says the C++ object keeps a pointer to is held before the call (a call that stores the pointer and then throws has kept it; a constructor that throws has kept nothing) until that object is destroyed: the collector destroys an object that is pointed to only after the one that points to it, so that a destructor can use it even if both are collected together. Closing an object destroys it all the same (a pointer to it is then the user's problem, as in C++), and so does closing one that points to another. An object that points to a part of itself is fine; two that point to each other are destroyed by closing them, not by the collector. A function or a static method that keeps a pointer holds its object for ever.
+- **Null.** A parameter or a result that is a pointer that may be NULL is `T?`; references, copies and the rest are not. A `null` for the others is an `ArgumentNullException`, checked before anything runs; a borrowed result that comes from several arguments ignores those that are `null`.
+- **Inheritance.** A class derives from the C# class of its first public base, also from another header's, so a derived object is accepted where its base class is expected, and a method that a class declares hides the base's, as in C++. The other bases (multiple inheritance) are different parts of the object: the class has their methods itself, an accessor `As` and the name of the base (`AsLabeled()`: an object that is a view of the same C++ object, valid while it is) and an implicit conversion to each, so a function or a `std::unique_ptr<Base>` parameter accepts the derived object. A function that returns a `std::unique_ptr<Shape>` gives a `Shape`, whatever the object is, whose virtual methods run the right code.
+- **Errors.** A C++ exception is a `BridgefexException` with `Status`, `StatusName` and the message of C++ (read from the thread of the call).
+- **The library** is found, in order, in the environment variable `<MODULE>_LIBRARY` (a path), or by the usual search of .NET for `lib<module>.so`, `<module>.dll` or `lib<module>.dylib` (next to the application, then the system path). The first call that needs the library loads it and checks its API fingerprint: a library that is not found throws `DllNotFoundException` (the message says to set `<MODULE>_LIBRARY`), one of another version of the API throws `InvalidOperationException` ("does not match these bindings"), and the next call tries again, so the variable can be set afterwards. Several modules can be compiled into one assembly.
+- **Verification.** When the .NET SDK is installed, generating also builds the project in a scratch directory with warnings as errors (`BRIDGEFEX_SKIP_DOTNET_CHECK=1` and `--no-verify` skip it); without the SDK, or with only the .NET runtime, the C# code is written unchecked.
+
 ## Ownership
 
 C++ declarations do not say who owns a `T*`, nor whether a function keeps a pointer it is given. bridgefex decides what it can from the types and asks for the rest:
@@ -288,9 +313,9 @@ CI builds and runs everything on:
 - Linux x86_64 and Linux arm64 (Ubuntu 24.04), with GCC 14 and Clang 20;
 - Windows x64, with MSVC.
 
-Each of these runs with Python 3.12 and 3.14. The generated files of the test cases are byte-identical on every platform.
+Each of these runs with Python 3.12 and 3.14, and with the .NET 8 SDK, which builds and runs the C# bindings of the test cases on the same platforms. The generated files of the test cases are byte-identical on every platform.
 
-The test suite does not run for 32-bit ARM (the arm64 runner is native). What does: the [Libraries workflow](.github/workflows/libraries.yml) generates the C layer of the `demo` example, builds its shared and static libraries and runs its C program (and those of the director examples, which override C++ virtual methods from C), for Linux x86_64, Linux arm64, Linux armhf (32-bit ARM, cross-compiled with GCC 14 and run under QEMU) and Windows x64 (MSVC), with [`scripts/build_libraries.py`](scripts/build_libraries.py). The checks that guard class layouts (see Known limitations) are written for 32-bit ARM, but were only reasoned about there, not run.
+The test suite does not run for 32-bit ARM (the arm64 runner is native), so the C# bindings are not run there either (the C# code does not depend on the platform, and .NET 8 supports 32-bit ARM Linux, but it is not tested). What does: the [Libraries workflow](.github/workflows/libraries.yml) generates the C layer of the `demo` example, builds its shared and static libraries and runs its C program (and those of the director examples, which override C++ virtual methods from C), for Linux x86_64, Linux arm64, Linux armhf (32-bit ARM, cross-compiled with GCC 14 and run under QEMU) and Windows x64 (MSVC), with [`scripts/build_libraries.py`](scripts/build_libraries.py). The checks that guard class layouts (see Known limitations) are written for 32-bit ARM, but were only reasoned about there, not run.
 
 ### Libraries built by CI
 
@@ -336,6 +361,8 @@ Each has `include/` (the generated headers), `lib/` (the shared library, with it
 - A Python object whose class overrides C++ and that C++ owns (it was given as a `std::unique_ptr`) is kept alive by the registry until C++ destroys it. If the objects keep each other through C++ (a parent pointer in the C++ class, an override that holds the object that owns it), they are never collected: break the cycle with `close()`.
 - A signal that a handler turns into an exception during `close()` can postpone the destruction until the object is collected. Under a `sys.settrace`, `sys.setprofile` or `sys.monitoring` hook, which runs Python code between two lines, such an exception can also leak the object.
 
+- C#: the first version of the backend has no containers, spans, callbacks nor overriding of virtual methods (see above). Native AOT and trimming are not tested. A borrowed object can only be checked against its owners being closed, as in Python: if C++ frees it while the owner is open, using it is a use after free. Two results that are the same C++ object are two C# objects (there is no identity map), and `AsLabeled()` (`As` and the name of the base) (like the conversion to a base that is not the first) makes another C# object, valid while the derived one is open. A destructor that C# runs from the garbage collector runs on the thread of the finalizer. An object that another thread is using is not given to C++ (`InvalidOperationException`), and closing one destroys it when the running calls end.
+
 ## Development
 
 ```sh
@@ -346,14 +373,14 @@ ruff check . && ruff format --check . && mypy
 ```
 
 - **Golden tests** compare the generated files with `tests/golden/<case>/expected` byte by byte.
-- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c` and `check_python.py` against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC on Linux), for example with signals arriving during C calls.
+- **Round-trip tests** build each case into a shared library with its `impl/` sources. They then run `check_c.c`, `check_python.py` and `check_csharp.cs` (built with the generated project, as a user's program would be) against it, and check that only the C API functions are exported. Some also run the Python bindings under AddressSanitizer (GCC on Linux), for example with signals arriving during C calls.
 - **Standard tests** compile the generated code in every supported language standard.
 - **Conformance tests** (`tests/test_conformance.py`): `tests/golden/<case>/scenarios.toml` tells, in terms of the C++ API and not of any language, what the bindings must do (create objects, call, expect a result or a kind of failure). Each backend has a runner that plays the scenarios against the library built from the case; a backend without a runner fails the build. What a language does beyond that is tested in the `check_<language>` program of the case.
 - **Architecture tests** (`tests/test_architecture.py`) read the source to keep the layers apart: the plan and the templates of the C layer know no language, and a backend only reads the plan. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the code is split and how to add a language.
 - **Generation tests** (`tests/test_generate.py`) feed adversarial headers through the whole pipeline: each must be rejected with a clear error or translated correctly.
 - **Verification**: before writing anything, bridgefex compiles the generated C++ sources against your headers and the C headers as C23 and as strict C99, with libclang, and compiles and imports the generated Python package.
 - **Native tests** check the thread-local last error, thread cancellation, the alignment check, unity builds and their glibc check, `NODISCARD`, and that the test compiler flags really turn warnings into errors.
-- Set `BRIDGEFEX_SKIP_NATIVE_TESTS=1` to skip the tests that need a compiler.
+- Set `BRIDGEFEX_SKIP_NATIVE_TESTS=1` to skip the tests that need a compiler. The tests of the C# bindings need the .NET 8 SDK and are skipped without it, unless `BRIDGEFEX_REQUIRE_DOTNET=1` (the CI sets it) makes a missing SDK a failure.
 
 On WSL2 with Ubuntu 24.04 (for example from VS Code with the WSL extension), [`scripts/setup-wsl.sh`](scripts/setup-wsl.sh) installs the system dependencies: git, GCC 14, Clang 20, libclang 20 with its resource headers and Python 3.12 with `venv`; `--with-arm` adds the GCC 14 cross compilers for 32-bit ARM (`arm-linux-gnueabihf-g++-14`). It also sets `CC=gcc-14` and `CXX=g++-14` in `~/.bashrc`, as the CI does. Then, in a clone kept in the Linux file system (not under `/mnt/c`):
 
@@ -372,7 +399,7 @@ Claude Code cloud sessions run [`.claude/hooks/session-start.sh`](.claude/hooks/
 3. Python complete: the loose ends of the callbacks, and inheritance and virtual methods called from Python. *(done)*
 4. Language-neutral architecture: one plan with one backend per language, and a conformance suite that every backend runs on the same golden headers. *(done, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md))*
 5. Classes of the target language that override the virtual methods of C++ ones. The generated C++ subclass that calls back through a table of functions belongs to the shared C layer, and the Python bindings use it *(done for scalars, enums, strings, value structs, containers of them, and objects of wrapped classes by reference, pointer and `std::unique_ptr`)*; the other languages come with their backends.
-6. C# (P/Invoke), on that common base.
+6. C# (P/Invoke), on that common base, in three steps: functions, classes, enums, structs, strings, inheritance and ownership *(done)*; containers, spans and callbacks; classes of C# that override virtual methods.
 7. The JVM: Java bindings (JNI for Android, FFM for Java 22+), which Kotlin uses too.
 8. Rust (`extern "C"` with safe wrappers).
 
