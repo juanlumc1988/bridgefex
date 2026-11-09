@@ -123,7 +123,7 @@ public unsafe partial class Lamp : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Lamp);
+    internal override global::System.Type CppType => typeof(Lamp);
 
     /// <summary>
     /// colors::Lamp::Lamp(colors::Color color)
@@ -131,15 +131,15 @@ public unsafe partial class Lamp : BridgefexObject
     [BridgefexFunction("colors_Lamp_create")]
     public Lamp(global::Enm.Colors.Color color) : base(new LampHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.colors_Lamp_create(&__result, (byte)color);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Lamp? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Lamp? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

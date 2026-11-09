@@ -29,7 +29,7 @@ public unsafe partial class Sleeper : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Sleeper);
+    internal override global::System.Type CppType => typeof(Sleeper);
 
     /// <summary>
     /// demo::Sleeper::Sleeper(uint32_t milliseconds)
@@ -37,15 +37,15 @@ public unsafe partial class Sleeper : BridgefexObject
     [BridgefexFunction("demo_Sleeper_create")]
     public Sleeper(uint milliseconds) : base(new SleeperHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.demo_Sleeper_create(&__result, milliseconds);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Sleeper? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Sleeper? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

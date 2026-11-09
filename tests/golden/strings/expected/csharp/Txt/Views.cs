@@ -17,7 +17,7 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8(s, "s");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.views_first_word(__p1, (nuint)__b1.Length, &__text, &__size));
             try
@@ -52,7 +52,7 @@ public static unsafe class Functions
     [BridgefexFunction("views_empty")]
     public static string Empty()
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.views_empty(&__text, &__size));
         try
@@ -71,7 +71,7 @@ public static unsafe class Functions
     [BridgefexFunction("views_literal")]
     public static string Literal()
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.views_literal(&__text, &__size));
         try

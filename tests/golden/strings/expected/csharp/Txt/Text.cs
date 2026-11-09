@@ -29,7 +29,7 @@ public unsafe partial class Person : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Person);
+    internal override global::System.Type CppType => typeof(Person);
 
     /// <summary>
     /// text::Person::Person(const std::string&amp; name)
@@ -40,7 +40,7 @@ public unsafe partial class Person : BridgefexObject
         byte[] __b1 = Runtime.Utf8(name, "name");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __result;
+            nint __result;
             int __status = Native.text_Person_create_string(&__result, __p1, (nuint)__b1.Length);
             Handle.Assign(__result);
             Runtime.Check(__status);
@@ -56,16 +56,16 @@ public unsafe partial class Person : BridgefexObject
         byte[] __b1 = Runtime.Utf8Z(name, "name");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __result;
+            nint __result;
             int __status = Native.text_Person_create_cstr_int(&__result, __p1, age);
             Handle.Assign(__result);
             Runtime.Check(__status);
         }
     }
 
-    internal static Person? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Person? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -84,7 +84,7 @@ public unsafe partial class Person : BridgefexObject
     public string Name()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_Person_name(__self.Pointer, &__text, &__size));
         try
@@ -104,7 +104,7 @@ public unsafe partial class Person : BridgefexObject
     public string NameRef()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_Person_name_ref(__self.Pointer, &__text, &__size));
         try
@@ -124,10 +124,10 @@ public unsafe partial class Person : BridgefexObject
     public string? CName()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_Person_c_name(__self.Pointer, &__text, &__size));
-        if (__text == IntPtr.Zero)
+        if (__text == 0)
         {
             return null;
         }
@@ -180,7 +180,7 @@ public unsafe partial class Person : BridgefexObject
             byte[] __b2 = Runtime.Utf8Z(tag, "tag");
             fixed (byte* __p2 = __b2)
             {
-                IntPtr __text;
+                nint __text;
                 nuint __size;
                 Runtime.Check(Native.text_Person_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, &__text, &__size));
                 try
@@ -201,7 +201,7 @@ public unsafe partial class Person : BridgefexObject
     [BridgefexFunction("text_Person_species")]
     public static string Species()
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_Person_species(&__text, &__size));
         try
@@ -259,7 +259,7 @@ public static unsafe class Functions
             byte[] __b2 = Runtime.Utf8(b, "b");
             fixed (byte* __p2 = __b2)
             {
-                IntPtr __text;
+                nint __text;
                 nuint __size;
                 Runtime.Check(Native.text_concat(__p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, &__text, &__size));
                 try
@@ -283,7 +283,7 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8(s, "s");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.text_echo(__p1, (nuint)__b1.Length, &__text, &__size));
             try
@@ -303,10 +303,10 @@ public static unsafe class Functions
     [BridgefexFunction("text_maybe_null")]
     public static string? MaybeNull(bool @null)
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_maybe_null((@null ? (byte)1 : (byte)0), &__text, &__size));
-        if (__text == IntPtr.Zero)
+        if (__text == 0)
         {
             return null;
         }
@@ -329,7 +329,7 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8(message, "message");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.text_fail(__p1, (nuint)__b1.Length, &__text, &__size));
             try
@@ -349,7 +349,7 @@ public static unsafe class Functions
     [BridgefexFunction("text_binary")]
     public static string Binary()
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_binary(&__text, &__size));
         try
@@ -371,10 +371,10 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8(s, "s");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.text_first_char(__p1, (nuint)__b1.Length, &__text, &__size));
-            if (__text == IntPtr.Zero)
+            if (__text == 0)
             {
                 return null;
             }
@@ -436,7 +436,7 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8(name, "name");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.text_alias(__p1, (nuint)__b1.Length, &__text, &__size));
             try
@@ -459,10 +459,10 @@ public static unsafe class Functions
         byte[] __b1 = Runtime.Utf8Z(text, "text");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __text;
+            nint __text;
             nuint __size;
             Runtime.Check(Native.text_c_alias(__p1, &__text, &__size));
-            if (__text == IntPtr.Zero)
+            if (__text == 0)
             {
                 return null;
             }
@@ -483,7 +483,7 @@ public static unsafe class Functions
     [BridgefexFunction("text_signal_twice")]
     public static string SignalTwice(nuint size)
     {
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.text_signal_twice(size, &__text, &__size));
         try

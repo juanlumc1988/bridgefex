@@ -29,7 +29,7 @@ public unsafe partial class Counter : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Counter);
+    internal override global::System.Type CppType => typeof(Counter);
 
     /// <summary>
     /// demo::Counter::Counter()
@@ -37,7 +37,7 @@ public unsafe partial class Counter : BridgefexObject
     [BridgefexFunction("demo_Counter_create_void")]
     public Counter() : base(new CounterHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.demo_Counter_create_void(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
@@ -49,15 +49,15 @@ public unsafe partial class Counter : BridgefexObject
     [BridgefexFunction("demo_Counter_create_int32")]
     public Counter(int start) : base(new CounterHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.demo_Counter_create_int32(&__result, start);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Counter? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Counter? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

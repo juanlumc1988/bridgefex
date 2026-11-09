@@ -29,7 +29,7 @@ public unsafe partial class Node : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Node);
+    internal override global::System.Type CppType => typeof(Node);
 
     /// <summary>
     /// own::Node::Node(int32_t value)
@@ -37,15 +37,15 @@ public unsafe partial class Node : BridgefexObject
     [BridgefexFunction("own_Node_create")]
     public Node(int value) : base(new NodeHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.own_Node_create(&__result, value);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Node? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Node? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -97,7 +97,7 @@ public unsafe partial class Node : BridgefexObject
     public global::Own.Node.Node Me()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Node_me(__self.Pointer, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, false)!;
     }
@@ -109,7 +109,7 @@ public unsafe partial class Node : BridgefexObject
     public global::Own.Node.Node Cme()
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Node_cme(__self.Pointer, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, true)!;
     }
@@ -138,7 +138,7 @@ public unsafe partial class Item : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Item);
+    internal override global::System.Type CppType => typeof(Item);
 
     /// <summary>
     /// own::Item::Item(int32_t id)
@@ -146,15 +146,15 @@ public unsafe partial class Item : BridgefexObject
     [BridgefexFunction("own_Item_create")]
     public Item(int id) : base(new ItemHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.own_Item_create(&__result, id);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Item? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Item? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

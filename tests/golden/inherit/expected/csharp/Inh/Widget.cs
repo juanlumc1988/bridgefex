@@ -29,7 +29,7 @@ public unsafe partial class Counter : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Counter);
+    internal override global::System.Type CppType => typeof(Counter);
 
     /// <summary>
     /// inh::Counter::Counter()
@@ -37,15 +37,15 @@ public unsafe partial class Counter : BridgefexObject
     [BridgefexFunction("inh_Counter_create")]
     public Counter() : base(new CounterHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Counter_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Counter? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Counter? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -107,7 +107,7 @@ public unsafe partial class Labeled : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Labeled);
+    internal override global::System.Type CppType => typeof(Labeled);
 
     /// <summary>
     /// inh::Labeled::Labeled()
@@ -115,7 +115,7 @@ public unsafe partial class Labeled : BridgefexObject
     [BridgefexFunction("inh_Labeled_create_void")]
     public Labeled() : base(new LabeledHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Labeled_create_void(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
@@ -130,16 +130,16 @@ public unsafe partial class Labeled : BridgefexObject
         byte[] __b1 = Runtime.Utf8(label, "label");
         fixed (byte* __p1 = __b1)
         {
-            IntPtr __result;
+            nint __result;
             int __status = Native.inh_Labeled_create_string(&__result, __p1, (nuint)__b1.Length);
             Handle.Assign(__result);
             Runtime.Check(__status);
         }
     }
 
-    internal static Labeled? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Labeled? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -160,7 +160,7 @@ public unsafe partial class Labeled : BridgefexObject
     public string Label()
     {
         using var __self = Hold_inh_Labeled(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Labeled_label(__self.Pointer, &__text, &__size));
         try
@@ -211,7 +211,7 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
     {
     }
 
-    internal override Type CppType => typeof(Widget);
+    internal override global::System.Type CppType => typeof(Widget);
 
     /// <summary>
     /// inh::Widget::Widget()
@@ -219,15 +219,15 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
     [BridgefexFunction("inh_Widget_create")]
     public Widget() : base(new WidgetHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Widget_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Widget? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Widget? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -252,7 +252,7 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
     public string Label()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Widget_label(__self.Pointer, &__text, &__size));
         try
@@ -334,7 +334,7 @@ public unsafe partial class Tagged : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Tagged);
+    internal override global::System.Type CppType => typeof(Tagged);
 
     /// <summary>
     /// inh::Tagged::Tagged()
@@ -342,15 +342,15 @@ public unsafe partial class Tagged : BridgefexObject
     [BridgefexFunction("inh_Tagged_create")]
     public Tagged() : base(new TaggedHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Tagged_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Tagged? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Tagged? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -400,7 +400,7 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
     {
     }
 
-    internal override Type CppType => typeof(Observer);
+    internal override global::System.Type CppType => typeof(Observer);
 
     /// <summary>
     /// inh::Observer::Observer(inh::Counter&amp; watched)
@@ -408,19 +408,19 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
     [BridgefexFunction("inh_Observer_create")]
     public Observer(global::Inh.Widget.Counter watched) : base(new ObserverHandle())
     {
-        ArgumentNullException.ThrowIfNull(watched);
+        global::System.ArgumentNullException.ThrowIfNull(watched);
         using var __t1 = watched.Hold_inh_Counter(true);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         int __status = Native.inh_Observer_create(&__result, __h1);
         Handle.Assign(__result);
         Runtime.Check(__status);
         Retain(watched);
     }
 
-    internal static Observer? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Observer? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -476,7 +476,7 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
     public string Label()
     {
         using var __self = Hold_inh_Labeled(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Labeled_label(__self.Pointer, &__text, &__size));
         try
@@ -527,7 +527,7 @@ public unsafe partial class Shelf : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Shelf);
+    internal override global::System.Type CppType => typeof(Shelf);
 
     /// <summary>
     /// inh::Shelf::Shelf()
@@ -535,15 +535,15 @@ public unsafe partial class Shelf : BridgefexObject
     [BridgefexFunction("inh_Shelf_create")]
     public Shelf() : base(new ShelfHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Shelf_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Shelf? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Shelf? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -562,13 +562,13 @@ public unsafe partial class Shelf : BridgefexObject
     public void Put(global::Inh.Widget.Labeled item)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(item, this))
+        if (object.ReferenceEquals(item, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold_inh_Labeled(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
         Runtime.Check(Native.inh_Shelf_put(__self.Pointer, __h1));
@@ -581,7 +581,7 @@ public unsafe partial class Shelf : BridgefexObject
     public global::Inh.Widget.Observer? Pop()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Inh.Widget.ObserverHandle();
         int __status = Native.inh_Shelf_pop(__self.Pointer, &__result);
         __o.Assign(__result);
@@ -613,7 +613,7 @@ public unsafe partial class Plain : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Plain);
+    internal override global::System.Type CppType => typeof(Plain);
 
     /// <summary>
     /// inh::Plain::Plain()
@@ -621,15 +621,15 @@ public unsafe partial class Plain : BridgefexObject
     [BridgefexFunction("inh_Plain_create")]
     public Plain() : base(new PlainHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Plain_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Plain? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Plain? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -679,7 +679,7 @@ public unsafe partial class PlainDerived : global::Inh.Widget.Plain
     {
     }
 
-    internal override Type CppType => typeof(PlainDerived);
+    internal override global::System.Type CppType => typeof(PlainDerived);
 
     /// <summary>
     /// inh::PlainDerived::PlainDerived()
@@ -687,15 +687,15 @@ public unsafe partial class PlainDerived : global::Inh.Widget.Plain
     [BridgefexFunction("inh_PlainDerived_create")]
     public PlainDerived() : base(new PlainDerivedHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_PlainDerived_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static PlainDerived? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static PlainDerived? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -734,9 +734,9 @@ public static unsafe class Functions
     [BridgefexFunction("inh_bump")]
     public static int Bump(global::Inh.Widget.Counter counter)
     {
-        ArgumentNullException.ThrowIfNull(counter);
+        global::System.ArgumentNullException.ThrowIfNull(counter);
         using var __t1 = counter.Hold_inh_Counter(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.inh_bump(__h1, &__result));
         return __result;
@@ -748,9 +748,9 @@ public static unsafe class Functions
     [BridgefexFunction("inh_peek")]
     public static int Peek(global::Inh.Widget.Counter counter)
     {
-        ArgumentNullException.ThrowIfNull(counter);
+        global::System.ArgumentNullException.ThrowIfNull(counter);
         using var __t1 = counter.Hold_inh_Counter(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.inh_peek(__h1, &__result));
         return __result;
@@ -762,10 +762,10 @@ public static unsafe class Functions
     [BridgefexFunction("inh_name_of")]
     public static string NameOf(global::Inh.Widget.Labeled labeled)
     {
-        ArgumentNullException.ThrowIfNull(labeled);
+        global::System.ArgumentNullException.ThrowIfNull(labeled);
         using var __t1 = labeled.Hold_inh_Labeled(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __text;
+        nint __h1 = __t1.Pointer;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_name_of(__h1, &__text, &__size));
         try
@@ -784,10 +784,10 @@ public static unsafe class Functions
     [BridgefexFunction("inh_take_plain")]
     public static int TakePlain(global::Inh.Widget.Plain plain)
     {
-        ArgumentNullException.ThrowIfNull(plain);
+        global::System.ArgumentNullException.ThrowIfNull(plain);
         Runtime.CheckExact(plain, typeof(global::Inh.Widget.Plain), "plain");
         using var __t1 = plain.Hold_inh_Plain(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();
         plain?.Surrender();

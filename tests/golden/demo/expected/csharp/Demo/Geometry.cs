@@ -29,7 +29,7 @@ public unsafe partial class Circle : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Circle);
+    internal override global::System.Type CppType => typeof(Circle);
 
     /// <summary>
     /// demo::geometry::Circle::Circle(double radius)
@@ -37,15 +37,15 @@ public unsafe partial class Circle : BridgefexObject
     [BridgefexFunction("demo_geometry_Circle_create")]
     public Circle(double radius) : base(new CircleHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.demo_geometry_Circle_create(&__result, radius);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Circle? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Circle? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

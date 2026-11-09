@@ -22,8 +22,17 @@ CS_KEYWORDS = frozenset(
 # parameter of the C++ declaration that is called so.
 LOCAL_PREFIX = "__"
 
+# The types of the generated runtime that the bodies of the wrappers name: a member or a parameter
+# called so would hide them there.
+BODY_TYPES = frozenset(
+    "Runtime Native Block Lease Keep BridgefexObject BridgefexException ObjectHandle".split()
+)
+
+# Parameters cannot have those names, nor those of the members that the bodies call.
+PARAMETER_RESERVED = BODY_TYPES | frozenset("Handle Hold Retain System".split())
+
 # Members that every object of a generated class has: a wrapped method cannot take their names.
-RESERVED_MEMBERS = frozenset(
+RESERVED_MEMBERS = BODY_TYPES | frozenset(
     """
     Dispose Close Equals GetHashCode GetType ToString Finalize MemberwiseClone ReferenceEquals
     IsClosed Handle Hold Owners ReadOnly Retained Origin CppType Retain Attach Surrender KeepOf
@@ -49,6 +58,11 @@ def identifier(name: str) -> str:
     return f"@{name}" if name in CS_KEYWORDS else name
 
 
+def parameter(name: str) -> str:
+    """The C# name of a parameter: it must not hide what the body of the wrapper uses."""
+    return identifier(f"{name}_" if name in PARAMETER_RESERVED else name)
+
+
 def namespace_word(stem: str) -> str:
     """The segment of a namespace for a module or a header."""
     return pascal(stem)
@@ -56,7 +70,7 @@ def namespace_word(stem: str) -> str:
 
 def locals_of(count: int) -> frozenset[str]:
     """The locals of the bindings of a function with ``count`` parameters."""
-    names = {f"{LOCAL_PREFIX}{word}" for word in ("result", "status", "self", "size", "text")}
+    names = {f"{LOCAL_PREFIX}{word}" for word in ("result", "status", "self", "size", "text", "o")}
     for position in range(1, 3 * count + 5):
         names.update(
             f"{LOCAL_PREFIX}{word}{position}" for word in ("h", "b", "p", "n", "s", "o", "t")
@@ -72,11 +86,18 @@ def module_problem(name: str) -> str | None:
     return None
 
 
+# Namespaces and files of the generated project that a header cannot have: its namespace would hide
+# a type or the namespace of .NET, and its file would replace one of the runtime.
+HEADER_RESERVED = BODY_TYPES | frozenset(
+    "Objects System Microsoft BridgefexFunction BridgefexFunctionAttribute".split()
+)
+
+
 def header_problem(stem: str) -> str | None:
     """Why a header called ``stem`` cannot have a C# namespace, or None."""
     word = pascal(stem)
-    if word in {"Runtime", "Native"}:
-        return f"its C# namespace would hide the '{word}' class of the generated code"
+    if word in HEADER_RESERVED:
+        return f"its C# namespace and file '{word}' would clash with the generated code or .NET"
     return None
 
 

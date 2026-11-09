@@ -5,11 +5,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ...errors import Location
 from ...plan import Ffi, FfiKind
 
 
 class Unsupported(Exception):
     """The plan has something that the C# bindings do not have yet."""
+
+    def __init__(self, message: str, location: Location | None = None) -> None:
+        super().__init__(message)
+        self.location = location
 
 
 @dataclass(frozen=True, slots=True)

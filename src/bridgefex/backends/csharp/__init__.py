@@ -33,6 +33,16 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         )
         if problem
     ]
+    # Headers whose files differ only by case (a_b.h and ab.h) are one file on Windows and macOS.
+    seen: dict[str, str] = {}
+    for header in plan.headers:
+        word = pascal(header.stem)
+        other = seen.setdefault(word.casefold(), header.stem)
+        if other != header.stem:
+            reasons.append(
+                f"C#: the headers '{other}.h' and '{header.stem}.h' get the C# file "
+                f"'{word}.cs', which only differs by case from the other one"
+            )
     if reasons:
         raise GenerationError([Diagnostic(reason) for reason in reasons])
     root = namespace(plan)
@@ -56,7 +66,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         for header in plan.headers:
             files[f"{base}/{pascal(header.stem)}.cs"] = header_source(plan, header, names)
     except Unsupported as error:
-        raise GenerationError([Diagnostic(f"C#: {error}")]) from error
+        raise GenerationError([Diagnostic(f"C#: {error}", error.location)]) from error
     return files
 
 

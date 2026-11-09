@@ -29,7 +29,7 @@ public unsafe partial class Tree : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Tree);
+    internal override global::System.Type CppType => typeof(Tree);
 
     /// <summary>
     /// own::Tree::Tree()
@@ -37,15 +37,15 @@ public unsafe partial class Tree : BridgefexObject
     [BridgefexFunction("own_Tree_create")]
     public Tree() : base(new TreeHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.own_Tree_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Tree? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Tree? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -64,12 +64,12 @@ public unsafe partial class Tree : BridgefexObject
     public int Sum(global::Own.Node.Node a, global::Own.Node.Node b)
     {
         using var __self = Hold(false);
-        ArgumentNullException.ThrowIfNull(a);
+        global::System.ArgumentNullException.ThrowIfNull(a);
         using var __t1 = a.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(b);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(b);
         using var __t2 = b.Hold(false);
-        IntPtr __h2 = __t2.Pointer;
+        nint __h2 = __t2.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_sum(__self.Pointer, __h1, __h2, &__result));
         return __result;
@@ -82,9 +82,9 @@ public unsafe partial class Tree : BridgefexObject
     public void Bump(global::Own.Node.Node node)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         Runtime.Check(Native.own_Tree_bump(__self.Pointer, __h1));
     }
 
@@ -95,9 +95,9 @@ public unsafe partial class Tree : BridgefexObject
     public int Read(global::Own.Node.Node node)
     {
         using var __self = Hold(false);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_read(__self.Pointer, __h1, &__result));
         return __result;
@@ -110,9 +110,9 @@ public unsafe partial class Tree : BridgefexObject
     public void Write(global::Own.Node.Node node, int value)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         Runtime.Check(Native.own_Tree_write(__self.Pointer, __h1, value));
     }
 
@@ -123,9 +123,9 @@ public unsafe partial class Tree : BridgefexObject
     public void AddCopy(global::Own.Node.Node node)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         Runtime.Check(Native.own_Tree_addCopy(__self.Pointer, __h1));
     }
 
@@ -148,13 +148,13 @@ public unsafe partial class Tree : BridgefexObject
     public void Adopt(global::Own.Node.Item item)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(item, this))
+        if (object.ReferenceEquals(item, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
         Runtime.Check(Native.own_Tree_adopt(__self.Pointer, __h1));
@@ -167,24 +167,24 @@ public unsafe partial class Tree : BridgefexObject
     public void AdoptBoth(global::Own.Node.Item first, int tag, global::Own.Node.Item second)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(first, this))
+        if (object.ReferenceEquals(first, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(first));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(first));
         }
-        if (ReferenceEquals(first, second))
+        if (object.ReferenceEquals(first, second))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(first));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(first));
         }
-        if (ReferenceEquals(second, this))
+        if (object.ReferenceEquals(second, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(second));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(second));
         }
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(second);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(second);
         using var __t3 = second.Hold(true, true);
-        IntPtr __h3 = __t3.Pointer;
+        nint __h3 = __t3.Pointer;
         __h1 = __t1.Give();
         first?.Surrender();
         __h3 = __t3.Give();
@@ -199,13 +199,13 @@ public unsafe partial class Tree : BridgefexObject
     public void SlowAdopt(global::Own.Node.Item item, int milliseconds)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(item, this))
+        if (object.ReferenceEquals(item, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
         Runtime.Check(Native.own_Tree_slowAdopt(__self.Pointer, __h1, milliseconds));
@@ -218,7 +218,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Item First()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_first(__self.Pointer, &__result));
         return global::Own.Node.Item.Borrow(__result, new BridgefexObject?[] { this }, false)!;
     }
@@ -254,7 +254,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node? Find(int value)
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_find(__self.Pointer, value, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, false);
     }
@@ -266,7 +266,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node? Cfind(int value)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_cfind(__self.Pointer, value, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, true);
     }
@@ -278,7 +278,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Item? Detach()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.ItemHandle();
         int __status = Native.own_Tree_detach(__self.Pointer, &__result);
         __o.Assign(__result);
@@ -293,13 +293,13 @@ public unsafe partial class Tree : BridgefexObject
     public void AdoptRaw(global::Own.Node.Item item)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(item, this))
+        if (object.ReferenceEquals(item, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
         Runtime.Check(Native.own_Tree_adoptRaw(__self.Pointer, __h1));
@@ -313,7 +313,7 @@ public unsafe partial class Tree : BridgefexObject
     {
         using var __self = Hold(false);
         using var __t1 = node is null ? default : node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_valueOf(__self.Pointer, __h1, &__result));
         return __result;
@@ -327,9 +327,9 @@ public unsafe partial class Tree : BridgefexObject
     {
         using var __self = Hold(false);
         using var __t1 = first is null ? default : first.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         using var __t2 = second is null ? default : second.Hold(false);
-        IntPtr __h2 = __t2.Pointer;
+        nint __h2 = __t2.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_both(__self.Pointer, __h1, __h2, &__result));
         return __result;
@@ -342,9 +342,9 @@ public unsafe partial class Tree : BridgefexObject
     public void SetCursor(global::Own.Node.Node node)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         Retain(node);
         Runtime.Check(Native.own_Tree_setCursor(__self.Pointer, __h1));
     }
@@ -367,9 +367,9 @@ public unsafe partial class Tree : BridgefexObject
     [BridgefexFunction("own_Tree_setSharedCursor")]
     public static void SetSharedCursor(global::Own.Node.Node node)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         BridgefexObject.RetainForever(node);
         Runtime.Check(Native.own_Tree_setSharedCursor(__h1));
     }
@@ -407,7 +407,7 @@ public unsafe partial class Tree : BridgefexObject
     public byte[] Signature()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.own_Tree_signature(__self.Pointer, &__text, &__size));
         try
@@ -427,9 +427,9 @@ public unsafe partial class Tree : BridgefexObject
     public int WeightOwnNode(global::Own.Node.Node node)
     {
         using var __self = Hold(false);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_weight_own_Node(__self.Pointer, __h1, &__result));
         return __result;
@@ -442,9 +442,9 @@ public unsafe partial class Tree : BridgefexObject
     public int WeightOwnNodeRef(global::Own.Node.Node node)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_weight_own_Node_ref(__self.Pointer, __h1, &__result));
         return __result;
@@ -457,9 +457,9 @@ public unsafe partial class Tree : BridgefexObject
     public int WeightOwnNodeCptr(global::Own.Node.Node node)
     {
         using var __self = Hold(false);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_weight_own_Node_cptr(__self.Pointer, __h1, &__result));
         return __result;
@@ -472,9 +472,9 @@ public unsafe partial class Tree : BridgefexObject
     public int WeightOwnNodePtr(global::Own.Node.Node node)
     {
         using var __self = Hold(true);
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_weight_own_Node_ptr(__self.Pointer, __h1, &__result));
         return __result;
@@ -486,9 +486,9 @@ public unsafe partial class Tree : BridgefexObject
     [BridgefexFunction("own_Tree_twice")]
     public static int Twice(global::Own.Node.Node node)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_Tree_twice(__h1, &__result));
         return __result;
@@ -501,7 +501,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node MakeNode(int value)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.NodeHandle();
         int __status = Native.own_Tree_makeNode(__self.Pointer, value, &__result);
         __o.Assign(__result);
@@ -516,7 +516,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node MakeChecked(int value)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.NodeHandle();
         int __status = Native.own_Tree_makeChecked(__self.Pointer, value, &__result);
         __o.Assign(__result);
@@ -531,7 +531,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Item MakeItem(int id)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.ItemHandle();
         int __status = Native.own_Tree_makeItem(__self.Pointer, id, &__result);
         __o.Assign(__result);
@@ -546,7 +546,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Item? MakeUnique(int id, bool make)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.ItemHandle();
         int __status = Native.own_Tree_makeUnique(__self.Pointer, id, (make ? (byte)1 : (byte)0), &__result);
         __o.Assign(__result);
@@ -561,7 +561,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node Root()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_root(__self.Pointer, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, false)!;
     }
@@ -573,7 +573,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node Croot()
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_croot(__self.Pointer, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { this }, true)!;
     }
@@ -584,7 +584,7 @@ public unsafe partial class Tree : BridgefexObject
     [BridgefexFunction("own_Tree_global")]
     public static global::Own.Tree.Tree Global()
     {
-        IntPtr __result;
+        nint __result;
         Runtime.Check(Native.own_Tree_global(&__result));
         return global::Own.Tree.Tree.Borrow(__result, null, false)!;
     }
@@ -596,7 +596,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Item? SlowMake(int id, int milliseconds)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.ItemHandle();
         int __status = Native.own_Tree_slowMake(__self.Pointer, id, milliseconds, &__result);
         __o.Assign(__result);
@@ -611,7 +611,7 @@ public unsafe partial class Tree : BridgefexObject
     public global::Own.Node.Node SlowNode(int value, int milliseconds)
     {
         using var __self = Hold(false);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Node.NodeHandle();
         int __status = Native.own_Tree_slowNode(__self.Pointer, value, milliseconds, &__result);
         __o.Assign(__result);
@@ -643,7 +643,7 @@ public unsafe partial class Driver : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Driver);
+    internal override global::System.Type CppType => typeof(Driver);
 
     /// <summary>
     /// own::Driver::Driver(own::Node&amp; node)
@@ -651,19 +651,19 @@ public unsafe partial class Driver : BridgefexObject
     [BridgefexFunction("own_Driver_create")]
     public Driver(global::Own.Node.Node node) : base(new DriverHandle())
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         int __status = Native.own_Driver_create(&__result, __h1);
         Handle.Assign(__result);
         Runtime.Check(__status);
         Retain(node);
     }
 
-    internal static Driver? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Driver? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -711,7 +711,7 @@ public unsafe partial class Pair : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Pair);
+    internal override global::System.Type CppType => typeof(Pair);
 
     /// <summary>
     /// own::Pair::Pair(const own::Node* first, own::Node* second)
@@ -719,13 +719,13 @@ public unsafe partial class Pair : BridgefexObject
     [BridgefexFunction("own_Pair_create")]
     public Pair(global::Own.Node.Node first, global::Own.Node.Node second) : base(new PairHandle())
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(second);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(second);
         using var __t2 = second.Hold(true);
-        IntPtr __h2 = __t2.Pointer;
-        IntPtr __result;
+        nint __h2 = __t2.Pointer;
+        nint __result;
         int __status = Native.own_Pair_create(&__result, __h1, __h2);
         Handle.Assign(__result);
         Runtime.Check(__status);
@@ -733,9 +733,9 @@ public unsafe partial class Pair : BridgefexObject
         Retain(second);
     }
 
-    internal static Pair? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Pair? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -783,7 +783,7 @@ public unsafe partial class Pipeline : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Pipeline);
+    internal override global::System.Type CppType => typeof(Pipeline);
 
     /// <summary>
     /// own::Pipeline::Pipeline(std::unique_ptr&lt;own::Item&gt; first)
@@ -791,10 +791,10 @@ public unsafe partial class Pipeline : BridgefexObject
     [BridgefexFunction("own_Pipeline_create_own_Item_unique")]
     public Pipeline(global::Own.Node.Item first) : base(new PipelineHandle())
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         __h1 = __t1.Give();
         first?.Surrender();
         int __status = Native.own_Pipeline_create_own_Item_unique(&__result, __h1);
@@ -808,10 +808,10 @@ public unsafe partial class Pipeline : BridgefexObject
     [BridgefexFunction("own_Pipeline_create_own_Item_unique_int32")]
     public Pipeline(global::Own.Node.Item first, int minimum) : base(new PipelineHandle())
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         __h1 = __t1.Give();
         first?.Surrender();
         int __status = Native.own_Pipeline_create_own_Item_unique_int32(&__result, __h1, minimum);
@@ -819,9 +819,9 @@ public unsafe partial class Pipeline : BridgefexObject
         Runtime.Check(__status);
     }
 
-    internal static Pipeline? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Pipeline? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -869,7 +869,7 @@ public unsafe partial class Box : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Box);
+    internal override global::System.Type CppType => typeof(Box);
 
     /// <summary>
     /// own::Box::Box()
@@ -877,15 +877,15 @@ public unsafe partial class Box : BridgefexObject
     [BridgefexFunction("own_Box_create")]
     public Box() : base(new BoxHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.own_Box_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Box? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Box? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -904,13 +904,13 @@ public unsafe partial class Box : BridgefexObject
     public void Put(global::Own.Tree.Tree tree)
     {
         using var __self = Hold(true);
-        if (ReferenceEquals(tree, this))
+        if (object.ReferenceEquals(tree, this))
         {
-            throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(tree));
+            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(tree));
         }
-        ArgumentNullException.ThrowIfNull(tree);
+        global::System.ArgumentNullException.ThrowIfNull(tree);
         using var __t1 = tree.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         tree?.Surrender();
         Runtime.Check(Native.own_Box_put(__self.Pointer, __h1));
@@ -923,7 +923,7 @@ public unsafe partial class Box : BridgefexObject
     public global::Own.Tree.Tree? Pop()
     {
         using var __self = Hold(true);
-        IntPtr __result;
+        nint __result;
         var __o = new global::Own.Tree.TreeHandle();
         int __status = Native.own_Box_pop(__self.Pointer, &__result);
         __o.Assign(__result);
@@ -955,7 +955,7 @@ public unsafe partial class Peek : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Peek);
+    internal override global::System.Type CppType => typeof(Peek);
 
     /// <summary>
     /// own::Peek::Peek(const own::Node&amp; node)
@@ -963,18 +963,18 @@ public unsafe partial class Peek : BridgefexObject
     [BridgefexFunction("own_Peek_create")]
     public Peek(global::Own.Node.Node node) : base(new PeekHandle())
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         int __status = Native.own_Peek_create(&__result, __h1);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Peek? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Peek? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -1007,10 +1007,10 @@ public static unsafe class Functions
     [BridgefexFunction("own_twin")]
     public static global::Own.Node.Node Twin(global::Own.Node.Node node)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         var __o = new global::Own.Node.NodeHandle();
         int __status = Native.own_twin(__h1, &__result);
         __o.Assign(__result);
@@ -1024,13 +1024,13 @@ public static unsafe class Functions
     [BridgefexFunction("own_pick")]
     public static global::Own.Node.Node Pick(global::Own.Node.Node first, global::Own.Node.Node second, bool useSecond)
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(second);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(second);
         using var __t2 = second.Hold(true);
-        IntPtr __h2 = __t2.Pointer;
-        IntPtr __result;
+        nint __h2 = __t2.Pointer;
+        nint __result;
         Runtime.Check(Native.own_pick(__h1, __h2, (useSecond ? (byte)1 : (byte)0), &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { first, second }, false)!;
     }
@@ -1041,10 +1041,10 @@ public static unsafe class Functions
     [BridgefexFunction("own_same")]
     public static global::Own.Node.Node Same(global::Own.Node.Node node)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __result;
+        nint __h1 = __t1.Pointer;
+        nint __result;
         Runtime.Check(Native.own_same(__h1, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { node }, true)!;
     }
@@ -1055,12 +1055,12 @@ public static unsafe class Functions
     [BridgefexFunction("own_pickFirst")]
     public static global::Own.Node.Node PickFirst(global::Own.Node.Node first, global::Own.Node.Node? second)
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         using var __t2 = second is null ? default : second.Hold(true);
-        IntPtr __h2 = __t2.Pointer;
-        IntPtr __result;
+        nint __h2 = __t2.Pointer;
+        nint __result;
         Runtime.Check(Native.own_pickFirst(__h1, __h2, &__result));
         return global::Own.Node.Node.Borrow(__result, new BridgefexObject?[] { first, second }, false)!;
     }
@@ -1071,9 +1071,9 @@ public static unsafe class Functions
     [BridgefexFunction("own_consume")]
     public static int Consume(global::Own.Node.Item item)
     {
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();
         item?.Surrender();
@@ -1087,9 +1087,9 @@ public static unsafe class Functions
     [BridgefexFunction("own_setGlobalNode")]
     public static void SetGlobalNode(global::Own.Node.Node node)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         BridgefexObject.RetainForever(node);
         Runtime.Check(Native.own_setGlobalNode(__h1));
     }
@@ -1111,12 +1111,12 @@ public static unsafe class Functions
     [BridgefexFunction("own_total")]
     public static int Total(global::Own.Node.Node node, global::Own.Node.Item item)
     {
-        ArgumentNullException.ThrowIfNull(node);
+        global::System.ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(item);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t2 = item.Hold(false);
-        IntPtr __h2 = __t2.Pointer;
+        nint __h2 = __t2.Pointer;
         int __result;
         Runtime.Check(Native.own_total(__h1, __h2, &__result));
         return __result;
@@ -1128,9 +1128,9 @@ public static unsafe class Functions
     [BridgefexFunction("own_idOf")]
     public static int IdOf(global::Own.Node.Item item)
     {
-        ArgumentNullException.ThrowIfNull(item);
+        global::System.ArgumentNullException.ThrowIfNull(item);
         using var __t1 = item.Hold(false);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         Runtime.Check(Native.own_idOf(__h1, &__result));
         return __result;

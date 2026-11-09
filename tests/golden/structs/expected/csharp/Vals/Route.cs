@@ -27,17 +27,17 @@ public unsafe partial struct Leg
 
     internal void ToNative(Native.route_Leg* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.route_Leg));
-        From.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
-        To.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.route_Leg));
+        From.ToNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
+        To.ToNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
         raw->kind = (byte)Kind;
     }
 
     internal static Leg FromNative(Native.route_Leg* raw)
     {
         Leg result = default;
-        result.From = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
-        result.To = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
+        result.From = global::Vals.Geo.Point.FromNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
+        result.To = global::Vals.Geo.Point.FromNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
         result.Kind = (global::Vals.Geo.Kind)raw->kind;
         return result;
     }

@@ -29,7 +29,7 @@ public unsafe partial class Circle : global::Inh.Shape.Shape
     {
     }
 
-    internal override Type CppType => typeof(Circle);
+    internal override global::System.Type CppType => typeof(Circle);
 
     /// <summary>
     /// inh::Circle::Circle(double radius)
@@ -37,15 +37,15 @@ public unsafe partial class Circle : global::Inh.Shape.Shape
     [BridgefexFunction("inh_Circle_create")]
     public Circle(double radius) : base(new CircleHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Circle_create(&__result, radius);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Circle? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Circle? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -78,7 +78,7 @@ public unsafe partial class Circle : global::Inh.Shape.Shape
     public new string Name()
     {
         using var __self = Hold_inh_Circle(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Circle_name(__self.Pointer, &__text, &__size));
         try
@@ -151,7 +151,7 @@ public unsafe partial class Square : global::Inh.Shape.Shape
     {
     }
 
-    internal override Type CppType => typeof(Square);
+    internal override global::System.Type CppType => typeof(Square);
 
     /// <summary>
     /// inh::Square::Square(double side)
@@ -159,15 +159,15 @@ public unsafe partial class Square : global::Inh.Shape.Shape
     [BridgefexFunction("inh_Square_create")]
     public Square(double side) : base(new SquareHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Square_create(&__result, side);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Square? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Square? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -198,7 +198,7 @@ public unsafe partial class Square : global::Inh.Shape.Shape
     public new string Name()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Square_name(__self.Pointer, &__text, &__size));
         try
@@ -259,7 +259,7 @@ public unsafe partial class Ring : global::Inh.Shapes.Circle
     {
     }
 
-    internal override Type CppType => typeof(Ring);
+    internal override global::System.Type CppType => typeof(Ring);
 
     /// <summary>
     /// inh::Ring::Ring(double outer, double inner)
@@ -267,15 +267,15 @@ public unsafe partial class Ring : global::Inh.Shapes.Circle
     [BridgefexFunction("inh_Ring_create")]
     public Ring(double outer, double inner) : base(new RingHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.inh_Ring_create(&__result, outer, inner);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Ring? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Ring? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -312,7 +312,7 @@ public unsafe partial class Ring : global::Inh.Shapes.Circle
     public new string Name()
     {
         using var __self = Hold(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Ring_name(__self.Pointer, &__text, &__size));
         try
@@ -346,7 +346,7 @@ public static unsafe class Functions
     [BridgefexFunction("inh_make_shape")]
     public static global::Inh.Shape.Shape? MakeShape(int kind, double size)
     {
-        IntPtr __result;
+        nint __result;
         var __o = new global::Inh.Shape.ShapeHandle();
         int __status = Native.inh_make_shape(kind, size, &__result);
         __o.Assign(__result);
@@ -360,12 +360,12 @@ public static unsafe class Functions
     [BridgefexFunction("inh_total_area")]
     public static double TotalArea(global::Inh.Shape.Shape first, global::Inh.Shape.Shape second)
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold_inh_Shape(false);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(second);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(second);
         using var __t2 = second.Hold_inh_Shape(false);
-        IntPtr __h2 = __t2.Pointer;
+        nint __h2 = __t2.Pointer;
         double __result;
         Runtime.Check(Native.inh_total_area(__h1, __h2, &__result));
         return __result;
@@ -377,9 +377,9 @@ public static unsafe class Functions
     [BridgefexFunction("inh_grow")]
     public static double Grow(global::Inh.Shape.Shape shape, int factor)
     {
-        ArgumentNullException.ThrowIfNull(shape);
+        global::System.ArgumentNullException.ThrowIfNull(shape);
         using var __t1 = shape.Hold_inh_Shape(true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         double __result;
         Runtime.Check(Native.inh_grow(__h1, factor, &__result));
         return __result;
@@ -391,10 +391,10 @@ public static unsafe class Functions
     [BridgefexFunction("inh_describe_first")]
     public static string DescribeFirst(global::Inh.Shape.Shape shape)
     {
-        ArgumentNullException.ThrowIfNull(shape);
+        global::System.ArgumentNullException.ThrowIfNull(shape);
         using var __t1 = shape.Hold_inh_Shape(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __text;
+        nint __h1 = __t1.Pointer;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_describe_first(__h1, &__text, &__size));
         try
@@ -413,10 +413,10 @@ public static unsafe class Functions
     [BridgefexFunction("inh_call_name")]
     public static string CallName(global::Inh.Shape.Named named)
     {
-        ArgumentNullException.ThrowIfNull(named);
+        global::System.ArgumentNullException.ThrowIfNull(named);
         using var __t1 = named.Hold_inh_Named(false);
-        IntPtr __h1 = __t1.Pointer;
-        IntPtr __text;
+        nint __h1 = __t1.Pointer;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_call_name(__h1, &__text, &__size));
         try
@@ -435,13 +435,13 @@ public static unsafe class Functions
     [BridgefexFunction("inh_largest")]
     public static global::Inh.Shape.Shape Largest(global::Inh.Shape.Shape first, global::Inh.Shape.Shape second)
     {
-        ArgumentNullException.ThrowIfNull(first);
+        global::System.ArgumentNullException.ThrowIfNull(first);
         using var __t1 = first.Hold_inh_Shape(true);
-        IntPtr __h1 = __t1.Pointer;
-        ArgumentNullException.ThrowIfNull(second);
+        nint __h1 = __t1.Pointer;
+        global::System.ArgumentNullException.ThrowIfNull(second);
         using var __t2 = second.Hold_inh_Shape(true);
-        IntPtr __h2 = __t2.Pointer;
-        IntPtr __result;
+        nint __h2 = __t2.Pointer;
+        nint __result;
         Runtime.Check(Native.inh_largest(__h1, __h2, &__result));
         return global::Inh.Shape.Shape.Borrow(__result, new BridgefexObject?[] { first, second }, false)!;
     }
@@ -452,9 +452,9 @@ public static unsafe class Functions
     [BridgefexFunction("inh_consume")]
     public static int Consume(global::Inh.Shape.Shape shape)
     {
-        ArgumentNullException.ThrowIfNull(shape);
+        global::System.ArgumentNullException.ThrowIfNull(shape);
         using var __t1 = shape.Hold_inh_Shape(true, true);
-        IntPtr __h1 = __t1.Pointer;
+        nint __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();
         shape?.Surrender();

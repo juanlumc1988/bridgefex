@@ -29,7 +29,7 @@ public unsafe partial class Accumulator : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Accumulator);
+    internal override global::System.Type CppType => typeof(Accumulator);
 
     /// <summary>
     /// Accumulator::Accumulator()
@@ -37,15 +37,15 @@ public unsafe partial class Accumulator : BridgefexObject
     [BridgefexFunction("scalars_Accumulator_create")]
     public Accumulator() : base(new AccumulatorHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.scalars_Accumulator_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Accumulator? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Accumulator? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

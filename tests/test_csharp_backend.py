@@ -279,6 +279,114 @@ def test_a_class_cannot_hide_a_type_of_the_generated_code(tmp_path: Path, name: 
     assert f"gets the C# name '{name}'" in message
 
 
+# What an adversarial review found: names that hide what the generated code uses. Each header is
+# valid C++; the generated C# must compile (the check builds it with warnings as errors).
+COMPILES = {
+    "a type of the user named like a type of .NET": (
+        "enum class Type { A, B };\nstruct IntPtr { int a; };\n"
+        "class Node { public: Node(); ~Node();"
+        " Type type() const; IntPtr ptr() const; void set(Type t, IntPtr p); };"
+    ),
+    "classes named like the types they use": (
+        "class Exception { public: Exception(); ~Exception(); };\n"
+        "class ArgumentException { public: ArgumentException(); ~ArgumentException(); };\n"
+        "class NativeMemory { public: NativeMemory(); ~NativeMemory(); };\n"
+        "struct System { int a; };\nint use(const System& s, NativeMemory& m);"
+    ),
+    "parameters named like what the wrappers call": (
+        "int f(int Runtime, int Native, int Handle, int Hold, int Retain, int System);\n"
+        "class K { public: K(int Handle); ~K(); int m(int Hold, int Runtime, int Native) const; };"
+    ),
+    "members named like the generated types": (
+        "class K { public: K(); ~K(); int runtime() const; int native() const; int block() const;"
+        " int keep() const; int lease() const; int bridgefexObject() const; };\n"
+        "int functions(int a);"
+    ),
+    "a function named like the class of the functions": "int Functions(int a);\nint other(int a);",
+    "members of a struct named like the generated types": (
+        "struct S { int Runtime; int Native; int Equals; int ToString; int GetHashCode;"
+        " int GetType; int MemberwiseClone; int ReferenceEquals; };\nS f(S s);"
+    ),
+    "parameters named like the locals of the wrappers": (
+        "#include <memory>\nclass K1 { public: K1(); ~K1(); };\n"
+        "std::unique_ptr<K1> make(int __o);\nint take(std::unique_ptr<K1> x, int __c1, int __h1);"
+    ),
+    "constructors that are the same signature in C#": (
+        "class G { public: explicit G(const std::string& s); explicit G(const char* s);"
+        " explicit G(long a); explicit G(long long a); ~G(); };"
+    ),
+    "an accessor of a base named like a method": (
+        "class P1 { public: P1(); virtual ~P1(); };\n"
+        "class P2 { public: P2(); virtual ~P2(); };\n"
+        "class Q : public P1, public P2 { public: Q(); int asP2(); };"
+    ),
+    "a method of a base named like the class": (
+        "class B { public: B(); virtual ~B(); int b() const; };\n"
+        "class D : public B { public: D(); };"
+    ),
+}
+
+
+@needs_dotnet
+@pytest.mark.parametrize("code", COMPILES.values(), ids=COMPILES.keys())
+def test_what_hides_the_names_of_the_generated_code_compiles(tmp_path: Path, code: str) -> None:
+    generate(tmp_path, code, verify=True)
+
+
+@pytest.mark.parametrize(
+    ("stem", "word"),
+    [
+        ("objects", "Objects"),
+        ("system", "System"),
+        ("microsoft", "Microsoft"),
+        ("keep", "Keep"),
+        ("lease", "Lease"),
+        ("block", "Block"),
+    ],
+)
+def test_headers_that_clash_with_the_generated_project_are_refused(
+    tmp_path: Path, stem: str, word: str
+) -> None:
+    message = error_of(tmp_path, "int f(int a);", name=f"{stem}.h")
+    assert f"cannot use header name '{stem}'" in message
+    assert word in message
+
+
+def test_headers_whose_files_differ_only_by_case_are_refused(tmp_path: Path) -> None:
+    first = tmp_path / "a_b.h"
+    second = tmp_path / "ab.h"
+    for number, path in enumerate((first, second)):
+        path.write_text(PRELUDE + f"int f{number}(int a);\n", encoding="utf-8")
+    options = bridgefex.Options("mod", languages=("csharp",), verify=False)
+    with pytest.raises(GenerationError, match="only differs by case"):
+        bridgefex.generate([first, second], options)
+
+
+def test_a_nested_enum_cannot_hide_a_type_of_the_generated_code(tmp_path: Path) -> None:
+    message = error_of(tmp_path, "class NR { public: enum class Runtime { A }; NR(); ~NR(); };")
+    assert "'Runtime'" in message
+    assert "generated code" in message
+
+
+def test_constructors_that_c_sharp_cannot_tell_apart_are_static_methods(tmp_path: Path) -> None:
+    text = generate(tmp_path, COMPILES["constructors that are the same signature in C#"])[
+        "csharp/Mod/Api.cs"
+    ]
+    assert "public static G CreateString(string s)" in text
+    assert "public static G CreateCstr(string s)" in text
+    assert "public static G CreateLong(long a)" in text
+    assert "public static G CreateLlong(long a)" in text
+    assert "public G(" not in text.split("class G")[1].split("Borrow")[0]
+
+
+def test_the_accessor_of_a_base_does_not_take_the_name_of_a_method(tmp_path: Path) -> None:
+    text = generate(tmp_path, COMPILES["an accessor of a base named like a method"])[
+        "csharp/Mod/Api.cs"
+    ]
+    assert "public int AsP2()" in text
+    assert " AsP2_()" in text
+
+
 # -- What it refuses ------------------------------------------------------------------------------
 
 
@@ -305,6 +413,25 @@ def test_what_the_csharp_bindings_do_not_have_yet_is_refused_clearly(
 def test_a_failure_of_the_csharp_backend_names_the_function(tmp_path: Path) -> None:
     code = "#include <functional>\nint add(int a, int b);\nint apply(std::function<int(int)> f);"
     assert "apply" in error_of(tmp_path, code)
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "#include <vector>\nint sum(const std::vector<int>& values);",
+        "#include <vector>\nstd::vector<int> make();",
+        "#include <vector>\nclass K { public: K(); ~K(); void put(std::vector<int> v); };",
+    ],
+)
+def test_a_refusal_says_which_declaration_and_where(tmp_path: Path, code: str) -> None:
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code)
+    [diagnostic] = raised.value.diagnostics
+    assert "C#:" in diagnostic.message
+    assert "std::vector" in diagnostic.message
+    assert diagnostic.location is not None
+    assert diagnostic.location.line >= 1
+    assert str(raised.value).count("api.h") >= 1
 
 
 # -- The check with the compiler of .NET ---------------------------------------------------------

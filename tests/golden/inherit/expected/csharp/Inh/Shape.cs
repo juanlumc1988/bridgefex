@@ -29,11 +29,11 @@ public unsafe partial class Named : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Named);
+    internal override global::System.Type CppType => typeof(Named);
 
-    internal static Named? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Named? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -54,7 +54,7 @@ public unsafe partial class Named : BridgefexObject
     public string Name()
     {
         using var __self = Hold_inh_Named(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Named_name(__self.Pointer, &__text, &__size));
         try
@@ -74,7 +74,7 @@ public unsafe partial class Named : BridgefexObject
     public string Greeting()
     {
         using var __self = Hold_inh_Named(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Named_greeting(__self.Pointer, &__text, &__size));
         try
@@ -111,11 +111,11 @@ public unsafe partial class Shape : global::Inh.Shape.Named
     {
     }
 
-    internal override Type CppType => typeof(Shape);
+    internal override global::System.Type CppType => typeof(Shape);
 
-    internal static Shape? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Shape? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }
@@ -166,7 +166,7 @@ public unsafe partial class Shape : global::Inh.Shape.Named
     public string Describe()
     {
         using var __self = Hold_inh_Shape(false);
-        IntPtr __text;
+        nint __text;
         nuint __size;
         Runtime.Check(Native.inh_Shape_describe(__self.Pointer, &__text, &__size));
         try

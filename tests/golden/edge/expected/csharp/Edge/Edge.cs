@@ -29,7 +29,7 @@ public unsafe partial class Registry : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Registry);
+    internal override global::System.Type CppType => typeof(Registry);
 
     /// <summary>
     /// edge::Registry::Registry()
@@ -37,15 +37,15 @@ public unsafe partial class Registry : BridgefexObject
     [BridgefexFunction("edge_Registry_create")]
     public Registry() : base(new RegistryHandle())
     {
-        IntPtr __result;
+        nint __result;
         int __status = Native.edge_Registry_create(&__result);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Registry? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Registry? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

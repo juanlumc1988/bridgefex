@@ -26,7 +26,7 @@ public unsafe partial struct Point
 
     internal void ToNative(Native.geo_Point* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Point));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Point));
         raw->x = X;
         raw->y = Y;
     }
@@ -80,7 +80,7 @@ public unsafe partial struct Config
 
     internal void ToNative(Native.geo_Config* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Config));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Config));
         raw->baud = Baud;
         raw->parity = (Parity ? (byte)1 : (byte)0);
         raw->kind = (byte)Kind;
@@ -120,12 +120,12 @@ public unsafe partial struct Msg
 
     internal void ToNative(Native.geo_Msg* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Msg));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Msg));
         raw->tag = Tag;
-        Where.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
+        Where.ToNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
         if (Samples is null || Samples.Length != 3)
         {
-            throw new ArgumentException("Samples must have 3 elements", "Samples");
+            throw new global::System.ArgumentException("Samples must have 3 elements", "Samples");
         }
         for (int i = 0; i < 3; i++)
         {
@@ -134,11 +134,11 @@ public unsafe partial struct Msg
         raw->ok = (Ok ? (byte)1 : (byte)0);
         if (Path is null || Path.Length != 2)
         {
-            throw new ArgumentException("Path must have 2 elements", "Path");
+            throw new global::System.ArgumentException("Path must have 2 elements", "Path");
         }
         for (int i = 0; i < 2; i++)
         {
-            Path[i].ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
+            Path[i].ToNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
         }
         Runtime.CheckEnum((long)Quality, 0, 3, "Quality");
         raw->quality = (int)Quality;
@@ -148,7 +148,7 @@ public unsafe partial struct Msg
     {
         Msg result = default;
         result.Tag = raw->tag;
-        result.Where = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
+        result.Where = global::Vals.Geo.Point.FromNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
         result.Samples = new short[3];
         for (int i = 0; i < 3; i++)
         {
@@ -158,7 +158,7 @@ public unsafe partial struct Msg
         result.Path = new global::Vals.Geo.Point[2];
         for (int i = 0; i < 2; i++)
         {
-            result.Path[i] = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
+            result.Path[i] = global::Vals.Geo.Point.FromNative((Native.geo_Point*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
         }
         result.Quality = (global::Vals.Geo.Quality)raw->quality;
         return result;
@@ -189,7 +189,7 @@ public unsafe partial struct Wide
 
     internal void ToNative(Native.geo_Wide* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Wide));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Wide));
         raw->f = F;
         raw->big = Big;
         raw->size = Size;
@@ -197,7 +197,7 @@ public unsafe partial struct Wide
         raw->c = C;
         if (Bytes is null || Bytes.Length != 4)
         {
-            throw new ArgumentException("Bytes must have 4 elements", "Bytes");
+            throw new global::System.ArgumentException("Bytes must have 4 elements", "Bytes");
         }
         for (int i = 0; i < 4; i++)
         {
@@ -243,7 +243,7 @@ public unsafe partial struct Names
 
     internal void ToNative(Native.geo_Names* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Names));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Names));
         raw->from_ = From;
         raw->restrict_ = Restrict;
         raw->errno_ = Errno;
@@ -288,7 +288,7 @@ public unsafe partial struct Tagged
 
     internal void ToNative(Native.geo_Tagged* raw)
     {
-        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Tagged));
+        global::System.Runtime.InteropServices.NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Tagged));
         raw->mode = (sbyte)Mode_;
         raw->value = Value;
     }
@@ -325,7 +325,7 @@ public unsafe partial class Path : BridgefexObject
     {
     }
 
-    internal override Type CppType => typeof(Path);
+    internal override global::System.Type CppType => typeof(Path);
 
     /// <summary>
     /// geo::Path::Path(const geo::Point&amp; start)
@@ -335,15 +335,15 @@ public unsafe partial class Path : BridgefexObject
     {
         Native.geo_Point __s1 = default;
         start.ToNative(&__s1);
-        IntPtr __result;
+        nint __result;
         int __status = Native.geo_Path_create(&__result, &__s1);
         Handle.Assign(__result);
         Runtime.Check(__status);
     }
 
-    internal static Path? Borrow(IntPtr pointer, BridgefexObject?[]? owners, bool readOnly)
+    internal static Path? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
     {
-        if (pointer == IntPtr.Zero)
+        if (pointer == 0)
         {
             return null;
         }

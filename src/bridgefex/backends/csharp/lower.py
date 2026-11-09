@@ -27,7 +27,7 @@ from ...plan import (
     StructPlan,
 )
 from .mapping import Unsupported, scalar
-from .naming import LOCAL_PREFIX, identifier
+from .naming import LOCAL_PREFIX, parameter
 from .source import Source
 
 L = LOCAL_PREFIX
@@ -125,16 +125,29 @@ def lower_callable(
     module: ModulePlan,
     *,
     declaring: ClassPlan | None = None,
+    factory: tuple[str, str] | None = None,
 ) -> Lowering:
     """The C# method (or constructor) for ``plan``. ``declaring`` is the class that
-    declares a method."""
-    return _Lowerer(plan, names, module, declaring).run()
+    declares a method. ``factory`` (the class and its handle) lowers a constructor to a static
+    method that returns the object."""
+    try:
+        return _Lowerer(plan, names, module, declaring, factory).run()
+    except Unsupported as error:
+        if error.location is not None:
+            raise
+        raise Unsupported(f"'{plan.function.description}': {error}", plan.location) from error
 
 
 class _Lowerer:
     def __init__(
-        self, plan: CallablePlan, names: Names, module: ModulePlan, declaring: ClassPlan | None
+        self,
+        plan: CallablePlan,
+        names: Names,
+        module: ModulePlan,
+        declaring: ClassPlan | None,
+        factory: tuple[str, str] | None = None,
     ) -> None:
+        self.factory = factory
         self.plan = plan
         self.names = names
         self.module = module
@@ -189,9 +202,16 @@ class _Lowerer:
             body.add(f"Runtime.Check({L}status);")
         else:
             body.add(f"Runtime.Check({call});")
-        if plan.kind is CallableKind.CONSTRUCTOR:
+        if plan.kind is CallableKind.CONSTRUCTOR and self.factory is None:
             for name in self.retained:
                 body.add(f"{target}({name});")
+        if plan.kind is CallableKind.CONSTRUCTOR and self.factory is not None:
+            # The object that is returned keeps what it was given.
+            out.after_check = [
+                f"var {L}new = new {self.factory[0]}({L}o);",
+                *(f"{L}new.Retain({name});" for name in self.retained),
+                f"return {L}new;",
+            ]
         for line in out.after_check:
             body.add(line)
         self.lowering.body = body.finish()
@@ -202,7 +222,7 @@ class _Lowerer:
         not as ``this`` nor as another argument."""
         plan = self.plan
         objects = [
-            (identifier(spec.name), "nullable" in spec.words, "transfer" in spec.words)
+            (parameter(spec.name), "nullable" in spec.words, "transfer" in spec.words)
             for spec in plan.params
             if isinstance(spec.type, ClassRef)
         ]
@@ -215,14 +235,15 @@ class _Lowerer:
                 if other_index != index and not (other_given and other_index < index):
                     others.append(other)
             for other in others:
-                condition = f"ReferenceEquals({name}, {other})"
+                condition = f"object.ReferenceEquals({name}, {other})"
                 if nullable:
                     condition = f"{name} is not null && {condition}"
                 self.body.add(f"if ({condition})")
                 self.body.add("{")
                 self.body.add(
-                    f'    throw new ArgumentException("the object is given to C++, which destroys '
-                    f'it, and the call uses it too", nameof({name}));'
+                    "    throw new global::System.ArgumentException("
+                    '"the object is given to C++, which destroys it, and the call uses it too", '
+                    f"nameof({name}));"
                 )
                 self.body.add("}")
 
@@ -238,7 +259,7 @@ class _Lowerer:
 
     def param(self, spec: ParamSpec, position: int) -> None:
         type_ = spec.type
-        name = identifier(spec.name)
+        name = parameter(spec.name)
         self.lowering.parameters.append(f"{public_type(type_, self.names, spec)} {name}")
         if "retain" in spec.words:
             self.retained.append(name)
@@ -325,7 +346,7 @@ class _Lowerer:
         arguments = f"{mutable}, true" if "transfer" in spec.words else mutable
         hold = f"Hold_{info.c_type}({arguments})" if info.is_base else f"Hold({arguments})"
         if not nullable:
-            body.add(f"ArgumentNullException.ThrowIfNull({name});")
+            body.add(f"global::System.ArgumentNullException.ThrowIfNull({name});")
         if "transfer" in spec.words and info.is_base and not info.model.virtual_destructor:
             # C++ destroys the object through this class: only an object of exactly it.
             check = f'Runtime.CheckExact({name}, typeof({self.names.cls(info)}), "{spec.name}");'
@@ -334,7 +355,7 @@ class _Lowerer:
             body.add(f"using var {lease} = {name} is null ? default : {name}.{hold};")
         else:
             body.add(f"using var {lease} = {name}.{hold};")
-        body.add(f"IntPtr {view} = {lease}.Pointer;")
+        body.add(f"nint {view} = {lease}.Pointer;")
         self.arguments[spec.name] = view
         if "transfer" in spec.words:
             self.transfers.append((name, view, lease))
@@ -346,10 +367,18 @@ class _Lowerer:
         body = self.body
         out = _Result()
         if plan.kind is CallableKind.CONSTRUCTOR:
-            body.add(f"IntPtr {L}result;")
+            body.add(f"nint {L}result;")
             self.arguments["out_self"] = f"&{L}result"
             out.checks_after = True
-            out.after_call = [f"Handle.Assign({L}result);"]
+            if self.factory is None:
+                out.after_call = [f"Handle.Assign({L}result);"]
+            else:
+                # A static method: the object is made after the call, and owns the handle.
+                class_name, handle_name = self.factory
+                body.add(f"var {L}o = new {handle_name}();")
+                out.after_call = [f"{L}o.Assign({L}result);"]
+                out.after_check = [f"return new {class_name}({L}o);"]
+                self.lowering.returns = class_name
             return out
         spec = plan.result
         if spec is None:
@@ -392,7 +421,7 @@ class _Lowerer:
         return out
 
     def string_result(self, type_: StringType, as_bytes: bool, out: _Result) -> None:
-        self.body.add(f"IntPtr {L}text;")
+        self.body.add(f"nint {L}text;")
         self.body.add(f"nuint {L}size;")
         self.arguments["out_result"] = f"&{L}text"
         self.arguments["out_result_size"] = f"&{L}size"
@@ -415,7 +444,7 @@ class _Lowerer:
         else:
             # A const char* result: NULL is a null string.
             out.after_check = [
-                f"if ({L}text == IntPtr.Zero)",
+                f"if ({L}text == 0)",
                 "{",
                 "    return null;",
                 "}",
@@ -437,7 +466,7 @@ class _Lowerer:
             ClassForm.REFERENCE,
             ClassForm.CONST_REFERENCE,
         )
-        self.body.add(f"IntPtr {L}result;")
+        self.body.add(f"nint {L}result;")
         self.arguments["out_result"] = f"&{L}result"
         given = ["this"] if self.plan.kind is CallableKind.METHOD else self.owners
         owner_list = f"new BridgefexObject?[] {{ {', '.join(given)} }}" if given else "null"
