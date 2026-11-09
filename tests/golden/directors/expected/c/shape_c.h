@@ -126,6 +126,29 @@ typedef struct drc_Circle_vtable {
 } drc_Circle_vtable;
 #pragma pack(pop)
 
+/*
+ * The director of drc::Beam: an object of a class derived from it, whose virtual
+ * methods call the functions of a vtable, which code of another language provides.
+ * A NULL member of the vtable keeps the implementation of the class; the
+ * members of its pure virtual methods must be set. The functions run on whatever
+ * thread C++ calls the method, may be called many times and must not throw nor
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
+ * the director is destroyed (with drc_Beam_destroy() of its object).
+ */
+typedef struct drc_Beam_director drc_Beam_director;
+
+#pragma pack(push, 8)
+typedef struct drc_Beam_vtable {
+    void* user_data;
+    void (*release)(void* user_data);
+    /* int32_t drc::Beam::length() const */
+    void (*length)(void*, int32_t*);
+} drc_Beam_vtable;
+#pragma pack(pop)
+
 /* drc::Point(): the value of a default-constructed drc::Point */
 DRC_NODISCARD DRC_API drc_status drc_Point_init(drc_Point* out_result);
 
@@ -281,6 +304,21 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_add(const drc_Circle* self, int32_t 
 
 /* double drc::Circle::radius() const */
 DRC_NODISCARD DRC_API drc_status drc_Circle_radius(const drc_Circle* self, double* out_result);
+
+/* drc::Beam::Beam(int32_t length) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_create(drc_Beam** out_self, int32_t length);
+
+/* drc::Beam::~Beam() */
+DRC_API void drc_Beam_destroy(drc_Beam* self);
+
+/* int32_t drc::Beam::length() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_length(const drc_Beam* self, int32_t* out_result);
+
+/* int32_t drc::Beam::call_length() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_call_length(const drc_Beam* self, int32_t* out_result);
+
+/* int32_t drc::Beam::made_by() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_made_by(const drc_Beam* self, int32_t* out_result);
 
 /* drc::Dot::Dot() */
 DRC_NODISCARD DRC_API drc_status drc_Dot_create(drc_Dot** out_self);
@@ -497,6 +535,25 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_triple(drc_Circle_dire
 /* void drc::Shape::changed(int32_t reason)
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_changed(drc_Circle_director* director, int32_t reason);
+
+/* drc::Beam::Beam(int32_t length) of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_int32(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, int32_t length);
+
+/* drc::Beam::Beam() of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_void(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable);
+
+/* drc::Beam::Beam(const std::string& label) of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_string(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, const char* label, size_t label_size);
+
+/* drc::Beam: the object of its director */
+DRC_NODISCARD DRC_API drc_Beam* drc_Beam_director_object(drc_Beam_director* director);
+
+/* int32_t drc::Beam::length() const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_base_length(drc_Beam_director* director, int32_t* out_result);
 
 #ifdef __cplusplus
 }

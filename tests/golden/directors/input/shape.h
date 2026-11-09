@@ -109,6 +109,25 @@ private:
     double radius_;
 };
 
+// Public constructors and protected ones: the protected ones are for the classes that derive.
+class Beam {
+public:
+    explicit Beam(std::int32_t length);
+    virtual ~Beam();
+    virtual std::int32_t length() const;
+    std::int32_t call_length() const;
+    // Which constructor made it: 1 the public one, 2 the default one, 3 the one of a label.
+    std::int32_t made_by() const;
+
+protected:
+    Beam();
+    explicit Beam(const std::string& label);
+
+private:
+    std::int32_t length_;
+    std::int32_t made_by_;
+};
+
 // Final: it cannot have a director.
 class Dot final : public Shape {
 public:

@@ -707,6 +707,41 @@ with Silent.create_void() as silent:
         raise AssertionError("None was accepted for a container")
     assert silent.call_numbers([]) == []
 
+
+# A class with public constructors and protected ones: the protected ones make the objects of
+# its subclasses only.
+class Short(shape.Beam):
+    def length(self):
+        return 5
+
+
+with Short(7) as short:  # the public constructor, with an override
+    assert short.call_length() == 5 and short.made_by() == 1
+with Short.create_void() as short:
+    assert short.call_length() == 5 and short.made_by() == 2
+with Short.create_string("four") as short:
+    assert short.call_length() == 5 and short.made_by() == 3
+
+
+class Plain(shape.Beam):
+    """Overrides nothing: the protected constructors still make a plain object of it."""
+
+
+with Plain.create_string("four") as plain_beam:
+    assert plain_beam.call_length() == 4 and plain_beam.made_by() == 3
+with Plain(3) as plain_beam:
+    assert plain_beam.call_length() == 3 and plain_beam.made_by() == 1
+
+for call in (shape.Beam.create_void, lambda: shape.Beam.create_string("x")):
+    try:
+        call()
+    except TypeError as error:
+        assert "itself" in str(error), str(error)
+    else:
+        raise AssertionError("a protected constructor was called on the class itself")
+with shape.Beam(2) as beam:  # the class itself: the public constructor
+    assert beam.call_length() == 2 and beam.made_by() == 1
+
 # An object that C++ holds when the interpreter exits (the director is disabled and left
 # alone, as the callbacks are).
 leftover = shape.Holder()

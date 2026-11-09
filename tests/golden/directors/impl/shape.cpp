@@ -252,6 +252,29 @@ void Shape::changed(std::int32_t reason)
     reason_ = reason;
 }
 
+Beam::Beam(std::int32_t length) : length_(length), made_by_(1) {}
+
+Beam::Beam() : length_(-1), made_by_(2) {}
+
+Beam::Beam(const std::string& label) : length_(static_cast<std::int32_t>(label.size())), made_by_(3) {}
+
+Beam::~Beam() = default;
+
+std::int32_t Beam::length() const
+{
+    return length_;
+}
+
+std::int32_t Beam::call_length() const
+{
+    return length();
+}
+
+std::int32_t Beam::made_by() const
+{
+    return made_by_;
+}
+
 Circle::Circle(double radius) : Shape("circle", 0), radius_(radius) {}
 
 Circle::~Circle() = default;

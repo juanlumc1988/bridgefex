@@ -67,6 +67,8 @@ static_assert(alignof(::drc::Shape) <= drc_detail::new_alignment,
               "drc::Shape is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::drc::Circle) <= drc_detail::new_alignment,
               "drc::Circle is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::drc::Beam) <= drc_detail::new_alignment,
+              "drc::Beam is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::drc::Dot) <= drc_detail::new_alignment,
               "drc::Dot is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::drc::Plain) <= drc_detail::new_alignment,
@@ -796,6 +798,33 @@ public:
 
 private:
     drc_Circle_vtable vt_;
+    drc_detail::callback_ref ref_;
+};
+
+class drc_Beam_director_impl final : public ::drc::Beam {
+public:
+    template <typename... Args>
+    drc_Beam_director_impl(drc_detail::callback_owner& owner, const drc_Beam_vtable& vtable, Args&&... args)
+        : ::drc::Beam(static_cast<Args&&>(args)...), vt_(vtable), ref_(owner) {}
+
+    int32_t length() const override
+    {
+        if (vt_.length == nullptr || ref_.disabled()) {
+            return ::drc::Beam::length();
+        }
+        int32_t _result{};
+        vt_.length(ref_.user_data(), &_result);
+        return _result;
+    }
+
+    template <typename... Args>
+    int32_t bridgefex_base_length(Args&&... args) const
+    {
+        return this->::drc::Beam::length(static_cast<Args&&>(args)...);
+    }
+
+private:
+    drc_Beam_vtable vt_;
     drc_detail::callback_ref ref_;
 };
 
@@ -1583,6 +1612,60 @@ drc_status drc_Circle_radius(const drc_Circle* self, double* out_result)
         return drc_detail::null_argument("drc_Circle_radius: 'out_result' is NULL");
     }
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Circle*>(self)->radius(); });
+}
+
+// drc::Beam::Beam(int32_t length)
+drc_status drc_Beam_create(drc_Beam** out_self, int32_t length)
+{
+    if (out_self == nullptr) {
+        return drc_detail::null_argument("drc_Beam_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return drc_detail::guard([&]() { *out_self = reinterpret_cast<drc_Beam*>(new ::drc::Beam(length)); });
+}
+
+// drc::Beam::~Beam()
+void drc_Beam_destroy(drc_Beam* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    drc_detail::guard_silently([&]() { delete reinterpret_cast<::drc::Beam*>(self); });
+}
+
+// int32_t drc::Beam::length() const
+drc_status drc_Beam_length(const drc_Beam* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Beam_length: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Beam_length: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Beam*>(self)->length(); });
+}
+
+// int32_t drc::Beam::call_length() const
+drc_status drc_Beam_call_length(const drc_Beam* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Beam_call_length: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Beam_call_length: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Beam*>(self)->call_length(); });
+}
+
+// int32_t drc::Beam::made_by() const
+drc_status drc_Beam_made_by(const drc_Beam* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Beam_made_by: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Beam_made_by: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Beam*>(self)->made_by(); });
 }
 
 // drc::Dot::Dot()
@@ -2445,6 +2528,81 @@ drc_status drc_Circle_director_base_changed(drc_Circle_director* director, int32
         return drc_detail::null_argument("drc_Circle_director_base_changed: 'director' is NULL");
     }
     return drc_detail::guard([&]() { reinterpret_cast<drc_detail::drc_Circle_director_impl*>(director)->bridgefex_base_changed(reason); });
+}
+
+// drc::Beam::Beam(int32_t length) of the director
+drc_status drc_Beam_director_create_int32(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, int32_t length)
+{
+    drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_int32: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
+    if (out_director == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_int32: 'out_director' is NULL");
+    }
+    *out_director = nullptr;
+    if (vtable == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_int32: 'vtable' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::drc_Beam_director_impl* _created = new drc_detail::drc_Beam_director_impl(_vtable_owner, *vtable, length); *out_director = reinterpret_cast<drc_Beam_director*>(_created); *out_object = reinterpret_cast<drc_Beam*>(static_cast<::drc::Beam*>(_created)); });
+}
+
+// drc::Beam::Beam() of the director
+drc_status drc_Beam_director_create_void(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable)
+{
+    drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_void: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
+    if (out_director == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_void: 'out_director' is NULL");
+    }
+    *out_director = nullptr;
+    if (vtable == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_void: 'vtable' is NULL");
+    }
+    return drc_detail::guard([&]() { drc_detail::drc_Beam_director_impl* _created = new drc_detail::drc_Beam_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<drc_Beam_director*>(_created); *out_object = reinterpret_cast<drc_Beam*>(static_cast<::drc::Beam*>(_created)); });
+}
+
+// drc::Beam::Beam(const std::string& label) of the director
+drc_status drc_Beam_director_create_string(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, const char* label, size_t label_size)
+{
+    drc_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_string: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
+    if (out_director == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_string: 'out_director' is NULL");
+    }
+    *out_director = nullptr;
+    if (vtable == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_create_string: 'vtable' is NULL");
+    }
+    if (label == nullptr && label_size != 0) {
+        return drc_detail::null_argument("drc_Beam_director_create_string: 'label' is NULL and 'label_size' is not 0");
+    }
+    return drc_detail::guard([&]() { drc_detail::drc_Beam_director_impl* _created = new drc_detail::drc_Beam_director_impl(_vtable_owner, *vtable, static_cast<const std::string&>(std::string(drc_detail::string_data(label), label_size))); *out_director = reinterpret_cast<drc_Beam_director*>(_created); *out_object = reinterpret_cast<drc_Beam*>(static_cast<::drc::Beam*>(_created)); });
+}
+
+// drc::Beam: the object of its director
+drc_Beam* drc_Beam_director_object(drc_Beam_director* director)
+{
+    return reinterpret_cast<drc_Beam*>(static_cast<::drc::Beam*>(reinterpret_cast<drc_detail::drc_Beam_director_impl*>(director)));
+}
+
+// int32_t drc::Beam::length() const
+drc_status drc_Beam_director_base_length(drc_Beam_director* director, int32_t* out_result)
+{
+    if (director == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_base_length: 'director' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Beam_director_base_length: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<drc_detail::drc_Beam_director_impl*>(director)->bridgefex_base_length(); });
 }
 
 }  // extern "C"

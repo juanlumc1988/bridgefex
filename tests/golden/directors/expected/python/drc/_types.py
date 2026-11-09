@@ -36,6 +36,13 @@ class _drc_Circle(ctypes.Structure):
 _drc_Circle__p = ctypes.POINTER(_drc_Circle)
 
 
+class _drc_Beam(ctypes.Structure):
+    """Opaque C handle of drc::Beam."""
+
+
+_drc_Beam__p = ctypes.POINTER(_drc_Beam)
+
+
 class _drc_Dot(ctypes.Structure):
     """Opaque C handle of drc::Dot."""
 
@@ -1179,6 +1186,49 @@ class _drc_Circle_vtable(ctypes.Structure):
         ("flags", _director__drc_Circle__flags__type),
         ("triple", _director__drc_Circle__triple__type),
         ("changed", _director__drc_Circle__changed__type),
+    ]
+
+
+class _drc_Beam_director(ctypes.Structure):
+    """Opaque C handle of the director of drc::Beam."""
+
+
+_drc_Beam_director__p = ctypes.POINTER(_drc_Beam_director)
+
+
+_director__drc_Beam__length__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Beam__length(_user_data, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "length")
+        if _function is None:
+            return
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'length', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Beam__length = _director__drc_Beam__length__type(_director__drc_Beam__length)
+
+
+class _drc_Beam_vtable(ctypes.Structure):
+    """C mirror of the vtable of the director of drc::Beam."""
+
+    _fields_ = [
+        ("user_data", ctypes.c_void_p),
+        ("release", _runtime.Release),
+        ("length", _director__drc_Beam__length__type),
     ]
 
 

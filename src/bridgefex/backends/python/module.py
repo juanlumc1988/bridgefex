@@ -404,6 +404,9 @@ class _Lowering:
                 if isinstance(item, ClassPlan):
                     yield from item.constructors
                     yield from item.members
+                    if item.director is not None:
+                        # (The protected ones: callbacks of their signatures need thunks too.)
+                        yield from item.director.constructors
                 elif isinstance(item, FunctionPlan):
                     yield item.callable
 
@@ -786,13 +789,12 @@ class _Lowering:
                 header,
                 leading=("_handle", "_director", "_record.register(_vtable)"),
             )
-            if plan.constructors:
-                # A constructor that only a derived class can call (a protected one) is not
-                # part of the API of a class that has ordinary ones.
-                if constructor.source in plain:
-                    name = plain[constructor.source]
-                    creations.append(PyDirectorConstructor(name, lowered, name))
+            if plan.constructors and constructor.source in plain:
+                name = plain[constructor.source]
+                creations.append(PyDirectorConstructor(name, lowered, name))
             else:
+                # A constructor that only a derived class can call (a protected one): of a
+                # class that has ordinary ones too, a class method of the subclasses.
                 creations.append(PyDirectorConstructor(own_name, lowered, None))
         return PyDirector(
             director,
@@ -851,6 +853,26 @@ class _Lowering:
                             slot.entry.location,
                         )
                     )
+        factories = _constructor_names(plan) - {"__init__"}
+        for slot in director.slots:
+            if slot.wrapper in ("inherited", "protected") and slot.name in factories:
+                self.errors.append(
+                    Diagnostic(
+                        f"the virtual method '{slot.entry.description}' and a constructor of "
+                        f"'{cpp_name}' get the Python name '{slot.name}'",
+                        slot.entry.location,
+                    )
+                )
+        for alias in director.aliases:
+            if alias.name in factories:
+                self.errors.append(
+                    Diagnostic(
+                        f"the virtual method '{alias.target.entry.description}', which a base "
+                        f"class names '{alias.name}', and a constructor of '{cpp_name}' get "
+                        f"the same Python name",
+                        alias.target.entry.location,
+                    )
+                )
         for constructor in director.constructors:
             if constructor.name != "__init__" and constructor.private_name in taken:
                 self.errors.append(
@@ -866,10 +888,19 @@ def _constructor_names(plan: ClassPlan) -> frozenset[str]:
     """What the Python class calls its constructors: ``__init__`` or ``create<suffix>``,
     those of its director if it has no ordinary ones."""
     constructors = plan.constructors or (plan.director.constructors if plan.director else ())
-    return frozenset(
+    names = {
         "create" + constructor.suffix if len(constructors) > 1 else "__init__"
         for constructor in constructors
-    )
+    }
+    if plan.constructors and plan.director is not None:
+        # The constructors that only a subclass can call are class methods too.
+        ordinary = {constructor.source for constructor in plan.constructors}
+        names |= {
+            "create" + constructor.suffix
+            for constructor in plan.director.constructors
+            if constructor.source not in ordinary
+        }
+    return frozenset(names)
 
 
 def _director_prelude(slot: PySlot, py_name: str, cpp_name: str) -> tuple[str, ...]:
