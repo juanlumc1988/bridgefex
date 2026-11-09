@@ -606,7 +606,7 @@ def test_class_forms(tmp_path: Path) -> None:
         (ClassForm.POINTER, "k::Node*"),
         (ClassForm.POINTER, "k::Node*"),
         (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
-        (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
+        (ClassForm.UNIQUE, "std::unique_ptr<k::Node>&&"),  # an override declares it so
         (ClassForm.UNIQUE, "std::unique_ptr<k::Node>"),
     ]
     node = next(d for d in header.declarations if isinstance(d, Class))
