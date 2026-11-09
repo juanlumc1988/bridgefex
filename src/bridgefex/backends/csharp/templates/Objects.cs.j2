@@ -71,21 +71,25 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 }
 
-/// <summary>A hold on an object for the duration of a call: it cannot be closed meanwhile.</summary>
+/// <summary>A hold on an object for the duration of a call: it cannot be closed meanwhile, nor can
+/// the objects that it is borrowed from.</summary>
 internal readonly ref struct Lease
 {
     private readonly ObjectHandle? _handle;
+    private readonly ObjectHandle[]? _owners;
 
-    internal Lease(ObjectHandle handle, IntPtr pointer)
+    internal Lease(ObjectHandle handle, IntPtr pointer, ObjectHandle[]? owners)
     {
         _handle = handle;
         Pointer = pointer;
+        _owners = owners;
     }
 
-    private Lease(ObjectHandle? handle, IntPtr pointer, bool _)
+    private Lease(ObjectHandle? handle, IntPtr pointer, ObjectHandle[]? owners, bool _)
     {
         _handle = handle;
         Pointer = pointer;
+        _owners = owners;
     }
 
     internal IntPtr Pointer { get; }
@@ -93,19 +97,37 @@ internal readonly ref struct Lease
     /// <summary>The same hold, for the address of the object as another of its classes.</summary>
     internal Lease As(IntPtr pointer)
     {
-        return new Lease(_handle, pointer, true);
+        return new Lease(_handle, pointer, _owners, true);
     }
 
-    /// <summary>The object goes to C++, which destroys it: the hold ends with the call.</summary>
+    /// <summary>The object goes to C++, which destroys it: the hold ends with the call. An object
+    /// that is a view of another one (as one of its bases) gives that one.</summary>
     internal IntPtr Give()
     {
-        _handle?.GiveUp();
+        if (_handle is { Owns: true })
+        {
+            _handle.GiveUp();
+        }
+        else if (_owners is not null)
+        {
+            foreach (ObjectHandle owner in _owners)
+            {
+                owner.GiveUp();
+            }
+        }
         return Pointer;
     }
 
     public void Dispose()
     {
         _handle?.DangerousRelease();
+        if (_owners is not null)
+        {
+            foreach (ObjectHandle owner in _owners)
+            {
+                owner.DangerousRelease();
+            }
+        }
     }
 }
 
@@ -224,6 +246,12 @@ public abstract class BridgefexObject : IDisposable
     internal bool ReadOnly;
     internal Keep? Retained;
 
+    /// <summary>For an object that is this very object seen as one of its bases (<c>AsBase</c>): the object.</summary>
+    internal BridgefexObject? Origin { get; set; }
+
+    /// <summary>The C++ class of the object: the generated class that it is, or that a class of the user derives from.</summary>
+    internal abstract Type CppType { get; }
+
     internal BridgefexObject(ObjectHandle handle)
     {
         Handle = handle;
@@ -274,6 +302,14 @@ public abstract class BridgefexObject : IDisposable
         {
             throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
         }
+        // An object that is borrowed is valid while the objects it lives in are: they are held too.
+        ObjectHandle[]? owners = null;
+        if (Owners is not null)
+        {
+            var owning = new List<ObjectHandle>();
+            CollectOwning(owning);
+            owners = AddRefAll(owning);
+        }
         bool added = false;
         try
         {
@@ -281,30 +317,63 @@ public abstract class BridgefexObject : IDisposable
         }
         catch (ObjectDisposedException)
         {
+            ReleaseAll(owners);
             throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
         }
-        return new Lease(Handle, Handle.DangerousGetHandle());
+        return new Lease(Handle, Handle.DangerousGetHandle(), owners);
+    }
+
+    private ObjectHandle[] AddRefAll(List<ObjectHandle> handles)
+    {
+        var held = new List<ObjectHandle>(handles.Count);
+        foreach (ObjectHandle handle in handles)
+        {
+            bool added = false;
+            try
+            {
+                handle.DangerousAddRef(ref added);
+            }
+            catch (ObjectDisposedException)
+            {
+                ReleaseAll(held.ToArray());
+                throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+            }
+            held.Add(handle);
+        }
+        return held.ToArray();
+    }
+
+    private static void ReleaseAll(ObjectHandle[]? handles)
+    {
+        if (handles is not null)
+        {
+            foreach (ObjectHandle handle in handles)
+            {
+                handle.DangerousRelease();
+            }
+        }
     }
 
     /// <summary>The right to give this object to C++. It is refused if the object is borrowed
     /// (C++ owns it already) or another call, or another argument of this one, is giving it.</summary>
     internal Claim ClaimToGive()
     {
-        if (IsClosed)
+        BridgefexObject target = Origin ?? this;
+        if (IsClosed || target.IsClosed)
         {
             throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
         }
-        if (Handle is { Owns: false } || Owners is not null)
+        if (target.Handle is { Owns: false } || target.Owners is not null)
         {
             throw new InvalidOperationException(
                 GetType().Name + " object cannot be transferred: it is borrowed from another object");
         }
-        if (!Handle.Claim())
+        if (!target.Handle.Claim())
         {
             throw new InvalidOperationException(
                 GetType().Name + " object cannot be transferred: it is being given to C++ by another call or argument");
         }
-        return new Claim(Handle);
+        return new Claim(target.Handle);
     }
 
     /// <summary>The handles that own the C++ objects this one lives in: its own, or those of the
@@ -377,10 +446,12 @@ public abstract class BridgefexObject : IDisposable
     /// <summary>The object was given to C++: what it retained is kept for ever.</summary>
     internal void Surrender()
     {
-        if (Retained is { } kept && !ReferenceEquals(kept, Keep.Forever))
+        BridgefexObject target = Origin ?? this;
+        if (target.Retained is { } kept && !ReferenceEquals(kept, Keep.Forever))
         {
             kept.MoveTo(Keep.Forever);
         }
+        target.Retained = Keep.Forever;
         Retained = Keep.Forever;
     }
 }

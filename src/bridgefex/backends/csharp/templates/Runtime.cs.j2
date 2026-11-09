@@ -153,6 +153,18 @@ internal static unsafe class Runtime
         }
     }
 
+    /// <summary>C++ destroys an object that it is given through a class without a virtual destructor:
+    /// only an object of exactly that class (or a C# class of the user derived from it) can be given.</summary>
+    internal static void CheckExact(BridgefexObject value, Type cppType, string name)
+    {
+        if ((value.Origin ?? value).CppType != cppType)
+        {
+            throw new ArgumentException(
+                value.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
+                + cppType.Name + " and which has no virtual destructor", name);
+        }
+    }
+
     internal static void CheckFingerprint()
     {
         string actual = Marshal.PtrToStringUTF8((IntPtr)Native.{{ api_fingerprint }}()) ?? "";

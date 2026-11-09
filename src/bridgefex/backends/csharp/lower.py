@@ -308,6 +308,12 @@ class _Lowerer:
         if not nullable:
             body.add(f"ArgumentNullException.ThrowIfNull({name});")
         if "transfer" in spec.words:
+            if info.is_base and not info.model.virtual_destructor:
+                # C++ destroys the object through this class: only an object of exactly it.
+                check = (
+                    f'Runtime.CheckExact({name}, typeof({self.names.cls(info)}), "{spec.name}");'
+                )
+                body.add(f"if ({name} is not null) {check}" if nullable else check)
             # Before anything else: two calls cannot give the same object.
             claim = f"{L}c{position}"
             if nullable:

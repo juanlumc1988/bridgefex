@@ -337,6 +337,8 @@ def _class(
     src.line(f"internal {name}(ObjectHandle handle) : base(handle)")
     src.open()
     src.close()
+    src.line()
+    src.line(f"internal override Type CppType => typeof({name});")
     for ctor in cls.constructors:
         src.line()
         lowered = lower_callable(ctor, names, plan)
@@ -414,13 +416,15 @@ def _secondary_base(
     src.open(f"public {base_type} As{base_name}()")
     src.line("using Lease lease = Hold(false);")
     src.line(
-        f"return {base_type}.Borrow(Native.{view.const_upcast.name}(lease.Pointer), "
+        f"var view = {base_type}.Borrow(Native.{view.const_upcast.name}(lease.Pointer), "
         f"new BridgefexObject?[] {{ this }}, ReadOnly)!;"
     )
+    src.line("view.Origin = this;")
+    src.line("return view;")
     src.close()
     src.line()
     src.line(
-        f"public static implicit operator {base_type}?({name}? value) => value?.As{base_name}();"
+        f"public static implicit operator {base_type}({name} value) => value?.As{base_name}()!;"
     )
     for member in base.members:
         if member.kind is CallableKind.STATIC:
