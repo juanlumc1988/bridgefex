@@ -79,7 +79,7 @@ def test_the_method_that_a_subclass_overrides_is_the_one_that_a_user_calls(
     assert "def _base_h_double(self, x):" in text
 
 
-def test_a_protected_constructor_is_not_part_of_the_api_of_a_class_that_has_public_ones(
+def test_a_protected_constructor_of_a_class_that_has_public_ones_makes_subclasses(
     tmp_path: Path,
 ) -> None:
     files = generate(
@@ -93,8 +93,10 @@ def test_a_protected_constructor_is_not_part_of_the_api_of_a_class_that_has_publ
     text = files["python/mod/api.py"]
     assert "def __init__(self):" in text
     assert "def _init_director(self, _found):" in text
-    # Nothing makes an A from an int: it is protected.
-    assert "def create_int32" not in text
+    # The public constructor is the API of the class; the protected one makes the objects
+    # of its subclasses only.
+    assert "def create_int32(cls, x):" in text
+    assert text.count("overrides(cls, subclass=True)") == 1
 
 
 def test_a_class_with_only_protected_constructors_is_made_by_its_subclasses(
