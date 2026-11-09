@@ -194,7 +194,7 @@ a file per header with its classes, enums and structs), `check.py` builds the pr
 `dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime
 (`Runtime.cs`, `Objects.cs`, the `.csproj`). What C# cannot do the way the plan assumes is
 solved in the backend: a class has one base class, so the first base of a C++ class is the
-C# one and the others are views of the same object (`AsBase()`, an implicit conversion, and the
+C# one and the others are views of the same object (`AsLabeled()`-like accessors, an implicit conversion, and the
 base's methods copied into the class); a garbage collector does not order finalizers, so what a
 C++ object keeps pointers to is held (`Keep`) until the object has been destroyed. What a
 backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`

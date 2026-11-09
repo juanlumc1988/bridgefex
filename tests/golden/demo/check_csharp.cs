@@ -60,13 +60,18 @@ Check(second.Value() == 41, "overloads");
 var error = Expect<BridgefexException>(() => second.SetLimit(-1), "negative");
 Check(error.Status == BridgefexException.Exception, "status of std::exception");
 Check(error.StatusName == "ERROR_EXCEPTION", "name of the status");
+Check(new BridgefexException(BridgefexException.NullArgument, "").StatusName == "ERROR_NULL_ARGUMENT", "status 3");
+Check(new BridgefexException(BridgefexException.InvalidArgument, "").StatusName == "ERROR_INVALID_ARGUMENT", "status 5");
+Check(new BridgefexException(99, "").StatusName == "UNKNOWN_STATUS_99", "a status that is not known");
 second.SetLimit(41);
 Check(second.Limit() == 41, "limit");
 Expect<BridgefexException>(() => second.Increment(), "limit reached");
 error = Expect<BridgefexException>(() => second.Fail());
 Check(error.Status == BridgefexException.UnknownException, "status of an unknown exception");
+Check(error.StatusName == "ERROR_UNKNOWN_EXCEPTION", "name of the status 2");
 error = Expect<BridgefexException>(() => second.Reserve(42));
 Check(error.Status == BridgefexException.OutOfMemory, "status of a bad_alloc");
+Check(error.StatusName == "ERROR_OUT_OF_MEMORY", "name of the status 4");
 second.Reserve(41);
 
 // The extremes of the types work (and the C++ value stays in range).

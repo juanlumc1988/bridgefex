@@ -81,6 +81,7 @@ def build_names(plan: ModulePlan) -> Names:
             if isinstance(item, ClassPlan):
                 name = pascal(item.model.name)
                 claim(name, item.model.qualified_name)
+                claim(f"{name}Handle", f"the handle of '{item.model.qualified_name}'")
                 classes[item.c_type] = f"{prefix}.{name}"
                 handles[item.c_type] = f"{prefix}.{name}Handle"
                 for nested in item.enums:
@@ -152,7 +153,6 @@ def native_source(plan: ModulePlan, names: Names) -> str:
     src.line("static Native()")
     src.open()
     src.line("Runtime.Initialize();")
-    src.line("Runtime.CheckFingerprint();")
     src.close()
     functions: list[CFunction] = []
     for header in plan.headers:
@@ -495,11 +495,14 @@ def _secondary_base(
     src.close()
     src.line()
     src.line(f"public static implicit operator {base_type}({name} value) => value?.{accessor}()!;")
+    # A method has the name it has in the class that declares it (`q()` of a class `Q` is
+    # `Q_`), also in the classes that have a copy of it.
+    declared = reserved | {pascal(base.model.name)} | {pascal(e.model.name) for e in base.enums}
     for member in base.members:
         if member.kind is CallableKind.STATIC:
             continue
         member_name = pascal(member.name + member.suffix)
-        while member_name in reserved:
+        while member_name in declared:
             member_name += "_"
         if member_name in taken:
             continue  # the class declares it too: it hides the one of the base
@@ -512,7 +515,7 @@ def _secondary_base(
             taken,
             static=False,
             modifiers="new " if member_name in _inherited_names(cls, by_type) else "",
-            reserved=reserved,
+            reserved=declared,
             declaring=base,
         )
 

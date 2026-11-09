@@ -164,6 +164,76 @@ def test_a_scenario_that_is_not_true_fails(
     assert "FAILED wrong, step 1" in completed.stderr
 
 
+_POINT = '{ struct = "geo.Point", x = 1.5, y = -2.0 }'
+_MSG = (
+    '{{ struct = "geo.Msg", tag = 8, where = {{ struct = "geo.Point", x = 1.5, y = 0.0 }}, '
+    'samples = [1, 2, 123], ok = {ok}, path = [{{ struct = "geo.Point", x = 0.0, y = 0.0 }}, '
+    '{{ struct = "geo.Point", x = 0.0, y = {y} }}], quality = {{ enum = "geo.Quality", '
+    'member = "{quality}" }} }}'
+)
+_MSG_GIVEN = _MSG.format(ok="true", y="9.5", quality="Best")
+
+# The same for the types that the scalar scenarios do not have: what is compared for strings,
+# structs, arrays, booleans and enums must be able to fail too.
+_WRONG_TYPES = {
+    "a string that differs": ("strings", 'call = "text.echo", args = ["abc"], expect = "abd"'),
+    "a string that is longer": ("strings", 'call = "text.echo", args = ["abc"], expect = "abcd"'),
+    "a member of a struct that differs": (
+        "structs",
+        f'call = "geo.scale", args = [{_POINT}, 2.0], '
+        '  expect = { struct = "geo.Point", x = 3.0, y = -4.5 }',
+    ),
+    "a member of a nested struct that differs": (
+        "structs",
+        'call = "route.start", args = [{ struct = "route.Leg", from = { struct = "geo.Point", '
+        'x = 1.0, y = 2.0 }, to = { struct = "geo.Point", x = 3.0, y = 4.0 }, '
+        'kind = { enum = "geo.Kind", member = "Plain" } }], '
+        'expect = { struct = "geo.Point", x = 1.0, y = 2.5 }',
+    ),
+    "an element of an array that differs": (
+        "structs",
+        f'call = "geo.echo", args = [{_MSG_GIVEN}], '
+        f"expect = {_MSG.format(ok='true', y='9.0', quality='Best')}",
+    ),
+    "a boolean member that differs": (
+        "structs",
+        f'call = "geo.echo", args = [{_MSG_GIVEN}], '
+        f"expect = {_MSG.format(ok='false', y='9.5', quality='Best')}",
+    ),
+    "an enumerator that differs": (
+        "enums",
+        'call = "colors.mix", args = [{ enum = "colors.Color", member = "Max" }, '
+        '{ enum = "colors.Color", member = "Max" }], '
+        'expect = { enum = "colors.Color", member = "Red" }',
+    ),
+}
+_NEGATIVE_CASES: dict[str, tuple[Case, Path, Path]] = {}
+
+
+@pytest.mark.parametrize("language", sorted(RUNNERS))
+@pytest.mark.parametrize("wrong", sorted(_WRONG_TYPES))
+def test_a_scenario_about_types_that_is_not_true_fails(
+    language: str,
+    wrong: str,
+    toolchain: Toolchain,
+    tmp_path_factory: pytest.TempPathFactory,
+    tmp_path: Path,
+) -> None:
+    name, step = _WRONG_TYPES[wrong]
+    case = load_case(GOLDEN_DIR / name)
+    if not supports(language, case):
+        pytest.skip(f"the {language} backend does not play the {name} case yet")
+    if name not in _NEGATIVE_CASES:
+        library, output = build(case, toolchain, tmp_path_factory.mktemp(f"negative_{name}"))
+        _NEGATIVE_CASES[name] = (case, library, output)
+    case, library, output = _NEGATIVE_CASES[name]
+    path = tmp_path / "wrong.toml"
+    path.write_text(f'[[scenario]]\nname = "wrong"\nsteps = [{{ {step} }}]\n', encoding="utf-8")
+    completed = RUNNERS[language](case, library, output, path)
+    assert completed.returncode == 1, completed.stdout + completed.stderr
+    assert "FAILED wrong, step 1" in completed.stderr
+
+
 @pytest.mark.parametrize("language", sorted(RUNNERS))
 def test_a_scenario_that_is_true_passes(
     language: str, scalars: tuple[Case, Path, Path], tmp_path: Path

@@ -105,4 +105,49 @@ std::int32_t consume(std::unique_ptr<Res> res)
     return res->id();
 }
 
+Q::Q() : q_(1) {}
+Q::~Q() = default;
+std::int32_t Q::q() const { return q_; }
+void Q::setQ(std::int32_t value) { q_ = value; }
+
+R::R() : r_(2) {}
+R::~R() = default;
+std::int32_t R::r() const { return r_; }
+void R::setR(std::int32_t value) { r_ = value; }
+
+P::P() : p_(3) {}
+P::~P() = default;
+std::int32_t P::p() const { return p_; }
+
+N::N() = default;
+M::M() = default;
+M::~M() = default;
+
+std::int32_t takeBoth(std::unique_ptr<Q> first, std::unique_ptr<R> second)
+{
+    return first->q() * 10 + second->r();
+}
+
+std::int32_t takeP(std::unique_ptr<P> p)
+{
+    return p->p();
+}
+
+const N& constN()
+{
+    static const N instance;
+    return instance;
+}
+
+std::int32_t touch(R& r)
+{
+    r.setR(r.r() + 1);
+    return r.r();
+}
+
+std::int32_t look(const R& r)
+{
+    return r.r();
+}
+
 }  // namespace life

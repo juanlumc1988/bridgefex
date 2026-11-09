@@ -43,4 +43,56 @@ private:
 
 std::int32_t consume(std::unique_ptr<Res> res);
 
+// Several bases, to give and to read the object as one that is not at its address.
+class Q {
+public:
+    Q();
+    virtual ~Q();
+    std::int32_t q() const;
+    void setQ(std::int32_t value);
+
+private:
+    std::int32_t q_;
+};
+
+class R {
+public:
+    R();
+    virtual ~R();
+    std::int32_t r() const;
+    void setR(std::int32_t value);
+
+private:
+    std::int32_t r_;
+};
+
+// No virtual destructor: C++ cannot destroy an object of a derived class through it.
+class P {
+public:
+    P();
+    ~P();
+    std::int32_t p() const;
+
+private:
+    std::int32_t p_;
+};
+
+class N : public Q, public R {
+public:
+    N();
+};
+
+class M : public Q, public P {
+public:
+    M();
+    ~M() override;
+};
+
+std::int32_t takeBoth(std::unique_ptr<Q> first, std::unique_ptr<R> second);
+std::int32_t takeP(std::unique_ptr<P> p);
+// The object N that is there for ever, through a const reference.
+const N& constN();
+std::int32_t touch(R& r);
+std::int32_t look(const R& r);
+
 }  // namespace life

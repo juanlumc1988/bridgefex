@@ -95,6 +95,20 @@ using (var eve = new Person("Eve"))
 }
 Check(Person.Species() == "human", "static method");
 
+// Every result that C++ gives is freed: a million of texts of a megabyte must not stay in memory.
+{
+    string megabyte = new string('x', 1 << 20);
+    T.Echo(megabyte);
+    long before = Environment.WorkingSet;
+    for (int turn = 0; turn < 400; turn++)
+    {
+        Check(T.Echo(megabyte).Length == megabyte.Length, "a big result");
+    }
+    GC.Collect();
+    long grown = Environment.WorkingSet - before;
+    Check(grown < 150L * 1024 * 1024, $"the results are freed (the process grew by {grown >> 20} MiB)");
+}
+
 // Many threads: each one has its own texts.
 var failures = new System.Collections.Concurrent.ConcurrentBag<string>();
 var threads = new List<Thread>();

@@ -154,13 +154,18 @@ var croot = tree.Croot();
 Expect<InvalidOperationException>(() => croot.SetValue(1), "read-only");
 Expect<InvalidOperationException>(() => tree.Bump(croot), "read-only");
 Check(croot.Value() == 50, "const is not modified");
+// A read-only object goes where C++ does not change it: a const reference or pointer, and a copy.
+Check(tree.Sum(croot, b) == 50 + b.Value(), "a read-only object as a const reference");
+Check(F.Twin(croot).Value() == 50, "a read-only object is copied");
+Check(tree.ValueOf(tree.Cfind(50)) == 50, "a read-only pointer as a const pointer");
+Check(F.Same(croot).Value() == 50, "and as the argument of a function");
 root.Close();
 Check(tree.Root().Value() == 50, "closing a borrowed object destroys nothing");
 Expect<ObjectDisposedException>(() => root.Value(), "closed");
 
 // A borrowed object keeps its owners alive, and is invalid once one of them is closed.
 var borrowed = BorrowedFromForgotten();
-nuint otherLive = Node.Live();
+nuint otherLive = LiveNodes();
 Collect();
 Check(Node.Live() == otherLive && borrowed.Value() == 0, "the owner is kept alive");
 var other = new Tree();

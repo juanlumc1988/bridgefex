@@ -83,15 +83,13 @@ def demo(
 def test_the_library_next_to_the_program_is_used(
     demo: tuple[Case, Path, Path, Path], tmp_path: Path
 ) -> None:
-    """Without the environment variable, the default name of the library is looked up next
-    to the program."""
+    """Without the environment variable, the default name of the library (``lib<module>.so``,
+    ``<module>.dll`` or ``lib<module>.dylib``, which is how the toolchain names it) is looked
+    up next to the program."""
     case, library, _output, dll = demo
     program = tmp_path / "program"
     shutil.copytree(dll.parent, program)
-    default = f"lib{case.module}.so"
-    if library.suffix != ".so":
-        pytest.skip("the default name is checked on Linux")
-    shutil.copy(library, program / default)
+    shutil.copy(library, program / library.name)
     environment = {**runner_csharp.environment()}
     environment.pop(f"{case.module.upper()}_LIBRARY", None)
     completed = subprocess.run(
@@ -110,7 +108,61 @@ def test_a_missing_library_is_reported(demo: tuple[Case, Path, Path, Path], tmp_
     case, _library, _output, dll = demo
     completed = runner_csharp.execute(case, dll, tmp_path / "nothing.so")
     assert completed.returncode != 0
-    assert "nothing.so" in completed.stdout + completed.stderr
+    output = completed.stdout + completed.stderr
+    assert "DllNotFoundException" in output
+    assert "nothing.so" in output
+    assert "DEMO_LIBRARY" in output
+
+
+def test_a_library_that_is_not_found_says_how_to_give_it(
+    demo: tuple[Case, Path, Path, Path],
+) -> None:
+    case, _library, _output, dll = demo
+    environment = runner_csharp.environment()
+    environment.pop(f"{case.module.upper()}_LIBRARY", None)
+    completed = subprocess.run(
+        ["dotnet", str(dll)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+        cwd=dll.parent.parent,
+    )
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0
+    assert "DllNotFoundException" in output
+    assert "set the environment variable DEMO_LIBRARY" in output
+
+
+def test_a_failure_to_load_the_library_is_not_for_ever(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """The next call tries again: the variable can be set after a first failure."""
+    case, library, output, _dll = demo
+    program = tmp_path / "Retry.cs"
+    program.write_text(
+        "try { Demo.Counter.Functions.MultiplyInt32Int32(1, 2); "
+        'throw new Exception("no error"); }\n'
+        "catch (DllNotFoundException) { }\n"
+        'Environment.SetEnvironmentVariable("DEMO_LIBRARY", args[0]);\n'
+        'if (Demo.Counter.Functions.MultiplyInt32Int32(3, 4) != 12) throw new Exception("wrong");\n'
+        'Console.WriteLine("retry OK");\n',
+        encoding="utf-8",
+    )
+    dll = runner_csharp.build_program(case, output, program, "Retry")
+    environment = runner_csharp.environment()
+    environment.pop("DEMO_LIBRARY", None)
+    completed = subprocess.run(
+        ["dotnet", str(dll), str(library)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "retry OK" in completed.stdout
 
 
 def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:
@@ -129,7 +181,9 @@ def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_pat
     dll = runner_csharp.build_program(case, tmp_path, case.check_csharp, "Check", edit=stale)
     completed = runner_csharp.execute(case, dll, library)
     assert completed.returncode != 0
-    assert "does not match these bindings" in completed.stdout + completed.stderr
+    output = completed.stdout + completed.stderr
+    assert "System.InvalidOperationException" in output
+    assert "does not match these bindings" in output
 
 
 def test_two_modules_can_be_compiled_into_one_assembly(

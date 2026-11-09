@@ -68,6 +68,10 @@ internal static unsafe class Runtime
     internal const string Library = "scalars";
     internal const string Fingerprint = "5ccf45e4de1e1ea0922db24076bce971";
 
+    internal const string Variable = "SCALARS_LIBRARY";
+    private static readonly object Gate = new();
+    private static IntPtr _library;
+
     /// <summary>Tells .NET where the library is (the first use of the C API, before it loads it).</summary>
     internal static void Initialize()
     {
@@ -85,20 +89,68 @@ internal static unsafe class Runtime
         }
     }
 
+    /// <summary>Finds the library, and accepts it if it is a build of the C API of these bindings. A
+    /// failure is that of the call that needed the library, and the next call tries again.</summary>
     private static IntPtr Resolve(string name, System.Reflection.Assembly assembly, DllImportSearchPath? path)
     {
         if (name != Library)
         {
             return IntPtr.Zero;
         }
-        string? given = Environment.GetEnvironmentVariable("SCALARS_LIBRARY");
-        if (!string.IsNullOrEmpty(given))
+        lock (Gate)
         {
-            return NativeLibrary.Load(given);
+            if (_library == IntPtr.Zero)
+            {
+                IntPtr handle = Open(assembly, path);
+                Verify(handle);
+                _library = handle;
+            }
+            return _library;
         }
-        string file = OperatingSystem.IsWindows() ? "scalars.dll"
-            : OperatingSystem.IsMacOS() ? "libscalars.dylib" : "libscalars.so";
-        return NativeLibrary.TryLoad(file, assembly, path, out IntPtr handle) ? handle : IntPtr.Zero;
+    }
+
+    private static IntPtr Open(System.Reflection.Assembly assembly, DllImportSearchPath? path)
+    {
+        string? given = Environment.GetEnvironmentVariable(Variable);
+        try
+        {
+            if (!string.IsNullOrEmpty(given))
+            {
+                return NativeLibrary.Load(given);
+            }
+            string file = OperatingSystem.IsWindows() ? "scalars.dll"
+                : OperatingSystem.IsMacOS() ? "libscalars.dylib" : "libscalars.so";
+            if (NativeLibrary.TryLoad(file, assembly, path, out IntPtr handle))
+            {
+                return handle;
+            }
+            throw new DllNotFoundException(
+                "cannot find the library '" + file + "' of the module 'scalars': put it next to the application "
+                + "or on the library search path, or set the environment variable " + Variable + " to its path");
+        }
+        catch (Exception error) when (error is DllNotFoundException or BadImageFormatException && !string.IsNullOrEmpty(given))
+        {
+            throw new DllNotFoundException(
+                "cannot load the library '" + given + "' (the environment variable " + Variable + "): " + error.Message,
+                error);
+        }
+    }
+
+    private static unsafe void Verify(IntPtr handle)
+    {
+        string actual = "";
+        if (NativeLibrary.TryGetExport(handle, "scalars_api_fingerprint", out IntPtr export))
+        {
+            byte* text = ((delegate* unmanaged[Cdecl]<byte*>)export)();
+            actual = Marshal.PtrToStringUTF8((IntPtr)text) ?? "";
+        }
+        if (actual != Fingerprint)
+        {
+            NativeLibrary.Free(handle);
+            throw new InvalidOperationException(
+                "the library does not match these bindings (it has the C API '" + actual
+                + "', the bindings expect '" + Fingerprint + "'): rebuild it from the same bridgefex output");
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -188,22 +240,12 @@ internal static unsafe class Runtime
     /// only an object of exactly that class (or a C# class of the user derived from it) can be given.</summary>
     internal static void CheckExact(BridgefexObject value, Type cppType, string name)
     {
-        if ((value.Origin ?? value).CppType != cppType)
+        BridgefexObject whole = value.Origin ?? value;
+        if (whole.CppType != cppType)
         {
             throw new ArgumentException(
-                value.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
+                whole.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
                 + cppType.Name + " and which has no virtual destructor", name);
-        }
-    }
-
-    internal static void CheckFingerprint()
-    {
-        string actual = Marshal.PtrToStringUTF8((IntPtr)Native.scalars_api_fingerprint()) ?? "";
-        if (actual != Fingerprint)
-        {
-            throw new InvalidOperationException(
-                "the library does not match these bindings (it has the C API " + actual
-                + ", the bindings expect " + Fingerprint + "): rebuild it from the same bridgefex output");
         }
     }
 }

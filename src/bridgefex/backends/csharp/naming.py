@@ -44,10 +44,18 @@ _WORDS = re.compile(r"[A-Za-z0-9]+")
 
 
 def pascal(name: str) -> str:
-    """``echo_int8`` becomes ``EchoInt8`` and ``liveInstances`` ``LiveInstances``: each
-    part between underscores starts with a capital, and the rest of it is kept."""
+    """``echo_int8`` becomes ``EchoInt8`` and ``liveInstances`` ``LiveInstances``: each part
+    between underscores starts with a capital, and the rest of it is kept. In a name of several
+    parts, a part in capitals of three letters or more is a word, not an acronym:
+    ``LOW_LEVEL`` is ``LowLevel`` (``IO_ERROR`` is ``IOError``)."""
     parts = _WORDS.findall(name)
-    result = "".join(part[0].upper() + part[1:] for part in parts)
+    words = [
+        part[0] + part[1:].lower()
+        if len(parts) > 1 and len(part) >= 3 and part.isupper()
+        else part[0].upper() + part[1:]
+        for part in parts
+    ]
+    result = "".join(words)
     if not result:
         return "_"
     return "_" + result if result[0].isdigit() else result

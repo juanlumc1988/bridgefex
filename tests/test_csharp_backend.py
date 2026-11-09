@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import importlib
 import re
-import shutil
 from pathlib import Path
 
 import pytest
@@ -139,6 +138,12 @@ def test_pascal_case() -> None:
     assert naming.pascal("echo_int8") == "EchoInt8"
     assert naming.pascal("liveInstances") == "LiveInstances"
     assert naming.pascal("HTTPServer") == "HTTPServer"
+    assert naming.pascal("LOW_LEVEL") == "LowLevel"
+    assert naming.pascal("set_MAX_SIZE") == "SetMaxSize"
+    assert naming.pascal("IO_ERROR") == "IOError"
+    assert naming.pascal("ERROR_EXCEPTION") == "ErrorException"
+    assert naming.pascal("kDefault") == "KDefault"
+    assert naming.pascal("RED") == "RED"  # one part: it may be an acronym
     assert naming.pascal("__x__") == "X"
     assert naming.pascal("_") == "_"
     assert naming.pascal("8ball") == "_8ball"
@@ -469,5 +474,5 @@ def test_without_the_sdk_the_code_is_not_checked(
 ) -> None:
     files = generate(tmp_path, SMALL)
     files["csharp/Mod/Api.cs"] += "\nthis is not C#\n"
-    monkeypatch.setattr(shutil, "which", lambda name: None)
+    monkeypatch.setattr(csharp_check, "dotnet_sdk", lambda: None)
     assert csharp_check.check(_plan(), files, tmp_path / "scratch") == []

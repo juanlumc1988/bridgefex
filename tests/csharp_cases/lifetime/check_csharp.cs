@@ -76,6 +76,7 @@ static Thread InCall(Res res, int milliseconds, out int[] seen)
     Thread.Sleep(100);
     holder.Dispose();
     Check(holder.IsClosed && inner.IsClosed, "closed, although a call is running");
+    Check(Holder.Live() == 1, "and alive until the call ends");
     Expect<ObjectDisposedException>(() => inner.Id(), "closed");
     thread.Join();  // the holder is destroyed when that call ends, not under it
     Check(Holder.Live() == 0, "destroyed after the call");
@@ -87,6 +88,7 @@ static Thread InCall(Res res, int milliseconds, out int[] seen)
     var thread = InCall(res, 300, out var seen);
     res.Dispose();
     Check(res.IsClosed, "IsClosed after Dispose");
+    Check(Res.Live() == 1, "the object lives while a call uses it");
     Expect<ObjectDisposedException>(() => res.Id(), "closed");
     Expect<ObjectDisposedException>(() => res.Set(1), "closed");
     Expect<ObjectDisposedException>(() => F.Consume(res), "closed");
@@ -199,5 +201,40 @@ for (int round = 0; round < 200; round++)
     Check(given + refused == 1, $"one attempt to give, round {round}");
 }
 Check(Res.Live() == 0, "every object of the race was destroyed once");
+
+// -- Several bases ---------------------------------------------------------------------------
+
+// A class without a virtual destructor is taken as that class only: the message names the object,
+// also when it comes through a view.
+{
+    using var mixed = new Life.Life.M();
+    var error = Expect<ArgumentException>(() => F.TakeP(mixed), "no virtual destructor");
+    Check(error.Message.Contains("M cannot be given as P"), "the message names the object: " + error.Message);
+    Check(!mixed.IsClosed, "and the object is still there");
+    Check(F.TakeP(new Life.Life.P()) == 3, "an object of exactly that class is taken");
+}
+
+// An object cannot be given twice in one call, also if one of the arguments is a view of it: the second
+// claim is refused, and nothing was given.
+{
+    var both = new Life.Life.N();
+    Expect<InvalidOperationException>(() => F.TakeBoth(both, both), "another call uses it, or is giving it");
+    Check(!both.IsClosed && both.Q_() == 1 && both.R_() == 2, "nothing was given");
+    Check(F.TakeBoth(both, new Life.Life.N()) == 12, "and it can be given once");
+    Check(both.IsClosed, "given");
+}
+
+// A view of an object obtained through a const reference is read-only too, and a read-only object
+// goes where C++ does not change it.
+{
+    var constant = F.ConstN();
+    Check(constant.R_() == 2, "const read");
+    var view = constant.AsR();
+    Expect<InvalidOperationException>(() => view.SetR(5), "read-only");
+    Expect<InvalidOperationException>(() => F.Touch(constant), "read-only");
+    Check(F.Look(constant) == 2 && F.Look(view) == 2, "to a const reference");
+    var mutable = new Life.Life.N();
+    Check(F.Touch(mutable) == 3 && F.Look(mutable) == 3, "a mutable object to both");
+}
 
 Console.WriteLine("lifetime: C# round trip OK");

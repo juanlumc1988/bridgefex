@@ -12,7 +12,6 @@ internal static unsafe partial class Native
     static Native()
     {
         Runtime.Initialize();
-        Runtime.CheckFingerprint();
     }
 
     [LibraryImport(Runtime.Library)]
