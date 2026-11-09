@@ -17,6 +17,11 @@ cannot run).
 
 Without ``--cc`` and ``--cxx`` it uses ``$CC`` and ``$CXX``, else ``gcc`` and ``g++``
 (``cl`` on Windows, where the environment of the Visual Studio tools must be loaded).
+
+``--csharp-runtime linux-arm`` also generates the C# bindings of the case, with the same
+parsing options, and compiles them with ``dotnet build`` for that runtime identifier. They are
+compiled, not run: .NET under an emulator is slow and fragile, and a target that cannot run
+the C# is still checked to build.
 """
 
 from __future__ import annotations
@@ -175,6 +180,40 @@ class Build:
         bridgefex.write_files(result.files, self.work)
         self.sources = sorted(self.include.glob("*.cpp")) + list(self.case.implementation)
         self.lib.mkdir(parents=True, exist_ok=True)
+
+    def compile_csharp(self, runtime: str, clang_args: tuple[str, ...]) -> None:
+        """The C# bindings of the case, generated as the C layer was, compiled for ``runtime``."""
+        options = bridgefex.Options(
+            module=self.case.module,
+            std=self.std,
+            clang_args=clang_args,
+            annotations=self.case.annotations,
+            languages=("csharp",),
+            verify=False,
+        )
+        result = bridgefex.generate(self.case.headers, options)
+        output = self.work / "csharp-check"
+        bridgefex.write_files(result.files, output)
+        project = next(output.rglob("*.csproj"))
+        run(
+            [
+                "dotnet",
+                "build",
+                project,
+                "-c",
+                "Release",
+                "-r",
+                runtime,
+                "--no-self-contained",
+                "-p:TreatWarningsAsErrors=true",
+                "-p:UseSharedCompilation=false",
+                "-nologo",
+                "-v",
+                "q",
+                "-o",
+                output / "bin",
+            ]
+        )
 
     def _includes(self) -> list[str]:
         return [f"-I{self.include}", f"-I{self.case.input_dir}"]
@@ -399,6 +438,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=[],
         help="another golden case to build and run, without packaging it (repeatable)",
     )
+    parser.add_argument(
+        "--csharp-runtime",
+        metavar="RID",
+        help="also compile the C# bindings of the case for this runtime identifier (linux-arm...)",
+    )
     parser.add_argument("--runner", default="", help="command that runs a program of the target")
     parser.add_argument("--work", type=Path, help="working directory (default: temporary)")
     args = parser.parse_args(argv)
@@ -429,7 +473,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     # The cases that are only checked first: nothing is packaged if one fails.
     for name in args.check_case:
         built(name)
-    archive = package(built(args.case), args.target, args.output.resolve(), first_line([cxx]))
+    main_build = built(args.case)
+    if args.csharp_runtime:
+        if shutil.which("dotnet") is None:
+            raise SystemExit("--csharp-runtime needs the .NET SDK (dotnet)")
+        main_build.compile_csharp(args.csharp_runtime, clang_args)
+    archive = package(main_build, args.target, args.output.resolve(), first_line([cxx]))
     print(f"{archive} ({archive.stat().st_size} bytes)")
     return 0
 

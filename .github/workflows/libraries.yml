@@ -2,9 +2,9 @@ name: Libraries
 
 # The C library that bridgefex generates for the demo example, built for every target and
 # run there (scripts/build_libraries.py): Linux x86_64, Linux aarch64, Linux armhf (32-bit
-# ARM, cross-compiled and run under QEMU) and Windows x64 (MSVC). The C programs of the
-# director examples (classes of C that override C++ virtual methods) are built and run there
-# too, and nothing is packaged if one fails.
+# ARM, cross-compiled and run under QEMU; its C# bindings are compiled, not run) and Windows
+# x64 (MSVC). The C programs of the director examples (classes of C that override C++ virtual
+# methods) are built and run there too, and nothing is packaged if one fails.
 #
 # A tag v* makes a release with the libraries, and the README links to the files of the
 # latest one (their names do not change). A push to main, a pull request that changes this
@@ -51,6 +51,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
+      # The C# bindings are compiled for 32-bit ARM, not run (.NET under QEMU is slow and fragile).
+      - uses: actions/setup-dotnet@v4
+        if: matrix.target == 'linux-armhf'
+        with:
+          dotnet-version: "8.0.x"
       - name: Install libclang 20 and the compilers
         if: runner.os == 'Linux'
         run: |
@@ -83,6 +88,7 @@ jobs:
             --cc arm-linux-gnueabihf-gcc-14 --cxx arm-linux-gnueabihf-g++-14 \
             --ar arm-linux-gnueabihf-ar --clang-target armv7a-linux-gnueabihf \
             --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
+            --csharp-runtime linux-arm \
             --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)
         if: matrix.target == 'windows-x64'
