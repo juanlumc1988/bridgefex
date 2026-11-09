@@ -126,6 +126,18 @@ internal static unsafe class Runtime
         return Strict.GetString((byte*)data, checked((int)size));
     }
 
+    /// <summary>The bytes that C++ gave (a result that the annotations want as bytes, not text).</summary>
+    internal static byte[] TakeBytes(IntPtr data, nuint size)
+    {
+        if (size == 0)
+        {
+            return Array.Empty<byte>();
+        }
+        byte[] result = new byte[checked((int)size)];
+        Marshal.Copy(data, result, 0, result.Length);
+        return result;
+    }
+
     internal static string TakeCString(IntPtr data)
     {
         return Strict.GetString((byte*)data, new ReadOnlySpan<byte>((void*)data, int.MaxValue).IndexOf((byte)0));

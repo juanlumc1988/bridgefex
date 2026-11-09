@@ -20,8 +20,8 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
-from .lower import Names, Unsupported, lower_callable
-from .mapping import native_type, scalar
+from .lower import Names, lower_callable
+from .mapping import Unsupported, native_type, scalar
 from .naming import CS_KEYWORDS, RESERVED_MEMBERS, identifier, pascal
 from .source import Source
 
@@ -144,10 +144,13 @@ def _declare(src: Source, name: str, returns: str, parameters: str) -> None:
 
 
 def _declare_function(src: Source, function: CFunction) -> None:
-    parameters = ", ".join(
-        f"{native_type(param.ffi)} {identifier(param.name)}" for param in function.params
-    )
-    returns = native_type(function.ffi_restype)
+    try:
+        parameters = ", ".join(
+            f"{native_type(param.ffi)} {identifier(param.name)}" for param in function.params
+        )
+        returns = native_type(function.ffi_restype)
+    except Unsupported as error:
+        raise Unsupported(f"'{function.description}': {error}") from error
     if function.ffi_restype.kind is FfiKind.STATUS:
         returns = "int"
     _declare(src, function.name, returns, parameters)
@@ -274,6 +277,7 @@ def _handle_class(src: Source, cls: ClassPlan, handle: str) -> None:
     src.close()
     src.open("protected override bool ReleaseHandle()")
     src.line(f"Native.{cls.destroy.name}(handle);")
+    src.line("ReleaseKept();")
     src.line("return true;")
     src.close()
     src.close()

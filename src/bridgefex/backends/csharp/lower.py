@@ -26,15 +26,11 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
-from .mapping import scalar
+from .mapping import Unsupported, scalar
 from .naming import LOCAL_PREFIX, identifier
 from .source import Source
 
 L = LOCAL_PREFIX
-
-
-class Unsupported(Exception):
-    """The plan has something that the C# bindings do not have yet."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,6 +160,7 @@ class _Lowerer:
             )
             body.add(f"using var {L}self = {hold}({mutable});")
             self.arguments["self"] = f"{L}self.Pointer"
+        self.same_object_checks()
         for position, spec in enumerate(plan.params, start=1):
             self.param(spec, position)
         out = self.result()
@@ -172,14 +169,6 @@ class _Lowerer:
         for name, local, lease in self.transfers:
             body.add(f"{local} = {lease}.Give();")
             body.add(f"{name}?.Surrender();")
-        if self.retained:
-            target = (
-                "Retain"
-                if plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
-                else "BridgefexObject.RetainForever"
-            )
-            for name in self.retained:
-                body.add(f"{target}({name});")
         if out.checks_after:
             body.add(f"int {L}status = {call};")
             for line in out.after_call:
@@ -187,10 +176,48 @@ class _Lowerer:
             body.add(f"Runtime.Check({L}status);")
         else:
             body.add(f"Runtime.Check({call});")
+        # What C++ keeps is retained once the call succeeded (the arguments are held until the
+        # end of the method), so that a failed call keeps nothing.
+        target = (
+            "Retain"
+            if plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
+            else "BridgefexObject.RetainForever"
+        )
+        for name in self.retained:
+            body.add(f"{target}({name});")
         for line in out.after_check:
             body.add(line)
         self.lowering.body = body.finish()
         return self.lowering
+
+    def same_object_checks(self) -> None:
+        """An object that is given to C++ (which destroys it) cannot also be used by the call:
+        not as ``this`` nor as another argument."""
+        plan = self.plan
+        objects = [
+            (identifier(spec.name), "nullable" in spec.words, "transfer" in spec.words)
+            for spec in plan.params
+            if isinstance(spec.type, ClassRef)
+        ]
+        for index, (name, nullable, given) in enumerate(objects):
+            if not given:
+                continue
+            others = ["this"] if plan.kind is CallableKind.METHOD else []
+            for other_index, (other, _, other_given) in enumerate(objects):
+                # Two given objects are compared once.
+                if other_index != index and not (other_given and other_index < index):
+                    others.append(other)
+            for other in others:
+                condition = f"ReferenceEquals({name}, {other})"
+                if nullable:
+                    condition = f"{name} is not null && {condition}"
+                self.body.add(f"if ({condition})")
+                self.body.add("{")
+                self.body.add(
+                    f'    throw new ArgumentException("the object is given to C++, which destroys '
+                    f'it, and the call uses it too", nameof({name}));'
+                )
+                self.body.add("}")
 
     def argument(self, name: str) -> str:
         try:
@@ -278,6 +305,15 @@ class _Lowerer:
         mutable = "false" if constant else "true"
         lease, view = f"{L}t{position}", f"{L}h{position}"
         hold = f"Hold_{info.c_type}({mutable})" if info.is_base else f"Hold({mutable})"
+        if not nullable:
+            body.add(f"ArgumentNullException.ThrowIfNull({name});")
+        if "transfer" in spec.words:
+            # Before anything else: two calls cannot give the same object.
+            claim = f"{L}c{position}"
+            if nullable:
+                body.add(f"using var {claim} = {name} is null ? default : {name}.ClaimToGive();")
+            else:
+                body.add(f"using var {claim} = {name}.ClaimToGive();")
         if nullable:
             body.add(f"using var {lease} = {name} is null ? default : {name}.{hold};")
         else:
@@ -318,7 +354,7 @@ class _Lowerer:
             self.arguments["out_result"] = f"&{L}result"
             out.after_check = [f"return ({returns}){L}result;"]
         elif isinstance(type_, StringType):
-            self.string_result(type_, out)
+            self.string_result(type_, spec.as_bytes, out)
         elif isinstance(type_, StructRef):
             assert spec.struct is not None
             body.add(f"Native.{spec.struct.c_type} {L}result;")
@@ -332,25 +368,27 @@ class _Lowerer:
             )
         return out
 
-    def string_result(self, type_: StringType, out: _Result) -> None:
+    def string_result(self, type_: StringType, as_bytes: bool, out: _Result) -> None:
         self.body.add(f"IntPtr {L}text;")
         self.body.add(f"nuint {L}size;")
         self.arguments["out_result"] = f"&{L}text"
         self.arguments["out_result_size"] = f"&{L}size"
         free = f"Native.{self.module.free_function}({L}text);"
+        take = "TakeBytes" if as_bytes else "TakeText"
         decode = [
             "try",
             "{",
-            f"    return Runtime.TakeText({L}text, {L}size);",
+            f"    return Runtime.{take}({L}text, {L}size);",
             "}",
             "finally",
             "{",
             f"    {free}",
             "}",
         ]
+        public = "byte[]" if as_bytes else "string"
         if type_.sized:
             out.after_check = decode
-            self.lowering.returns = "string"
+            self.lowering.returns = public
         else:
             # A const char* result: NULL is a null string.
             out.after_check = [
@@ -360,7 +398,7 @@ class _Lowerer:
                 "}",
                 *decode,
             ]
-            self.lowering.returns = "string?"
+            self.lowering.returns = public + "?"
 
     def object_result(self, spec: ResultSpec, ref: ClassRef, out: _Result) -> None:
         info = spec.cls
@@ -370,7 +408,12 @@ class _Lowerer:
         borrowed = ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
             spec.ownership == "borrowed"
         )
-        nullable = ref.form is not ClassForm.VALUE
+        # A reference and a copy are never NULL; a pointer and a std::unique_ptr may be.
+        nullable = ref.form not in (
+            ClassForm.VALUE,
+            ClassForm.REFERENCE,
+            ClassForm.CONST_REFERENCE,
+        )
         self.body.add(f"IntPtr {L}result;")
         self.arguments["out_result"] = f"&{L}result"
         given = ["this"] if self.plan.kind is CallableKind.METHOD else self.owners
@@ -378,9 +421,10 @@ class _Lowerer:
         self.lowering.returns = class_name + ("?" if nullable else "")
         if borrowed:
             constant = ref.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
+            bang = "" if nullable else "!"
             out.after_check = [
                 f"return {class_name}.Borrow({L}result, {owner_list}, "
-                f"{'true' if constant else 'false'});"
+                f"{'true' if constant else 'false'}){bang};"
             ]
             return
         # The handle that will own the object exists before the call: from the moment the
@@ -394,4 +438,4 @@ class _Lowerer:
             out.after_check = [f"return new {class_name}({L}o);"]
 
 
-__all__ = ["Lowering", "Names", "Unsupported", "lower_callable", "public_type"]
+__all__ = ["Lowering", "Names", "lower_callable", "public_type"]

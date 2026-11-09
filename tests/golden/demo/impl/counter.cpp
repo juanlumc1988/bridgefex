@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "counter.h"
 
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <new>
@@ -9,7 +10,8 @@
 namespace demo {
 
 namespace {
-std::size_t live_instances = 0;
+// Atomic: the C# round trip creates counters from several threads.
+std::atomic<std::size_t> live_instances{0};
 }
 
 Counter::Counter() : Counter(0) {}

@@ -16,6 +16,7 @@ import math
 import os
 import shutil
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import bridgefex
@@ -36,19 +37,20 @@ _PROJECT = """\
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>BridgefexRunner</RootNamespace>
+    <AssemblyName>{name}</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="{program}" />
-    <Compile Include="{generated}/**/*.cs" />
+    <ProjectReference Include="{project}" />
   </ItemGroup>
 </Project>
 """
 
 
-def _environment() -> dict[str, str]:
+def environment() -> dict[str, str]:
     return {
         **os.environ,
         "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
@@ -62,43 +64,71 @@ def available() -> bool:
     return shutil.which("dotnet") is not None
 
 
-def _build(case: Case, output: Path) -> Path:
-    """The runner built with the bindings of ``case``: ``<output>/csharp-runner/Runner.dll``."""
-    work = output / "csharp-runner"
-    dll = work / "bin" / "Runner.dll"
+def build_program(
+    case: Case,
+    output: Path,
+    program: Path,
+    name: str,
+    *,
+    edit: Callable[[dict[str, str]], dict[str, str]] | None = None,
+) -> Path:
+    """``program`` (a C# file) built with the bindings of ``case`` (``edit`` may change the
+    generated files first): ``<output>/csharp-<name>/bin/<name>.dll``. Raises RuntimeError if
+    it does not build."""
+    work = output / f"csharp-{name}"
+    dll = work / "bin" / f"{name}.dll"
     if dll.exists():
         return dll
     options = dataclasses.replace(case.options(), languages=("csharp",), verify=False)
     result = bridgefex.generate(case.headers, options)
     generated = work / "generated"
-    bridgefex.write_files(result.files, generated)
-    (work / "Runner.csproj").write_text(
-        _PROJECT.format(program=(RUNNER / "Program.cs").as_posix(), generated=generated.as_posix()),
+    files = edit(dict(result.files)) if edit else result.files
+    bridgefex.write_files(files, generated)
+    # The program is built as a user's would: against the project of the bindings, an
+    # assembly of its own (so that what is internal to it is not visible to the program).
+    project = next(generated / path for path in files if path.endswith(".csproj"))
+    (work / f"{name}.csproj").write_text(
+        _PROJECT.format(program=program.as_posix(), project=project.as_posix(), name=name),
         encoding="utf-8",
     )
     completed = subprocess.run(
         [
             "dotnet",
             "build",
-            str(work / "Runner.csproj"),
+            str(work / f"{name}.csproj"),
             "-c",
             "Release",
             "-nologo",
             "-v",
             "q",
             "-p:UseSharedCompilation=false",
+            "-p:TreatWarningsAsErrors=true",
             "-o",
             str(work / "bin"),
         ],
         capture_output=True,
         text=True,
         check=False,
-        env=_environment(),
+        env=environment(),
         timeout=900,
     )
     if completed.returncode != 0:
-        raise RuntimeError("the C# runner does not build:\n" + completed.stdout + completed.stderr)
+        raise RuntimeError(f"{name} does not build:\n" + completed.stdout + completed.stderr)
     return dll
+
+
+def execute(
+    case: Case, dll: Path, library: Path, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    """Run a built program with the library of ``case``."""
+    return subprocess.run(
+        ["dotnet", str(dll), *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**environment(), f"{case.module.upper()}_LIBRARY": str(library)},
+        timeout=600,
+    )
 
 
 def _json_safe(value: object) -> object:
@@ -134,7 +164,7 @@ def _map(case: Case) -> dict[str, object]:
 def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:
     """Play the scenarios of ``path`` against the C# bindings of ``case``."""
     try:
-        dll = _build(case, output)
+        dll = build_program(case, output, RUNNER / "Program.cs", "Runner")
     except RuntimeError as error:
         return subprocess.CompletedProcess([], 3, "", str(error))
     plan = plan_of(case)
@@ -146,12 +176,4 @@ def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.Compl
     # Each file of scenarios has its own data: the tests run in parallel with others.
     target = work / f"data-{path.parent.name}-{path.stem}.json"
     target.write_text(json.dumps(_json_safe(data)), encoding="utf-8")
-    environment = {**_environment(), f"{case.module.upper()}_LIBRARY": str(library)}
-    return subprocess.run(
-        ["dotnet", str(dll), str(target)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=environment,
-        timeout=600,
-    )
+    return execute(case, dll, library, str(target))

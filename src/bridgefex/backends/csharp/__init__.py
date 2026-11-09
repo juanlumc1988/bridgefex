@@ -10,7 +10,7 @@ from ...plan import ModulePlan, Reservations
 from ...rendering import Renderer
 from ..base import Backend
 from .check import check
-from .lower import Unsupported
+from .mapping import Unsupported
 from .module import build_names, header_source, namespace, native_source
 from .naming import header_problem, locals_of, module_problem, pascal
 

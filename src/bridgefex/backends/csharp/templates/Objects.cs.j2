@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.Win32.SafeHandles;
 
 namespace {{ ns }};
@@ -31,14 +32,41 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
 
     internal bool Owns { get; }
 
+    private int _claimed;
+    private volatile bool _given;
+
+    /// <summary>What the C++ object keeps pointers to (see <see cref="Keep"/>); released when it is destroyed.</summary>
+    internal Keep? Kept;
+
+    /// <summary>Called by <c>ReleaseHandle</c> once the C++ object is destroyed: what it pointed to may go now.</summary>
+    protected void ReleaseKept()
+    {
+        Kept?.Release();
+    }
+
     internal void Assign(IntPtr value)
     {
         SetHandle(value);
     }
 
+    /// <summary>One call at a time can give the object to C++: false if another one is giving it.</summary>
+    internal bool Claim()
+    {
+        return Interlocked.CompareExchange(ref _claimed, 1, 0) == 0;
+    }
+
+    internal void Unclaim()
+    {
+        if (!_given)
+        {
+            Volatile.Write(ref _claimed, 0);
+        }
+    }
+
     /// <summary>C++ owns the object from now on: this handle does not destroy it.</summary>
     internal void GiveUp()
     {
+        _given = true;
         SetHandleAsInvalid();
     }
 }
@@ -71,11 +99,6 @@ internal readonly ref struct Lease
     /// <summary>The object goes to C++, which destroys it: the hold ends with the call.</summary>
     internal IntPtr Give()
     {
-        if (_handle is { Owns: false })
-        {
-            throw new InvalidOperationException(
-                "the object cannot be given to C++: it is borrowed from another object");
-        }
         _handle?.GiveUp();
         return Pointer;
     }
@@ -86,6 +109,112 @@ internal readonly ref struct Lease
     }
 }
 
+/// <summary>The right to give an object to C++: only one call at a time has it.</summary>
+internal readonly ref struct Claim
+{
+    private readonly ObjectHandle? _handle;
+
+    internal Claim(ObjectHandle handle)
+    {
+        _handle = handle;
+    }
+
+    public void Dispose()
+    {
+        _handle?.Unclaim();
+    }
+}
+
+/// <summary>The objects that a C++ object keeps pointers to. They are held (their C++ objects are not
+/// destroyed, and what they are borrowed from stays alive) until the C++ object is destroyed, in this
+/// order: the collector does not order finalizers, and a destructor may use what it points to.</summary>
+internal sealed class Keep
+{
+    internal static readonly Keep Forever = new();
+
+    private readonly HashSet<BridgefexObject> _objects = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<ObjectHandle> _pinned = new(ReferenceEqualityComparer.Instance);
+
+    internal void Add(BridgefexObject value)
+    {
+        var owning = new List<ObjectHandle>();
+        value.CollectOwning(owning);
+        lock (this)
+        {
+            if (!_objects.Add(value))
+            {
+                return;
+            }
+            foreach (ObjectHandle handle in owning)
+            {
+                if (_pinned.Contains(handle))
+                {
+                    continue;
+                }
+                bool added = false;
+                try
+                {
+                    handle.DangerousAddRef(ref added);
+                }
+                catch (ObjectDisposedException)
+                {
+                    // It was closed meanwhile: there is nothing to keep.
+                }
+                if (added)
+                {
+                    _pinned.Add(handle);
+                }
+            }
+        }
+    }
+
+    /// <summary>What was kept goes to <paramref name="other"/>: it is not released with this one.</summary>
+    internal void MoveTo(Keep other)
+    {
+        BridgefexObject[] objects;
+        ObjectHandle[] pinned;
+        lock (this)
+        {
+            objects = new BridgefexObject[_objects.Count];
+            _objects.CopyTo(objects);
+            pinned = new ObjectHandle[_pinned.Count];
+            _pinned.CopyTo(pinned);
+            _objects.Clear();
+            _pinned.Clear();
+        }
+        lock (other)
+        {
+            foreach (BridgefexObject value in objects)
+            {
+                other._objects.Add(value);
+            }
+            foreach (ObjectHandle handle in pinned)
+            {
+                if (!other._pinned.Add(handle))
+                {
+                    handle.DangerousRelease();
+                }
+            }
+        }
+    }
+
+    internal void Release()
+    {
+        ObjectHandle[] pinned;
+        lock (this)
+        {
+            pinned = new ObjectHandle[_pinned.Count];
+            _pinned.CopyTo(pinned);
+            _pinned.Clear();
+            _objects.Clear();
+        }
+        foreach (ObjectHandle handle in pinned)
+        {
+            handle.DangerousRelease();
+        }
+    }
+}
+
 /// <summary>The root of the wrapped classes. <see cref="Dispose"/> (or the collection) destroys the C++
 /// object; an object that C++ keeps owning is valid while the objects it was obtained from are.</summary>
 public abstract class BridgefexObject : IDisposable
@@ -93,7 +222,7 @@ public abstract class BridgefexObject : IDisposable
     internal readonly ObjectHandle Handle;
     internal BridgefexObject[]? Owners;
     internal bool ReadOnly;
-    internal List<object>? Retained;
+    internal Keep? Retained;
 
     internal BridgefexObject(ObjectHandle handle)
     {
@@ -157,16 +286,63 @@ public abstract class BridgefexObject : IDisposable
         return new Lease(Handle, Handle.DangerousGetHandle());
     }
 
-    /// <summary>Keep <paramref name="value"/> alive as long as the C++ object may use it.</summary>
-    internal void Retain(object? value)
+    /// <summary>The right to give this object to C++. It is refused if the object is borrowed
+    /// (C++ owns it already) or another call, or another argument of this one, is giving it.</summary>
+    internal Claim ClaimToGive()
+    {
+        if (IsClosed)
+        {
+            throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+        }
+        if (Handle is { Owns: false } || Owners is not null)
+        {
+            throw new InvalidOperationException(
+                GetType().Name + " object cannot be transferred: it is borrowed from another object");
+        }
+        if (!Handle.Claim())
+        {
+            throw new InvalidOperationException(
+                GetType().Name + " object cannot be transferred: it is being given to C++ by another call or argument");
+        }
+        return new Claim(Handle);
+    }
+
+    /// <summary>The handles that own the C++ objects this one lives in: its own, or those of the
+    /// objects it is borrowed from.</summary>
+    internal void CollectOwning(List<ObjectHandle> into)
+    {
+        if (Handle.Owns)
+        {
+            into.Add(Handle);
+        }
+        else if (Owners is { } owners)
+        {
+            foreach (BridgefexObject owner in owners)
+            {
+                owner.CollectOwning(into);
+            }
+        }
+    }
+
+    /// <summary>Where this object keeps what its C++ object points to: with the C++ object that owns it.</summary>
+    internal Keep KeepOf()
+    {
+        Keep? kept = Retained;
+        if (kept is null)
+        {
+            var fresh = new Keep();
+            kept = Interlocked.CompareExchange(ref Handle.Kept, fresh, null) ?? fresh;
+            Retained = kept;
+        }
+        return kept;
+    }
+
+    /// <summary>Keep <paramref name="value"/> as long as the C++ object may use it.</summary>
+    internal void Retain(BridgefexObject? value)
     {
         if (value is not null)
         {
-            List<object> list = Retained ??= new List<object>();
-            lock (list)
-            {
-                list.Add(value);
-            }
+            KeepOf().Add(value);
         }
     }
 
@@ -187,35 +363,24 @@ public abstract class BridgefexObject : IDisposable
             }
         }
         Owners = list?.ToArray();
-        Retained = list is { Count: 1 } ? (list[0].Retained ??= new List<object>()) : Forever;
+        Retained = list is { Count: 1 } ? list[0].KeepOf() : Keep.Forever;
     }
 
-    internal static void RetainForever(object? value)
+    internal static void RetainForever(BridgefexObject? value)
     {
         if (value is not null)
         {
-            lock (Forever)
-            {
-                Forever.Add(value);
-            }
+            Keep.Forever.Add(value);
         }
     }
-
-    internal static readonly List<object> Forever = new();
 
     /// <summary>The object was given to C++: what it retained is kept for ever.</summary>
     internal void Surrender()
     {
-        if (Retained is { } retained && !ReferenceEquals(retained, Forever))
+        if (Retained is { } kept && !ReferenceEquals(kept, Keep.Forever))
         {
-            lock (Forever)
-            {
-                lock (retained)
-                {
-                    Forever.AddRange(retained);
-                }
-            }
-            Retained = Forever;
+            kept.MoveTo(Keep.Forever);
         }
+        Retained = Keep.Forever;
     }
 }

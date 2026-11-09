@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from ...plan import Ffi, FfiKind
 
 
+class Unsupported(Exception):
+    """The plan has something that the C# bindings do not have yet."""
+
+
 @dataclass(frozen=True, slots=True)
 class Scalar:
     """A scalar of the C layer in C#: the type the API shows, and the blittable type the
@@ -77,6 +81,7 @@ def native_type(ffi: Ffi, *, out: bool = False) -> str:
         return "Native.StringIn"
     if kind is FfiKind.STRING:
         return "Native.StringOut"
-    assert ffi.inner is not None
-    inner = native_type(ffi.inner)
-    return f"out {inner}" if out else f"{inner}*"
+    if kind is FfiKind.POINTER and ffi.inner is not None:
+        inner = native_type(ffi.inner)
+        return f"out {inner}" if out else f"{inner}*"
+    raise Unsupported(f"the C type of kind '{kind.value}' is not supported in C# yet")
