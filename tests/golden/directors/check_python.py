@@ -882,6 +882,20 @@ with Gives.create_void() as gives:
     assert gives.call_make_beam.__name__  # still usable after the failures
 
 
+# An object that C++ owns and is a director: the override gets the Python object itself.
+with (
+    Objects.create_void() as objects,
+    Sq.create_void() as square,
+    shape.Holder() as first,
+    shape.Holder() as second,
+):
+    first.put(objects)
+    second.put(square)  # Python gave both up
+    assert first.compare_held(second) == 40.0
+    assert objects.received is square
+    assert second.compare_held(first) == 4.0 - 2.0  # Sq's implementation: area() - other.area()
+
+
 # The implementations of the class, with objects.
 class Plainly(shape.Shape):
     def area(self):

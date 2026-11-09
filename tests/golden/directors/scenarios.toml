@@ -161,3 +161,30 @@ steps = [
   { call = "e.call_triple", args = [[9.0, 8.0, 7.0]], expect = [9.0, 8.0, 7.0] },
   { call = "e.call_modes", args = [[{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }]], expect = [{ enum = "shape.Mode", member = "Auto" }, { enum = "shape.Mode", member = "Off" }] },
 ]
+
+[[scenario]]
+name = "an override uses the objects that C++ lends it, and the one that it gives it"
+steps = [
+  { derive = "shape.Shape", named = "Asker", overrides = { area = { returns = 2.0 }, grow = { asks = { argument = 0, call = "call_length" } }, adopt = { asks = { argument = 0, call = "call_length" } }, compare = { asks = { argument = 0, call = "area" } } } },
+  { derive = "shape.Shape", named = "Square", overrides = { area = { returns = 4.0 } } },
+  { new = "Asker", overload = "_void", as = "a" },
+  { new = "Square", overload = "_void", as = "sq" },
+  { new = "shape.Beam", args = [5], as = "b" },
+  { call = "a.call_grow", args = [{ ref = "b" }], expect = 5 },
+  { call = "b.call_length", expect = 5 },
+  { call = "a.call_compare", args = [{ ref = "sq" }], expect = 4.0 },
+  { call = "a.call_adopt", args = [{ ref = "b" }], expect = 5 },
+  { call = "b.call_length", error = "closed" },
+]
+
+[[scenario]]
+name = "an override gives C++ a new object, or none"
+steps = [
+  { derive = "shape.Shape", named = "Maker", overrides = { area = { returns = 1.0 }, make_beam = { makes = { new = "shape.Beam", args = [9] } } } },
+  { derive = "shape.Shape", named = "Nobody", overrides = { area = { returns = 1.0 }, make_beam = { returns = { null = true } } } },
+  { new = "Maker", overload = "_void", as = "m" },
+  { new = "Nobody", overload = "_void", as = "n" },
+  { call = "m.call_make_beam", args = [1], as = "made" },
+  { call = "made.call_length", expect = 9 },
+  { call = "n.call_make_beam", args = [1], expect = { null = true } },
+]

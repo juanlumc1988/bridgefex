@@ -17,7 +17,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "DRC_LIBRARY"
 
-API_FINGERPRINT = "d4e3fae2c3774c5e085ef821978fffc4"
+API_FINGERPRINT = "412e385dc58e7704cbbeda5403491b1b"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -1421,8 +1421,11 @@ def callback_object(c_type, stem, pointer, readonly, lend):
     if not pointer:
         return None
     known = _by_address.get((_address(pointer), c_type))
-    if known is not None and known._owned and not known._collected():
-        return known
+    # It is the object of that address while C++ has not destroyed its director (also when
+    # C++ owns it: Python gave it up, and the registry keeps it alive).
+    if known is not None and known._director is not None:
+        if _entry(known._director.key)[0] is known._director:
+            return known
     return borrow(_class_of(c_type, stem), pointer, (lend,), readonly)
 
 

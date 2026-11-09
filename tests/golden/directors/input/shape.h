@@ -167,6 +167,8 @@ public:
     void put(std::unique_ptr<Shape> shape);
     std::unique_ptr<Shape> take();
     bool empty() const;
+    // The Shape of this one compares itself with the Shape of the other.
+    double compare_held(const Holder& other) const;
     std::string describe() const;
     std::string describe_on_thread() const;
     std::int32_t apply(const std::function<std::int32_t(std::int32_t)>& f) const;

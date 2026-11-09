@@ -396,6 +396,11 @@ bool Holder::empty() const
     return !shape_;
 }
 
+double Holder::compare_held(const Holder& other) const
+{
+    return shape_ && other.shape_ ? shape_->compare(*other.shape_) : -1.0;
+}
+
 std::string Holder::describe() const
 {
     return shape_ ? shape_->describe() : "empty";

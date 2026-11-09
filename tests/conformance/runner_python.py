@@ -182,6 +182,19 @@ class Player:
         if "argument" in spec:
             position = int(spec["argument"])  # type: ignore[call-overload]
             return lambda _self, *arguments: arguments[position]
+        if "asks" in spec:
+            ask = spec["asks"]  # type: ignore[assignment]
+            position = int(ask["argument"])  # type: ignore[call-overload]
+            method = name_of(str(ask["call"]))  # type: ignore[call-overload]
+            asked = [self.decode(item) for item in ask.get("args", [])]  # type: ignore[attr-defined]
+            return lambda _self, *arguments: getattr(arguments[position], method)(*asked)
+        if "makes" in spec:
+            make = spec["makes"]  # type: ignore[assignment]
+            cls = self.classes.get(str(make["new"])) or self.lookup(str(make["new"]))  # type: ignore[call-overload]
+            overload = make.get("overload")  # type: ignore[attr-defined]
+            build = getattr(cls, f"create{overload}") if overload else cls
+            made_args = [self.decode(item) for item in make.get("args", [])]  # type: ignore[attr-defined]
+            return lambda _self, *arguments: build(*made_args)
         if "raises" in spec:
             message = str(spec["raises"])
 

@@ -426,6 +426,9 @@ DRC_NODISCARD DRC_API drc_status drc_Holder_take(drc_Holder* self, drc_Shape** o
 /* bool drc::Holder::empty() const */
 DRC_NODISCARD DRC_API drc_status drc_Holder_empty(const drc_Holder* self, bool* out_result);
 
+/* double drc::Holder::compare_held(const drc::Holder& other) const */
+DRC_NODISCARD DRC_API drc_status drc_Holder_compare_held(const drc_Holder* self, const drc_Holder* other, double* out_result);
+
 /* std::string drc::Holder::describe() const */
 DRC_NODISCARD DRC_API drc_status drc_Holder_describe(const drc_Holder* self, char** out_result, size_t* out_result_size);
 

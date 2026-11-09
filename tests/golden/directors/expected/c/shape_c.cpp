@@ -2165,6 +2165,21 @@ drc_status drc_Holder_empty(const drc_Holder* self, bool* out_result)
     return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Holder*>(self)->empty(); });
 }
 
+// double drc::Holder::compare_held(const drc::Holder& other) const
+drc_status drc_Holder_compare_held(const drc_Holder* self, const drc_Holder* other, double* out_result)
+{
+    if (self == nullptr) {
+        return drc_detail::null_argument("drc_Holder_compare_held: 'self' is NULL");
+    }
+    if (other == nullptr) {
+        return drc_detail::null_argument("drc_Holder_compare_held: 'other' is NULL");
+    }
+    if (out_result == nullptr) {
+        return drc_detail::null_argument("drc_Holder_compare_held: 'out_result' is NULL");
+    }
+    return drc_detail::guard([&]() { *out_result = reinterpret_cast<const ::drc::Holder*>(self)->compare_held(*reinterpret_cast<const ::drc::Holder*>(other)); });
+}
+
 // std::string drc::Holder::describe() const
 drc_status drc_Holder_describe(const drc_Holder* self, char** out_result, size_t* out_result_size)
 {

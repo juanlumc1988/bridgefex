@@ -197,6 +197,8 @@ def _bind():
             lib.drc_Holder_take.restype = _runtime.Status
             lib.drc_Holder_empty.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_bool)]
             lib.drc_Holder_empty.restype = _runtime.Status
+            lib.drc_Holder_compare_held.argtypes = [_types._drc_Holder__p, _types._drc_Holder__p, ctypes.POINTER(ctypes.c_double)]
+            lib.drc_Holder_compare_held.restype = _runtime.Status
             lib.drc_Holder_describe.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
             lib.drc_Holder_describe.restype = _runtime.Status
             lib.drc_Holder_describe_on_thread.argtypes = [_types._drc_Holder__p, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_size_t)]
@@ -2840,6 +2842,13 @@ class Holder(_runtime.Object):
         """Wraps ``bool drc::Holder::empty() const``."""
         _out = ctypes.c_bool()
         _runtime.check(_bind().drc_Holder_empty(self._ptr(), _out))
+        return _out.value
+
+    def compare_held(self, other):
+        """Wraps ``double drc::Holder::compare_held(const drc::Holder& other) const``."""
+        _out = ctypes.c_double()
+        _runtime.check_object(other, Holder, "other")
+        _runtime.check(_bind().drc_Holder_compare_held(self._ptr(), other._ptr(), _out))
         return _out.value
 
     def describe(self):
