@@ -512,7 +512,8 @@ static void shape_numbers_wrong_size(void* user_data, const int32_t* values, siz
                                      drc_vector_sink* out_result)
 {
     (void)user_data;
-    drc_vector_sink_set(out_result, values, size, sizeof(int64_t)); /* not an int32_t */
+    const int64_t wide[8] = {0}; /* elements of another size than the int32_t of the result */
+    drc_vector_sink_set(out_result, wide, size < 8 ? size : 8, sizeof wide[0]);
     drc_vector_sink_set(NULL, values, size, sizeof values[0]);       /* ignored */
 }
 

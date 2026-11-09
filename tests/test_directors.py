@@ -734,3 +734,41 @@ def test_a_pure_virtual_method_that_gives_an_object_by_reference_refuses_the_cla
         "n_Shape",
     )
     assert "the result is a reference: an override cannot return one" in text
+
+
+def test_a_class_that_the_header_only_declares_is_taken_by_value_or_const_reference(
+    tmp_path: Path,
+) -> None:
+    """The parser sees a class that the header does not define as a struct: the plan reads it
+    as the class it is, also in a virtual method."""
+    first = tmp_path / "first.h"
+    first.write_text(
+        PRELUDE
+        + "#include <memory>\n"
+        + """
+namespace b { class Item; }
+namespace a {
+class Host {
+public:
+    Host();
+    virtual ~Host();
+    virtual std::int32_t look(const b::Item& item) const;
+    virtual std::int32_t adopt(std::unique_ptr<b::Item> item) const;
+};
+}
+""",
+        encoding="utf-8",
+    )
+    second = tmp_path / "second.h"
+    second.write_text(
+        PRELUDE + "namespace b { class Item { public: Item(); virtual ~Item(); }; }\n",
+        encoding="utf-8",
+    )
+    annotations = tmp_path / "annotations.toml"
+    annotations.write_bytes(b'directors = ["a_Host"]\n')
+    result = bridgefex.generate(
+        [first, second], bridgefex.Options("mod", annotations=(annotations,))
+    )
+    vtable = result.files["c/first_c.h"].split("a_Host_vtable {")[1].split("} a_Host_vtable")[0]
+    assert "void (*look)(void*, const b_Item*, int32_t*);" in vtable
+    assert "void (*adopt)(void*, b_Item*, int32_t*);" in vtable

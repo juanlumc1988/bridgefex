@@ -534,6 +534,9 @@ def _asks_problems(value: object, entry: DirectorEntry, index: _Index) -> list[s
     if not isinstance(args, list):
         return ["asks: args is a list"]
     problems = _argument_problems(args, found, str(name), index, {}, set(), {})
+    problems += [problem for item in args for problem in _check_value(item, index, {})]
+    if type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER) and not found.is_const:
+        problems.append(f"asks: {name} changes the object, which C++ lends as const")
     result = entry.callback.result.type
     if found.result is None:
         problems.append(f"asks: {name} returns nothing")
@@ -560,6 +563,7 @@ def _makes_problems(value: object, entry: DirectorEntry, index: _Index) -> list[
         return [*problems, "makes: args is a list"]
     if constructor is not None:
         problems += _argument_problems(args, constructor, cls.model.name, index, {}, set(), {})
+    problems += [problem for item in args for problem in _check_value(item, index, {})]
     return problems
 
 

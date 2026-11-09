@@ -187,12 +187,12 @@ bool Shape::same(const Shape* other) const
 
 std::int32_t Shape::grow(Beam& beam) const
 {
-    return beam.call_length();
+    return beam.call_length() + 1;
 }
 
 std::int32_t Shape::adopt(std::unique_ptr<Beam> beam) const
 {
-    return beam ? beam->call_length() : -1;
+    return beam ? beam->call_length() + 1 : -1;
 }
 
 std::unique_ptr<Beam> Shape::make_beam(std::int32_t length) const

@@ -17,7 +17,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "DR1_LIBRARY"
 
-API_FINGERPRINT = "f79fa307460bad6f2ed35d82920b4179"
+API_FINGERPRINT = "604756029628f0688074b53e05993384"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -406,6 +406,11 @@ def take(retained, *arguments, keep=None):
         owned = value._owned
         if not owned or value._collected():
             raise ValueError(f"argument {name!r}: {type(value).__name__} object is closed")
+        if value._director is not None and _is_lent(value._director):
+            raise RuntimeError(
+                f"argument {name!r}: {type(value).__name__} object cannot be given away while "
+                "C++ is lending it to an override: C++ is using it"
+            )
         if owned[-1][0] is None:
             raise ValueError(
                 f"argument {name!r}: {type(value).__name__} object cannot be transferred: "
@@ -1089,7 +1094,7 @@ class _Active:
     """An override that C++ is running: the thunk keeps it in a local variable, so that it
     ends with the frame whatever happens (a signal cannot skip the end of a ``finally``)."""
 
-    __slots__ = ("__weakref__", "ident")
+    __slots__ = ("__weakref__", "ident", "lent")
 
 
 class _Owned:
@@ -1162,6 +1167,14 @@ def _entry(key):
     if type(entry) is _Owned:
         return entry.director, entry.obj
     return None, None
+
+
+def _is_lent(director):
+    """True if C++ has lent the object of ``director`` to an override that is running."""
+    return any(
+        token is not None and token.lent
+        for token in (reference() for reference in tuple(director.running.values()))
+    )
 
 
 def _runs_here(director):
@@ -1340,11 +1353,12 @@ def director_method(user_data, name):
     return method, _start_running(director)
 
 
-def _start_running(director):
+def _start_running(director, lent=False):
     """The token of an override that C++ runs now on an object of ``director`` (or that
-    uses it): it ends with whoever keeps it."""
+    uses it, if ``lent``): it ends with whoever keeps it."""
     token = _Active()
     token.ident = threading.get_ident()
+    token.lent = lent
     running = director.running
     running[id(token)] = weakref.ref(token, functools.partial(running.pop, id(token)))
     return token
@@ -1437,7 +1451,7 @@ def callback_object(c_type, stem, pointer, readonly, lend):
     # gets a new object of the class, whose virtual methods are those of the director).
     if known is not None and known._owned and not known._collected():
         # C++ is using it: it cannot be closed until the override returns.
-        lend._tokens.append(_start_running(known._director))
+        lend._tokens.append(_start_running(known._director, lent=True))
         return known
     return borrow(_class_of(c_type, stem), pointer, (lend,), readonly)
 

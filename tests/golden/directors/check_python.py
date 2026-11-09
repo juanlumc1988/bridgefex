@@ -917,6 +917,24 @@ with Closer.create_void() as closer, Sq.create_void() as square:
     assert square.area() == 4.0  # still open
 
 
+class Giver(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def compare(self, other):
+        try:
+            shape.Holder().put(other)  # C++ is using it: it cannot be given away
+        except RuntimeError as error:
+            assert "cannot be given away" in str(error), str(error)
+            return 1.0
+        return 0.0
+
+
+with Giver.create_void() as giver, Sq.create_void() as square:
+    assert giver.call_compare(square) == 1.0
+    assert square.area() == 4.0  # still ours
+
+
 # A std::unique_ptr that C++ gave to an override that does not run (it is not callable): the
 # object is destroyed, not leaked.
 class Refuses(shape.Shape):
@@ -951,9 +969,9 @@ class Plainly(shape.Shape):
 with Plainly.create_void() as plainly, shape.Beam(4) as beam:
     assert plainly.call_compare(plainly) == 0.0
     assert plainly.call_same(plainly) is True and plainly.call_same(None) is False
-    assert plainly.call_grow(beam) == 4
+    assert plainly.call_grow(beam) == 5
     with shape.Beam(8) as other:
-        assert plainly.call_adopt(other) == 8
+        assert plainly.call_adopt(other) == 9
     with plainly.call_make_beam(3) as made:
         assert made.call_length() == 3
 

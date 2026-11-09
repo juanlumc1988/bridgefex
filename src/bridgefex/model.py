@@ -196,7 +196,7 @@ class ClassRef:
             ClassForm.CONST_REFERENCE: f"const {name}&",
             ClassForm.POINTER: f"{name}*",
             ClassForm.CONST_POINTER: f"const {name}*",
-            ClassForm.UNIQUE: f"std::unique_ptr<{name}>" + ("&&" if self.rvalue_reference else ""),
+            ClassForm.UNIQUE: f"std::unique_ptr<{name}>",
         }
         return spellings[self.form]
 

@@ -16,7 +16,11 @@ extern "C" {
  * thread C++ calls the method, may be called many times and must not throw nor
  * longjmp. A number, enum or struct result is written through the last parameter, which is
  * value-initialized beforehand; a string or a container is given to the sink that is the last
- * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * parameter (see the runtime header). An argument that is a pointer to an object of a class
+ * (a reference or a pointer in C++) is lent: it is valid during the call, and the function must
+ * not keep it nor destroy it. A std::unique_ptr argument is given to the function, which destroys
+ * it with the destroy function of its class (NULL if it was empty); a std::unique_ptr result is a
+ * pointer to a handle, NULL beforehand, and C++ owns the object that the function writes there.
  * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with drc_Beam_destroy() of its object).
  */
@@ -39,7 +43,11 @@ typedef struct drc_Beam_vtable {
  * thread C++ calls the method, may be called many times and must not throw nor
  * longjmp. A number, enum or struct result is written through the last parameter, which is
  * value-initialized beforehand; a string or a container is given to the sink that is the last
- * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * parameter (see the runtime header). An argument that is a pointer to an object of a class
+ * (a reference or a pointer in C++) is lent: it is valid during the call, and the function must
+ * not keep it nor destroy it. A std::unique_ptr argument is given to the function, which destroys
+ * it with the destroy function of its class (NULL if it was empty); a std::unique_ptr result is a
+ * pointer to a handle, NULL beforehand, and C++ owns the object that the function writes there.
  * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with drc_Shape_destroy() of its object).
  */
@@ -110,7 +118,11 @@ typedef struct drc_Shape_vtable {
  * thread C++ calls the method, may be called many times and must not throw nor
  * longjmp. A number, enum or struct result is written through the last parameter, which is
  * value-initialized beforehand; a string or a container is given to the sink that is the last
- * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * parameter (see the runtime header). An argument that is a pointer to an object of a class
+ * (a reference or a pointer in C++) is lent: it is valid during the call, and the function must
+ * not keep it nor destroy it. A std::unique_ptr argument is given to the function, which destroys
+ * it with the destroy function of its class (NULL if it was empty); a std::unique_ptr result is a
+ * pointer to a handle, NULL beforehand, and C++ owns the object that the function writes there.
  * user_data is passed to every function; release(user_data) is called once, when
  * the director is destroyed (with drc_Circle_destroy() of its object).
  */

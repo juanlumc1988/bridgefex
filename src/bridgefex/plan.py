@@ -1086,6 +1086,12 @@ class _Slot:
     owner: ClassInfo
     hook: Hook
     method: Method
+    """The declaration with its classes as :class:`ClassRef` (a class that the header only
+    declares is a struct to the parser)."""
+
+    declared: Method
+    """The declaration as the model has it, which the bindings of the public methods compare
+    with."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1639,6 +1645,16 @@ class _Builder:
             form = ClassForm.CONST_REFERENCE if type_.by_reference else ClassForm.VALUE
             return ClassRef(type_.usr, type_.qualified_name, type_.definition, form, type_.system)
         return None
+
+    def _classified(self, method: Method) -> Method:
+        """``method`` with the classes in its signature as :class:`ClassRef`."""
+        parameters = tuple(
+            dataclasses.replace(parameter, type=self._as_class(parameter.type) or parameter.type)
+            for parameter in method.parameters
+        )
+        return dataclasses.replace(
+            method, parameters=parameters, result=self._as_class(method.result) or method.result
+        )
 
     def _class(self, ref: ClassRef, location: Location) -> ClassInfo | None:
         """The class of a reference, or None (reported) if it is no class of the module."""
@@ -2947,7 +2963,7 @@ class _Builder:
                 if hook.method is None:
                     unreadable.append((owner, hook))
                 else:
-                    slots[key] = _Slot(owner, hook, hook.method)
+                    slots[key] = _Slot(owner, hook, self._classified(hook.method), hook.method)
         for key in ambiguous:
             slot = slots.get(key)
             if slot is not None and not slot.hook.is_pure:
@@ -2963,7 +2979,7 @@ class _Builder:
             if isinstance(type_, ClassRef):
                 if type_.usr not in self._classes:
                     problems.append(f"{what}: the class '{type_.qualified_name}' is not wrapped")
-                elif type_.form is ClassForm.VALUE:
+                elif type_.form is ClassForm.VALUE and not result:
                     problems.append(
                         f"{what}: '{type_.qualified_name}' by value is a copy that an override "
                         "cannot take: take it by reference"
@@ -3487,7 +3503,7 @@ class _Builder:
             thunk_key="__".join([result_token, *tokens]),
             function_params=", ".join(c_types),
             base=base,
-            method=method,
+            method=slot.declared,
             key=slot.hook.key,
             location=location,
         )
