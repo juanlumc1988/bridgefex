@@ -66,7 +66,7 @@ RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProces
 # What each backend can already play: the cases whose scenarios use only what it supports.
 SUPPORTED: dict[str, frozenset[str] | None] = {
     "python": None,
-    "csharp": frozenset({"scalars", "strings", "enums"}),
+    "csharp": frozenset({"scalars", "strings", "enums", "structs", "demo", "inherit"}),
 }
 
 
@@ -79,9 +79,9 @@ def supports(language: str, case: Case) -> bool:
 def _dotnet(request: pytest.FixtureRequest) -> None:
     """The C# runner needs the .NET SDK."""
     callspec = getattr(request.node, "callspec", None)
-    if callspec is not None and callspec.params.get("language") == "csharp":
-        if not runner_csharp.available():
-            pytest.skip("needs the .NET SDK")
+    csharp = callspec is not None and callspec.params.get("language") == "csharp"
+    if csharp and not runner_csharp.available():
+        pytest.skip("needs the .NET SDK")
 
 
 def test_every_backend_has_a_runner() -> None:

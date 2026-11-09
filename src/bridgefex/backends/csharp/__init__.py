@@ -37,7 +37,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     renderer.put(f"{base}/Runtime.cs", "Runtime.cs.j2", **context)
     renderer.put(f"{base}/Objects.cs", "Objects.cs.j2", **context)
     try:
-        files[f"{base}/Native.cs"] = native_source(plan)
+        files[f"{base}/Native.cs"] = native_source(plan, names)
         for header in plan.headers:
             files[f"{base}/{pascal(header.stem)}.cs"] = header_source(plan, header, names)
     except Unsupported as error:

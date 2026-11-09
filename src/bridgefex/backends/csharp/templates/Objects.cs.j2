@@ -190,7 +190,7 @@ public abstract class BridgefexObject : IDisposable
         Retained = list is { Count: 1 } ? (list[0].Retained ??= new List<object>()) : Forever;
     }
 
-    internal void RetainForever(object? value)
+    internal static void RetainForever(object? value)
     {
         if (value is not null)
         {

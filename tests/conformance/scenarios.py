@@ -235,8 +235,8 @@ def resolve(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[dict[s
         variables: dict[str, ClassPlan | None] = {}
         derived: dict[str, ClassPlan] = {}
         steps: list[dict[str, object]] = []
-        for step in scenario["steps"]:  # type: ignore[attr-defined]
-            step = dict(step)
+        for original in scenario["steps"]:  # type: ignore[attr-defined]
+            step = dict(original)
             produced: ClassPlan | None = None
             if "new" in step:
                 target = str(step["new"])
@@ -258,6 +258,11 @@ def resolve(scenarios: list[dict[str, object]], plan: ModulePlan) -> list[dict[s
             steps.append(step)
         resolved.append({**scenario, "steps": steps})
     return resolved
+
+
+def struct_types(plan: ModulePlan) -> dict[str, StructPlan]:
+    """The value structs that the scenarios name (``stem.Name``)."""
+    return dict(_Index.of(plan).structs)
 
 
 def enum_types(plan: ModulePlan) -> dict[str, EnumPlan]:

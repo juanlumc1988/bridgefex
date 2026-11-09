@@ -105,6 +105,27 @@ namespace BridgefexRunner
 
         private JsonElement Section(string name) => _map.GetProperty(name);
 
+        /// <summary>The member that wraps <paramref name="cName"/>, in the class of the receiver
+        /// or the nearest one that has it (a class repeats the methods of the bases it does not
+        /// derive from).</summary>
+        private MethodBase Function(string cName, Type? receiver)
+        {
+            for (Type? type = receiver; type is not null; type = type.BaseType)
+            {
+                foreach (MethodBase member in type.GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).OfType<MethodBase>())
+                {
+                    foreach (CustomAttributeData data in member.CustomAttributes)
+                    {
+                        if (data.AttributeType.Name == "BridgefexFunctionAttribute" && (string)data.ConstructorArguments[0].Value! == cName)
+                        {
+                            return member;
+                        }
+                    }
+                }
+            }
+            return Function(cName);
+        }
+
         private MethodBase Function(string cName)
         {
             if (!_functions.TryGetValue(cName, out MethodBase? found))
@@ -146,10 +167,44 @@ namespace BridgefexRunner
                 case JsonValueKind.Number:
                     return Number(value, type);
                 case JsonValueKind.Object:
-                    return Table(value, type);
+                    return Conversion(Table(value, type), type);
+                case JsonValueKind.Array:
+                    if (!type.IsArray)
+                    {
+                        throw new Failure($"a list for a {type.Name}");
+                    }
+                    Type element = type.GetElementType()!;
+                    Array items = Array.CreateInstance(element, value.GetArrayLength());
+                    int position = 0;
+                    foreach (JsonElement item in value.EnumerateArray())
+                    {
+                        items.SetValue(Decode(item, element), position++);
+                    }
+                    return items;
                 default:
                     throw new Failure($"a value of kind {value.ValueKind} for a {type.Name}");
             }
+        }
+
+        /// <summary>An object where another class is expected: the implicit conversion that the
+        /// class defines (a class converts to the bases it does not derive from).</summary>
+        private static object? Conversion(object? value, Type target)
+        {
+            if (value is null || target.IsInstanceOfType(value) || value.GetType().IsValueType)
+            {
+                return value;
+            }
+            foreach (Type type in new[] { value.GetType(), target })
+            {
+                foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (method.Name == "op_Implicit" && method.ReturnType == target && method.GetParameters()[0].ParameterType.IsInstanceOfType(value))
+                    {
+                        return method.Invoke(null, new[] { value });
+                    }
+                }
+            }
+            return value;
         }
 
         private static object Number(JsonElement value, Type type)
@@ -230,6 +285,22 @@ namespace BridgefexRunner
                 Type enumType = TypeNamed(Section("enums").GetProperty(enumName.GetString()!).GetString()!);
                 return Enum.Parse(enumType, Member(value.GetProperty("member").GetString()!));
             }
+            if (value.TryGetProperty("struct", out JsonElement structName))
+            {
+                Type structType = TypeNamed(Section("structs").GetProperty(structName.GetString()!).GetString()!);
+                object boxed = Activator.CreateInstance(structType)!;
+                FieldInfo[] fields = structType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+                JsonProperty[] given = value.EnumerateObject().Where(property => property.Name != "struct").ToArray();
+                if (given.Length != fields.Length)
+                {
+                    throw new Failure($"{given.Length} members for the {fields.Length} of {structType.Name}");
+                }
+                for (int position = 0; position < fields.Length; position++)
+                {
+                    fields[position].SetValue(boxed, Decode(given[position].Value, fields[position].FieldType));
+                }
+                return boxed;
+            }
             throw new Failure($"a table value for a {type.Name}: {value}");
         }
 
@@ -292,6 +363,25 @@ namespace BridgefexRunner
                     {
                         return Floating(actual, Special(special.GetString()!), approx, where);
                     }
+                    if (expected.TryGetProperty("struct", out JsonElement structName))
+                    {
+                        Type structType = TypeNamed(Section("structs").GetProperty(structName.GetString()!).GetString()!);
+                        if (actual is null || actual.GetType() != structType)
+                        {
+                            return $"{where}: {Show(actual)}, not {structName}";
+                        }
+                        FieldInfo[] fields = structType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+                        JsonProperty[] members = expected.EnumerateObject().Where(property => property.Name != "struct").ToArray();
+                        for (int position = 0; position < fields.Length; position++)
+                        {
+                            string? problem = Differences(fields[position].GetValue(actual), members[position].Value, approx, $"{where}.{members[position].Name}");
+                            if (problem is not null)
+                            {
+                                return problem;
+                            }
+                        }
+                        return null;
+                    }
                     if (expected.TryGetProperty("enum", out JsonElement enumName))
                     {
                         Type enumType = TypeNamed(Section("enums").GetProperty(enumName.GetString()!).GetString()!);
@@ -299,6 +389,24 @@ namespace BridgefexRunner
                         return actual is not null && actual.GetType() == enumType && actual.ToString() == member ? null : $"{where}: {Show(actual)}, not {enumName}.{member}";
                     }
                     break;
+            }
+            if (expected.ValueKind == JsonValueKind.Array)
+            {
+                if (actual is not Array list || list.Length != expected.GetArrayLength())
+                {
+                    return $"{where}: {Show(actual)}, not {expected}";
+                }
+                int index = 0;
+                foreach (JsonElement item in expected.EnumerateArray())
+                {
+                    string? problem = Differences(list.GetValue(index), item, approx, $"{where}[{index}]");
+                    if (problem is not null)
+                    {
+                        return problem;
+                    }
+                    index++;
+                }
+                return null;
             }
             throw new Failure($"cannot compare with {expected}");
         }
@@ -346,10 +454,10 @@ namespace BridgefexRunner
             }
             else
             {
-                MethodBase method = Function(step.GetProperty("c").GetString()!);
                 string target = step.GetProperty("call").GetString()!;
                 string[] parts = target.Split('.');
                 object? instance = parts.Length == 2 && _variables.TryGetValue(parts[0], out object? found) ? found : null;
+                MethodBase method = Function(step.GetProperty("c").GetString()!, instance?.GetType());
                 call = () => method.Invoke(instance, Convert(arguments, method.GetParameters()));
             }
             object? result = Attempt(call, step);

@@ -124,7 +124,11 @@ def _map(case: Case) -> dict[str, object]:
             head, _, last = full.rpartition(".")
             full = f"{head}+{last}"
         enums[key] = full
-    return {"enums": enums, "root": root}
+    structs = {
+        key: names.structs[struct.c_type].removeprefix("global::")
+        for key, struct in scenarios.struct_types(plan).items()
+    }
+    return {"enums": enums, "structs": structs, "root": root}
 
 
 def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:
