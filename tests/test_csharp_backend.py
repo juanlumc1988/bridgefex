@@ -159,6 +159,18 @@ def test_a_module_cannot_hide_the_namespaces_of_dotnet(tmp_path: Path) -> None:
     assert "would hide" in error_of(tmp_path, "int f(int a);", module="system")
 
 
+@pytest.mark.parametrize("stem", ["runtime", "native"])
+def test_a_header_that_c_sharp_cannot_have_is_an_error_of_that_language_only(
+    tmp_path: Path, stem: str
+) -> None:
+    code = "int f(int a);"
+    message = error_of(tmp_path, code, name=f"{stem}.h")
+    assert f"cannot use header name '{stem}'" in message
+    assert "C#:" in message
+    # The other languages generate it: nothing of C# is in the C layer.
+    assert generate(tmp_path, code, name=f"{stem}.h", languages=("python",))
+
+
 HOSTILE = """
 enum class Kind { A, B };
 struct Point { int x; int y; };

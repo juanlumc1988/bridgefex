@@ -20,6 +20,21 @@ _TEMPLATES = Path(__file__).parent / "templates"
 def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     """The project ``csharp/<Module>``: the runtime, the P/Invoke declarations and a file
     for each header."""
+    problems = [module_problem(plan.name)] + [
+        header_problem(header.stem) for header in plan.headers
+    ]
+    reasons = [
+        f"C#: {what}: {problem}"
+        for what, problem in zip(
+            [f"cannot name the module '{plan.name}'"]
+            + [f"cannot use header name '{header.stem}'" for header in plan.headers],
+            problems,
+            strict=True,
+        )
+        if problem
+    ]
+    if reasons:
+        raise GenerationError([Diagnostic(reason) for reason in reasons])
     root = namespace(plan)
     names = build_names(plan)
     files: dict[str, str] = {}
@@ -48,10 +63,8 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
 BACKEND = Backend(
     "csharp",
     render,
-    Reservations(
-        module_problem=module_problem,
-        header_problem=header_problem,
-        locals=locals_of,
-    ),
+    # Only the locals of the bindings are reserved in the C layer. A module or a header that
+    # C# cannot have is an error of the C# generation, not of the other languages.
+    Reservations(locals=locals_of),
     check=check,
 )
