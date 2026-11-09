@@ -6,11 +6,14 @@ links and runs the C program of the case with both, and packages them."""
 from __future__ import annotations
 
 import hashlib
+import platform
 import subprocess
 import sys
 import tarfile
 import zipfile
 from pathlib import Path
+
+import pytest
 
 from tests.support.toolchain import Toolchain
 
@@ -102,3 +105,44 @@ def test_other_cases_are_built_and_run_but_not_packaged(
         "bridgefex-demo-host",
         "bridgefex-demo-host",
     ]
+
+
+def _host_runtime() -> str | None:
+    """The .NET runtime identifier of the machine, if it is one that the CI has."""
+    machine = platform.machine().lower()
+    if sys.platform == "win32":
+        return "win-x64" if machine in ("amd64", "x86_64") else None
+    if sys.platform.startswith("linux"):
+        return {"x86_64": "linux-x64", "amd64": "linux-x64", "aarch64": "linux-arm64"}.get(machine)
+    return None
+
+
+@pytest.mark.usefixtures("dotnet")
+def test_the_csharp_bindings_are_compiled_for_a_runtime(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """What the armhf job does with ``linux-arm``: the bindings are built for a runtime that
+    cannot run them there."""
+    runtime = _host_runtime()
+    if runtime is None:
+        pytest.skip("not a runtime of the CI")
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--target",
+        "host",
+        "--output",
+        str(tmp_path / "dist"),
+        "--work",
+        str(tmp_path / "work"),
+        "--cc",
+        toolchain.cc,
+        "--cxx",
+        toolchain.cxx,
+        "--csharp-runtime",
+        runtime,
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert f"-r {runtime}" in completed.stdout
+    assert (tmp_path / "work" / "demo" / "csharp-check" / "bin" / "Demo.Bindings.dll").exists()
