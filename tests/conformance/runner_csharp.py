@@ -19,6 +19,8 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 import bridgefex
 from bridgefex.backends.csharp.module import build_names, namespace
 from tests.conformance import scenarios
@@ -60,8 +62,21 @@ def environment() -> dict[str, str]:
     }
 
 
+ENV_REQUIRED = "BRIDGEFEX_REQUIRE_DOTNET"
+"""Set by the CI: a missing SDK is then a failure of the tests that need it, not a skip."""
+
+
 def available() -> bool:
     return shutil.which("dotnet") is not None
+
+
+def skip_without_dotnet() -> None:
+    """Skip the test if the .NET SDK is missing, or fail it if the environment requires it."""
+    if available():
+        return
+    if os.environ.get(ENV_REQUIRED):
+        pytest.fail(f"the .NET SDK is required ({ENV_REQUIRED} is set) and dotnet is not installed")
+    pytest.skip("needs the .NET SDK")
 
 
 def build_program(

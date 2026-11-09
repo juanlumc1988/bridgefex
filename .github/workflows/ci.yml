@@ -36,6 +36,12 @@ jobs:
   linux:
     name: ${{ matrix.os }} / ${{ matrix.compiler }} / Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
+    env:
+      # The tests of the C# bindings build them with the SDK: without it they fail, not skip.
+      BRIDGEFEX_REQUIRE_DOTNET: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +53,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - name: Install libclang 20 and compilers
         run: |
           sudo apt-get update -q
@@ -72,6 +81,10 @@ jobs:
     env:
       # Python 3.12-3.14 default to the ANSI code page on Windows.
       PYTHONUTF8: "1"
+      BRIDGEFEX_REQUIRE_DOTNET: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +94,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       # The image ships LLVM 20 in C:\Program Files\LLVM; bridgefex checks the
       # version of the libclang.dll it loads.
       - name: Set up MSVC

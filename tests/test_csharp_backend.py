@@ -26,7 +26,7 @@ csharp_check = importlib.import_module("bridgefex.backends.csharp.check")
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
-needs_dotnet = pytest.mark.skipif(shutil.which("dotnet") is None, reason="needs the .NET SDK")
+needs_dotnet = pytest.mark.usefixtures("dotnet")
 
 PRELUDE = "#pragma once\n#include <cstddef>\n#include <cstdint>\n#include <string>\n"
 

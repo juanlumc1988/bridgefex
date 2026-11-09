@@ -22,10 +22,7 @@ from tests.support.toolchain import Toolchain
 
 CASES = [case for case in all_cases() if case.check_csharp.exists()]
 
-pytestmark = [
-    pytest.mark.usefixtures("libclang_loaded"),
-    pytest.mark.skipif(not runner_csharp.available(), reason="needs the .NET SDK"),
-]
+pytestmark = pytest.mark.usefixtures("libclang_loaded", "dotnet")
 
 Built = tuple[Case, Path, Path]
 
