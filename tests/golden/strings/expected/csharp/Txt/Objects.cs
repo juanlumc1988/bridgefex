@@ -21,10 +21,42 @@ public sealed class BridgefexFunctionAttribute : Attribute
     public string Name { get; }
 }
 
-/// <summary>The handle of a C++ object: destroyed once, when it is closed or collected, unless the
-/// object belongs to C++ (a reference or a pointer that a function gave).</summary>
+internal enum LeaseResult
+{
+    Ok,
+    Closed,
+    Busy,
+    Pinned,
+}
+
+/// <summary>The handle of a C++ object. It has its own state, because what SafeHandle counts is not enough:
+/// <list type="bullet">
+/// <item>a <i>lease</i> is a call that uses the object: closing it meanwhile destroys it when the call ends;</item>
+/// <item>closing (<c>Dispose</c>) destroys the object, always, when no call uses it;</item>
+/// <item>giving the object to C++ needs it for the call alone: no other call uses it, nobody else is giving
+/// it, and no C++ object points to it (a <i>pin</i>);</item>
+/// <item>the collector destroys the object only when no C++ object points to it any more (a pin defers it): the
+/// order of the finalizers is not defined, and a destructor may use what it points to.</item>
+/// </list>
+/// An object that belongs to C++ (a reference or a pointer that a function gave) is not destroyed by any of them.</summary>
 internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
+    private const int LeaseMask = (1 << 27) - 1;
+    private const int DisposedBit = 1 << 28;
+    private const int ClaimedBit = 1 << 29;
+    private const int GivenBit = 1 << 30;
+
+    private static readonly object Gate = new();
+    private static readonly HashSet<ObjectHandle> Deferred = new(ReferenceEqualityComparer.Instance);
+
+    private int _state;
+    private int _pins;
+    private bool _deferred;
+    private int _destroyed;
+
+    /// <summary>What the C++ object keeps pointers to (see <see cref="Keep"/>); released when it is destroyed.</summary>
+    internal Keep? Kept;
+
     protected ObjectHandle(bool ownsHandle) : base(ownsHandle)
     {
         Owns = ownsHandle;
@@ -32,47 +64,178 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
 
     internal bool Owns { get; }
 
-    private int _claimed;
-    private volatile bool _given;
-
-    /// <summary>What the C++ object keeps pointers to (see <see cref="Keep"/>); released when it is destroyed.</summary>
-    internal Keep? Kept;
-
-    /// <summary>Called by <c>ReleaseHandle</c> once the C++ object is destroyed: what it pointed to may go now.</summary>
-    protected void ReleaseKept()
-    {
-        Kept?.Release();
-    }
+    /// <summary>Destroys the C++ object.</summary>
+    protected abstract void Destroy();
 
     internal void Assign(IntPtr value)
     {
         SetHandle(value);
     }
 
-    /// <summary>One call at a time can give the object to C++: false if another one is giving it.</summary>
-    internal bool Claim()
-    {
-        return Interlocked.CompareExchange(ref _claimed, 1, 0) == 0;
-    }
+    /// <summary>True if the object was closed or given, or never was built.</summary>
+    internal bool IsGone => (Volatile.Read(ref _state) & (DisposedBit | GivenBit)) != 0 || IsInvalid;
 
-    internal void Unclaim()
+    /// <summary>A call starts to use the object.</summary>
+    internal LeaseResult TryLease()
     {
-        if (!_given)
+        while (true)
         {
-            Volatile.Write(ref _claimed, 0);
+            int state = Volatile.Read(ref _state);
+            if ((state & (DisposedBit | GivenBit)) != 0 || IsInvalid)
+            {
+                return LeaseResult.Closed;
+            }
+            if ((state & ClaimedBit) != 0)
+            {
+                return LeaseResult.Busy;
+            }
+            if (Interlocked.CompareExchange(ref _state, state + 1, state) == state)
+            {
+                return LeaseResult.Ok;
+            }
         }
     }
 
-    /// <summary>C++ owns the object from now on: this handle does not destroy it.</summary>
+    /// <summary>A call starts to use the object in order to give it: it must be the only one.</summary>
+    internal LeaseResult TryClaim()
+    {
+        while (true)
+        {
+            int state = Volatile.Read(ref _state);
+            if ((state & (DisposedBit | GivenBit)) != 0 || IsInvalid)
+            {
+                return LeaseResult.Closed;
+            }
+            if ((state & (ClaimedBit | LeaseMask)) != 0)
+            {
+                return LeaseResult.Busy;
+            }
+            lock (Gate)
+            {
+                if (_pins != 0)
+                {
+                    return LeaseResult.Pinned;
+                }
+            }
+            if (Interlocked.CompareExchange(ref _state, state | ClaimedBit | 1, state) == state)
+            {
+                return LeaseResult.Ok;
+            }
+        }
+    }
+
+    /// <summary>The call ends. If the object was closed meanwhile, it is destroyed now.</summary>
+    internal void ReleaseLease()
+    {
+        while (true)
+        {
+            int state = Volatile.Read(ref _state);
+            int next = state - 1;
+            if ((next & GivenBit) == 0)
+            {
+                next &= ~ClaimedBit;  // a claim that did not give the object ends with the call
+            }
+            if (Interlocked.CompareExchange(ref _state, next, state) == state)
+            {
+                if ((next & DisposedBit) != 0 && (next & (LeaseMask | GivenBit)) == 0)
+                {
+                    DestroyNow();
+                }
+                return;
+            }
+        }
+    }
+
+    /// <summary>C++ owns the object from now on: this handle never destroys it.</summary>
     internal void GiveUp()
     {
-        _given = true;
+        Interlocked.Or(ref _state, GivenBit);
         SetHandleAsInvalid();
+    }
+
+    /// <summary>The user closes the object: it is destroyed when no call uses it.</summary>
+    internal void CloseObject()
+    {
+        while (true)
+        {
+            int state = Volatile.Read(ref _state);
+            if ((state & (DisposedBit | GivenBit)) != 0)
+            {
+                return;
+            }
+            if (Interlocked.CompareExchange(ref _state, state | DisposedBit, state) == state)
+            {
+                if ((state & LeaseMask) == 0)
+                {
+                    DestroyNow();
+                }
+                return;
+            }
+        }
+    }
+
+    /// <summary>The C++ object of another handle points to this one.</summary>
+    internal void Pin()
+    {
+        lock (Gate)
+        {
+            _pins++;
+        }
+    }
+
+    internal void Unpin()
+    {
+        bool destroy;
+        lock (Gate)
+        {
+            _pins--;
+            destroy = _pins == 0 && _deferred;
+            if (destroy)
+            {
+                _deferred = false;
+                Deferred.Remove(this);
+            }
+        }
+        if (destroy)
+        {
+            DestroyNow();
+        }
+    }
+
+    /// <summary>The collector found the handle unreachable, so no call uses it.</summary>
+    protected sealed override bool ReleaseHandle()
+    {
+        lock (Gate)
+        {
+            if (_pins > 0)
+            {
+                // The C++ objects that point to this one are destroyed first (they are unreachable too).
+                _deferred = true;
+                Deferred.Add(this);
+                return true;
+            }
+        }
+        DestroyNow();
+        return true;
+    }
+
+    private void DestroyNow()
+    {
+        if (Interlocked.Exchange(ref _destroyed, 1) != 0)
+        {
+            return;
+        }
+        if (Owns && !IsInvalid)
+        {
+            Destroy();
+        }
+        SetHandleAsInvalid();
+        Kept?.Release();
     }
 }
 
-/// <summary>A hold on an object for the duration of a call: it cannot be closed meanwhile, nor can
-/// the objects that it is borrowed from.</summary>
+/// <summary>A hold on an object for the duration of a call: it cannot be destroyed meanwhile, nor can the
+/// objects that it is borrowed from.</summary>
 internal readonly ref struct Lease
 {
     private readonly ObjectHandle? _handle;
@@ -100,62 +263,41 @@ internal readonly ref struct Lease
         return new Lease(_handle, pointer, _owners, true);
     }
 
-    /// <summary>The object goes to C++, which destroys it: the hold ends with the call. An object
-    /// that is a view of another one (as one of its bases) gives that one.</summary>
+    /// <summary>The object (claimed by <c>Hold(..., give: true)</c>) goes to C++, which destroys it.</summary>
     internal IntPtr Give()
     {
-        if (_handle is { Owns: true })
-        {
-            _handle.GiveUp();
-        }
-        else if (_owners is not null)
-        {
-            foreach (ObjectHandle owner in _owners)
-            {
-                owner.GiveUp();
-            }
-        }
+        _handle?.GiveUp();
         return Pointer;
     }
 
     public void Dispose()
     {
-        _handle?.DangerousRelease();
+        _handle?.ReleaseLease();
         if (_owners is not null)
         {
             foreach (ObjectHandle owner in _owners)
             {
-                owner.DangerousRelease();
+                owner.ReleaseLease();
             }
         }
     }
 }
 
-/// <summary>The right to give an object to C++: only one call at a time has it.</summary>
-internal readonly ref struct Claim
-{
-    private readonly ObjectHandle? _handle;
-
-    internal Claim(ObjectHandle handle)
-    {
-        _handle = handle;
-    }
-
-    public void Dispose()
-    {
-        _handle?.Unclaim();
-    }
-}
-
-/// <summary>The objects that a C++ object keeps pointers to. They are held (their C++ objects are not
-/// destroyed, and what they are borrowed from stays alive) until the C++ object is destroyed, in this
-/// order: the collector does not order finalizers, and a destructor may use what it points to.</summary>
+/// <summary>The objects that a C++ object keeps pointers to. Their C++ objects are not destroyed by the
+/// collector (they are pinned) until the C++ object has been destroyed: the collector does not order
+/// finalizers, and a destructor may use what it points to. Closing an object destroys it all the same.
+/// Objects that point to each other, or an object that points to its own parts, are destroyed by closing them.</summary>
 internal sealed class Keep
 {
-    internal static readonly Keep Forever = new();
+    internal static readonly Keep Forever = new(null);
 
-    private readonly HashSet<BridgefexObject> _objects = new(ReferenceEqualityComparer.Instance);
+    private readonly ObjectHandle? _owner;
     private readonly HashSet<ObjectHandle> _pinned = new(ReferenceEqualityComparer.Instance);
+
+    internal Keep(ObjectHandle? owner)
+    {
+        _owner = owner;
+    }
 
     internal void Add(BridgefexObject value)
     {
@@ -163,28 +305,12 @@ internal sealed class Keep
         value.CollectOwning(owning);
         lock (this)
         {
-            if (!_objects.Add(value))
-            {
-                return;
-            }
             foreach (ObjectHandle handle in owning)
             {
-                if (_pinned.Contains(handle))
+                // What is part of the C++ object itself cannot outlive it, and pinning it would keep it for ever.
+                if (!ReferenceEquals(handle, _owner) && _pinned.Add(handle))
                 {
-                    continue;
-                }
-                bool added = false;
-                try
-                {
-                    handle.DangerousAddRef(ref added);
-                }
-                catch (ObjectDisposedException)
-                {
-                    // It was closed meanwhile: there is nothing to keep.
-                }
-                if (added)
-                {
-                    _pinned.Add(handle);
+                    handle.Pin();
                 }
             }
         }
@@ -193,30 +319,27 @@ internal sealed class Keep
     /// <summary>What was kept goes to <paramref name="other"/>: it is not released with this one.</summary>
     internal void MoveTo(Keep other)
     {
-        BridgefexObject[] objects;
         ObjectHandle[] pinned;
         lock (this)
         {
-            objects = new BridgefexObject[_objects.Count];
-            _objects.CopyTo(objects);
             pinned = new ObjectHandle[_pinned.Count];
             _pinned.CopyTo(pinned);
-            _objects.Clear();
             _pinned.Clear();
         }
+        var duplicated = new List<ObjectHandle>();
         lock (other)
         {
-            foreach (BridgefexObject value in objects)
-            {
-                other._objects.Add(value);
-            }
             foreach (ObjectHandle handle in pinned)
             {
                 if (!other._pinned.Add(handle))
                 {
-                    handle.DangerousRelease();
+                    duplicated.Add(handle);
                 }
             }
+        }
+        foreach (ObjectHandle handle in duplicated)
+        {
+            handle.Unpin();
         }
     }
 
@@ -228,11 +351,10 @@ internal sealed class Keep
             pinned = new ObjectHandle[_pinned.Count];
             _pinned.CopyTo(pinned);
             _pinned.Clear();
-            _objects.Clear();
         }
         foreach (ObjectHandle handle in pinned)
         {
-            handle.DangerousRelease();
+            handle.Unpin();
         }
     }
 }
@@ -243,7 +365,7 @@ public abstract class BridgefexObject : IDisposable
 {
     internal readonly ObjectHandle Handle;
     internal BridgefexObject[]? Owners;
-    internal bool ReadOnly;
+    internal bool ReadOnly { get; set; }
     internal Keep? Retained;
 
     /// <summary>For an object that is this very object seen as one of its bases (<c>AsBase</c>): the object.</summary>
@@ -262,7 +384,7 @@ public abstract class BridgefexObject : IDisposable
     {
         get
         {
-            if (Handle.IsClosed || Handle.IsInvalid)
+            if (Handle.IsGone)
             {
                 return true;
             }
@@ -282,8 +404,7 @@ public abstract class BridgefexObject : IDisposable
 
     public void Dispose()
     {
-        Handle.Dispose();
-        GC.SuppressFinalize(this);
+        Handle.CloseObject();
     }
 
     public void Close()
@@ -291,52 +412,74 @@ public abstract class BridgefexObject : IDisposable
         Dispose();
     }
 
-    internal Lease Hold(bool mutable)
+    private Exception Closed()
+    {
+        return new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+    }
+
+    /// <summary>A hold on the object for a call. With <paramref name="give"/> the call gives the object to C++:
+    /// it is refused if the object is borrowed (C++ owns it already), if another call uses it or is giving it, or
+    /// if the C++ object of another one points to it.</summary>
+    internal Lease Hold(bool mutable, bool give = false)
     {
         if (mutable && ReadOnly)
         {
             throw new InvalidOperationException(
                 GetType().Name + " object is read-only: it was obtained through a const reference or pointer");
         }
-        if (IsClosed)
+        BridgefexObject target = give ? Origin ?? this : this;
+        if (IsClosed || target.IsClosed)
         {
-            throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+            throw Closed();
+        }
+        if (give && (target.Handle is { Owns: false } || target.Owners is not null))
+        {
+            throw new InvalidOperationException(
+                GetType().Name + " object cannot be transferred: it is borrowed from another object");
         }
         // An object that is borrowed is valid while the objects it lives in are: they are held too.
         ObjectHandle[]? owners = null;
-        if (Owners is not null)
+        if (!give && Owners is not null)
         {
             var owning = new List<ObjectHandle>();
             CollectOwning(owning);
-            owners = AddRefAll(owning);
+            owners = LeaseAll(owning);
         }
-        bool added = false;
-        try
-        {
-            Handle.DangerousAddRef(ref added);
-        }
-        catch (ObjectDisposedException)
+        ObjectHandle leased = give ? target.Handle : Handle;
+        LeaseResult result = give ? leased.TryClaim() : leased.TryLease();
+        if (result != LeaseResult.Ok)
         {
             ReleaseAll(owners);
-            throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+            throw Refusal(result, give);
         }
-        return new Lease(Handle, Handle.DangerousGetHandle(), owners);
+        return new Lease(leased, Handle.DangerousGetHandle(), owners);
     }
 
-    private ObjectHandle[] AddRefAll(List<ObjectHandle> handles)
+    private Exception Refusal(LeaseResult result, bool give)
+    {
+        string name = GetType().Name;
+        return result switch
+        {
+            LeaseResult.Closed => Closed(),
+            LeaseResult.Pinned => new InvalidOperationException(
+                name + " object cannot be transferred: the C++ object of another one points to it"),
+            _ => new InvalidOperationException(
+                give
+                    ? name + " object cannot be transferred: another call uses it, or is giving it"
+                    : name + " object is being given to C++ by another call"),
+        };
+    }
+
+    private ObjectHandle[] LeaseAll(List<ObjectHandle> handles)
     {
         var held = new List<ObjectHandle>(handles.Count);
         foreach (ObjectHandle handle in handles)
         {
-            bool added = false;
-            try
-            {
-                handle.DangerousAddRef(ref added);
-            }
-            catch (ObjectDisposedException)
+            LeaseResult result = handle.TryLease();
+            if (result != LeaseResult.Ok)
             {
                 ReleaseAll(held.ToArray());
-                throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+                throw Refusal(result, false);
             }
             held.Add(handle);
         }
@@ -349,31 +492,9 @@ public abstract class BridgefexObject : IDisposable
         {
             foreach (ObjectHandle handle in handles)
             {
-                handle.DangerousRelease();
+                handle.ReleaseLease();
             }
         }
-    }
-
-    /// <summary>The right to give this object to C++. It is refused if the object is borrowed
-    /// (C++ owns it already) or another call, or another argument of this one, is giving it.</summary>
-    internal Claim ClaimToGive()
-    {
-        BridgefexObject target = Origin ?? this;
-        if (IsClosed || target.IsClosed)
-        {
-            throw new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
-        }
-        if (target.Handle is { Owns: false } || target.Owners is not null)
-        {
-            throw new InvalidOperationException(
-                GetType().Name + " object cannot be transferred: it is borrowed from another object");
-        }
-        if (!target.Handle.Claim())
-        {
-            throw new InvalidOperationException(
-                GetType().Name + " object cannot be transferred: it is being given to C++ by another call or argument");
-        }
-        return new Claim(target.Handle);
     }
 
     /// <summary>The handles that own the C++ objects this one lives in: its own, or those of the
@@ -399,7 +520,7 @@ public abstract class BridgefexObject : IDisposable
         Keep? kept = Retained;
         if (kept is null)
         {
-            var fresh = new Keep();
+            var fresh = new Keep(Handle);
             kept = Interlocked.CompareExchange(ref Handle.Kept, fresh, null) ?? fresh;
             Retained = kept;
         }

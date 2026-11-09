@@ -14,11 +14,9 @@ internal sealed class RegistryHandle : ObjectHandle
     public RegistryHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.edge_Registry_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

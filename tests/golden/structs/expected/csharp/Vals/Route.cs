@@ -20,26 +20,25 @@ public unsafe partial struct Leg
     /// </summary>
     public static Leg Default()
     {
-        Native.route_Leg raw;
-        Runtime.Check(Native.route_Leg_init(&raw));
-        return FromNative(raw);
-    }
-
-    internal Native.route_Leg ToNative()
-    {
         Native.route_Leg raw = default;
-        raw.from_ = From.ToNative();
-        raw.to = To.ToNative();
-        raw.kind = (byte)Kind;
-        return raw;
+        Runtime.Check(Native.route_Leg_init(&raw));
+        return FromNative(&raw);
     }
 
-    internal static Leg FromNative(in Native.route_Leg raw)
+    internal void ToNative(Native.route_Leg* raw)
+    {
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.route_Leg));
+        From.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
+        To.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
+        raw->kind = (byte)Kind;
+    }
+
+    internal static Leg FromNative(Native.route_Leg* raw)
     {
         Leg result = default;
-        result.From = global::Vals.Geo.Point.FromNative(raw.from_);
-        result.To = global::Vals.Geo.Point.FromNative(raw.to);
-        result.Kind = (global::Vals.Geo.Kind)raw.kind;
+        result.From = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->from_));
+        result.To = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->to));
+        result.Kind = (global::Vals.Geo.Kind)raw->kind;
         return result;
     }
 }
@@ -52,7 +51,8 @@ public static unsafe class Functions
     [BridgefexFunction("route_length")]
     public static double Length(global::Vals.Route.Leg leg)
     {
-        Native.route_Leg __s1 = leg.ToNative();
+        Native.route_Leg __s1 = default;
+        leg.ToNative(&__s1);
         double __result;
         Runtime.Check(Native.route_length(&__s1, &__result));
         return __result;
@@ -64,10 +64,11 @@ public static unsafe class Functions
     [BridgefexFunction("route_reverse")]
     public static global::Vals.Route.Leg Reverse(global::Vals.Route.Leg leg)
     {
-        Native.route_Leg __s1 = leg.ToNative();
+        Native.route_Leg __s1 = default;
+        leg.ToNative(&__s1);
         Native.route_Leg __result;
         Runtime.Check(Native.route_reverse(&__s1, &__result));
-        return global::Vals.Route.Leg.FromNative(__result);
+        return global::Vals.Route.Leg.FromNative(&__result);
     }
 
     /// <summary>
@@ -76,9 +77,10 @@ public static unsafe class Functions
     [BridgefexFunction("route_start")]
     public static global::Vals.Geo.Point Start(global::Vals.Route.Leg leg)
     {
-        Native.route_Leg __s1 = leg.ToNative();
+        Native.route_Leg __s1 = default;
+        leg.ToNative(&__s1);
         Native.geo_Point __result;
         Runtime.Check(Native.route_start(&__s1, &__result));
-        return global::Vals.Geo.Point.FromNative(__result);
+        return global::Vals.Geo.Point.FromNative(&__result);
     }
 }

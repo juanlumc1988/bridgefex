@@ -14,11 +14,9 @@ internal sealed class CircleHandle : ObjectHandle
     public CircleHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.demo_geometry_Circle_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

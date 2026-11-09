@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+import bridgefex
 from tests.conformance import runner_csharp
 from tests.support.build import build
 from tests.support.cases import Case, all_cases, load_case
@@ -129,3 +130,88 @@ def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_pat
     completed = runner_csharp.execute(case, dll, library)
     assert completed.returncode != 0
     assert "does not match these bindings" in completed.stdout + completed.stderr
+
+
+def test_two_modules_can_be_compiled_into_one_assembly(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """An assembly has one resolver of libraries: the second module (and a resolver of the user)
+    must not break the first, nor itself."""
+    cases: list[Case] = []
+    libraries: dict[str, Path] = {}
+    generated: list[Path] = []
+    for number, module in enumerate(("modone", "modtwo"), start=1):
+        root = tmp_path / module
+        (root / "input").mkdir(parents=True)
+        (root / "input" / f"{module}.h").write_text(
+            f"#pragma once\nnamespace {module} {{ inline int value() {{ return {number}; }} }}\n",
+            encoding="utf-8",
+        )
+        case = Case(
+            name=module,
+            directory=root,
+            module=module,
+            headers=(root / "input" / f"{module}.h",),
+            std="c++17",
+            min_cxx="c++11",
+            languages=("csharp",),
+        )
+        cases.append(case)
+        libraries[module], _ = build(case, toolchain, root / "build")
+        files = bridgefex.generate(case.headers, case.options(("csharp",))).files
+        bridgefex.write_files(files, root / "generated")
+        generated.append(root / "generated")
+    program = tmp_path / "Program.cs"
+    line = (
+        "Console.WriteLine(Modone.Modone.Functions.Value() * 10 + Modtwo.Modtwo.Functions.Value());"
+    )
+    program.write_text(f"{line}\n{line}\n", encoding="utf-8")
+    project = tmp_path / "Both.csproj"
+    sources = "\n".join(
+        f'    <Compile Include="{path.as_posix()}/**/*.cs" />' for path in generated
+    )
+    project.write_text(
+        '<Project Sdk="Microsoft.NET.Sdk">\n  <PropertyGroup>\n'
+        "    <OutputType>Exe</OutputType>\n    <TargetFramework>net8.0</TargetFramework>\n"
+        "    <Nullable>enable</Nullable>\n    <ImplicitUsings>enable</ImplicitUsings>\n"
+        "    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>\n"
+        "    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>\n"
+        "  </PropertyGroup>\n  <ItemGroup>\n"
+        f'    <Compile Include="{program.as_posix()}" />\n{sources}\n'
+        "  </ItemGroup>\n</Project>\n",
+        encoding="utf-8",
+    )
+    built_ = subprocess.run(
+        [
+            "dotnet",
+            "build",
+            str(project),
+            "-c",
+            "Release",
+            "-nologo",
+            "-v",
+            "q",
+            "-o",
+            str(tmp_path / "bin"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=runner_csharp.environment(),
+        timeout=900,
+    )
+    assert built_.returncode == 0, built_.stdout + built_.stderr
+    environment = {
+        **runner_csharp.environment(),
+        **{f"{module.upper()}_LIBRARY": str(path) for module, path in libraries.items()},
+    }
+    completed = subprocess.run(
+        ["dotnet", str(tmp_path / "bin" / "Both.dll")],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.split() == ["12", "12"]

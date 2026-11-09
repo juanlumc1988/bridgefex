@@ -14,11 +14,9 @@ internal sealed class CounterHandle : ObjectHandle
     public CounterHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Counter_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -59,7 +57,7 @@ public unsafe partial class Counter : BridgefexObject
         return result;
     }
 
-    internal virtual Lease Hold_inh_Counter(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Counter(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
     /// int32_t inh::Counter::next()
@@ -94,11 +92,9 @@ internal sealed class LabeledHandle : ObjectHandle
     public LabeledHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Labeled_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -155,7 +151,7 @@ public unsafe partial class Labeled : BridgefexObject
         return result;
     }
 
-    internal virtual Lease Hold_inh_Labeled(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Labeled(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
     /// std::string inh::Labeled::label() const
@@ -200,11 +196,9 @@ internal sealed class WidgetHandle : ObjectHandle
     public WidgetHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Widget_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -245,9 +239,9 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
         return result;
     }
 
-    internal override Lease Hold_inh_Counter(bool mutable)
+    internal override Lease Hold_inh_Counter(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Widget_as_inh_Counter(lease.Pointer) : Native.inh_Widget_as_inh_Counter_const(lease.Pointer));
     }
 
@@ -283,9 +277,9 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
         return __result;
     }
 
-    internal Lease Hold_inh_Labeled(bool mutable)
+    internal Lease Hold_inh_Labeled(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Widget_as_inh_Labeled(lease.Pointer) : Native.inh_Widget_as_inh_Labeled_const(lease.Pointer));
     }
 
@@ -325,11 +319,9 @@ internal sealed class TaggedHandle : ObjectHandle
     public TaggedHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Tagged_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -370,7 +362,7 @@ public unsafe partial class Tagged : BridgefexObject
         return result;
     }
 
-    internal virtual Lease Hold_inh_Tagged(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Tagged(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
     /// int32_t inh::Tagged::tag() const
@@ -393,11 +385,9 @@ internal sealed class ObserverHandle : ObjectHandle
     public ObserverHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Observer_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -442,9 +432,9 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
         return result;
     }
 
-    internal override Lease Hold_inh_Tagged(bool mutable)
+    internal override Lease Hold_inh_Tagged(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Observer_as_inh_Tagged(lease.Pointer) : Native.inh_Observer_as_inh_Tagged_const(lease.Pointer));
     }
 
@@ -460,9 +450,9 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
         return __result;
     }
 
-    internal Lease Hold_inh_Labeled(bool mutable)
+    internal Lease Hold_inh_Labeled(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Observer_as_inh_Labeled(lease.Pointer) : Native.inh_Observer_as_inh_Labeled_const(lease.Pointer));
     }
 
@@ -522,11 +512,9 @@ internal sealed class ShelfHandle : ObjectHandle
     public ShelfHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Shelf_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -579,8 +567,7 @@ public unsafe partial class Shelf : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
         ArgumentNullException.ThrowIfNull(item);
-        using var __c1 = item.ClaimToGive();
-        using var __t1 = item.Hold_inh_Labeled(true);
+        using var __t1 = item.Hold_inh_Labeled(true, true);
         IntPtr __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
@@ -611,11 +598,9 @@ internal sealed class PlainHandle : ObjectHandle
     public PlainHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Plain_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -656,7 +641,7 @@ public unsafe partial class Plain : BridgefexObject
         return result;
     }
 
-    internal virtual Lease Hold_inh_Plain(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Plain(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
     /// int32_t inh::Plain::value() const
@@ -679,11 +664,9 @@ internal sealed class PlainDerivedHandle : ObjectHandle
     public PlainDerivedHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_PlainDerived_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -724,9 +707,9 @@ public unsafe partial class PlainDerived : global::Inh.Widget.Plain
         return result;
     }
 
-    internal override Lease Hold_inh_Plain(bool mutable)
+    internal override Lease Hold_inh_Plain(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_PlainDerived_as_inh_Plain(lease.Pointer) : Native.inh_PlainDerived_as_inh_Plain_const(lease.Pointer));
     }
 
@@ -803,8 +786,7 @@ public static unsafe class Functions
     {
         ArgumentNullException.ThrowIfNull(plain);
         Runtime.CheckExact(plain, typeof(global::Inh.Widget.Plain), "plain");
-        using var __c1 = plain.ClaimToGive();
-        using var __t1 = plain.Hold_inh_Plain(true);
+        using var __t1 = plain.Hold_inh_Plain(true, true);
         IntPtr __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();

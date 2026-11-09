@@ -14,11 +14,9 @@ internal sealed class PersonHandle : ObjectHandle
     public PersonHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.text_Person_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

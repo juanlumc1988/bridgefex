@@ -19,24 +19,23 @@ public unsafe partial struct Point
     /// </summary>
     public static Point Default()
     {
-        Native.geo_Point raw;
-        Runtime.Check(Native.geo_Point_init(&raw));
-        return FromNative(raw);
-    }
-
-    internal Native.geo_Point ToNative()
-    {
         Native.geo_Point raw = default;
-        raw.x = X;
-        raw.y = Y;
-        return raw;
+        Runtime.Check(Native.geo_Point_init(&raw));
+        return FromNative(&raw);
     }
 
-    internal static Point FromNative(in Native.geo_Point raw)
+    internal void ToNative(Native.geo_Point* raw)
+    {
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Point));
+        raw->x = X;
+        raw->y = Y;
+    }
+
+    internal static Point FromNative(Native.geo_Point* raw)
     {
         Point result = default;
-        result.X = raw.x;
-        result.Y = raw.y;
+        result.X = raw->x;
+        result.Y = raw->y;
         return result;
     }
 }
@@ -74,26 +73,25 @@ public unsafe partial struct Config
     /// </summary>
     public static Config Default()
     {
-        Native.geo_Config raw;
-        Runtime.Check(Native.geo_Config_init(&raw));
-        return FromNative(raw);
-    }
-
-    internal Native.geo_Config ToNative()
-    {
         Native.geo_Config raw = default;
-        raw.baud = Baud;
-        raw.parity = (Parity ? (byte)1 : (byte)0);
-        raw.kind = (byte)Kind;
-        return raw;
+        Runtime.Check(Native.geo_Config_init(&raw));
+        return FromNative(&raw);
     }
 
-    internal static Config FromNative(in Native.geo_Config raw)
+    internal void ToNative(Native.geo_Config* raw)
+    {
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Config));
+        raw->baud = Baud;
+        raw->parity = (Parity ? (byte)1 : (byte)0);
+        raw->kind = (byte)Kind;
+    }
+
+    internal static Config FromNative(Native.geo_Config* raw)
     {
         Config result = default;
-        result.Baud = raw.baud;
-        result.Parity = (raw.parity != 0);
-        result.Kind = (global::Vals.Geo.Kind)raw.kind;
+        result.Baud = raw->baud;
+        result.Parity = (raw->parity != 0);
+        result.Kind = (global::Vals.Geo.Kind)raw->kind;
         return result;
     }
 }
@@ -115,55 +113,54 @@ public unsafe partial struct Msg
     /// </summary>
     public static Msg Default()
     {
-        Native.geo_Msg raw;
+        Native.geo_Msg raw = default;
         Runtime.Check(Native.geo_Msg_init(&raw));
-        return FromNative(raw);
+        return FromNative(&raw);
     }
 
-    internal Native.geo_Msg ToNative()
+    internal void ToNative(Native.geo_Msg* raw)
     {
-        Native.geo_Msg raw = default;
-        raw.tag = Tag;
-        raw.where = Where.ToNative();
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Msg));
+        raw->tag = Tag;
+        Where.ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
         if (Samples is null || Samples.Length != 3)
         {
             throw new ArgumentException("Samples must have 3 elements", "Samples");
         }
         for (int i = 0; i < 3; i++)
         {
-            raw.samples[i] = Samples[i];
+            raw->samples[i] = Samples[i];
         }
-        raw.ok = (Ok ? (byte)1 : (byte)0);
+        raw->ok = (Ok ? (byte)1 : (byte)0);
         if (Path is null || Path.Length != 2)
         {
             throw new ArgumentException("Path must have 2 elements", "Path");
         }
         for (int i = 0; i < 2; i++)
         {
-            raw.path[i] = Path[i].ToNative();
+            Path[i].ToNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
         }
         Runtime.CheckEnum((long)Quality, 0, 3, "Quality");
-        raw.quality = (int)Quality;
-        return raw;
+        raw->quality = (int)Quality;
     }
 
-    internal static Msg FromNative(in Native.geo_Msg raw)
+    internal static Msg FromNative(Native.geo_Msg* raw)
     {
         Msg result = default;
-        result.Tag = raw.tag;
-        result.Where = global::Vals.Geo.Point.FromNative(raw.where);
+        result.Tag = raw->tag;
+        result.Where = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->where));
         result.Samples = new short[3];
         for (int i = 0; i < 3; i++)
         {
-            result.Samples[i] = raw.samples[i];
+            result.Samples[i] = raw->samples[i];
         }
-        result.Ok = (raw.ok != 0);
+        result.Ok = (raw->ok != 0);
         result.Path = new global::Vals.Geo.Point[2];
         for (int i = 0; i < 2; i++)
         {
-            result.Path[i] = global::Vals.Geo.Point.FromNative(raw.path[i]);
+            result.Path[i] = global::Vals.Geo.Point.FromNative((Native.geo_Point*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref raw->path[i]));
         }
-        result.Quality = (global::Vals.Geo.Quality)raw.quality;
+        result.Quality = (global::Vals.Geo.Quality)raw->quality;
         return result;
     }
 }
@@ -185,42 +182,41 @@ public unsafe partial struct Wide
     /// </summary>
     public static Wide Default()
     {
-        Native.geo_Wide raw;
+        Native.geo_Wide raw = default;
         Runtime.Check(Native.geo_Wide_init(&raw));
-        return FromNative(raw);
+        return FromNative(&raw);
     }
 
-    internal Native.geo_Wide ToNative()
+    internal void ToNative(Native.geo_Wide* raw)
     {
-        Native.geo_Wide raw = default;
-        raw.f = F;
-        raw.big = Big;
-        raw.size = Size;
-        raw.l = new CLong(checked((nint)L));
-        raw.c = C;
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Wide));
+        raw->f = F;
+        raw->big = Big;
+        raw->size = Size;
+        raw->l = new CLong(checked((nint)L));
+        raw->c = C;
         if (Bytes is null || Bytes.Length != 4)
         {
             throw new ArgumentException("Bytes must have 4 elements", "Bytes");
         }
         for (int i = 0; i < 4; i++)
         {
-            raw.bytes[i] = Bytes[i];
+            raw->bytes[i] = Bytes[i];
         }
-        return raw;
     }
 
-    internal static Wide FromNative(in Native.geo_Wide raw)
+    internal static Wide FromNative(Native.geo_Wide* raw)
     {
         Wide result = default;
-        result.F = raw.f;
-        result.Big = raw.big;
-        result.Size = raw.size;
-        result.L = (long)raw.l.Value;
-        result.C = raw.c;
+        result.F = raw->f;
+        result.Big = raw->big;
+        result.Size = raw->size;
+        result.L = (long)raw->l.Value;
+        result.C = raw->c;
         result.Bytes = new byte[4];
         for (int i = 0; i < 4; i++)
         {
-            result.Bytes[i] = raw.bytes[i];
+            result.Bytes[i] = raw->bytes[i];
         }
         return result;
     }
@@ -240,26 +236,25 @@ public unsafe partial struct Names
     /// </summary>
     public static Names Default()
     {
-        Native.geo_Names raw;
-        Runtime.Check(Native.geo_Names_init(&raw));
-        return FromNative(raw);
-    }
-
-    internal Native.geo_Names ToNative()
-    {
         Native.geo_Names raw = default;
-        raw.from_ = From;
-        raw.restrict_ = Restrict;
-        raw.errno_ = Errno;
-        return raw;
+        Runtime.Check(Native.geo_Names_init(&raw));
+        return FromNative(&raw);
     }
 
-    internal static Names FromNative(in Native.geo_Names raw)
+    internal void ToNative(Native.geo_Names* raw)
+    {
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Names));
+        raw->from_ = From;
+        raw->restrict_ = Restrict;
+        raw->errno_ = Errno;
+    }
+
+    internal static Names FromNative(Native.geo_Names* raw)
     {
         Names result = default;
-        result.From = raw.from_;
-        result.Restrict = raw.restrict_;
-        result.Errno = raw.errno_;
+        result.From = raw->from_;
+        result.Restrict = raw->restrict_;
+        result.Errno = raw->errno_;
         return result;
     }
 }
@@ -286,24 +281,23 @@ public unsafe partial struct Tagged
     /// </summary>
     public static Tagged Default()
     {
-        Native.geo_Tagged raw;
-        Runtime.Check(Native.geo_Tagged_init(&raw));
-        return FromNative(raw);
-    }
-
-    internal Native.geo_Tagged ToNative()
-    {
         Native.geo_Tagged raw = default;
-        raw.mode = (sbyte)Mode_;
-        raw.value = Value;
-        return raw;
+        Runtime.Check(Native.geo_Tagged_init(&raw));
+        return FromNative(&raw);
     }
 
-    internal static Tagged FromNative(in Native.geo_Tagged raw)
+    internal void ToNative(Native.geo_Tagged* raw)
+    {
+        NativeMemory.Clear(raw, (nuint)sizeof(Native.geo_Tagged));
+        raw->mode = (sbyte)Mode_;
+        raw->value = Value;
+    }
+
+    internal static Tagged FromNative(Native.geo_Tagged* raw)
     {
         Tagged result = default;
-        result.Mode_ = (global::Vals.Geo.Tagged.Mode)raw.mode;
-        result.Value = raw.value;
+        result.Mode_ = (global::Vals.Geo.Tagged.Mode)raw->mode;
+        result.Value = raw->value;
         return result;
     }
 }
@@ -316,11 +310,9 @@ internal sealed class PathHandle : ObjectHandle
     public PathHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.geo_Path_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -341,7 +333,8 @@ public unsafe partial class Path : BridgefexObject
     [BridgefexFunction("geo_Path_create")]
     public Path(global::Vals.Geo.Point start) : base(new PathHandle())
     {
-        Native.geo_Point __s1 = start.ToNative();
+        Native.geo_Point __s1 = default;
+        start.ToNative(&__s1);
         IntPtr __result;
         int __status = Native.geo_Path_create(&__result, &__s1);
         Handle.Assign(__result);
@@ -369,7 +362,8 @@ public unsafe partial class Path : BridgefexObject
     public void Add(global::Vals.Geo.Point p)
     {
         using var __self = Hold(true);
-        Native.geo_Point __s1 = p.ToNative();
+        Native.geo_Point __s1 = default;
+        p.ToNative(&__s1);
         Runtime.Check(Native.geo_Path_add(__self.Pointer, &__s1));
     }
 
@@ -382,7 +376,7 @@ public unsafe partial class Path : BridgefexObject
         using var __self = Hold(false);
         Native.geo_Point __result;
         Runtime.Check(Native.geo_Path_last(__self.Pointer, &__result));
-        return global::Vals.Geo.Point.FromNative(__result);
+        return global::Vals.Geo.Point.FromNative(&__result);
     }
 
     /// <summary>
@@ -393,7 +387,7 @@ public unsafe partial class Path : BridgefexObject
     {
         Native.geo_Point __result;
         Runtime.Check(Native.geo_Path_origin(&__result));
-        return global::Vals.Geo.Point.FromNative(__result);
+        return global::Vals.Geo.Point.FromNative(&__result);
     }
 }
 
@@ -405,11 +399,13 @@ public static unsafe class Functions
     [BridgefexFunction("geo_mid")]
     public static global::Vals.Geo.Point Mid(global::Vals.Geo.Point a, global::Vals.Geo.Point b)
     {
-        Native.geo_Point __s1 = a.ToNative();
-        Native.geo_Point __s2 = b.ToNative();
+        Native.geo_Point __s1 = default;
+        a.ToNative(&__s1);
+        Native.geo_Point __s2 = default;
+        b.ToNative(&__s2);
         Native.geo_Point __result;
         Runtime.Check(Native.geo_mid(&__s1, &__s2, &__result));
-        return global::Vals.Geo.Point.FromNative(__result);
+        return global::Vals.Geo.Point.FromNative(&__result);
     }
 
     /// <summary>
@@ -418,10 +414,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_echo")]
     public static global::Vals.Geo.Msg Echo(global::Vals.Geo.Msg m)
     {
-        Native.geo_Msg __s1 = m.ToNative();
+        Native.geo_Msg __s1 = default;
+        m.ToNative(&__s1);
         Native.geo_Msg __result;
         Runtime.Check(Native.geo_echo(&__s1, &__result));
-        return global::Vals.Geo.Msg.FromNative(__result);
+        return global::Vals.Geo.Msg.FromNative(&__result);
     }
 
     /// <summary>
@@ -430,10 +427,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_shift")]
     public static global::Vals.Geo.Msg Shift(global::Vals.Geo.Msg m, short delta)
     {
-        Native.geo_Msg __s1 = m.ToNative();
+        Native.geo_Msg __s1 = default;
+        m.ToNative(&__s1);
         Native.geo_Msg __result;
         Runtime.Check(Native.geo_shift(&__s1, delta, &__result));
-        return global::Vals.Geo.Msg.FromNative(__result);
+        return global::Vals.Geo.Msg.FromNative(&__result);
     }
 
     /// <summary>
@@ -442,10 +440,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_configure")]
     public static global::Vals.Geo.Config Configure(global::Vals.Geo.Config c)
     {
-        Native.geo_Config __s1 = c.ToNative();
+        Native.geo_Config __s1 = default;
+        c.ToNative(&__s1);
         Native.geo_Config __result;
         Runtime.Check(Native.geo_configure(&__s1, &__result));
-        return global::Vals.Geo.Config.FromNative(__result);
+        return global::Vals.Geo.Config.FromNative(&__result);
     }
 
     /// <summary>
@@ -454,10 +453,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_widen")]
     public static global::Vals.Geo.Wide Widen(global::Vals.Geo.Wide w)
     {
-        Native.geo_Wide __s1 = w.ToNative();
+        Native.geo_Wide __s1 = default;
+        w.ToNative(&__s1);
         Native.geo_Wide __result;
         Runtime.Check(Native.geo_widen(&__s1, &__result));
-        return global::Vals.Geo.Wide.FromNative(__result);
+        return global::Vals.Geo.Wide.FromNative(&__result);
     }
 
     /// <summary>
@@ -466,10 +466,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_rename")]
     public static global::Vals.Geo.Names Rename(global::Vals.Geo.Names n)
     {
-        Native.geo_Names __s1 = n.ToNative();
+        Native.geo_Names __s1 = default;
+        n.ToNative(&__s1);
         Native.geo_Names __result;
         Runtime.Check(Native.geo_rename(&__s1, &__result));
-        return global::Vals.Geo.Names.FromNative(__result);
+        return global::Vals.Geo.Names.FromNative(&__result);
     }
 
     /// <summary>
@@ -478,10 +479,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_toggle")]
     public static global::Vals.Geo.Tagged Toggle(global::Vals.Geo.Tagged t)
     {
-        Native.geo_Tagged __s1 = t.ToNative();
+        Native.geo_Tagged __s1 = default;
+        t.ToNative(&__s1);
         Native.geo_Tagged __result;
         Runtime.Check(Native.geo_toggle(&__s1, &__result));
-        return global::Vals.Geo.Tagged.FromNative(__result);
+        return global::Vals.Geo.Tagged.FromNative(&__result);
     }
 
     /// <summary>
@@ -490,10 +492,11 @@ public static unsafe class Functions
     [BridgefexFunction("geo_scale")]
     public static global::Vals.Geo.Point Scale(global::Vals.Geo.Point p, double factor)
     {
-        Native.geo_Point __s1 = p.ToNative();
+        Native.geo_Point __s1 = default;
+        p.ToNative(&__s1);
         Native.geo_Point __result;
         Runtime.Check(Native.geo_scale(&__s1, factor, &__result));
-        return global::Vals.Geo.Point.FromNative(__result);
+        return global::Vals.Geo.Point.FromNative(&__result);
     }
 
     /// <summary>
@@ -502,7 +505,8 @@ public static unsafe class Functions
     [BridgefexFunction("geo_area_geo_Point")]
     public static int AreaGeoPoint(global::Vals.Geo.Point a)
     {
-        Native.geo_Point __s1 = a.ToNative();
+        Native.geo_Point __s1 = default;
+        a.ToNative(&__s1);
         int __result;
         Runtime.Check(Native.geo_area_geo_Point(&__s1, &__result));
         return __result;
@@ -514,7 +518,8 @@ public static unsafe class Functions
     [BridgefexFunction("geo_area_geo_Wide")]
     public static int AreaGeoWide(global::Vals.Geo.Wide w)
     {
-        Native.geo_Wide __s1 = w.ToNative();
+        Native.geo_Wide __s1 = default;
+        w.ToNative(&__s1);
         int __result;
         Runtime.Check(Native.geo_area_geo_Wide(&__s1, &__result));
         return __result;

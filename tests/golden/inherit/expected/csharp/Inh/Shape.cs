@@ -14,11 +14,9 @@ internal sealed class NamedHandle : ObjectHandle
     public NamedHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Named_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -47,7 +45,7 @@ public unsafe partial class Named : BridgefexObject
         return result;
     }
 
-    internal virtual Lease Hold_inh_Named(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Named(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
     /// std::string inh::Named::name() const
@@ -98,11 +96,9 @@ internal sealed class ShapeHandle : ObjectHandle
     public ShapeHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Shape_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -131,11 +127,11 @@ public unsafe partial class Shape : global::Inh.Shape.Named
         return result;
     }
 
-    internal virtual Lease Hold_inh_Shape(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Shape(bool mutable, bool give = false) => Hold(mutable, give);
 
-    internal override Lease Hold_inh_Named(bool mutable)
+    internal override Lease Hold_inh_Named(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Shape_as_inh_Named(lease.Pointer) : Native.inh_Shape_as_inh_Named_const(lease.Pointer));
     }
 

@@ -47,6 +47,9 @@ class Names:
 
     struct_plans: Mapping[str, StructPlan] = field(default_factory=dict)
 
+    large_structs: frozenset[str] = frozenset()
+    """The structs (by C type) whose mirror is too big for the stack."""
+
     def cls(self, info: ClassInfo) -> str:
         return self.classes[info.c_type]
 
@@ -256,8 +259,16 @@ class _Lowerer:
             self.string_param(spec, position, name)
         elif isinstance(type_, StructRef):
             assert spec.struct is not None
-            self.body.add(f"Native.{spec.struct.c_type} {L}s{position} = {name}.ToNative();")
-            self.arguments[spec.name] = f"&{L}s{position}"
+            mirror = f"Native.{spec.struct.c_type}"
+            local = f"{L}s{position}"
+            if spec.struct.c_type in self.names.large_structs:
+                self.body.add(f"using var {local} = Block<{mirror}>.Alloc();")
+                self.body.add(f"{name}.ToNative({local}.Pointer);")
+                self.arguments[spec.name] = f"{local}.Pointer"
+            else:
+                self.body.add(f"{mirror} {local} = default;")
+                self.body.add(f"{name}.ToNative(&{local});")
+                self.arguments[spec.name] = f"&{local}"
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
         else:
@@ -363,9 +374,15 @@ class _Lowerer:
             self.string_result(type_, spec.as_bytes, out)
         elif isinstance(type_, StructRef):
             assert spec.struct is not None
-            body.add(f"Native.{spec.struct.c_type} {L}result;")
-            self.arguments["out_result"] = f"&{L}result"
-            out.after_check = [f"return {returns}.FromNative({L}result);"]
+            mirror = f"Native.{spec.struct.c_type}"
+            if spec.struct.c_type in self.names.large_structs:
+                body.add(f"using var {L}result = Block<{mirror}>.Alloc();")
+                self.arguments["out_result"] = f"{L}result.Pointer"
+                out.after_check = [f"return {returns}.FromNative({L}result.Pointer);"]
+            else:
+                body.add(f"{mirror} {L}result;")
+                self.arguments["out_result"] = f"&{L}result"
+                out.after_check = [f"return {returns}.FromNative(&{L}result);"]
         elif isinstance(type_, ClassRef):
             self.object_result(spec, type_, out)
         else:

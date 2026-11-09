@@ -14,11 +14,9 @@ internal sealed class AccumulatorHandle : ObjectHandle
     public AccumulatorHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.scalars_Accumulator_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

@@ -1,0 +1,6 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): types whose conversion is
+# not the identity (a C long), and structs too big for the stack.
+module = "abi"
+headers = ["abi.h"]
+std = "c++17"
+languages = ["csharp"]

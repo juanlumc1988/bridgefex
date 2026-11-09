@@ -108,11 +108,9 @@ internal sealed class LampHandle : ObjectHandle
     public LampHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.colors_Lamp_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

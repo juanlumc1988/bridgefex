@@ -14,11 +14,9 @@ internal sealed class CircleHandle : ObjectHandle
     public CircleHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Circle_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -59,17 +57,17 @@ public unsafe partial class Circle : global::Inh.Shape.Shape
         return result;
     }
 
-    internal virtual Lease Hold_inh_Circle(bool mutable) => Hold(mutable);
+    internal virtual Lease Hold_inh_Circle(bool mutable, bool give = false) => Hold(mutable, give);
 
-    internal override Lease Hold_inh_Shape(bool mutable)
+    internal override Lease Hold_inh_Shape(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Circle_as_inh_Shape(lease.Pointer) : Native.inh_Circle_as_inh_Shape_const(lease.Pointer));
     }
 
-    internal override Lease Hold_inh_Named(bool mutable)
+    internal override Lease Hold_inh_Named(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Circle_as_inh_Named(lease.Pointer) : Native.inh_Circle_as_inh_Named_const(lease.Pointer));
     }
 
@@ -138,11 +136,9 @@ internal sealed class SquareHandle : ObjectHandle
     public SquareHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Square_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -183,15 +179,15 @@ public unsafe partial class Square : global::Inh.Shape.Shape
         return result;
     }
 
-    internal override Lease Hold_inh_Shape(bool mutable)
+    internal override Lease Hold_inh_Shape(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Square_as_inh_Shape(lease.Pointer) : Native.inh_Square_as_inh_Shape_const(lease.Pointer));
     }
 
-    internal override Lease Hold_inh_Named(bool mutable)
+    internal override Lease Hold_inh_Named(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Square_as_inh_Named(lease.Pointer) : Native.inh_Square_as_inh_Named_const(lease.Pointer));
     }
 
@@ -248,11 +244,9 @@ internal sealed class RingHandle : ObjectHandle
     public RingHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.inh_Ring_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -293,21 +287,21 @@ public unsafe partial class Ring : global::Inh.Shapes.Circle
         return result;
     }
 
-    internal override Lease Hold_inh_Circle(bool mutable)
+    internal override Lease Hold_inh_Circle(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Ring_as_inh_Circle(lease.Pointer) : Native.inh_Ring_as_inh_Circle_const(lease.Pointer));
     }
 
-    internal override Lease Hold_inh_Shape(bool mutable)
+    internal override Lease Hold_inh_Shape(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Ring_as_inh_Shape(lease.Pointer) : Native.inh_Ring_as_inh_Shape_const(lease.Pointer));
     }
 
-    internal override Lease Hold_inh_Named(bool mutable)
+    internal override Lease Hold_inh_Named(bool mutable, bool give = false)
     {
-        Lease lease = Hold(mutable);
+        Lease lease = Hold(mutable, give);
         return lease.As(mutable ? Native.inh_Ring_as_inh_Named(lease.Pointer) : Native.inh_Ring_as_inh_Named_const(lease.Pointer));
     }
 
@@ -459,8 +453,7 @@ public static unsafe class Functions
     public static int Consume(global::Inh.Shape.Shape shape)
     {
         ArgumentNullException.ThrowIfNull(shape);
-        using var __c1 = shape.ClaimToGive();
-        using var __t1 = shape.Hold_inh_Shape(true);
+        using var __t1 = shape.Hold_inh_Shape(true, true);
         IntPtr __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();

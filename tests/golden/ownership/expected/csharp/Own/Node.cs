@@ -14,11 +14,9 @@ internal sealed class NodeHandle : ObjectHandle
     public NodeHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Node_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -125,11 +123,9 @@ internal sealed class ItemHandle : ObjectHandle
     public ItemHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Item_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 

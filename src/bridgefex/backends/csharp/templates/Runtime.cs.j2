@@ -39,6 +39,30 @@ public class BridgefexException : Exception
     };
 }
 
+/// <summary>A block of native memory for a struct that is too big for the stack (a C array in it can have
+/// megabytes): zeroed, and freed when the call ends.</summary>
+internal readonly unsafe ref struct Block<T> where T : unmanaged
+{
+    private readonly T* _pointer;
+
+    private Block(T* pointer)
+    {
+        _pointer = pointer;
+    }
+
+    internal T* Pointer => _pointer;
+
+    internal static Block<T> Alloc()
+    {
+        return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)sizeof(T)));
+    }
+
+    public void Dispose()
+    {
+        NativeMemory.Free(_pointer);
+    }
+}
+
 internal static unsafe class Runtime
 {
     internal const string Library = "{{ library }}";

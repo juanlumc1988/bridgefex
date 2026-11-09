@@ -27,7 +27,7 @@ from .source import Source
 
 _FILE_TYPES = frozenset(
     """
-    Runtime Native Lease Claim Keep ObjectHandle BridgefexObject BridgefexException
+    Runtime Native Lease Block Keep ObjectHandle BridgefexObject BridgefexException
     BridgefexFunction BridgefexFunctionAttribute Functions
     """.split()
 )
@@ -100,7 +100,27 @@ def build_names(plan: ModulePlan) -> Names:
                     enum_plans[nested.model.usr] = nested
     if errors:
         raise GenerationError(errors)
-    return Names(root, classes, enums, structs, handles, enum_plans, struct_plans)
+    large = frozenset(
+        plan_.c_type
+        for plan_ in struct_plans.values()
+        if _size_bound(plan_, struct_plans) > LARGE_STRUCT
+    )
+    return Names(root, classes, enums, structs, handles, enum_plans, struct_plans, large)
+
+
+LARGE_STRUCT = 4096
+"""A struct whose mirror may be bigger than this many bytes does not go on the stack."""
+
+
+def _size_bound(struct: StructPlan, plans: dict[str, StructPlan]) -> int:
+    """An upper bound of the size of the mirror of a struct (padding aside)."""
+    total = 0
+    for field_plan in struct.fields:
+        model = field_plan.model
+        type_ = model.type
+        size = _size_bound(plans[type_.usr], plans) if isinstance(type_, StructRef) else 8
+        total += size * (model.length or 1)
+    return total
 
 
 # Native.cs -----------------------------------------------------------------------------
@@ -491,6 +511,8 @@ class _Member:
     to_native: str
     from_native: str
     check: str | None
+    is_struct: bool = False
+    """The member is a struct: it is written and read in place, through a pointer."""
 
 
 _STRUCT_MEMBERS = (
@@ -518,6 +540,7 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
         taken.add(name)
         type_ = model.type
         check = None
+        is_struct = False
         if isinstance(type_, ScalarType):
             info = scalar(type_.c_name)
             public, native = info.public, info.native
@@ -534,8 +557,12 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
         elif isinstance(type_, StructRef):
             other = names.struct_plans[type_.usr]
             public, native = names.struct(other), f"Native.{other.c_type}"
-            to_native = "{}.ToNative()"
-            from_native = f"{public}.FromNative({{}})"
+            to_native = ""
+            from_native = (
+                f"{public}.FromNative(({native}*)System.Runtime.CompilerServices.Unsafe"
+                ".AsPointer(ref {}))"
+            )
+            is_struct = True
         else:
             raise Unsupported(f"the member '{model.name}' of a struct is not supported in C# yet")
         length = model.length
@@ -551,6 +578,7 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
                 to_native=to_native,
                 from_native=from_native,
                 check=check,
+                is_struct=is_struct,
             )
         )
     return result
@@ -589,37 +617,55 @@ def _struct(src: Source, plan: ModulePlan, struct: StructPlan, names: Names) -> 
         src.line()
         _enum(src, nested)
     src.line()
+    _default(src, struct, name, mirror, large=struct.c_type in names.large_structs)
+    src.line()
+    _write_native(src, members, mirror)
+    src.line()
+    _read_native(src, members, name, mirror)
+    src.close()
+
+
+def _default(src: Source, struct: StructPlan, name: str, mirror: str, *, large: bool) -> None:
     src.doc("A value with the members that C++ gives a default-constructed object.")
     src.open(f"public static {name} Default()")
-    src.line(f"{mirror} raw;")
-    src.line(f"Runtime.Check(Native.{struct.init.name}(&raw));")
-    src.line("return FromNative(raw);")
+    if large:
+        src.line(f"using var raw = Block<{mirror}>.Alloc();")
+        src.line(f"Runtime.Check(Native.{struct.init.name}(raw.Pointer));")
+        src.line("return FromNative(raw.Pointer);")
+    else:
+        src.line(f"{mirror} raw = default;")
+        src.line(f"Runtime.Check(Native.{struct.init.name}(&raw));")
+        src.line("return FromNative(&raw);")
     src.close()
-    src.line()
-    src.open(f"internal {mirror} ToNative()")
-    src.line(f"{mirror} raw = default;")
+
+
+def _write_native(src: Source, members: list[_Member], mirror: str) -> None:
+    """``ToNative``: in place, so that a struct with a big array is not copied through the stack."""
+    src.open(f"internal void ToNative({mirror}* raw)")
+    src.line(f"NativeMemory.Clear(raw, (nuint)sizeof({mirror}));")
     for member in members:
         field_name = identifier(member.name)
-        raw = f"raw.{identifier(member.native_name)}"
+        raw = f"raw->{identifier(member.native_name)}"
         if member.length is None:
             _to_native(src, member, field_name, raw)
-        else:
-            message = f"{member.name} must have {member.length} elements"
-            src.line(f"if ({field_name} is null || {field_name}.Length != {member.length})")
-            src.open()
-            src.line(f'throw new ArgumentException("{message}", "{member.name}");')
-            src.close()
-            src.open(f"for (int i = 0; i < {member.length}; i++)")
-            _to_native(src, member, f"{field_name}[i]", f"{raw}[i]")
-            src.close()
-    src.line("return raw;")
+            continue
+        message = f"{member.name} must have {member.length} elements"
+        src.line(f"if ({field_name} is null || {field_name}.Length != {member.length})")
+        src.open()
+        src.line(f'throw new ArgumentException("{message}", "{member.name}");')
+        src.close()
+        src.open(f"for (int i = 0; i < {member.length}; i++)")
+        _to_native(src, member, f"{field_name}[i]", f"{raw}[i]")
+        src.close()
     src.close()
-    src.line()
-    src.open(f"internal static {name} FromNative(in {mirror} raw)")
+
+
+def _read_native(src: Source, members: list[_Member], name: str, mirror: str) -> None:
+    src.open(f"internal static {name} FromNative({mirror}* raw)")
     src.line(f"{name} result = default;")
     for member in members:
         field_name = f"result.{identifier(member.name)}"
-        raw = f"raw.{identifier(member.native_name)}"
+        raw = f"raw->{identifier(member.native_name)}"
         if member.length is None:
             src.line(f"{field_name} = {member.from_native.replace('{}', raw)};")
         else:
@@ -629,10 +675,14 @@ def _struct(src: Source, plan: ModulePlan, struct: StructPlan, names: Names) -> 
             src.close()
     src.line("return result;")
     src.close()
-    src.close()
 
 
 def _to_native(src: Source, member: _Member, value: str, target: str) -> None:
+    if member.is_struct:
+        unsafe_ = "System.Runtime.CompilerServices.Unsafe"
+        pointer = f"({member.element_native}*){unsafe_}.AsPointer(ref {target})"
+        src.line(f"{value}.ToNative({pointer});")
+        return
     if member.check is not None:
         src.line(f'Runtime.CheckEnum((long){value}, {member.check}, "{member.name}");')
     src.line(f"{target} = {member.to_native.replace('{}', value)};")

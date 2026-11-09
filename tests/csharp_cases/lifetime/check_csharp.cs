@@ -117,7 +117,7 @@ static void StoreAndFail(Holder holder, int id)
     var holder = new Holder();
     StoreAndFail(holder, 8);
     Collect();
-    Check(holder.Peek() == 8 && Res.Live() == 1, "what the failed call stored is alive");
+    Check(holder.Peek() == 8 && Res.Live() == 2, "what the failed call stored is alive (and the holder's own Res)");
     holder.Dispose();
     Collect();
     Check(Res.Live() == 0 && Holder.BadDestructions() == 0, "and is released with the holder");

@@ -4,6 +4,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 
 namespace Scalars;
@@ -38,6 +39,30 @@ public class BridgefexException : Exception
     };
 }
 
+/// <summary>A block of native memory for a struct that is too big for the stack (a C array in it can have
+/// megabytes): zeroed, and freed when the call ends.</summary>
+internal readonly unsafe ref struct Block<T> where T : unmanaged
+{
+    private readonly T* _pointer;
+
+    private Block(T* pointer)
+    {
+        _pointer = pointer;
+    }
+
+    internal T* Pointer => _pointer;
+
+    internal static Block<T> Alloc()
+    {
+        return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)sizeof(T)));
+    }
+
+    public void Dispose()
+    {
+        NativeMemory.Free(_pointer);
+    }
+}
+
 internal static unsafe class Runtime
 {
     internal const string Library = "scalars";
@@ -46,7 +71,18 @@ internal static unsafe class Runtime
     /// <summary>Tells .NET where the library is (the first use of the C API, before it loads it).</summary>
     internal static void Initialize()
     {
-        NativeLibrary.SetDllImportResolver(typeof(Runtime).Assembly, Resolve);
+        System.Reflection.Assembly assembly = typeof(Runtime).Assembly;
+        try
+        {
+            NativeLibrary.SetDllImportResolver(assembly, Resolve);
+        }
+        catch (InvalidOperationException)
+        {
+            // An assembly has one resolver, and another module of it (or the code of the user)
+            // has it: ours is asked when the usual search of .NET finds nothing.
+            AssemblyLoadContext context = AssemblyLoadContext.GetLoadContext(assembly) ?? AssemblyLoadContext.Default;
+            context.ResolvingUnmanagedDll += (loaded, name) => name == Library ? Resolve(name, loaded, null) : IntPtr.Zero;
+        }
     }
 
     private static IntPtr Resolve(string name, System.Reflection.Assembly assembly, DllImportSearchPath? path)
@@ -136,11 +172,6 @@ internal static unsafe class Runtime
         byte[] result = new byte[checked((int)size)];
         Marshal.Copy(data, result, 0, result.Length);
         return result;
-    }
-
-    internal static string TakeCString(IntPtr data)
-    {
-        return Strict.GetString((byte*)data, new ReadOnlySpan<byte>((void*)data, int.MaxValue).IndexOf((byte)0));
     }
 
     /// <summary>An enumerator of an enum without a fixed type must be one of the values that the type holds.</summary>

@@ -14,11 +14,9 @@ internal sealed class TreeHandle : ObjectHandle
     public TreeHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Tree_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -155,8 +153,7 @@ public unsafe partial class Tree : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
         ArgumentNullException.ThrowIfNull(item);
-        using var __c1 = item.ClaimToGive();
-        using var __t1 = item.Hold(true);
+        using var __t1 = item.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
@@ -183,12 +180,10 @@ public unsafe partial class Tree : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(second));
         }
         ArgumentNullException.ThrowIfNull(first);
-        using var __c1 = first.ClaimToGive();
-        using var __t1 = first.Hold(true);
+        using var __t1 = first.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         ArgumentNullException.ThrowIfNull(second);
-        using var __c3 = second.ClaimToGive();
-        using var __t3 = second.Hold(true);
+        using var __t3 = second.Hold(true, true);
         IntPtr __h3 = __t3.Pointer;
         __h1 = __t1.Give();
         first?.Surrender();
@@ -209,8 +204,7 @@ public unsafe partial class Tree : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
         ArgumentNullException.ThrowIfNull(item);
-        using var __c1 = item.ClaimToGive();
-        using var __t1 = item.Hold(true);
+        using var __t1 = item.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
@@ -304,8 +298,7 @@ public unsafe partial class Tree : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(item));
         }
         ArgumentNullException.ThrowIfNull(item);
-        using var __c1 = item.ClaimToGive();
-        using var __t1 = item.Hold(true);
+        using var __t1 = item.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         item?.Surrender();
@@ -352,8 +345,8 @@ public unsafe partial class Tree : BridgefexObject
         ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
         IntPtr __h1 = __t1.Pointer;
-        Runtime.Check(Native.own_Tree_setCursor(__self.Pointer, __h1));
         Retain(node);
+        Runtime.Check(Native.own_Tree_setCursor(__self.Pointer, __h1));
     }
 
     /// <summary>
@@ -377,8 +370,8 @@ public unsafe partial class Tree : BridgefexObject
         ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(false);
         IntPtr __h1 = __t1.Pointer;
-        Runtime.Check(Native.own_Tree_setSharedCursor(__h1));
         BridgefexObject.RetainForever(node);
+        Runtime.Check(Native.own_Tree_setSharedCursor(__h1));
     }
 
     /// <summary>
@@ -635,11 +628,9 @@ internal sealed class DriverHandle : ObjectHandle
     public DriverHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Driver_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -705,11 +696,9 @@ internal sealed class PairHandle : ObjectHandle
     public PairHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Pair_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -779,11 +768,9 @@ internal sealed class PipelineHandle : ObjectHandle
     public PipelineHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Pipeline_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -805,8 +792,7 @@ public unsafe partial class Pipeline : BridgefexObject
     public Pipeline(global::Own.Node.Item first) : base(new PipelineHandle())
     {
         ArgumentNullException.ThrowIfNull(first);
-        using var __c1 = first.ClaimToGive();
-        using var __t1 = first.Hold(true);
+        using var __t1 = first.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         IntPtr __result;
         __h1 = __t1.Give();
@@ -823,8 +809,7 @@ public unsafe partial class Pipeline : BridgefexObject
     public Pipeline(global::Own.Node.Item first, int minimum) : base(new PipelineHandle())
     {
         ArgumentNullException.ThrowIfNull(first);
-        using var __c1 = first.ClaimToGive();
-        using var __t1 = first.Hold(true);
+        using var __t1 = first.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         IntPtr __result;
         __h1 = __t1.Give();
@@ -869,11 +854,9 @@ internal sealed class BoxHandle : ObjectHandle
     public BoxHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Box_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -926,8 +909,7 @@ public unsafe partial class Box : BridgefexObject
             throw new ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(tree));
         }
         ArgumentNullException.ThrowIfNull(tree);
-        using var __c1 = tree.ClaimToGive();
-        using var __t1 = tree.Hold(true);
+        using var __t1 = tree.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         __h1 = __t1.Give();
         tree?.Surrender();
@@ -958,11 +940,9 @@ internal sealed class PeekHandle : ObjectHandle
     public PeekHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.own_Peek_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
@@ -1092,8 +1072,7 @@ public static unsafe class Functions
     public static int Consume(global::Own.Node.Item item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        using var __c1 = item.ClaimToGive();
-        using var __t1 = item.Hold(true);
+        using var __t1 = item.Hold(true, true);
         IntPtr __h1 = __t1.Pointer;
         int __result;
         __h1 = __t1.Give();
@@ -1111,8 +1090,8 @@ public static unsafe class Functions
         ArgumentNullException.ThrowIfNull(node);
         using var __t1 = node.Hold(true);
         IntPtr __h1 = __t1.Pointer;
-        Runtime.Check(Native.own_setGlobalNode(__h1));
         BridgefexObject.RetainForever(node);
+        Runtime.Check(Native.own_setGlobalNode(__h1));
     }
 
     /// <summary>

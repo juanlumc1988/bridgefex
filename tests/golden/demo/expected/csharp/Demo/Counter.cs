@@ -14,11 +14,9 @@ internal sealed class CounterHandle : ObjectHandle
     public CounterHandle(bool owns) : base(owns)
     {
     }
-    protected override bool ReleaseHandle()
+    protected override void Destroy()
     {
         Native.demo_Counter_destroy(handle);
-        ReleaseKept();
-        return true;
     }
 }
 
