@@ -11,6 +11,7 @@ __all__ = [
     "Point",
     "Shape",
     "Circle",
+    "Beam",
     "Dot",
     "Plain",
     "Holder",
@@ -136,6 +137,16 @@ def _bind():
             lib.drc_Circle_add.restype = _runtime.Status
             lib.drc_Circle_radius.argtypes = [_types._drc_Circle__p, ctypes.POINTER(ctypes.c_double)]
             lib.drc_Circle_radius.restype = _runtime.Status
+            lib.drc_Beam_create.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.c_int32]
+            lib.drc_Beam_create.restype = _runtime.Status
+            lib.drc_Beam_destroy.argtypes = [_types._drc_Beam__p]
+            lib.drc_Beam_destroy.restype = None
+            lib.drc_Beam_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_length.restype = _runtime.Status
+            lib.drc_Beam_call_length.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_call_length.restype = _runtime.Status
+            lib.drc_Beam_made_by.argtypes = [_types._drc_Beam__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_made_by.restype = _runtime.Status
             lib.drc_Dot_create.argtypes = [ctypes.POINTER(_types._drc_Dot__p)]
             lib.drc_Dot_create.restype = _runtime.Status
             lib.drc_Dot_destroy.argtypes = [_types._drc_Dot__p]
@@ -252,6 +263,16 @@ def _bind():
             lib.drc_Circle_director_base_triple.restype = _runtime.Status
             lib.drc_Circle_director_base_changed.argtypes = [_types._drc_Circle_director__p, ctypes.c_int32]
             lib.drc_Circle_director_base_changed.restype = _runtime.Status
+            lib.drc_Beam_director_create_int32.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_int32]
+            lib.drc_Beam_director_create_int32.restype = _runtime.Status
+            lib.drc_Beam_director_create_void.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable)]
+            lib.drc_Beam_director_create_void.restype = _runtime.Status
+            lib.drc_Beam_director_create_string.argtypes = [ctypes.POINTER(_types._drc_Beam__p), ctypes.POINTER(_types._drc_Beam_director__p), ctypes.POINTER(_types._drc_Beam_vtable), ctypes.c_char_p, ctypes.c_size_t]
+            lib.drc_Beam_director_create_string.restype = _runtime.Status
+            lib.drc_Beam_director_object.argtypes = [_types._drc_Beam_director__p]
+            lib.drc_Beam_director_object.restype = _types._drc_Beam__p
+            lib.drc_Beam_director_base_length.argtypes = [_types._drc_Beam_director__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.drc_Beam_director_base_length.restype = _runtime.Status
             _lib = lib
     return _lib
 
@@ -1815,6 +1836,242 @@ class Circle(Shape):
         """Wraps ``double drc::Circle::radius() const``."""
         _out = ctypes.c_double()
         _runtime.check(_bind().drc_Circle_radius(self._ptr(), _out))
+        return _out.value
+
+
+class Beam(_runtime.Object):
+    """Wraps ``drc::Beam``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "drc_Beam"
+    _virtual_names = ("length",)
+    # The virtual methods that a subclass may override: (method, member of the vtable,
+    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
+    _director_slots = _runtime.DirectorSlots(
+        "drc_Beam",
+        "drc::Beam",
+        _types._drc_Beam_vtable,
+        (
+            ("length", "length", False, _types._director__drc_Beam__length),
+        ),
+    )
+
+    def __init__(self, length):
+        """Wraps ``drc::Beam::Beam(int32_t length)``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Beam object is already initialized")
+        _found = self._director_slots.overrides(_builtins.type(self))
+        if _found:
+            self._init_director(_found, length)
+            return
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _handle = self._watch()
+        _runtime.check(_bind().drc_Beam_create(_handle, length))
+        self._adopt(_handle)
+
+    def _init_director(self, _found, length):
+        """Wraps ``drc::Beam::Beam(int32_t length) of the director``."""
+        length = _runtime.to_int(length, ctypes.c_int32, "length")
+        _handle, _director = self._watch_director()
+        _vtable, _record = self._director_slots.make(self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_int32(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            length,
+        ))
+        self._adopt_director(_handle, _director, _record)
+
+    @_builtins.classmethod
+    def create_void(cls):
+        """Wraps ``drc::Beam::Beam() of the director``.
+
+        Only a subclass can call it: the constructor is protected.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_void(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+
+    @_builtins.classmethod
+    def create_string(cls, label):
+        """Wraps ``drc::Beam::Beam(const std::string& label) of the director``.
+
+        Only a subclass can call it: the constructor is protected.
+        """
+        _found = cls._director_slots.overrides(cls, subclass=True)
+        label = _runtime.to_bytes(label, "label")
+        label_size = _builtins.len(label)
+        _self = cls.__new__(cls)
+        _handle, _director = _self._watch_director()
+        _vtable, _record = cls._director_slots.make(_self, _found)
+        _runtime.check(_bind().drc_Beam_director_create_string(
+            _handle,
+            _director,
+            _record.register(_vtable),
+            label,
+            label_size,
+        ))
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._drc_Beam__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._director = None
+        self._finalizer = _runtime.watch(self, handle, _bind().drc_Beam_destroy)
+        return handle
+
+    def _watch_director(self):
+        """Like _watch(), and the handle for the create function to write the director to."""
+        return self._watch(), _types._drc_Beam_director__p()
+
+    def _adopt_director(self, handle, director, record):
+        self._adopt(handle)
+        record.pointer = director
+        self._director = record
+
+    def _dptr(self):
+        """The handle of the director, for the calls of the implementation of the class."""
+        return _runtime.director_pointer(self._director, "Beam")
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "drc::Beam: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().drc_Beam_destroy, _types._drc_Beam__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Beam object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Beam object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Beam object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Beam")
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Beam objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Beam objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Beam objects cannot be pickled")
+
+    def _base_length(self):
+        """Calls the implementation of ``int32_t drc::Beam::length() const`` in C++: not the
+        override of an object, which would call this one again."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_director_base_length(self._dptr(), _out))
+        return _out.value
+
+    def length(self):
+        """Wraps ``int32_t drc::Beam::length() const``."""
+        if self._director is not None:
+            return self._base_length()
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_length(self._ptr(), _out))
+        return _out.value
+
+    def call_length(self):
+        """Wraps ``int32_t drc::Beam::call_length() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_call_length(self._ptr(), _out))
+        return _out.value
+
+    def made_by(self):
+        """Wraps ``int32_t drc::Beam::made_by() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().drc_Beam_made_by(self._ptr(), _out))
         return _out.value
 
 

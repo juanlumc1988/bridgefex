@@ -25,6 +25,9 @@ typedef struct drc_Shape drc_Shape;
 /* Opaque handle of drc::Circle. */
 typedef struct drc_Circle drc_Circle;
 
+/* Opaque handle of drc::Beam. */
+typedef struct drc_Beam drc_Beam;
+
 /* Opaque handle of drc::Dot. */
 typedef struct drc_Dot drc_Dot;
 

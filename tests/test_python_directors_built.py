@@ -199,3 +199,67 @@ def test_a_module_without_directors_keeps_the_parameter_names_of_its_header(
         [header], bridgefex.Options("mod", annotations=(annotations,))
     )
     assert "int32_t _found_, int32_t _vtable_" in with_director.files["c/api_c.h"]
+
+
+def test_a_protected_constructor_of_a_class_that_has_public_ones(
+    tmp_path: Path, toolchain: Toolchain
+) -> None:
+    """The protected constructors are class methods of the subclasses, and the names that a
+    header gives its own members do not clash with them."""
+    completed = run_script(
+        tmp_path,
+        toolchain,
+        """
+        namespace n {
+        class A { public: explicit A(std::int32_t x); virtual ~A();
+          virtual std::int32_t f() const;
+          std::int32_t call_f() const; std::int32_t made() const;
+          static std::int32_t create_void();
+        protected: A(); explicit A(const std::string& s);
+        private: std::int32_t made_; };
+        class B : public A { public: B(); ~B() override; std::int32_t f() const override; };
+        }
+        """,
+        """
+        namespace n {
+        A::A(std::int32_t x) : made_(x) {}
+        A::A() : made_(-1) {}
+        A::A(const std::string& s) : made_(static_cast<std::int32_t>(s.size())) {}
+        A::~A() {}
+        std::int32_t A::f() const { return 1; }
+        std::int32_t A::call_f() const { return f(); }
+        std::int32_t A::made() const { return made_; }
+        std::int32_t A::create_void() { return 99; }
+        B::B() : A(5) {}
+        B::~B() {}
+        std::int32_t B::f() const { return 2; }
+        }
+        """,
+        ["n_A", "n_B"],
+        """
+        from mod import api
+
+        class X(api.A):
+            def f(self):
+                return 10
+
+        assert api.A.create_void_() == 99, "the static method of the header keeps its function"
+        with X(3) as x:
+            assert x.call_f() == 10 and x.made() == 3
+        with X.create_void() as x:
+            assert x.call_f() == 10 and x.made() == -1
+        with X.create_string("abcd") as x:
+            assert x.call_f() == 10 and x.made() == 4
+        try:
+            api.A.create_string("abcd")
+        except TypeError as error:
+            assert "itself" in str(error), str(error)
+        else:
+            raise AssertionError("a protected constructor was called on the class itself")
+        with api.B() as b:
+            assert b.call_f() == 2
+        print("ok")
+        """,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.stdout.strip() == "ok"

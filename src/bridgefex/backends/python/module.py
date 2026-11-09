@@ -786,13 +786,12 @@ class _Lowering:
                 header,
                 leading=("_handle", "_director", "_record.register(_vtable)"),
             )
-            if plan.constructors:
-                # A constructor that only a derived class can call (a protected one) is not
-                # part of the API of a class that has ordinary ones.
-                if constructor.source in plain:
-                    name = plain[constructor.source]
-                    creations.append(PyDirectorConstructor(name, lowered, name))
+            if plan.constructors and constructor.source in plain:
+                name = plain[constructor.source]
+                creations.append(PyDirectorConstructor(name, lowered, name))
             else:
+                # A constructor that only a derived class can call (a protected one): of a
+                # class that has ordinary ones too, a class method of the subclasses.
                 creations.append(PyDirectorConstructor(own_name, lowered, None))
         return PyDirector(
             director,
@@ -866,10 +865,19 @@ def _constructor_names(plan: ClassPlan) -> frozenset[str]:
     """What the Python class calls its constructors: ``__init__`` or ``create<suffix>``,
     those of its director if it has no ordinary ones."""
     constructors = plan.constructors or (plan.director.constructors if plan.director else ())
-    return frozenset(
+    names = {
         "create" + constructor.suffix if len(constructors) > 1 else "__init__"
         for constructor in constructors
-    )
+    }
+    if plan.constructors and plan.director is not None:
+        # The constructors that only a subclass can call are class methods too.
+        ordinary = {constructor.source for constructor in plan.constructors}
+        names |= {
+            "create" + constructor.suffix
+            for constructor in plan.director.constructors
+            if constructor.source not in ordinary
+        }
+    return frozenset(names)
 
 
 def _director_prelude(slot: PySlot, py_name: str, cpp_name: str) -> tuple[str, ...]:

@@ -190,6 +190,28 @@ class {{ c.py_name }}({{ (c.py_bases or ("_runtime.Object",)) | join(", ") }}):
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if c.director and c.director.protected_constructors %}
+{% for dc in c.director.protected_constructors %}
+
+    @_builtins.classmethod
+    def {{ dc.name }}(cls{{ ", " + dc.callable.parameter_list if dc.callable.args else "" }}):
+        """Wraps ``{{ dc.callable.function.description }}``.
+
+        Only a subclass can call it: the constructor is protected.
+        """
+{% if c.is_base %}
+        if cls._cxx_class != "{{ c.c_type }}":
+            # Inherited by a class derived from this one, whose objects it cannot make.
+            raise _builtins.TypeError(
+                "{{ c.py_name }}.{{ dc.name }}() constructs a {{ c.py_name }}, not a " + cls.__name__
+            )
+{% endif %}
+        _found = cls._director_slots.overrides(cls, subclass=True)
+{{ dc.callable.check_call(8, ("_self = cls.__new__(cls)", "_handle, _director = _self._watch_director()", "_vtable, _record = cls._director_slots.make(_self, _found)") + dc.callable.retain_statements("_self"), owner="_self") }}
+        _self._adopt_director(_handle, _director, _record)
+        return _self
+{% endfor %}
+{% endif %}
 
     def _watch(self):
         """Return the handle for a constructor to write, already watched.

@@ -103,6 +103,14 @@ class PyDirector:
 
     aliases: tuple[PyAlias, ...] = ()
 
+    @property
+    def protected_constructors(self) -> tuple[PyDirectorConstructor, ...]:
+        """The constructors that only a derived class can call, of a class that has ordinary
+        ones too: class methods that make the objects of a subclass."""
+        if not self.own_constructors:
+            return ()
+        return tuple(item for item in self.constructors if item.plain is None)
+
     def creation(self, plain: str) -> PyDirectorConstructor | None:
         """The creation of the director for the constructor of the class called ``plain``."""
         return next((item for item in self.constructors if item.plain == plain), None)
