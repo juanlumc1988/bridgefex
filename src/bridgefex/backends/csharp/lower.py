@@ -321,11 +321,11 @@ def _result(
         return out
     if isinstance(type_, StringType):
         body.add(f"IntPtr {L}text;")
+        body.add(f"nuint {L}size;")
         arguments["out_result"] = f"&{L}text"
+        arguments["out_result_size"] = f"&{L}size"
         free = f"Native.{module.free_function}({L}text);"
         if type_.sized:
-            body.add(f"nuint {L}size;")
-            arguments["out_result_size"] = f"&{L}size"
             out.after_check = [
                 "try",
                 "{",
@@ -346,7 +346,7 @@ def _result(
                 "}",
                 "try",
                 "{",
-                f"    return Runtime.TakeCString({L}text);",
+                f"    return Runtime.TakeText({L}text, {L}size);",
                 "}",
                 "finally",
                 "{",

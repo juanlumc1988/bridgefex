@@ -66,7 +66,7 @@ RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProces
 # What each backend can already play: the cases whose scenarios use only what it supports.
 SUPPORTED: dict[str, frozenset[str] | None] = {
     "python": None,
-    "csharp": frozenset({"scalars"}),
+    "csharp": frozenset({"scalars", "strings", "enums"}),
 }
 
 

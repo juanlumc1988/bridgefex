@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from pathlib import Path
 
-from .backends import registry
+from .backends import DEFAULT_LANGUAGES, registry
 from .plan import ModulePlan, api_fingerprint
 from .rendering import Renderer, write_files
 
@@ -15,8 +15,6 @@ __all__ = ["DEFAULT_LANGUAGES", "LANGUAGES", "render", "write_files"]
 LANGUAGES = tuple(registry())
 """Languages that bindings can be generated for, on top of the C layer."""
 
-DEFAULT_LANGUAGES = ("python",)
-"""The languages that are generated when none is asked for."""
 
 _TEMPLATES = Path(__file__).parent / "templates"
 

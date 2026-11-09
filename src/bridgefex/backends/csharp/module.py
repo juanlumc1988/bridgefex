@@ -218,9 +218,12 @@ def _method(
     *,
     static: bool,
     modifiers: str = "",
-) -> None:
+    reserved: frozenset[str] = RESERVED_MEMBERS,
+) -> str:
     name = pascal(call.name + call.suffix)
-    if name in RESERVED_MEMBERS or name in taken:
+    while name in reserved:
+        name += "_"
+    if name in taken:
         raise GenerationError(
             [
                 Diagnostic(
@@ -243,6 +246,7 @@ def _method(
     src.open(header)
     src.lines_of(lowered.body)
     src.close()
+    return name
 
 
 def _class(
@@ -268,6 +272,8 @@ def _class(
     src.open(f"public unsafe partial class {name} : {base}")
     taken: dict[str, str] = {}
     inherited = _inherited_names(cls, by_type)
+    # A member cannot have the name of its class nor of a type it defines.
+    reserved = RESERVED_MEMBERS | {name} | {pascal(nested.model.name) for nested in cls.enums}
     src.line(f"internal {name}(ObjectHandle handle) : base(handle)")
     src.open()
     src.close()
@@ -314,9 +320,13 @@ def _class(
     for member in cls.members:
         src.line()
         member_name = pascal(member.name + member.suffix)
+        while member_name in reserved:
+            member_name += "_"
         modifiers = "new " if member_name in inherited else ""
         static = member.kind is CallableKind.STATIC
-        _method(src, plan, member, names, taken, static=static, modifiers=modifiers)
+        _method(
+            src, plan, member, names, taken, static=static, modifiers=modifiers, reserved=reserved
+        )
     src.close()
 
 
