@@ -99,6 +99,38 @@ def test_a_protected_constructor_of_a_class_that_has_public_ones_makes_subclasse
     assert text.count("overrides(cls, subclass=True)") == 1
 
 
+def test_a_virtual_method_may_not_take_the_name_of_a_constructor_of_a_subclass(
+    tmp_path: Path,
+) -> None:
+    """The wrapper that B repeats for an inherited virtual method would silently replace the
+    class method that makes the objects of a subclass."""
+    with pytest.raises(BridgefexError) as raised:
+        generate(
+            tmp_path,
+            """
+            namespace n { class A { public: A(); virtual ~A();
+              virtual std::int32_t create_void(); };
+              class B : public A { public: explicit B(std::int32_t x); protected: B(); }; }
+            """,
+            "n_A",
+            "n_B",
+        )
+    assert "and a constructor of '::n::B' get the Python name 'create_void'" in str(raised.value)
+
+
+def test_the_callbacks_of_a_protected_constructor_have_their_thunks(tmp_path: Path) -> None:
+    files = generate(
+        tmp_path,
+        """
+        #include <functional>
+        namespace n { class A { public: A(); virtual ~A(); virtual std::int32_t f();
+          protected: explicit A(std::function<std::int32_t(std::int32_t)> callback); }; }
+        """,
+        "n_A",
+    )
+    assert "_callback__int32__int32__type" in files["python/mod/_types.py"]
+
+
 def test_a_class_with_only_protected_constructors_is_made_by_its_subclasses(
     tmp_path: Path,
 ) -> None:

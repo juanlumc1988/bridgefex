@@ -404,6 +404,9 @@ class _Lowering:
                 if isinstance(item, ClassPlan):
                     yield from item.constructors
                     yield from item.members
+                    if item.director is not None:
+                        # (The protected ones: callbacks of their signatures need thunks too.)
+                        yield from item.director.constructors
                 elif isinstance(item, FunctionPlan):
                     yield item.callable
 
@@ -850,6 +853,26 @@ class _Lowering:
                             slot.entry.location,
                         )
                     )
+        factories = _constructor_names(plan) - {"__init__"}
+        for slot in director.slots:
+            if slot.wrapper in ("inherited", "protected") and slot.name in factories:
+                self.errors.append(
+                    Diagnostic(
+                        f"the virtual method '{slot.entry.description}' and a constructor of "
+                        f"'{cpp_name}' get the Python name '{slot.name}'",
+                        slot.entry.location,
+                    )
+                )
+        for alias in director.aliases:
+            if alias.name in factories:
+                self.errors.append(
+                    Diagnostic(
+                        f"the virtual method '{alias.target.entry.description}', which a base "
+                        f"class names '{alias.name}', and a constructor of '{cpp_name}' get "
+                        f"the same Python name",
+                        alias.target.entry.location,
+                    )
+                )
         for constructor in director.constructors:
             if constructor.name != "__init__" and constructor.private_name in taken:
                 self.errors.append(
