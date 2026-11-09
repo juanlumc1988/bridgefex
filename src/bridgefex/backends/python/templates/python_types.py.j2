@@ -160,6 +160,9 @@ def {{ slot.thunk.name }}({{ slot.thunk.params | join(", ") }}):
     _lend = _runtime.Lend()
 {% endif %}
     try:
+{% for line in slot.thunk.prologue %}
+        {{ line }}
+{% endfor %}
         # _active is the token of this override, which ends with this frame.
         _function, _active = _runtime.director_method(_user_data, "{{ slot.name }}")
         if _function is None:

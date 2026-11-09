@@ -708,18 +708,17 @@ def test_objects_cross_a_vtable_lent_or_given(tmp_path: Path) -> None:
         "void (*c)(void*, const n_Other*, int32_t*);",
         "void (*d)(void*, n_Other*, int32_t*);",
         "void (*e)(void*, n_Other*, int32_t*);",
-        "void (*f)(void*, n_Other*, int32_t*);",
         "void (*g)(void*, n_Other**);",
     ):
         assert member in vtable, member
-    # A copy, and the objects that the override would own while C++ points to them, keep the
-    # implementation of the class.
-    for name in ("h", "j", "k"):
+    # A copy, a std::unique_ptr&& (the caller may keep what is not taken), and the objects
+    # that the override would own while C++ points to them, keep the implementation of the
+    # class.
+    for name in ("f", "h", "j", "k"):
         assert f"(*{name})" not in vtable, name
     source = result.files["c/api_c.cpp"]
-    # An unique_ptr and an rvalue reference are declared as the base declares them.
+    # A std::unique_ptr is declared as the base declares it, and moved to its implementation.
     assert "int32_t e(::std::unique_ptr<::n::Other> _arg1) const override" in source
-    assert "int32_t f(::std::unique_ptr<::n::Other>&& _arg1) const override" in source
     assert "static_cast<::std::unique_ptr<::n::Other>&&>(_arg1)" in source
 
 

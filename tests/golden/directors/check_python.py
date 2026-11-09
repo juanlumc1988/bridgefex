@@ -882,7 +882,7 @@ with Gives.create_void() as gives:
     assert gives.call_make_beam.__name__  # still usable after the failures
 
 
-# An object that C++ owns and is a director: the override gets the Python object itself.
+# An object that C++ owns and is a director: the override gets an object of the class.
 with (
     Objects.create_void() as objects,
     Sq.create_void() as square,
@@ -891,9 +891,55 @@ with (
 ):
     first.put(objects)
     second.put(square)  # Python gave both up
-    assert first.compare_held(second) == 40.0
-    assert objects.received is square
+    assert first.compare_held(second) == 40.0  # other.area() runs the override of the director
+    # C++ owns it: the Python object is closed for every method, so the override gets an
+    # object of the class (its virtual methods are those of the director).
+    assert objects.received is not square and type(objects.received) is shape.Shape
     assert second.compare_held(first) == 4.0 - 2.0  # Sq's implementation: area() - other.area()
+
+
+# A director object that an override lends C++'s call cannot be closed meanwhile.
+class Closer(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def compare(self, other):
+        try:
+            other.close()
+        except RuntimeError as error:
+            assert "cannot be closed" in str(error), str(error)
+            return 1.0
+        return 0.0
+
+
+with Closer.create_void() as closer, Sq.create_void() as square:
+    assert closer.call_compare(square) == 1.0
+    assert square.area() == 4.0  # still open
+
+
+# A std::unique_ptr that C++ gave to an override that does not run (it is not callable): the
+# object is destroyed, not leaked.
+class Refuses(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def adopt(self, beam):
+        return 0
+
+
+with Refuses.create_void() as refuses:
+    refuses.adopt = 5  # the vtable has the override: its thunk fails
+    gone = Short5(7)
+    reference = weakref.ref(gone)
+    try:
+        refuses.call_adopt(gone)
+    except TypeError as error:
+        assert "not callable" in str(error), str(error)
+    else:
+        raise AssertionError("a method that is not callable was run")
+    del gone
+    gc.collect()
+    assert reference() is None  # C++ destroyed the object, and so its director
 
 
 # The implementations of the class, with objects.

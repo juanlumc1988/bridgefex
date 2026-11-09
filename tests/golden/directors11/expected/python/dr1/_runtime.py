@@ -1337,11 +1337,17 @@ def director_method(user_data, name):
     method = getattr(obj, name)
     if not callable(method):
         raise TypeError(f"{type(obj).__name__}.{name} is not callable: it is {_type_name(method)}")
+    return method, _start_running(director)
+
+
+def _start_running(director):
+    """The token of an override that C++ runs now on an object of ``director`` (or that
+    uses it): it ends with whoever keeps it."""
     token = _Active()
     token.ident = threading.get_ident()
     running = director.running
     running[id(token)] = weakref.ref(token, functools.partial(running.pop, id(token)))
-    return method, token
+    return token
 
 
 def fail_director(error):
@@ -1377,18 +1383,23 @@ class Lend:
     """What C++ lends to an override for the duration of the call: the owner of the objects
     that it takes by reference or pointer, which are valid until the thunk ends it."""
 
-    __slots__ = ("__weakref__", "_owned", "_owners", "_retained")
+    __slots__ = ("__weakref__", "_owned", "_owners", "_retained", "_tokens")
 
     def __init__(self):
         self._owned = [(None, None)]
         self._owners = ()
-        self._retained = {}
+        # What the lent objects retain lives as long as the C++ objects, whose lifetime is
+        # not this call's: as for any borrowed object that has no single owner.
+        self._retained = forever
+        self._tokens = []
 
     def _collected(self):
         return False
 
     def end(self):
         self._owned = []
+        # The director objects that were lent can be closed again.
+        self._tokens = []
 
 
 _by_address = weakref.WeakValueDictionary()
@@ -1421,11 +1432,13 @@ def callback_object(c_type, stem, pointer, readonly, lend):
     if not pointer:
         return None
     known = _by_address.get((_address(pointer), c_type))
-    # It is the object of that address while C++ has not destroyed its director (also when
-    # C++ owns it: Python gave it up, and the registry keeps it alive).
-    if known is not None and known._director is not None:
-        if _entry(known._director.key)[0] is known._director:
-            return known
+    # A director object that Python owns is itself the object of that address (an open one:
+    # when C++ owns it Python gave it up, and it is closed for every method, so the override
+    # gets a new object of the class, whose virtual methods are those of the director).
+    if known is not None and known._owned and not known._collected():
+        # C++ is using it: it cannot be closed until the override returns.
+        lend._tokens.append(_start_running(known._director))
+        return known
     return borrow(_class_of(c_type, stem), pointer, (lend,), readonly)
 
 
@@ -1455,7 +1468,11 @@ def give_object(value, c_type, stem, name, view, exact):
         )
     if exact:
         check_exact(value, cls, name)
-    (handle,) = take(forever, (value, name, view) if view else (value, name))
+    try:
+        (handle,) = take(forever, (value, name, view) if view else (value, name))
+    except (TypeError, ValueError) as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
     return handle
 
 

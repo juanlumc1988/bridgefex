@@ -2968,6 +2968,11 @@ class _Builder:
                         f"{what}: '{type_.qualified_name}' by value is a copy that an override "
                         "cannot take: take it by reference"
                     )
+                elif type_.form is ClassForm.UNIQUE and type_.rvalue_reference:
+                    problems.append(
+                        f"{what}: a std::unique_ptr&& may be left with the caller, which an "
+                        "override cannot say: take it by value"
+                    )
                 elif result and type_.form is not ClassForm.UNIQUE:
                     problems.append(
                         f"{what}: an override can only give an object to C++ as a "

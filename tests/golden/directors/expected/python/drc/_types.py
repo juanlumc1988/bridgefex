@@ -798,11 +798,12 @@ def _director__drc_Shape__adopt(_user_data, _arg1, _out_result):
     # the call that runs it, if there is one (see _runtime.fail_director).
     _active = None
     try:
+        _owned1 = _runtime.callback_owned("drc_Beam", "shape", _arg1)
         # _active is the token of this override, which ends with this frame.
         _function, _active = _runtime.director_method(_user_data, "adopt")
         if _function is None:
             return
-        _value = _function(_runtime.callback_owned("drc_Beam", "shape", _arg1))
+        _value = _function(_owned1)
         _out_result[0] = _runtime.to_int(
             _value, ctypes.c_int32, 'adopt', what="the result of the override"
         )
@@ -1481,11 +1482,12 @@ def _director__drc_Circle__adopt(_user_data, _arg1, _out_result):
     # the call that runs it, if there is one (see _runtime.fail_director).
     _active = None
     try:
+        _owned1 = _runtime.callback_owned("drc_Beam", "shape", _arg1)
         # _active is the token of this override, which ends with this frame.
         _function, _active = _runtime.director_method(_user_data, "adopt")
         if _function is None:
             return
-        _value = _function(_runtime.callback_owned("drc_Beam", "shape", _arg1))
+        _value = _function(_owned1)
         _out_result[0] = _runtime.to_int(
             _value, ctypes.c_int32, 'adopt', what="the result of the override"
         )
