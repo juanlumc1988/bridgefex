@@ -35,6 +35,12 @@ _FILE_TYPES = frozenset(
 """Types of the root namespace that a type of a header must not hide."""
 
 
+def assembly_name(plan: ModulePlan) -> str:
+    """The name of the assembly: not the one of the module, whose native library (``demo.dll``) has
+    the same file name as ``Demo.dll`` where the file system ignores the case (Windows, macOS)."""
+    return f"{namespace(plan)}.Bindings"
+
+
 def namespace(plan: ModulePlan) -> str:
     return pascal(plan.name)
 

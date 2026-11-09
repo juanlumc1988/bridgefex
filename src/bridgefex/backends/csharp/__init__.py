@@ -11,7 +11,7 @@ from ...rendering import Renderer
 from ..base import Backend
 from .check import check
 from .mapping import Unsupported
-from .module import build_names, header_source, namespace, native_source
+from .module import assembly_name, build_names, header_source, namespace, native_source
 from .naming import header_problem, locals_of, module_problem, pascal
 
 _TEMPLATES = Path(__file__).parent / "templates"
@@ -52,6 +52,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     base = f"csharp/{root}"
     context = {
         "ns": root,
+        "assembly": assembly_name(plan),
         "library": plan.name,
         "env": f"{plan.name.upper()}_LIBRARY",
         "fingerprint": fingerprint,

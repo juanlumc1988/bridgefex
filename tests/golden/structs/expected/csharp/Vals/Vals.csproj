@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Vals</RootNamespace>
-    <AssemblyName>Vals</AssemblyName>
+    <AssemblyName>Vals.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

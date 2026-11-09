@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>Enm</RootNamespace>
-    <AssemblyName>Enm</AssemblyName>
+    <AssemblyName>Enm.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 </Project>

@@ -22,7 +22,7 @@ import pytest
 
 import bridgefex
 from bridgefex.backends.csharp.check import dotnet_sdk
-from bridgefex.backends.csharp.module import build_names, namespace
+from bridgefex.backends.csharp.module import assembly_name, build_names, namespace
 from tests.conformance import scenarios
 from tests.support.cases import Case
 from tests.support.plans import plan_of
@@ -173,7 +173,7 @@ def _map(case: Case) -> dict[str, object]:
         key: names.structs[struct.c_type].removeprefix("global::")
         for key, struct in scenarios.struct_types(plan).items()
     }
-    return {"enums": enums, "structs": structs, "root": root}
+    return {"enums": enums, "structs": structs, "root": root, "assembly": assembly_name(plan)}
 
 
 def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:

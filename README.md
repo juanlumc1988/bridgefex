@@ -246,7 +246,7 @@ Language standards: the C headers compile as C99, C11, C17 and C23, and as C++. 
 
 ## The C# bindings
 
-`--lang csharp` writes a .NET 8 project, `csharp/<Module>/` (`<Module>.csproj`, `Runtime.cs`, `Objects.cs`, `Native.cs` with the P/Invoke declarations, and a `<Header>.cs` per header). Add the project to your solution (or its files to your project: C# 12, `<Nullable>enable</Nullable>` and `<AllowUnsafeBlocks>`). It needs nothing but the .NET SDK, and the C library that you build as for any other language.
+`--lang csharp` writes a .NET 8 project, `csharp/<Module>/` (`<Module>.csproj`, `Runtime.cs`, `Objects.cs`, `Native.cs` with the P/Invoke declarations, and a `<Header>.cs` per header). Add the project to your solution (or its files to your project: C# 12, `<Nullable>enable</Nullable>` and `<AllowUnsafeBlocks>`). Its assembly is `Demo.Bindings`, not `Demo`: where the file system ignores the case (Windows, macOS) `Demo.dll` would be the file of the native library `demo.dll`. It needs nothing but the .NET SDK, and the C library that you build as for any other language.
 
 This is the first version of the backend: functions, classes, constructors, methods, static methods, enums, value structs, strings, inheritance and ownership work as described here. Containers (`std::vector`, `std::array`), spans, callbacks (`std::function`) and overriding virtual methods from C# are not there yet: a header that uses a container, a span or a callback is refused with a `C#:` error that names the declaration and the place (the Python bindings of the same header are generated all the same), and a class that asks for a director in the annotations file is generated as a plain class that C# cannot derive from to override. They come next.
 

@@ -88,6 +88,18 @@ def test_a_project_per_module_and_a_file_per_header(tmp_path: Path) -> None:
     assert "<AllowUnsafeBlocks>true</AllowUnsafeBlocks>" in files["csharp/Mod/Mod.csproj"]
 
 
+def test_the_assembly_has_a_name_that_is_not_a_file_name_of_the_library(tmp_path: Path) -> None:
+    """The native library is ``mod.dll`` and the assembly ``Mod.dll`` would be the same file
+    where the file system ignores the case (Windows, macOS): the loader took one for the other."""
+    project = generate(tmp_path, SMALL)["csharp/Mod/Mod.csproj"]
+    assert "<AssemblyName>Mod.Bindings</AssemblyName>" in project
+    assert "<RootNamespace>Mod</RootNamespace>" in project
+    assembly = re.search(r"<AssemblyName>(.*)</AssemblyName>", project)
+    assert assembly is not None
+    libraries = {"mod.dll", "libmod.so", "libmod.dylib"}
+    assert f"{assembly.group(1)}.dll".casefold() not in libraries
+
+
 def test_csharp_is_not_generated_unless_it_is_asked_for(tmp_path: Path) -> None:
     files = generate(tmp_path, SMALL, languages=bridgefex.DEFAULT_LANGUAGES)
     assert not any(path.startswith("csharp/") for path in files)

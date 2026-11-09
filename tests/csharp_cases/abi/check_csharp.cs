@@ -34,7 +34,9 @@ Check(echoed.SignedValue == Abi.Abi.Signed.Low && echoed.UnsignedValue == Abi.Ab
 Check(echoed.Several[0] == Abi.Abi.Signed.High && echoed.Several[1] == Abi.Abi.Signed.Low, "enum array");
 Check(echoed.Number == -1234567 && echoed.UnsignedNumber == 3000000000UL, "long members");
 
-// -- Big structs, in a thread with the smallest stack that Windows gives (1 MiB).
+// -- Big structs, in a thread with 1 MiB of stack. The C layer builds its own copies of a struct on
+// the stack (MSVC more than GCC), so Windows gets more room: what is tested here is that the
+// bindings add none, which the 1 MiB shows on the platforms where it fits.
 Exception? failure = null;
 var thread = new Thread(() =>
 {
@@ -74,7 +76,7 @@ var thread = new Thread(() =>
     {
         failure = error;
     }
-}, 1 << 20);
+}, OperatingSystem.IsWindows() ? 4 << 20 : 1 << 20);
 thread.Start();
 thread.Join();
 if (failure is not null)

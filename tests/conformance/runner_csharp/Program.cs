@@ -67,7 +67,7 @@ namespace BridgefexRunner
         {
             _map = map;
             // The bindings are an assembly of their own, which nothing has used yet.
-            Assembly.Load(map.GetProperty("root").GetString()!);
+            Assembly.Load(map.GetProperty("assembly").GetString()!);
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (assembly.IsDynamic)
