@@ -2,7 +2,7 @@
 """Golden test cases: tests/golden/<case>/.
 
 Each case has:
-  case.toml        options for bridgefex (module, headers, std)
+  case.toml        options for bridgefex (module, headers, std, languages)
   input/           the C++ headers
   expected/        the expected output (c/ and python/), compared byte by byte
   impl/            optional C++ implementation, for the round-trip tests
@@ -37,6 +37,9 @@ class Case:
 
     annotations: tuple[Path, ...] = ()
     """The annotation files of the case."""
+
+    languages: tuple[str, ...] = ("python",)
+    """The bindings that expected/ has (the C layer is always there)."""
 
     @property
     def input_dir(self) -> Path:
@@ -76,9 +79,14 @@ class Case:
             return "c++14"
         return self.std
 
-    def options(self) -> bridgefex.Options:
+    def options(self, languages: tuple[str, ...] | None = None) -> bridgefex.Options:
+        """The options of the case; ``languages`` replaces the ones of the case (the tests
+        that only need the C layer and Python do not wait for the compilers of the others)."""
         return bridgefex.Options(
-            module=self.module, std=self.parse_std, annotations=self.annotations
+            module=self.module,
+            std=self.parse_std,
+            annotations=self.annotations,
+            languages=self.languages if languages is None else languages,
         )
 
 
@@ -93,6 +101,7 @@ def load_case(directory: Path) -> Case:
         std=config.get("std", "c++17"),
         min_cxx=config.get("min_cxx", "c++11"),
         annotations=tuple(directory / name for name in config.get("annotations", ())),
+        languages=tuple(config.get("languages", ("python",))),
     )
 
 

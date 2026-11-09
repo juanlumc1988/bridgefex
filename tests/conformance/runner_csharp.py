@@ -79,7 +79,7 @@ def build_program(
     dll = work / "bin" / f"{name}.dll"
     if dll.exists():
         return dll
-    options = dataclasses.replace(case.options(), languages=("csharp",), verify=False)
+    options = dataclasses.replace(case.options(("csharp",)), verify=False)
     result = bridgefex.generate(case.headers, options)
     generated = work / "generated"
     files = edit(dict(result.files)) if edit else result.files

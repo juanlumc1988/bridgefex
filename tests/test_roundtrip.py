@@ -35,7 +35,7 @@ _DECLARATION = re.compile(r"(?:[A-Z0-9_]+_NODISCARD )?[A-Z0-9_]+_API [^(]*?(\w+)
 
 def expected_exports(case: Case) -> set[str]:
     """The functions declared by the generated C headers, the runtime one included."""
-    result = bridgefex.generate(case.headers, case.options())
+    result = bridgefex.generate(case.headers, case.options(("python",)))
     names: set[str] = set()
     for path, content in result.files.items():
         if path.startswith("c/") and path.endswith(".h"):

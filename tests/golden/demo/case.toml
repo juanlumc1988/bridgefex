@@ -2,3 +2,4 @@
 module = "demo"
 headers = ["counter.h", "geometry.h", "sleeper.h"]
 std = "c++17"
+languages = ["python", "csharp"]

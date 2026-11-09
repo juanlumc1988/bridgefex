@@ -121,6 +121,7 @@ def test_output_does_not_depend_on_hash_seed(tmp_path: Path) -> None:
             case.module,
             "--output",
             str(output),
+            *(argument for language in case.languages for argument in ("--lang", language)),
             *(str(header) for header in case.headers),
         ]
         completed = subprocess.run(

@@ -12,7 +12,7 @@ import pytest
 
 import bridgefex
 from bridgefex.cli import main
-from tests.support.cases import GOLDEN_DIR, read_tree
+from tests.support.cases import GOLDEN_DIR, load_case, read_tree
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
@@ -26,10 +26,37 @@ def test_generates_the_golden_output(
 ) -> None:
     if update_goldens:
         pytest.skip("the golden files are being rewritten by test_golden.py")
-    code = main(["-m", "demo", "-o", str(tmp_path), str(COUNTER), str(GEOMETRY), str(SLEEPER)])
+    case = load_case(GOLDEN_DIR / "demo")
+    languages = [argument for language in case.languages for argument in ("--lang", language)]
+    code = main(
+        ["-m", "demo", "-o", str(tmp_path), *languages, str(COUNTER), str(GEOMETRY), str(SLEEPER)]
+    )
     assert code == 0
-    assert read_tree(tmp_path) == read_tree(GOLDEN_DIR / "demo" / "expected")
-    assert "wrote 16 files" in capsys.readouterr().out
+    expected = read_tree(case.expected_dir)
+    assert read_tree(tmp_path) == expected
+    assert f"wrote {len(expected)} files" in capsys.readouterr().out
+
+
+def test_the_default_language_is_python(tmp_path: Path) -> None:
+    assert main(["-m", "demo", "-o", str(tmp_path), str(COUNTER)]) == 0
+    assert {path.split("/")[0] for path in read_tree(tmp_path)} == {"c", "python"}
+
+
+def test_lang_can_be_repeated_and_repeated_languages_are_generated_once(tmp_path: Path) -> None:
+    arguments = ["--lang", "csharp", "--lang", "python", "--lang", "csharp"]
+    assert main(["-m", "demo", "-o", str(tmp_path), "--no-verify", *arguments, str(COUNTER)]) == 0
+    assert {path.split("/")[0] for path in read_tree(tmp_path)} == {"c", "python", "csharp"}
+
+
+def test_lang_none_cannot_be_combined_with_a_language(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    arguments = ["--lang", "none", "--lang", "python"]
+    with pytest.raises(SystemExit) as raised:
+        main(["-m", "demo", "-o", str(tmp_path), *arguments, str(COUNTER)])
+    assert raised.value.code == 2
+    assert "cannot be combined" in capsys.readouterr().err
+    assert not tmp_path.exists() or not read_tree(tmp_path)
 
 
 def test_lang_none_generates_only_the_c_layer(tmp_path: Path) -> None:

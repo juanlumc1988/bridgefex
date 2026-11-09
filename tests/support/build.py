@@ -26,7 +26,7 @@ def build(
 ) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir)."""
     output = directory / "out"
-    result = bridgefex.generate(case.headers, case.options())
+    result = bridgefex.generate(case.headers, case.options(("python",)))
     bridgefex.write_files(result.files, output)
     library = directory / toolchain.shared_library_name(case.module)
     sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)

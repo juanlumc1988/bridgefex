@@ -36,7 +36,7 @@ def generated(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     outputs = {}
     for case in CASES:
         output = tmp_path_factory.mktemp(f"standards_{case.name}")
-        result = bridgefex.generate(case.headers, case.options())
+        result = bridgefex.generate(case.headers, case.options(("python",)))
         bridgefex.write_files(result.files, output)
         outputs[case.name] = output
     return outputs
@@ -54,7 +54,7 @@ def resolve(toolchain: Toolchain, language: str, standard: str, probe_dir: Path)
 
 def consumer_source(case: Case, directory: Path, extension: str) -> Path:
     """A translation unit that includes every generated public header."""
-    result = bridgefex.generate(case.headers, case.options())
+    result = bridgefex.generate(case.headers, case.options(("python",)))
     headers = sorted(
         Path(path).name for path in result.files if path.startswith("c/") and path.endswith(".h")
     )
