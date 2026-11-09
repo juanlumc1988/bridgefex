@@ -186,6 +186,20 @@ The Python backend is the reference: `backends/python/ffi.py` maps `Ffi` to ctyp
 enums and structs, `check.py` compiles and imports the generated package before it
 is written, and `templates/` holds the Jinja templates and the runtime.
 
+The C# backend has the same parts: `mapping.py` maps `Ffi` and the scalars to the blittable
+types of P/Invoke (`LibraryImport`, pointers, no marshalling), `lower.py` lowers a
+`CallablePlan` to a method (a `fixed` block per string, a `Lease` per object, a claim per
+object that is given, the retains after the call), `module.py` writes the files (`Native.cs`,
+a file per header with its classes, enums and structs), `check.py` builds the project with
+`dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime
+(`Runtime.cs`, `Objects.cs`, the `.csproj`). What C# cannot do the way the plan assumes is
+solved in the backend: a class has one base class, so the first base of a C++ class is the
+C# one and the others are views of the same object (`AsBase()`, an implicit conversion, and the
+base's methods copied into the class); a garbage collector does not order finalizers, so what a
+C++ object keeps pointers to is held (`Keep`) until the object has been destroyed. What a
+backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`
+that says so, instead of a half-working class.
+
 ## The conformance suite
 
 The behavior that every language must share (what a call returns, which failures
@@ -225,7 +239,13 @@ directions, and the failure of an override reaches the call that made C++ run it
 A runner decides how the neutral names reach its language: the Python one finds a
 header as a module, a constructor overload as `Class.create<overload>`, a struct
 member by its position (the scenario gives all of them in declaration order) and a
-kind of failure as an exception class. Behavior that is not shared (how a class that is
+kind of failure as an exception class. The C# one is a program that is built with the
+generated project and plays the scenarios by reflection from a JSON file (it has no TOML
+parser): `scenarios.resolve` gives each `new` and `call` the C function it wraps, which the
+bindings name in the attribute `[BridgefexFunction]` of the member, so that the runner needs
+none of the rules by which C# names things; the Python harness also gives it the C# names of
+the enums and structs. A language whose toolchain is not installed skips its runner, unless the
+environment requires it (`BRIDGEFEX_REQUIRE_DOTNET`, set by the CI). Behavior that is not shared (how a class that is
 not instantiable fails to be, a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
 `check_<language>` program of the case. Callbacks and ownership annotations are not
 in the scenarios yet.
@@ -233,10 +253,13 @@ in the scenarios yet.
 ## Tests
 
 - `tests/test_plan.py` checks the plan and, through the Python backend's view of
-  it, the Python lowering; `tests/test_backends.py` the registry and the checks.
+  it, the Python lowering; `tests/test_backends.py` the registry and the checks;
+  `tests/test_csharp_backend.py` what the C# backend writes, names and refuses.
 - `tests/test_architecture.py` the layering described above; `tests/test_conformance.py`
   the conformance suite.
 - `tests/golden/<case>/` holds, per case, the input headers, the C++ implementation
   and the expected generated files; `test_golden.py` compares them byte by byte
   and `test_roundtrip.py` builds the library and runs `check_c.c` and
-  `check_python.py` against it.
+  `check_python.py` against it; `test_csharp_roundtrip.py` does the same with
+  `check_csharp.cs`, built with the generated project like a user's program.
+  A case lists the bindings that its `expected/` has (`languages` in `case.toml`).
