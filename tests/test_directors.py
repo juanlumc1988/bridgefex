@@ -89,7 +89,7 @@ def test_the_director_api(tmp_path: Path) -> None:
         ),
         (
             "namespace n { class Other { public: Other(); }; class Shape { public: Shape();"
-            " virtual ~Shape(); virtual void f(const Other& v) = 0; }; }",
+            " virtual ~Shape(); virtual void f(Other v) = 0; }; }",
             "the pure virtual method 'Shape::f' cannot be overridden from another language",
         ),
         (
@@ -136,7 +136,7 @@ def test_a_method_that_cannot_be_overridden_keeps_the_class(tmp_path: Path) -> N
             namespace n { class Other { public: Other(); };
               class Shape { public: Shape(); virtual ~Shape();
               virtual std::int32_t a() const;
-              virtual std::int32_t b(const Other& v) const;
+              virtual std::int32_t b(Other v) const;
               virtual std::int32_t c() const final; }; }
             """,
             "n_Shape",
@@ -675,3 +675,63 @@ public:
     vtable = result.files["c/api_c.h"].split("n_Shape_vtable {")[1].split("} n_Shape_vtable")[0]
     assert "void (*total)(void*, const int32_t*, size_t, int32_t*);" in vtable
     assert "view" not in vtable
+
+
+OBJECTS = """
+namespace n {
+class Other { public: Other(); virtual ~Other(); };
+class Shape {
+public:
+    Shape();
+    virtual ~Shape();
+    virtual std::int32_t a(const Other& o) const;
+    virtual std::int32_t b(Other& o) const;
+    virtual std::int32_t c(const Other* o) const;
+    virtual std::int32_t d(Other* o) const;
+    virtual std::int32_t e(std::unique_ptr<Other> o) const;
+    virtual std::int32_t f(std::unique_ptr<Other>&& o) const;
+    virtual std::unique_ptr<Other> g() const;
+    virtual std::int32_t h(Other o) const;
+    virtual const Other& j() const;
+    virtual Other k() const;
+};
+}
+"""
+
+
+def test_objects_cross_a_vtable_lent_or_given(tmp_path: Path) -> None:
+    result = generate(tmp_path, "#include <memory>\n" + OBJECTS, "n_Shape")
+    vtable = header_of(result).split("n_Shape_vtable {")[1].split("} n_Shape_vtable")[0]
+    for member in (
+        "void (*a)(void*, const n_Other*, int32_t*);",
+        "void (*b)(void*, n_Other*, int32_t*);",
+        "void (*c)(void*, const n_Other*, int32_t*);",
+        "void (*d)(void*, n_Other*, int32_t*);",
+        "void (*e)(void*, n_Other*, int32_t*);",
+        "void (*f)(void*, n_Other*, int32_t*);",
+        "void (*g)(void*, n_Other**);",
+    ):
+        assert member in vtable, member
+    # A copy, and the objects that the override would own while C++ points to them, keep the
+    # implementation of the class.
+    for name in ("h", "j", "k"):
+        assert f"(*{name})" not in vtable, name
+    source = result.files["c/api_c.cpp"]
+    # An unique_ptr and an rvalue reference are declared as the base declares them.
+    assert "int32_t e(::std::unique_ptr<::n::Other> _arg1) const override" in source
+    assert "int32_t f(::std::unique_ptr<::n::Other>&& _arg1) const override" in source
+    assert "static_cast<::std::unique_ptr<::n::Other>&&>(_arg1)" in source
+
+
+def test_a_pure_virtual_method_that_gives_an_object_by_reference_refuses_the_class(
+    tmp_path: Path,
+) -> None:
+    text = error_of(
+        tmp_path,
+        """
+        namespace n { class Other { public: Other(); virtual ~Other(); };
+          class Shape { public: Shape(); virtual ~Shape(); virtual const Other& f() const = 0; }; }
+        """,
+        "n_Shape",
+    )
+    assert "the result is a reference: an override cannot return one" in text

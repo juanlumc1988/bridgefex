@@ -9,6 +9,29 @@ extern "C" {
 #endif
 
 /*
+ * The director of drc::Beam: an object of a class derived from it, whose virtual
+ * methods call the functions of a vtable, which code of another language provides.
+ * A NULL member of the vtable keeps the implementation of the class; the
+ * members of its pure virtual methods must be set. The functions run on whatever
+ * thread C++ calls the method, may be called many times and must not throw nor
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). A pointer argument is only valid during the call.
+ * user_data is passed to every function; release(user_data) is called once, when
+ * the director is destroyed (with drc_Beam_destroy() of its object).
+ */
+typedef struct drc_Beam_director drc_Beam_director;
+
+#pragma pack(push, 8)
+typedef struct drc_Beam_vtable {
+    void* user_data;
+    void (*release)(void* user_data);
+    /* int32_t drc::Beam::length() const */
+    void (*length)(void*, int32_t*);
+} drc_Beam_vtable;
+#pragma pack(pop)
+
+/*
  * The director of drc::Shape: an object of a class derived from it, whose virtual
  * methods call the functions of a vtable, which code of another language provides.
  * A NULL member of the vtable keeps the implementation of the class; the
@@ -62,6 +85,18 @@ typedef struct drc_Shape_vtable {
     void (*flags)(void*, const bool*, size_t, drc_vector_sink*);
     /* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const */
     void (*triple)(void*, const double*, drc_vector_sink*);
+    /* int32_t drc::Shape::peek(const drc::Holder& holder) const */
+    void (*peek)(void*, const drc_Holder*, int32_t*);
+    /* double drc::Shape::compare(const drc::Shape& other) const */
+    void (*compare)(void*, const drc_Shape*, double*);
+    /* bool drc::Shape::same(const drc::Shape* other) const */
+    void (*same)(void*, const drc_Shape*, bool*);
+    /* int32_t drc::Shape::grow(drc::Beam& beam) const */
+    void (*grow)(void*, drc_Beam*, int32_t*);
+    /* int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const */
+    void (*adopt)(void*, drc_Beam*, int32_t*);
+    /* std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const */
+    void (*make_beam)(void*, int32_t, drc_Beam**);
     /* void drc::Shape::changed(int32_t reason) */
     void (*changed)(void*, int32_t);
 } drc_Shape_vtable;
@@ -121,36 +156,40 @@ typedef struct drc_Circle_vtable {
     void (*flags)(void*, const bool*, size_t, drc_vector_sink*);
     /* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const */
     void (*triple)(void*, const double*, drc_vector_sink*);
+    /* int32_t drc::Shape::peek(const drc::Holder& holder) const */
+    void (*peek)(void*, const drc_Holder*, int32_t*);
+    /* double drc::Shape::compare(const drc::Shape& other) const */
+    void (*compare)(void*, const drc_Shape*, double*);
+    /* bool drc::Shape::same(const drc::Shape* other) const */
+    void (*same)(void*, const drc_Shape*, bool*);
+    /* int32_t drc::Shape::grow(drc::Beam& beam) const */
+    void (*grow)(void*, drc_Beam*, int32_t*);
+    /* int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const */
+    void (*adopt)(void*, drc_Beam*, int32_t*);
+    /* std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const */
+    void (*make_beam)(void*, int32_t, drc_Beam**);
     /* void drc::Shape::changed(int32_t reason) */
     void (*changed)(void*, int32_t);
 } drc_Circle_vtable;
 #pragma pack(pop)
 
-/*
- * The director of drc::Beam: an object of a class derived from it, whose virtual
- * methods call the functions of a vtable, which code of another language provides.
- * A NULL member of the vtable keeps the implementation of the class; the
- * members of its pure virtual methods must be set. The functions run on whatever
- * thread C++ calls the method, may be called many times and must not throw nor
- * longjmp. A number, enum or struct result is written through the last parameter, which is
- * value-initialized beforehand; a string or a container is given to the sink that is the last
- * parameter (see the runtime header). A pointer argument is only valid during the call.
- * user_data is passed to every function; release(user_data) is called once, when
- * the director is destroyed (with drc_Beam_destroy() of its object).
- */
-typedef struct drc_Beam_director drc_Beam_director;
-
-#pragma pack(push, 8)
-typedef struct drc_Beam_vtable {
-    void* user_data;
-    void (*release)(void* user_data);
-    /* int32_t drc::Beam::length() const */
-    void (*length)(void*, int32_t*);
-} drc_Beam_vtable;
-#pragma pack(pop)
-
 /* drc::Point(): the value of a default-constructed drc::Point */
 DRC_NODISCARD DRC_API drc_status drc_Point_init(drc_Point* out_result);
+
+/* drc::Beam::Beam(int32_t length) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_create(drc_Beam** out_self, int32_t length);
+
+/* drc::Beam::~Beam() */
+DRC_API void drc_Beam_destroy(drc_Beam* self);
+
+/* int32_t drc::Beam::length() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_length(const drc_Beam* self, int32_t* out_result);
+
+/* int32_t drc::Beam::call_length() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_call_length(const drc_Beam* self, int32_t* out_result);
+
+/* int32_t drc::Beam::made_by() const */
+DRC_NODISCARD DRC_API drc_status drc_Beam_made_by(const drc_Beam* self, int32_t* out_result);
 
 /* drc::Shape::~Shape() */
 DRC_API void drc_Shape_destroy(drc_Shape* self);
@@ -212,6 +251,26 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_triple(const drc_Shape* self, const d
 /* int32_t drc::Shape::peek(const drc::Holder& holder) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result);
 
+/* double drc::Shape::compare(const drc::Shape& other) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_compare(const drc_Shape* self, const drc_Shape* other, double* out_result);
+
+/* bool drc::Shape::same(const drc::Shape* other) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_same(const drc_Shape* self, const drc_Shape* other, bool* out_result);
+
+/* int32_t drc::Shape::grow(drc::Beam& beam) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_grow(const drc_Shape* self, drc_Beam* beam, int32_t* out_result);
+
+/* int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const
+ * beam: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_adopt(const drc_Shape* self, drc_Beam* beam, int32_t* out_result);
+
+/* std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const
+ * *out_result: owned by the caller (may be NULL); destroy it with drc_Beam_destroy. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_make_beam(const drc_Shape* self, int32_t length, drc_Beam** out_result);
+
+/* int32_t drc::Shape::by_value(drc::Beam beam) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_by_value(const drc_Shape* self, const drc_Beam* beam, int32_t* out_result);
+
 /* int32_t drc::Shape::fixed() const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_fixed(const drc_Shape* self, int32_t* out_result);
 
@@ -250,6 +309,27 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_call_triple(const drc_Shape* self, co
 
 /* int32_t drc::Shape::call_peek(const drc::Holder& holder) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_call_peek(const drc_Shape* self, const drc_Holder* holder, int32_t* out_result);
+
+/* double drc::Shape::call_compare(const drc::Shape& other) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_compare(const drc_Shape* self, const drc_Shape* other, double* out_result);
+
+/* bool drc::Shape::call_same(const drc::Shape* other) const
+ * other: may be NULL. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_same(const drc_Shape* self, const drc_Shape* other, bool* out_result);
+
+/* int32_t drc::Shape::call_grow(drc::Beam& beam) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_grow(const drc_Shape* self, drc_Beam* beam, int32_t* out_result);
+
+/* int32_t drc::Shape::call_adopt(std::unique_ptr<drc::Beam> beam) const
+ * beam: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_adopt(const drc_Shape* self, drc_Beam* beam, int32_t* out_result);
+
+/* std::unique_ptr<drc::Beam> drc::Shape::call_make_beam(int32_t length) const
+ * *out_result: owned by the caller (may be NULL); destroy it with drc_Beam_destroy. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_make_beam(const drc_Shape* self, int32_t length, drc_Beam** out_result);
+
+/* int32_t drc::Shape::call_by_value(const drc::Beam& beam) const */
+DRC_NODISCARD DRC_API drc_status drc_Shape_call_by_value(const drc_Shape* self, const drc_Beam* beam, int32_t* out_result);
 
 /* drc::Mode drc::Shape::choose(drc::Mode requested) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_choose(const drc_Shape* self, drc_Mode requested, drc_Mode* out_result);
@@ -305,21 +385,6 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_add(const drc_Circle* self, int32_t 
 /* double drc::Circle::radius() const */
 DRC_NODISCARD DRC_API drc_status drc_Circle_radius(const drc_Circle* self, double* out_result);
 
-/* drc::Beam::Beam(int32_t length) */
-DRC_NODISCARD DRC_API drc_status drc_Beam_create(drc_Beam** out_self, int32_t length);
-
-/* drc::Beam::~Beam() */
-DRC_API void drc_Beam_destroy(drc_Beam* self);
-
-/* int32_t drc::Beam::length() const */
-DRC_NODISCARD DRC_API drc_status drc_Beam_length(const drc_Beam* self, int32_t* out_result);
-
-/* int32_t drc::Beam::call_length() const */
-DRC_NODISCARD DRC_API drc_status drc_Beam_call_length(const drc_Beam* self, int32_t* out_result);
-
-/* int32_t drc::Beam::made_by() const */
-DRC_NODISCARD DRC_API drc_status drc_Beam_made_by(const drc_Beam* self, int32_t* out_result);
-
 /* drc::Dot::Dot() */
 DRC_NODISCARD DRC_API drc_status drc_Dot_create(drc_Dot** out_self);
 
@@ -369,6 +434,25 @@ DRC_NODISCARD DRC_API drc_status drc_Holder_describe_on_thread(const drc_Holder*
 
 /* int32_t drc::Holder::apply(const std::function<int32_t (int32_t)>& f) const */
 DRC_NODISCARD DRC_API drc_status drc_Holder_apply(const drc_Holder* self, void (*f)(void*, int32_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
+
+/* drc::Beam::Beam(int32_t length) of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_int32(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, int32_t length);
+
+/* drc::Beam::Beam() of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_void(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable);
+
+/* drc::Beam::Beam(const std::string& label) of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_string(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, const char* label, size_t label_size);
+
+/* drc::Beam: the object of its director */
+DRC_NODISCARD DRC_API drc_Beam* drc_Beam_director_object(drc_Beam_director* director);
+
+/* int32_t drc::Beam::length() const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Beam_director_base_length(drc_Beam_director* director, int32_t* out_result);
 
 /* drc::Shape::Shape() of the director
  * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
@@ -448,6 +532,32 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_flags(drc_Shape_directo
 /* std::array<double, 3> drc::Shape::triple(const std::array<double, 3>& values) const
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_triple(drc_Shape_director* director, const double values[3], double out_result[3]);
+
+/* int32_t drc::Shape::peek(const drc::Holder& holder) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_peek(drc_Shape_director* director, const drc_Holder* holder, int32_t* out_result);
+
+/* double drc::Shape::compare(const drc::Shape& other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_compare(drc_Shape_director* director, const drc_Shape* other, double* out_result);
+
+/* bool drc::Shape::same(const drc::Shape* other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_same(drc_Shape_director* director, const drc_Shape* other, bool* out_result);
+
+/* int32_t drc::Shape::grow(drc::Beam& beam) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_grow(drc_Shape_director* director, drc_Beam* beam, int32_t* out_result);
+
+/* int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const
+ * calls the implementation of the class, without going through the vtable
+ * beam: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_adopt(drc_Shape_director* director, drc_Beam* beam, int32_t* out_result);
+
+/* std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const
+ * calls the implementation of the class, without going through the vtable
+ * *out_result: owned by the caller (may be NULL); destroy it with drc_Beam_destroy. */
+DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_make_beam(drc_Shape_director* director, int32_t length, drc_Beam** out_result);
 
 /* void drc::Shape::changed(int32_t reason)
  * calls the implementation of the class, without going through the vtable */
@@ -532,28 +642,35 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_flags(drc_Circle_direc
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_triple(drc_Circle_director* director, const double values[3], double out_result[3]);
 
+/* int32_t drc::Shape::peek(const drc::Holder& holder) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_peek(drc_Circle_director* director, const drc_Holder* holder, int32_t* out_result);
+
+/* double drc::Shape::compare(const drc::Shape& other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_compare(drc_Circle_director* director, const drc_Shape* other, double* out_result);
+
+/* bool drc::Shape::same(const drc::Shape* other) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_same(drc_Circle_director* director, const drc_Shape* other, bool* out_result);
+
+/* int32_t drc::Shape::grow(drc::Beam& beam) const
+ * calls the implementation of the class, without going through the vtable */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_grow(drc_Circle_director* director, drc_Beam* beam, int32_t* out_result);
+
+/* int32_t drc::Shape::adopt(std::unique_ptr<drc::Beam> beam) const
+ * calls the implementation of the class, without going through the vtable
+ * beam: ownership is transferred, whatever the status: do not use or destroy it afterwards. */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_adopt(drc_Circle_director* director, drc_Beam* beam, int32_t* out_result);
+
+/* std::unique_ptr<drc::Beam> drc::Shape::make_beam(int32_t length) const
+ * calls the implementation of the class, without going through the vtable
+ * *out_result: owned by the caller (may be NULL); destroy it with drc_Beam_destroy. */
+DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_make_beam(drc_Circle_director* director, int32_t length, drc_Beam** out_result);
+
 /* void drc::Shape::changed(int32_t reason)
  * calls the implementation of the class, without going through the vtable */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_changed(drc_Circle_director* director, int32_t reason);
-
-/* drc::Beam::Beam(int32_t length) of the director
- * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_int32(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, int32_t length);
-
-/* drc::Beam::Beam() of the director
- * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_void(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable);
-
-/* drc::Beam::Beam(const std::string& label) of the director
- * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
-DRC_NODISCARD DRC_API drc_status drc_Beam_director_create_string(drc_Beam** out_object, drc_Beam_director** out_director, const drc_Beam_vtable* vtable, const char* label, size_t label_size);
-
-/* drc::Beam: the object of its director */
-DRC_NODISCARD DRC_API drc_Beam* drc_Beam_director_object(drc_Beam_director* director);
-
-/* int32_t drc::Beam::length() const
- * calls the implementation of the class, without going through the vtable */
-DRC_NODISCARD DRC_API drc_status drc_Beam_director_base_length(drc_Beam_director* director, int32_t* out_result);
 
 #ifdef __cplusplus
 }

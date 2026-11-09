@@ -6,6 +6,7 @@ import ctypes
 import enum
 import functools
 {% if m.has_directors %}
+import importlib
 import inspect
 {% endif %}
 import math
@@ -269,6 +270,13 @@ that has no single owner. Like the ``_retained`` of an object, it holds each
 object once, however many times it is retained."""
 
 
+{% if m.has_directors %}
+_classes = {}
+"""The generated class of each C type, for the code that gets a pointer from C++ (the
+objects that an override takes): a class registers itself when its module is imported."""
+
+
+{% endif %}
 class Object:
     """Root of the wrapped classes. It holds the instance layout, so that a class
     with several bases can exist: Python does not combine the layouts of
@@ -301,6 +309,10 @@ class Object:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+{% if m.has_directors %}
+        if "_cxx_class" in cls.__dict__:
+            _classes[cls._cxx_class] = cls
+{% endif %}
         # A class that bridgefex generates names its own C++ class. A class of the
         # user extends one: the object it makes has one handle.
         if "_cxx_class" not in cls.__dict__:
@@ -1378,6 +1390,89 @@ def sink_set(sink, value, name):
         error.add_note(f"(the result of the override {name!r})")
         raise
     _library.{{ m.string_sink_set }}(sink, data, len(data))
+
+
+class Lend:
+    """What C++ lends to an override for the duration of the call: the owner of the objects
+    that it takes by reference or pointer, which are valid until the thunk ends it."""
+
+    __slots__ = ("__weakref__", "_owned", "_owners", "_retained")
+
+    def __init__(self):
+        self._owned = [(None, None)]
+        self._owners = ()
+        self._retained = {}
+
+    def _collected(self):
+        return False
+
+    def end(self):
+        self._owned = []
+
+
+_by_address = weakref.WeakValueDictionary()
+"""The objects of the classes that have a director, by the address of the C++ object as each
+class it may be passed as (a base class is not at the same address with several bases): an
+override that C++ gives such an object to gets the Python object, not a new one."""
+
+
+def register_object(obj):
+    """Let the thunks find ``obj`` (a director object) from the pointers that C++ gives."""
+    _by_address[(_address(obj._handle), obj._cxx_class)] = obj
+    for name in type(obj)._ancestors:
+        _by_address[(_address(getattr(obj, name)()), name.removeprefix("_ptr_"))] = obj
+
+
+def _class_of(c_type, stem):
+    cls = _classes.get(c_type)
+    if cls is None:
+        # The module of the class has not been imported yet (an override can take an
+        # object of a header that nobody imported).
+        importlib.import_module(f"{__package__}.{stem}")
+        cls = _classes[c_type]
+    return cls
+
+
+def callback_object(c_type, stem, pointer, readonly, lend):
+    """The object for a pointer or reference that C++ lends to an override: None for NULL,
+    the Python object if the pointer is that of one of a class that derives from a wrapped
+    one, else a borrowed object that is valid until the call of the override ends."""
+    if not pointer:
+        return None
+    known = _by_address.get((_address(pointer), c_type))
+    if known is not None and known._owned and not known._collected():
+        return known
+    return borrow(_class_of(c_type, stem), pointer, (lend,), readonly)
+
+
+def callback_owned(c_type, stem, pointer):
+    """The object for a std::unique_ptr that C++ gives to an override, which owns it from
+    now on (it destroys the C++ object): a plain object of the class."""
+    if not pointer:
+        return None
+    cls = _class_of(c_type, stem)
+    obj = cls.__new__(cls)
+    handle = obj._watch()
+    ctypes.pointer(handle)[0] = pointer
+    obj._adopt(handle)
+    return obj
+
+
+def give_object(value, c_type, stem, name, view, exact):
+    """The handle of the object that an override gives to C++ as a std::unique_ptr: Python
+    gives it up for good (None is a NULL pointer)."""
+    if value is None:
+        return None
+    cls = _class_of(c_type, stem)
+    if not isinstance(value, cls):
+        raise TypeError(
+            f"the result of the override {name!r} must be {cls.__qualname__} or None, "
+            f"not {_type_name(value)}"
+        )
+    if exact:
+        check_exact(value, cls, name)
+    (handle,) = take(forever, (value, name, view) if view else (value, name))
+    return handle
 
 
 def override_result(name, make):

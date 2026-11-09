@@ -22,6 +22,13 @@ drc_Mode = enum.IntEnum(
 drc_Mode.__doc__ = "Wraps ``enum class drc::Mode : uint8_t``."
 
 
+class _drc_Beam(ctypes.Structure):
+    """Opaque C handle of drc::Beam."""
+
+
+_drc_Beam__p = ctypes.POINTER(_drc_Beam)
+
+
 class _drc_Shape(ctypes.Structure):
     """Opaque C handle of drc::Shape."""
 
@@ -34,13 +41,6 @@ class _drc_Circle(ctypes.Structure):
 
 
 _drc_Circle__p = ctypes.POINTER(_drc_Circle)
-
-
-class _drc_Beam(ctypes.Structure):
-    """Opaque C handle of drc::Beam."""
-
-
-_drc_Beam__p = ctypes.POINTER(_drc_Beam)
 
 
 class _drc_Dot(ctypes.Structure):
@@ -169,6 +169,49 @@ def _callback__int32__int32(_user_data, _arg1, _out_result):
 
 # The thunk itself is never freed: C++ may call it at any time.
 _callback__int32__int32 = _callback__int32__int32__type(_callback__int32__int32)
+
+
+class _drc_Beam_director(ctypes.Structure):
+    """Opaque C handle of the director of drc::Beam."""
+
+
+_drc_Beam_director__p = ctypes.POINTER(_drc_Beam_director)
+
+
+_director__drc_Beam__length__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Beam__length(_user_data, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "length")
+        if _function is None:
+            return
+        _value = _function()
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'length', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Beam__length = _director__drc_Beam__length__type(_director__drc_Beam__length)
+
+
+class _drc_Beam_vtable(ctypes.Structure):
+    """C mirror of the vtable of the director of drc::Beam."""
+
+    _fields_ = [
+        ("user_data", ctypes.c_void_p),
+        ("release", _runtime.Release),
+        ("length", _director__drc_Beam__length__type),
+    ]
 
 
 class _drc_Shape_director(ctypes.Structure):
@@ -629,6 +672,174 @@ def _director__drc_Shape__triple(_user_data, _arg1, _out_result):
 _director__drc_Shape__triple = _director__drc_Shape__triple__type(_director__drc_Shape__triple)
 
 
+_director__drc_Shape__peek__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Holder__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Shape__peek(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "peek")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Holder", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'peek', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__peek = _director__drc_Shape__peek__type(_director__drc_Shape__peek)
+
+
+_director__drc_Shape__compare__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Shape__p, ctypes.POINTER(ctypes.c_double))
+
+
+def _director__drc_Shape__compare(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "compare")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Shape", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'compare', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__compare = _director__drc_Shape__compare__type(_director__drc_Shape__compare)
+
+
+_director__drc_Shape__same__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Shape__p, ctypes.POINTER(ctypes.c_bool))
+
+
+def _director__drc_Shape__same(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "same")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Shape", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_bool(_value, 'same', what="the result of the override")
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__same = _director__drc_Shape__same__type(_director__drc_Shape__same)
+
+
+_director__drc_Shape__grow__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Beam__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Shape__grow(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "grow")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Beam", "shape", _arg1, False, _lend))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'grow', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__grow = _director__drc_Shape__grow__type(_director__drc_Shape__grow)
+
+
+_director__drc_Shape__adopt__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Beam__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Shape__adopt(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "adopt")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_owned("drc_Beam", "shape", _arg1))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'adopt', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__adopt = _director__drc_Shape__adopt__type(_director__drc_Shape__adopt)
+
+
+_director__drc_Shape__make_beam__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32, ctypes.POINTER(_drc_Beam__p))
+
+
+def _director__drc_Shape__make_beam(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "make_beam")
+        if _function is None:
+            return
+        _value = _function(_arg1)
+        _out_result[0] = _runtime.give_object(_value, "drc_Beam", "shape", 'make_beam', None, False)
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Shape__make_beam = _director__drc_Shape__make_beam__type(_director__drc_Shape__make_beam)
+
+
 _director__drc_Shape__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32)
 
 
@@ -676,6 +887,12 @@ class _drc_Shape_vtable(ctypes.Structure):
         ("points", _director__drc_Shape__points__type),
         ("flags", _director__drc_Shape__flags__type),
         ("triple", _director__drc_Shape__triple__type),
+        ("peek", _director__drc_Shape__peek__type),
+        ("compare", _director__drc_Shape__compare__type),
+        ("same", _director__drc_Shape__same__type),
+        ("grow", _director__drc_Shape__grow__type),
+        ("adopt", _director__drc_Shape__adopt__type),
+        ("make_beam", _director__drc_Shape__make_beam__type),
         ("changed", _director__drc_Shape__changed__type),
     ]
 
@@ -1138,6 +1355,174 @@ def _director__drc_Circle__triple(_user_data, _arg1, _out_result):
 _director__drc_Circle__triple = _director__drc_Circle__triple__type(_director__drc_Circle__triple)
 
 
+_director__drc_Circle__peek__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Holder__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Circle__peek(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "peek")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Holder", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'peek', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__peek = _director__drc_Circle__peek__type(_director__drc_Circle__peek)
+
+
+_director__drc_Circle__compare__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Shape__p, ctypes.POINTER(ctypes.c_double))
+
+
+def _director__drc_Circle__compare(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "compare")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Shape", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_float(
+            _value, ctypes.c_double, 'compare', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__compare = _director__drc_Circle__compare__type(_director__drc_Circle__compare)
+
+
+_director__drc_Circle__same__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Shape__p, ctypes.POINTER(ctypes.c_bool))
+
+
+def _director__drc_Circle__same(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "same")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Shape", "shape", _arg1, True, _lend))
+        _out_result[0] = _runtime.to_bool(_value, 'same', what="the result of the override")
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__same = _director__drc_Circle__same__type(_director__drc_Circle__same)
+
+
+_director__drc_Circle__grow__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Beam__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Circle__grow(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    _lend = _runtime.Lend()
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "grow")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_object("drc_Beam", "shape", _arg1, False, _lend))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'grow', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+    finally:
+        # The objects that C++ lent are not valid any more.
+        _lend.end()
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__grow = _director__drc_Circle__grow__type(_director__drc_Circle__grow)
+
+
+_director__drc_Circle__adopt__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, _drc_Beam__p, ctypes.POINTER(ctypes.c_int32))
+
+
+def _director__drc_Circle__adopt(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "adopt")
+        if _function is None:
+            return
+        _value = _function(_runtime.callback_owned("drc_Beam", "shape", _arg1))
+        _out_result[0] = _runtime.to_int(
+            _value, ctypes.c_int32, 'adopt', what="the result of the override"
+        )
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__adopt = _director__drc_Circle__adopt__type(_director__drc_Circle__adopt)
+
+
+_director__drc_Circle__make_beam__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32, ctypes.POINTER(_drc_Beam__p))
+
+
+def _director__drc_Circle__make_beam(_user_data, _arg1, _out_result):
+    # Called by C++ for a virtual method that the object overrides. An exception goes to
+    # the call that runs it, if there is one (see _runtime.fail_director).
+    _active = None
+    try:
+        # _active is the token of this override, which ends with this frame.
+        _function, _active = _runtime.director_method(_user_data, "make_beam")
+        if _function is None:
+            return
+        _value = _function(_arg1)
+        _out_result[0] = _runtime.give_object(_value, "drc_Beam", "shape", 'make_beam', None, False)
+    except BaseException as _error:
+        _active = None
+        if not _runtime.fail_director(_error):
+            raise
+
+
+# The thunk itself is never freed: C++ may call it at any time.
+_director__drc_Circle__make_beam = _director__drc_Circle__make_beam__type(_director__drc_Circle__make_beam)
+
+
 _director__drc_Circle__changed__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int32)
 
 
@@ -1185,50 +1570,13 @@ class _drc_Circle_vtable(ctypes.Structure):
         ("points", _director__drc_Circle__points__type),
         ("flags", _director__drc_Circle__flags__type),
         ("triple", _director__drc_Circle__triple__type),
+        ("peek", _director__drc_Circle__peek__type),
+        ("compare", _director__drc_Circle__compare__type),
+        ("same", _director__drc_Circle__same__type),
+        ("grow", _director__drc_Circle__grow__type),
+        ("adopt", _director__drc_Circle__adopt__type),
+        ("make_beam", _director__drc_Circle__make_beam__type),
         ("changed", _director__drc_Circle__changed__type),
-    ]
-
-
-class _drc_Beam_director(ctypes.Structure):
-    """Opaque C handle of the director of drc::Beam."""
-
-
-_drc_Beam_director__p = ctypes.POINTER(_drc_Beam_director)
-
-
-_director__drc_Beam__length__type = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.POINTER(ctypes.c_int32))
-
-
-def _director__drc_Beam__length(_user_data, _out_result):
-    # Called by C++ for a virtual method that the object overrides. An exception goes to
-    # the call that runs it, if there is one (see _runtime.fail_director).
-    _active = None
-    try:
-        # _active is the token of this override, which ends with this frame.
-        _function, _active = _runtime.director_method(_user_data, "length")
-        if _function is None:
-            return
-        _value = _function()
-        _out_result[0] = _runtime.to_int(
-            _value, ctypes.c_int32, 'length', what="the result of the override"
-        )
-    except BaseException as _error:
-        _active = None
-        if not _runtime.fail_director(_error):
-            raise
-
-
-# The thunk itself is never freed: C++ may call it at any time.
-_director__drc_Beam__length = _director__drc_Beam__length__type(_director__drc_Beam__length)
-
-
-class _drc_Beam_vtable(ctypes.Structure):
-    """C mirror of the vtable of the director of drc::Beam."""
-
-    _fields_ = [
-        ("user_data", ctypes.c_void_p),
-        ("release", _runtime.Release),
-        ("length", _director__drc_Beam__length__type),
     ]
 
 

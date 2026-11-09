@@ -449,7 +449,7 @@ with Named(1.0) as named:
 # The virtual methods that C++ cannot call from Python are refused, not silently ignored.
 for method, why in (
     ("fixed", "final"),
-    ("peek", "types"),
+    ("by_value", "types"),
     ("add", "overloaded"),
 ):
     try:
@@ -741,6 +741,161 @@ for call in (shape.Beam.create_void, lambda: shape.Beam.create_string("x")):
         raise AssertionError("a protected constructor was called on the class itself")
 with shape.Beam(2) as beam:  # the class itself: the public constructor
     assert beam.call_length() == 2 and beam.made_by() == 1
+
+
+# Objects in the signatures: lent to the override during the call (references and pointers),
+# or given to it and by it (std::unique_ptr).
+class Objects(shape.Shape):
+    def area(self):
+        return 2.0
+
+    def peek(self, holder):
+        assert isinstance(holder, shape.Holder) and holder.empty()
+        self.seen = holder
+        return 42
+
+    def compare(self, other):
+        self.received = other
+        return other.area() * 10
+
+    def same(self, other):
+        self.received = other
+        return other is self.expected
+
+    def grow(self, beam):
+        self.received = beam
+        return beam.call_length() + 1000
+
+    def adopt(self, beam):
+        self.received = beam
+        return beam.call_length() + 2000
+
+    def make_beam(self, length):
+        self.made = shape.Beam(length * 2)
+        return self.made
+
+
+class Sq(shape.Shape):
+    def area(self):
+        return 4.0
+
+
+with Objects.create_void() as objects, shape.Holder() as holder:
+    # A reference to a const object: lent for the call, and no longer valid afterwards.
+    assert objects.call_peek(holder) == 42
+    assert objects.seen is not holder and isinstance(objects.seen, shape.Holder)
+    try:
+        objects.seen.empty()
+    except ValueError as error:
+        assert "no longer valid" in str(error), str(error)
+    else:
+        raise AssertionError("an object lent to an override was used after the call")
+
+    # An object that is a director: the override gets the Python object itself.
+    with Sq.create_void() as square:
+        assert objects.call_compare(square) == 40.0
+        assert objects.received is square
+        objects.expected = square
+        assert objects.call_same(square) is True
+        assert objects.received is square
+    # Any other object: a new one, of the class of the parameter, lent for the call.
+    with shape.Circle(1.0) as circle:
+        assert objects.call_compare(circle) == 30.0
+        assert type(objects.received) is shape.Shape and objects.received is not circle
+        try:
+            objects.received.area()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an object lent to an override was used after the call")
+    # A pointer: None is NULL; the object itself is the Python object.
+    objects.expected = None
+    assert objects.call_same(None) is True and objects.received is None
+    objects.expected = objects
+    assert objects.call_same(objects) is True and objects.received is objects
+
+    # A reference to an object that is not const.
+    with shape.Beam(5) as beam:
+        assert objects.call_grow(beam) == 1005
+        assert beam.call_length() == 5  # still Python's
+
+    # A std::unique_ptr that C++ gives: the override owns the object.
+    with shape.Beam(6) as beam:
+        assert objects.call_adopt(beam) == 2006
+        try:
+            beam.call_length()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an object that was given up was used")
+    assert objects.received.call_length() == 6  # the override's now
+    objects.received.close()
+
+    # A std::unique_ptr that the override gives: C++ owns it from then on.
+    result = objects.call_make_beam(3)
+    assert result.call_length() == 6 and result.made_by() == 1
+    try:
+        objects.made.call_length()
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an object that the override gave away was used")
+    result.close()
+
+
+class Gives(shape.Shape):
+    def area(self):
+        return 1.0
+
+    def make_beam(self, length):
+        return self.what
+
+
+class Short5(shape.Beam):
+    def length(self):
+        return 5
+
+
+with Gives.create_void() as gives:
+    gives.what = None
+    assert gives.call_make_beam(1) is None  # a NULL pointer
+    # A director object that the override gives: C++ keeps calling its overrides.
+    gives.what = Short5(7)
+    with gives.call_make_beam(1) as given:
+        assert given.call_length() == 5
+    gives.what = shape.Circle(1.0)  # not a Beam
+    try:
+        gives.call_make_beam(1)
+    except TypeError as error:
+        assert "make_beam" in str(error) and "Beam" in str(error), str(error)
+    else:
+        raise AssertionError("an object of another class was accepted")
+    closed = shape.Beam(1)
+    closed.close()
+    gives.what = closed
+    try:
+        gives.call_make_beam(1)
+    except ValueError as error:
+        assert "closed" in str(error), str(error)
+    else:
+        raise AssertionError("a closed object was accepted")
+    assert gives.call_make_beam.__name__  # still usable after the failures
+
+
+# The implementations of the class, with objects.
+class Plainly(shape.Shape):
+    def area(self):
+        return 9.0
+
+
+with Plainly.create_void() as plainly, shape.Beam(4) as beam:
+    assert plainly.call_compare(plainly) == 0.0
+    assert plainly.call_same(plainly) is True and plainly.call_same(None) is False
+    assert plainly.call_grow(beam) == 4
+    with shape.Beam(8) as other:
+        assert plainly.call_adopt(other) == 8
+    with plainly.call_make_beam(3) as made:
+        assert made.call_length() == 3
 
 # An object that C++ holds when the interpreter exits (the director is disabled and left
 # alone, as the callbacks are).

@@ -175,6 +175,66 @@ std::int32_t Shape::call_peek(const Holder& holder) const
     return peek(holder);
 }
 
+double Shape::compare(const Shape& other) const
+{
+    return area() - other.area();
+}
+
+bool Shape::same(const Shape* other) const
+{
+    return other == this;
+}
+
+std::int32_t Shape::grow(Beam& beam) const
+{
+    return beam.call_length();
+}
+
+std::int32_t Shape::adopt(std::unique_ptr<Beam> beam) const
+{
+    return beam ? beam->call_length() : -1;
+}
+
+std::unique_ptr<Beam> Shape::make_beam(std::int32_t length) const
+{
+    return std::unique_ptr<Beam>(new Beam(length));
+}
+
+std::int32_t Shape::by_value(Beam beam) const
+{
+    return beam.call_length();
+}
+
+double Shape::call_compare(const Shape& other) const
+{
+    return compare(other);
+}
+
+bool Shape::call_same(const Shape* other) const
+{
+    return same(other);
+}
+
+std::int32_t Shape::call_grow(Beam& beam) const
+{
+    return grow(beam);
+}
+
+std::int32_t Shape::call_adopt(std::unique_ptr<Beam> beam) const
+{
+    return adopt(std::move(beam));
+}
+
+std::unique_ptr<Beam> Shape::call_make_beam(std::int32_t length) const
+{
+    return make_beam(length);
+}
+
+std::int32_t Shape::call_by_value(const Beam& beam) const
+{
+    return by_value(beam);
+}
+
 std::int32_t Shape::fixed() const
 {
     return 7;

@@ -1119,7 +1119,7 @@ class _Visitor:
             )
         if std_name == "unique_ptr":
             if kind == TypeKind.RVALUEREFERENCE and not is_result:
-                return _unique_ptr(record)
+                return dataclasses.replace(_unique_ptr(record), rvalue_reference=True)
             if kind == TypeKind.RECORD:
                 return _unique_ptr(record)
             what = "a pointer to" if kind == TypeKind.POINTER else "a reference to"

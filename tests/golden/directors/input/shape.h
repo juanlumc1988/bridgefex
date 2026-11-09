@@ -15,12 +15,32 @@
 namespace drc {
 
 class Holder;
+class Circle;
 
 enum class Mode : std::uint8_t { Off, On, Auto = 5 };
 
 struct Point {
     double x;
     double y;
+};
+
+// Public constructors and protected ones: the protected ones are for the classes that derive.
+class Beam {
+public:
+    explicit Beam(std::int32_t length);
+    virtual ~Beam();
+    virtual std::int32_t length() const;
+    std::int32_t call_length() const;
+    // Which constructor made it: 1 the public one, 2 the default one, 3 the one of a label.
+    std::int32_t made_by() const;
+
+protected:
+    Beam();
+    explicit Beam(const std::string& label);
+
+private:
+    std::int32_t length_;
+    std::int32_t made_by_;
 };
 
 class Shape {
@@ -51,9 +71,16 @@ public:
     virtual std::vector<Point> points(const std::vector<Point>& list) const;
     virtual std::vector<bool> flags(const std::vector<bool>& input) const;
     virtual std::array<double, 3> triple(const std::array<double, 3>& values) const;
-    // Not overridable from another language (yet): a class as a parameter, so the C++
-    // implementation is kept.
+    // Objects: lent to the override during the call (references and pointers), and given
+    // to it or by it (std::unique_ptr).
     virtual std::int32_t peek(const Holder& holder) const;
+    virtual double compare(const Shape& other) const;
+    virtual bool same(const Shape* other) const;
+    virtual std::int32_t grow(Beam& beam) const;
+    virtual std::int32_t adopt(std::unique_ptr<Beam> beam) const;
+    virtual std::unique_ptr<Beam> make_beam(std::int32_t length) const;
+    // Not overridable from another language: a class by value is a copy.
+    virtual std::int32_t by_value(Beam beam) const;
     // Cannot be overridden at all.
     virtual std::int32_t fixed() const final;
 
@@ -70,6 +97,12 @@ public:
     std::vector<bool> call_flags(const std::vector<bool>& input) const;
     std::array<double, 3> call_triple(const std::array<double, 3>& values) const;
     std::int32_t call_peek(const Holder& holder) const;
+    double call_compare(const Shape& other) const;
+    bool call_same(const Shape* other) const;
+    std::int32_t call_grow(Beam& beam) const;
+    std::int32_t call_adopt(std::unique_ptr<Beam> beam) const;
+    std::unique_ptr<Beam> call_make_beam(std::int32_t length) const;
+    std::int32_t call_by_value(const Beam& beam) const;
     Mode choose(Mode requested) const;
     std::string welcome(const std::string& who) const;
     std::int32_t sum(std::int32_t a, std::int32_t b) const;
@@ -107,25 +140,6 @@ public:
 
 private:
     double radius_;
-};
-
-// Public constructors and protected ones: the protected ones are for the classes that derive.
-class Beam {
-public:
-    explicit Beam(std::int32_t length);
-    virtual ~Beam();
-    virtual std::int32_t length() const;
-    std::int32_t call_length() const;
-    // Which constructor made it: 1 the public one, 2 the default one, 3 the one of a label.
-    std::int32_t made_by() const;
-
-protected:
-    Beam();
-    explicit Beam(const std::string& label);
-
-private:
-    std::int32_t length_;
-    std::int32_t made_by_;
 };
 
 // Final: it cannot have a director.
