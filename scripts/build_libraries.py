@@ -20,8 +20,9 @@ Without ``--cc`` and ``--cxx`` it uses ``$CC`` and ``$CXX``, else ``gcc`` and ``
 
 ``--csharp-runtime linux-arm`` also generates the C# bindings of the case, with the same
 parsing options, and compiles them with ``dotnet build`` for that runtime identifier. They are
-compiled, not run: .NET under an emulator is slow and fragile, and a target that cannot run
-the C# is still checked to build.
+compiled; the C# check of a case (``tests/golden/<case>/check_csharp.cs``) is also published for
+that runtime, self-contained, and run by ``--runner`` when ``--csharp-check <case>`` asks for it
+(.NET under QEMU takes a few seconds for each case, with the options in ``CSHARP_ENVIRONMENT``).
 """
 
 from __future__ import annotations
@@ -60,6 +61,9 @@ class Case:
     annotations: tuple[Path, ...] = ()
     """The annotation files of the case (the classes that ask for a director...)."""
 
+    check_csharp: Path | None = None
+    """The C# program that uses the bindings and exits with 0 if it works."""
+
 
 def load_case(name: str) -> Case:
     directory = GOLDEN / name
@@ -74,6 +78,9 @@ def load_case(name: str) -> Case:
         implementation=tuple(sorted((directory / "impl").glob("*.cpp"))),
         check=directory / "check_c.c",
         annotations=tuple(directory / item for item in config.get("annotations", ())),
+        check_csharp=(directory / "check_csharp.cs")
+        if (directory / "check_csharp.cs").exists()
+        else None,
     )
     if not case.check.exists() or not case.implementation:
         raise SystemExit(f"the case '{name}' cannot be built as a library on its own")
@@ -124,6 +131,43 @@ def cross_clang_args(cxx: str, triple: str) -> tuple[str, ...]:
         "-nostdinc++",
         *(f"-isystem{directory}" for directory in directories),
     )
+
+
+CSHARP_ENVIRONMENT = {
+    # .NET under QEMU: no W^X remapping (it needs a mmap that the emulator does not do well), no
+    # profile-guided tiering, no background GC thread, and no ICU.
+    "DOTNET_EnableWriteXorExecute": "0",
+    "DOTNET_TieredPGO": "0",
+    "DOTNET_gcConcurrent": "0",
+    "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1",
+}
+
+CHECK_PROJECT = """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>Check</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RuntimeIdentifier>{runtime}</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <TieredPGO>false</TieredPGO>
+    <UseAppHost>true</UseAppHost>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="{program}" />
+    <ProjectReference Include="{project}" />
+  </ItemGroup>
+</Project>
+"""
 
 
 @dataclass(frozen=True)
@@ -181,8 +225,8 @@ class Build:
         self.sources = sorted(self.include.glob("*.cpp")) + list(self.case.implementation)
         self.lib.mkdir(parents=True, exist_ok=True)
 
-    def compile_csharp(self, runtime: str, clang_args: tuple[str, ...]) -> None:
-        """The C# bindings of the case, generated as the C layer was, compiled for ``runtime``."""
+    def generate_csharp(self, clang_args: tuple[str, ...], name: str) -> Path:
+        """The C# bindings of the case, generated as the C layer was: the directory."""
         options = bridgefex.Options(
             module=self.case.module,
             std=self.std,
@@ -192,8 +236,13 @@ class Build:
             verify=False,
         )
         result = bridgefex.generate(self.case.headers, options)
-        output = self.work / "csharp-check"
+        output = self.work / name
         bridgefex.write_files(result.files, output)
+        return output
+
+    def compile_csharp(self, runtime: str, clang_args: tuple[str, ...]) -> None:
+        """The C# bindings of the case, compiled for ``runtime``."""
+        output = self.generate_csharp(clang_args, "csharp-check")
         project = next(output.rglob("*.csproj"))
         run(
             [
@@ -214,6 +263,45 @@ class Build:
                 output / "bin",
             ]
         )
+
+    def run_csharp(self, runtime: str, clang_args: tuple[str, ...]) -> None:
+        """The C# check of the case, built with the bindings and published self-contained for
+        ``runtime``, run by the runner against the shared library of the case."""
+        program = self.case.check_csharp
+        if program is None:
+            raise SystemExit(f"the case '{self.case.name}' has no check_csharp.cs")
+        output = self.generate_csharp(clang_args, "csharp-run")
+        project = next(output.rglob("*.csproj"))
+        directory = self.work / "csharp-program"
+        directory.mkdir(exist_ok=True)
+        (directory / "Check.csproj").write_text(
+            CHECK_PROJECT.format(
+                runtime=runtime, program=program.as_posix(), project=project.as_posix()
+            ),
+            encoding="utf-8",
+        )
+        publish = directory / "publish"
+        run(
+            [
+                "dotnet",
+                "publish",
+                directory / "Check.csproj",
+                "-c",
+                "Release",
+                "-p:UseSharedCompilation=false",
+                "-nologo",
+                "-v",
+                "q",
+                "-o",
+                publish,
+            ]
+        )
+        env = {
+            **os.environ,
+            **CSHARP_ENVIRONMENT,
+            f"{self.case.module.upper()}_LIBRARY": str(self.shared),
+        }
+        run([*self.runner, publish / "Check"], env=env)
 
     def _includes(self) -> list[str]:
         return [f"-I{self.include}", f"-I{self.case.input_dir}"]
@@ -443,6 +531,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="RID",
         help="also compile the C# bindings of the case for this runtime identifier (linux-arm...)",
     )
+    parser.add_argument(
+        "--csharp-check",
+        action="append",
+        default=[],
+        metavar="CASE",
+        help="also run the C# check of this golden case for --csharp-runtime, with --runner "
+        "(repeatable; it is built and its C program run first, like a --check-case)",
+    )
     parser.add_argument("--runner", default="", help="command that runs a program of the target")
     parser.add_argument("--work", type=Path, help="working directory (default: temporary)")
     args = parser.parse_args(argv)
@@ -470,13 +566,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         build.check(static=True)
         return build
 
+    if args.csharp_check and not args.csharp_runtime:
+        raise SystemExit("--csharp-check needs --csharp-runtime")
+    if args.csharp_runtime and shutil.which("dotnet") is None:
+        raise SystemExit("--csharp-runtime needs the .NET SDK (dotnet)")
     # The cases that are only checked first: nothing is packaged if one fails.
     for name in args.check_case:
         built(name)
+    for name in args.csharp_check:
+        built(name).run_csharp(args.csharp_runtime, clang_args)
     main_build = built(args.case)
     if args.csharp_runtime:
-        if shutil.which("dotnet") is None:
-            raise SystemExit("--csharp-runtime needs the .NET SDK (dotnet)")
         main_build.compile_csharp(args.csharp_runtime, clang_args)
     archive = package(main_build, args.target, args.output.resolve(), first_line([cxx]))
     print(f"{archive} ({archive.stat().st_size} bytes)")
