@@ -253,7 +253,7 @@ class Square : Shape
 
     public override double AddDoubleDouble(double a, double b) => a - b;
 
-    public override string Greet(string who, string tag, string mark) => $"{mark}|{tag}|{who}|" + base.Greet(who, tag, mark);
+    public override string Greet(string who, string tag, string? mark) => $"{mark}|{tag}|{who}|" + base.Greet(who, tag, mark);
 
     public override int Quiet() => 9;
 

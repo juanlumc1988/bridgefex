@@ -57,6 +57,10 @@ internal abstract class ObjectHandle : global::Microsoft.Win32.SafeHandles.SafeH
     /// <summary>What the C++ object keeps pointers to (see <see cref="Keep"/>); released when it is destroyed.</summary>
     internal Keep? Kept;
 
+    /// <summary>The object of a director, while C# owns it: whoever holds the handle (a call that has the object as an
+    /// argument, a C++ object that retains it) keeps the object alive, which C++ calls the overrides of.</summary>
+    internal object? Anchor;
+
     protected ObjectHandle(bool ownsHandle) : base(ownsHandle)
     {
         Owns = ownsHandle;
@@ -151,6 +155,7 @@ internal abstract class ObjectHandle : global::Microsoft.Win32.SafeHandles.SafeH
     {
         global::System.Threading.Interlocked.Or(ref _state, GivenBit);
         SetHandleAsInvalid();
+        Anchor = null;
     }
 
     /// <summary>The user closes the object: it is destroyed when no call uses it.</summary>
@@ -230,6 +235,7 @@ internal abstract class ObjectHandle : global::Microsoft.Win32.SafeHandles.SafeH
             Destroy();
         }
         SetHandleAsInvalid();
+        Anchor = null;
         Kept?.Release();
     }
 }
@@ -334,6 +340,7 @@ internal sealed class Keep
         var duplicated = new List<ObjectHandle>();
         lock (other)
         {
+
             foreach (ObjectHandle handle in pinned)
             {
                 if (!other._pinned.Add(handle))
@@ -377,7 +384,13 @@ public abstract class BridgefexObject : global::System.IDisposable
     internal BridgefexObject? Origin { get; set; }
 
     /// <summary>Set if C++ calls the overrides of this object (it derives from a class with a director).</summary>
-    internal DirectorBox? Director { get; set; }
+    internal DirectorBox? Director { get; private set; }
+
+    internal void SetDirector(DirectorBox box)
+    {
+        Director = box;
+        Handle.Anchor = this;
+    }
 
     /// <summary>The hold on the object for a base call: its director is what the call uses. An object that was
     /// given to C++ is closed for C#, and its director lives as long as C++ holds it: a base call that C++ runs

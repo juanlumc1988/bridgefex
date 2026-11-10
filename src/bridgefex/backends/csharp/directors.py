@@ -84,10 +84,14 @@ def _member(cls: ClassPlan, entry: DirectorEntry):  # type: ignore[no-untyped-de
     return next((item for item in cls.members if item.source == entry.method), None)
 
 
-def _method_name(cls: ClassPlan, entry: DirectorEntry) -> str:
+def _method_name(cls: ClassPlan, entry: DirectorEntry, below: tuple[ClassPlan, ...] = ()) -> str:
+    """The name of the C# method: the one the class that declares it gives it, that no class that
+    derives from it (and has to override it) can have for a type or a member of its own."""
     member = _member(cls, entry)
     name = pascal(member.name + member.suffix) if member is not None else pascal(entry.field)
-    reserved = reserved_names(cls)
+    reserved = set(reserved_names(cls))
+    for other in below:
+        reserved |= reserved_names(other)
     while name in reserved:
         name += "_"
     return name
@@ -118,6 +122,7 @@ def build(plan: ModulePlan) -> dict[str, DirectorClass]:
         above = chain_of(parent) if parent is not None else None
         return None if above is None else (*above, cls)
 
+    chains = {c_type: chain_of(cls) for c_type, cls in by_type.items()}
     result: dict[str, DirectorClass] = {}
     for kind, c_type in enumerate(sorted(by_type)):
         cls = by_type[c_type]
@@ -134,13 +139,18 @@ def build(plan: ModulePlan) -> dict[str, DirectorClass]:
             )
             assert root.director is not None
             root_entry = next(other for other in root.director.entries if other.key == entry.key)
+            below = tuple(
+                by_type[other]
+                for other, chain_above in chains.items()
+                if chain_above is not None and root.c_type in {c.c_type for c in chain_above}
+            )
             slots.append(
                 Slot(
                     entry=entry,
                     ok=supported(entry),
                     root=root,
                     root_entry=root_entry,
-                    name=_method_name(root, root_entry),
+                    name=_method_name(root, root_entry, below),
                     thunk=f"D_{_sanitize(root.c_type)}_{_sanitize(root_entry.field)}",
                 )
             )
@@ -194,7 +204,11 @@ def types_of(entry: DirectorEntry, names: Names) -> list[tuple[str, str]]:
     """The (type, name) of the parameters of the method, as the thunk gives them."""
     result = []
     for position, part in enumerate(entry.callback.arguments, start=1):
-        declared = entry.method.parameters[position - 1].name if entry.method.parameters else ""
+        if entry.base is not None and position <= len(entry.base.params):
+            # The names the base call is lowered with (the C layer renames some).
+            declared = entry.base.params[position - 1].name
+        else:
+            declared = entry.method.parameters[position - 1].name if entry.method.parameters else ""
         result.append((public_of(part, names), declared or f"arg{position}"))
     return result
 
@@ -279,7 +293,7 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
     )
     src.line()
     src.open("private static bool[]? DirectorOverrides(global::System.Type type, bool always)")
-    src.open("bool[] found = s_overrides.GetOrAdd(type, static t => new[]")
+    src.open("bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]")
     for slot in d.slots:
         if not slot.ok:
             src.line("false,")
@@ -340,3 +354,65 @@ def director_constructor(
     if director is None:
         return None
     return next((item for item in director.constructors if item.source == ctor.source), None)
+
+
+def guarded(plan: ModulePlan, derivable: dict[str, DirectorClass]) -> frozenset[str]:
+    """The classes that have a class that can be derived from above them in their chain of first
+    bases, and are not derivable themselves."""
+    by_type = {
+        item.c_type: item
+        for header in plan.headers
+        for item in header.items
+        if isinstance(item, ClassPlan)
+    }
+
+    def below(cls: ClassPlan) -> bool:
+        seen: set[str] = set()
+        while cls.bases and cls.bases[0].c_type not in seen:
+            seen.add(cls.bases[0].c_type)
+            if cls.bases[0].c_type in derivable:
+                return True
+            parent = by_type.get(cls.bases[0].c_type)
+            if parent is None:
+                return False
+            cls = parent
+        return False
+
+    return frozenset(
+        c_type for c_type, cls in by_type.items() if c_type not in derivable and below(cls)
+    )
+
+
+def dropped(names: Names, cls: ClassPlan) -> list[Slot]:
+    """The slots of the classes above ``cls`` that its own director lacks: C++ declares the method
+    in ``cls`` in a way that cannot be overridden (a private implementation), so C# must not
+    override it either."""
+    d = names.directors.get(cls.c_type)
+    if d is None:
+        return []
+    own = {slot.entry.key for slot in d.slots}
+    found: dict[str, Slot] = {}
+    for ancestor in d.chain[:-1]:
+        above = names.directors[ancestor.c_type]
+        for slot in above.slots:
+            key = slot.entry.key
+            if key not in own and slot.ok and key not in found and slot.root is ancestor:
+                found[key] = slot
+    return list(found.values())
+
+
+def names_above(names: Names, cls: ClassPlan) -> set[str]:
+    """The C# names of the virtual methods that the classes above ``cls`` declare."""
+    d = names.directors.get(cls.c_type)
+    if d is not None:
+        chain = d.chain[:-1]
+    elif cls.bases and cls.bases[0].c_type in names.directors:
+        chain = names.directors[cls.bases[0].c_type].chain
+    else:
+        return set()
+    return {
+        slot.name
+        for ancestor in chain
+        for slot in names.directors[ancestor.c_type].slots
+        if slot.root is ancestor
+    }

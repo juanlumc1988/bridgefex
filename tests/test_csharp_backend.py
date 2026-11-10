@@ -585,7 +585,9 @@ def test_a_result_that_c_plus_plus_cannot_hold_is_checked_by_the_thunk(tmp_path:
     assert "box.CheckResult((long)value, 0, 1);" in text
 
 
-@pytest.mark.parametrize("name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks"])
+@pytest.mark.parametrize(
+    "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox"]
+)
 def test_a_class_cannot_hide_a_type_of_the_callback_runtime(tmp_path: Path, name: str) -> None:
     code = f"#include <functional>\nvoid f(std::function<void()> g);\nstruct {name} {{ int a; }};"
     assert f"gets the C# name '{name}'" in error_of(tmp_path, code)
@@ -697,31 +699,107 @@ class Q { public: Q(); virtual ~Q(); virtual int k() const; };
 DIRECTOR_COMPILES = {
     "names like the locals of the director code": (
         "class B { public: B(int __box, int __vt); virtual ~B();"
-        " virtual int f(int __over, int __director, int __d) const; protected: B(); };"
+        " virtual int f(int __over, int __director, int __d) const; protected: B(); };",
+        ["mod_B"],
+    ),
+    "names that the C layer gives to the parameters of the functions of a director": (
+        "class B { public: B(int vtable); B(int out_object, int out_director); virtual ~B();"
+        " virtual int f(int director, int Director, int vtable) const;"
+        " protected: virtual int p(int self, int out_object) const; };",
+        ["mod_B"],
     ),
     "a virtual method named like a member of every object": (
         "class B { public: B(); virtual ~B(); virtual int equals(int a) const;"
-        " virtual int hold() const; virtual int object() const; };"
+        " virtual int hold() const; virtual int object() const; };",
+        ["mod_B"],
+    ),
+    "members named like what the directors add": (
+        "class B { public: B(); virtual ~B(); virtual int director_box() const;"
+        " int Director() const; int hold_director(bool x) const; int set_director() const; };",
+        ["mod_B"],
     ),
     "a derived class that hides an overload of its base": (
         "class B { public: B(); virtual ~B(); virtual int add(int a, int b) const;"
         " virtual double add(double a, double b) const; };\n"
-        "class D : public B { public: D(); int add(int a, int b) const override; };"
+        "class D : public B { public: D(); int add(int a, int b) const override; };",
+        ["mod_B", "mod_D"],
     ),
     "an enum, a struct and strings in the signature": (
         "enum class E : unsigned char { A, B };\nstruct S { int x; };\n"
         "class B { public: B(); virtual ~B(); virtual E e(E v) const;"
         " virtual S s(S v, const S& w) const; virtual std::string t(const std::string& a,"
-        " std::string_view b, const char* c) const; };"
+        " std::string_view b, const char* c) const; };",
+        ["mod_B"],
+    ),
+    "a method that is protected in the base and public in the derived class": (
+        "class B { public: B(); virtual ~B(); protected: virtual int f() const; };\n"
+        "class D : public B { public: D(); int f() const override; };",
+        ["mod_B", "mod_D"],
+    ),
+    "an override named like the derived class or like a type that it defines": (
+        "class Base { public: Base(); virtual ~Base(); virtual int circle() const;"
+        " virtual int mode() const; };\n"
+        "class Circle : public Base { public: enum class Mode { A }; Circle();"
+        " int circle() const override; int mode() const override; };",
+        ["mod_Base", "mod_Circle"],
+    ),
+    "a class whose virtual methods cannot be overridden from C#": (
+        "class B { public: B(); virtual ~B(); protected: virtual int* p(); };",
+        ["mod_B"],
+    ),
+    "a virtual method that hides one of the base with the same name": (
+        "class A { public: A(); virtual ~A(); virtual int g() const;"
+        " protected: virtual int h() const; };\n"
+        "class B : public A { public: B(); virtual int g(); int h(); };",
+        ["mod_A", "mod_B"],
+    ),
+    "a private implementation of a virtual method": (
+        "class A { public: A(); virtual ~A(); virtual int f() const; int callf() const; };\n"
+        "class D : public A { public: D(); virtual int g() const;"
+        " private: int f() const override; };",
+        ["mod_A", "mod_D"],
     ),
 }
 
 
 @needs_dotnet
-@pytest.mark.parametrize("code", DIRECTOR_COMPILES.values(), ids=DIRECTOR_COMPILES.keys())
-def test_the_code_of_a_director_compiles_with_hostile_names(tmp_path: Path, code: str) -> None:
-    classes = ["mod_B", "mod_D"] if "class D" in code else ["mod_B"]
+@pytest.mark.parametrize(
+    ("code", "classes"), DIRECTOR_COMPILES.values(), ids=DIRECTOR_COMPILES.keys()
+)
+def test_the_code_of_a_director_compiles_with_hostile_names(
+    tmp_path: Path, code: str, classes: list[str]
+) -> None:
     generate_with_directors(tmp_path, "#include <string_view>\n" + code, classes, verify=True)
+
+
+def test_a_class_that_cannot_be_overridden_where_it_implements_a_method_seals_it(
+    tmp_path: Path,
+) -> None:
+    code, classes = DIRECTOR_COMPILES["a private implementation of a virtual method"]
+    text = generate_with_directors(tmp_path, code, classes)["csharp/Mod/Api.cs"]
+    # A class of the user cannot override what C++ would not call.
+    assert "public sealed override int F() => base.F();" in text
+
+
+def test_an_override_keeps_the_access_of_the_method_it_overrides(tmp_path: Path) -> None:
+    code, classes = DIRECTOR_COMPILES[
+        "a method that is protected in the base and public in the derived class"
+    ]
+    text = generate_with_directors(tmp_path, code, classes)["csharp/Mod/Api.cs"]
+    assert "protected virtual int F()" in text
+    assert "protected override int F()" in text
+
+
+def test_a_class_without_a_director_refuses_the_overrides_of_a_class_of_the_user(
+    tmp_path: Path,
+) -> None:
+    code = (
+        "class A { public: A(); virtual ~A(); virtual int x() const; };\n"
+        "class B : public A { public: B(); int y() const; };"
+    )
+    text = generate_with_directors(tmp_path, code, ["mod_A"])["csharp/Mod/Api.cs"]
+    assert "DirectorBox.RefuseOverrides(GetType(), typeof(B));" in text
+    assert "DirectorBox.RefuseOverrides" not in text.split("class B ")[0]
 
 
 @needs_dotnet

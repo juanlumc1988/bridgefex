@@ -105,7 +105,7 @@ public unsafe partial class Beam : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
-            Director = __box;
+            SetDirector(__box);
             __scope.Check(__status);
         }
     }
@@ -129,7 +129,7 @@ public unsafe partial class Beam : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
-        Director = __box;
+        SetDirector(__box);
         __scope.Check(__status);
     }
 
@@ -155,7 +155,7 @@ public unsafe partial class Beam : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
-            Director = __box;
+            SetDirector(__box);
             __scope.Check(__status);
         }
     }
@@ -191,6 +191,7 @@ public unsafe partial class Beam : BridgefexObject
                     int __result;
                     int __status = Native.drc_Beam_director_base_length(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -202,6 +203,7 @@ public unsafe partial class Beam : BridgefexObject
             int __result;
             int __status = Native.drc_Beam_length(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -218,6 +220,7 @@ public unsafe partial class Beam : BridgefexObject
         int __result;
         int __status = Native.drc_Beam_call_length(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -233,6 +236,7 @@ public unsafe partial class Beam : BridgefexObject
         int __result;
         int __status = Native.drc_Beam_made_by(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -241,7 +245,7 @@ public unsafe partial class Beam : BridgefexObject
 
     private static bool[]? DirectorOverrides(global::System.Type type, bool always)
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new[]
+        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
         {
             DirectorBox.Overrides(t, typeof(global::Drc.Shape.Beam), "Length", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Beam) }),
         });
@@ -308,7 +312,7 @@ public unsafe partial class Shape : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
-        Director = __box;
+        SetDirector(__box);
         __scope.Check(__status);
     }
 
@@ -345,7 +349,7 @@ public unsafe partial class Shape : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
-            Director = __box;
+            SetDirector(__box);
             __scope.Check(__status);
         }
     }
@@ -382,6 +386,7 @@ public unsafe partial class Shape : BridgefexObject
             double __result;
             int __status = Native.drc_Shape_area(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -405,6 +410,7 @@ public unsafe partial class Shape : BridgefexObject
                     nuint __size;
                     int __status = Native.drc_Circle_director_base_name(__self.Pointer, &__text, &__size);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     try
                     {
                         __scope.Check(__status);
@@ -423,6 +429,7 @@ public unsafe partial class Shape : BridgefexObject
                     nuint __size;
                     int __status = Native.drc_Shape_director_base_name(__self.Pointer, &__text, &__size);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     try
                     {
                         __scope.Check(__status);
@@ -442,6 +449,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_name(__self.Pointer, &__text, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -471,6 +479,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Circle_director_base_sides(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -481,6 +490,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Shape_director_base_sides(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -492,6 +502,7 @@ public unsafe partial class Shape : BridgefexObject
             int __result;
             int __status = Native.drc_Shape_sides(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -514,6 +525,7 @@ public unsafe partial class Shape : BridgefexObject
                     Native.drc_Point __result;
                     int __status = Native.drc_Circle_director_base_center(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return global::Drc.Shape.Point.FromNative(&__result);
                 }
@@ -524,6 +536,7 @@ public unsafe partial class Shape : BridgefexObject
                     Native.drc_Point __result;
                     int __status = Native.drc_Shape_director_base_center(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return global::Drc.Shape.Point.FromNative(&__result);
                 }
@@ -535,6 +548,7 @@ public unsafe partial class Shape : BridgefexObject
             Native.drc_Point __result;
             int __status = Native.drc_Shape_center(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return global::Drc.Shape.Point.FromNative(&__result);
         }
@@ -561,6 +575,7 @@ public unsafe partial class Shape : BridgefexObject
                     Native.drc_Point __result;
                     int __status = Native.drc_Circle_director_base_move(__self.Pointer, &__s1, &__s2, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return global::Drc.Shape.Point.FromNative(&__result);
                 }
@@ -575,6 +590,7 @@ public unsafe partial class Shape : BridgefexObject
                     Native.drc_Point __result;
                     int __status = Native.drc_Shape_director_base_move(__self.Pointer, &__s1, &__s2, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return global::Drc.Shape.Point.FromNative(&__result);
                 }
@@ -590,6 +606,7 @@ public unsafe partial class Shape : BridgefexObject
             Native.drc_Point __result;
             int __status = Native.drc_Shape_move(__self.Pointer, &__s1, &__s2, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return global::Drc.Shape.Point.FromNative(&__result);
         }
@@ -612,6 +629,7 @@ public unsafe partial class Shape : BridgefexObject
                     byte __result;
                     int __status = Native.drc_Circle_director_base_mode(__self.Pointer, (byte)requested, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return (global::Drc.Shape.Mode)__result;
                 }
@@ -622,6 +640,7 @@ public unsafe partial class Shape : BridgefexObject
                     byte __result;
                     int __status = Native.drc_Shape_director_base_mode(__self.Pointer, (byte)requested, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return (global::Drc.Shape.Mode)__result;
                 }
@@ -633,6 +652,7 @@ public unsafe partial class Shape : BridgefexObject
             byte __result;
             int __status = Native.drc_Shape_mode(__self.Pointer, (byte)requested, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return (global::Drc.Shape.Mode)__result;
         }
@@ -654,6 +674,7 @@ public unsafe partial class Shape : BridgefexObject
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return;
                 }
@@ -663,6 +684,7 @@ public unsafe partial class Shape : BridgefexObject
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return;
                 }
@@ -673,6 +695,7 @@ public unsafe partial class Shape : BridgefexObject
             using var __self = Hold_drc_Shape(true);
             int __status = Native.drc_Shape_scale(__self.Pointer, factor);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
         }
     }
@@ -694,6 +717,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -704,6 +728,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Shape_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -715,6 +740,7 @@ public unsafe partial class Shape : BridgefexObject
             int __result;
             int __status = Native.drc_Shape_add_int32_int32(__self.Pointer, a, b, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -737,6 +763,7 @@ public unsafe partial class Shape : BridgefexObject
                     double __result;
                     int __status = Native.drc_Circle_director_base_add_double_double(__self.Pointer, a, b, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -747,6 +774,7 @@ public unsafe partial class Shape : BridgefexObject
                     double __result;
                     int __status = Native.drc_Shape_director_base_add_double_double(__self.Pointer, a, b, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -758,6 +786,7 @@ public unsafe partial class Shape : BridgefexObject
             double __result;
             int __status = Native.drc_Shape_add_double_double(__self.Pointer, a, b, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -767,7 +796,7 @@ public unsafe partial class Shape : BridgefexObject
     /// std::string drc::Shape::greet(const std::string&amp; who, std::string_view tag, const char* mark) const
     /// </summary>
     [BridgefexFunction("drc_Shape_greet")]
-    public virtual string Greet(string who, string tag, string mark)
+    public virtual string Greet(string who, string tag, string? mark)
     {
         if (Director is { } __d)
         {
@@ -790,6 +819,7 @@ public unsafe partial class Shape : BridgefexObject
                                 nuint __size;
                                 int __status = Native.drc_Circle_director_base_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, __p3, &__text, &__size);
                                 __scope.Returned();
+                                global::System.GC.KeepAlive(this);
                                 try
                                 {
                                     __scope.Check(__status);
@@ -820,6 +850,7 @@ public unsafe partial class Shape : BridgefexObject
                                 nuint __size;
                                 int __status = Native.drc_Shape_director_base_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, __p3, &__text, &__size);
                                 __scope.Returned();
+                                global::System.GC.KeepAlive(this);
                                 try
                                 {
                                     __scope.Check(__status);
@@ -851,6 +882,7 @@ public unsafe partial class Shape : BridgefexObject
                         nuint __size;
                         int __status = Native.drc_Shape_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, __p3, &__text, &__size);
                         __scope.Returned();
+                        global::System.GC.KeepAlive(this);
                         try
                         {
                             __scope.Check(__status);
@@ -883,6 +915,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Circle_director_base_quiet(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -893,6 +926,7 @@ public unsafe partial class Shape : BridgefexObject
                     int __result;
                     int __status = Native.drc_Shape_director_base_quiet(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -904,6 +938,7 @@ public unsafe partial class Shape : BridgefexObject
             int __result;
             int __status = Native.drc_Shape_quiet(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -922,6 +957,7 @@ public unsafe partial class Shape : BridgefexObject
             int __result;
             int __status = Native.drc_Shape_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -941,6 +977,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -967,6 +1004,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -998,6 +1036,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1033,6 +1072,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -1064,6 +1104,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1102,6 +1143,7 @@ public unsafe partial class Shape : BridgefexObject
             using var __b = Block<double>.Alloc(3);
             int __status = Native.drc_Shape_triple(__self.Pointer, (double*)__p1, __b.Pointer);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
         }
@@ -1121,6 +1163,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_peek(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1139,6 +1182,7 @@ public unsafe partial class Shape : BridgefexObject
         double __result;
         int __status = Native.drc_Shape_compare(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1157,6 +1201,7 @@ public unsafe partial class Shape : BridgefexObject
         byte __result;
         int __status = Native.drc_Shape_same(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return (__result != 0);
     }
@@ -1175,6 +1220,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_grow(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1199,6 +1245,7 @@ public unsafe partial class Shape : BridgefexObject
         beam?.Surrender();
         int __status = Native.drc_Shape_adopt(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1215,6 +1262,7 @@ public unsafe partial class Shape : BridgefexObject
         var __o = new global::Drc.Shape.BeamHandle();
         int __status = Native.drc_Shape_make_beam(__self.Pointer, length, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __o.Assign(__result);
         __scope.Check(__status);
         return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
@@ -1234,6 +1282,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_by_value(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1249,6 +1298,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_fixed(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1265,6 +1315,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_describe(__self.Pointer, &__text, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -1287,6 +1338,7 @@ public unsafe partial class Shape : BridgefexObject
         double __result;
         int __status = Native.drc_Shape_scaled_area(__self.Pointer, factor, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1304,6 +1356,7 @@ public unsafe partial class Shape : BridgefexObject
         Native.drc_Point __result;
         int __status = Native.drc_Shape_middle(__self.Pointer, &__s1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return global::Drc.Shape.Point.FromNative(&__result);
     }
@@ -1321,6 +1374,7 @@ public unsafe partial class Shape : BridgefexObject
         Native.drc_Point __result;
         int __status = Native.drc_Shape_call_move(__self.Pointer, &__s1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return global::Drc.Shape.Point.FromNative(&__result);
     }
@@ -1338,6 +1392,7 @@ public unsafe partial class Shape : BridgefexObject
             int __result;
             int __status = Native.drc_Shape_call_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -1357,6 +1412,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_call_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1383,6 +1439,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_call_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -1414,6 +1471,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_call_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1449,6 +1507,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_call_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -1480,6 +1539,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_call_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1518,6 +1578,7 @@ public unsafe partial class Shape : BridgefexObject
             using var __b = Block<double>.Alloc(3);
             int __status = Native.drc_Shape_call_triple(__self.Pointer, (double*)__p1, __b.Pointer);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
         }
@@ -1537,6 +1598,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_call_peek(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1555,6 +1617,7 @@ public unsafe partial class Shape : BridgefexObject
         double __result;
         int __status = Native.drc_Shape_call_compare(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1572,6 +1635,7 @@ public unsafe partial class Shape : BridgefexObject
         byte __result;
         int __status = Native.drc_Shape_call_same(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return (__result != 0);
     }
@@ -1590,6 +1654,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_call_grow(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1614,6 +1679,7 @@ public unsafe partial class Shape : BridgefexObject
         beam?.Surrender();
         int __status = Native.drc_Shape_call_adopt(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1630,6 +1696,7 @@ public unsafe partial class Shape : BridgefexObject
         var __o = new global::Drc.Shape.BeamHandle();
         int __status = Native.drc_Shape_call_make_beam(__self.Pointer, length, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __o.Assign(__result);
         __scope.Check(__status);
         return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
@@ -1649,6 +1716,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_call_by_value(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1664,6 +1732,7 @@ public unsafe partial class Shape : BridgefexObject
         byte __result;
         int __status = Native.drc_Shape_choose(__self.Pointer, (byte)requested, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return (global::Drc.Shape.Mode)__result;
     }
@@ -1683,6 +1752,7 @@ public unsafe partial class Shape : BridgefexObject
             nuint __size;
             int __status = Native.drc_Shape_welcome(__self.Pointer, __p1, (nuint)__b1.Length, &__text, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -1706,6 +1776,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_sum(__self.Pointer, a, b, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1721,6 +1792,7 @@ public unsafe partial class Shape : BridgefexObject
         double __result;
         int __status = Native.drc_Shape_sum_double(__self.Pointer, a, b, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1736,6 +1808,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_total_of_three(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1751,6 +1824,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_how_quiet(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1765,6 +1839,7 @@ public unsafe partial class Shape : BridgefexObject
         using var __self = Hold_drc_Shape(true);
         int __status = Native.drc_Shape_notify(__self.Pointer, reason);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
     }
 
@@ -1779,6 +1854,7 @@ public unsafe partial class Shape : BridgefexObject
         int __result;
         int __status = Native.drc_Shape_last_reason(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -1795,6 +1871,7 @@ public unsafe partial class Shape : BridgefexObject
         nuint __size;
         int __status = Native.drc_Shape_label(__self.Pointer, &__text, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -1836,6 +1913,7 @@ public unsafe partial class Shape : BridgefexObject
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return;
                 }
@@ -1845,6 +1923,7 @@ public unsafe partial class Shape : BridgefexObject
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return;
                 }
@@ -1859,7 +1938,7 @@ public unsafe partial class Shape : BridgefexObject
 
     private static bool[]? DirectorOverrides(global::System.Type type, bool always)
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new[]
+        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
         {
             DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
             DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
@@ -1965,7 +2044,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
-            Director = __box;
+            SetDirector(__box);
             __scope.Check(__status);
         }
     }
@@ -2007,6 +2086,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
                     double __result;
                     int __status = Native.drc_Circle_director_base_area(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -2018,6 +2098,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             double __result;
             int __status = Native.drc_Circle_area(__self.Pointer, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -2041,6 +2122,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
                     nuint __size;
                     int __status = Native.drc_Circle_director_base_name(__self.Pointer, &__text, &__size);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     try
                     {
                         __scope.Check(__status);
@@ -2060,6 +2142,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             nuint __size;
             int __status = Native.drc_Circle_name(__self.Pointer, &__text, &__size);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             try
             {
                 __scope.Check(__status);
@@ -2089,6 +2172,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return __result;
                 }
@@ -2100,6 +2184,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             int __result;
             int __status = Native.drc_Circle_add(__self.Pointer, a, b, &__result);
             __scope.Returned();
+            global::System.GC.KeepAlive(this);
             __scope.Check(__status);
             return __result;
         }
@@ -2116,6 +2201,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         double __result;
         int __status = Native.drc_Circle_radius(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -2124,7 +2210,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
 
     private static bool[]? DirectorOverrides(global::System.Type type, bool always)
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new[]
+        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
         {
             DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
             DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
@@ -2191,6 +2277,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Dot_create")]
     public Dot() : base(new DotHandle())
     {
+        DirectorBox.RefuseOverrides(GetType(), typeof(Dot));
         using var __scope = new CallScope();
         nint __result;
         int __status = Native.drc_Dot_create(&__result);
@@ -2230,6 +2317,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
         double __result;
         int __status = Native.drc_Dot_area(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -2299,6 +2387,7 @@ public unsafe partial class Plain : BridgefexObject
         int __result;
         int __status = Native.drc_Plain_value(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -2376,6 +2465,7 @@ public unsafe partial class Holder : BridgefexObject
         shape?.Surrender();
         int __status = Native.drc_Holder_put(__self.Pointer, __h1);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
     }
 
@@ -2391,6 +2481,7 @@ public unsafe partial class Holder : BridgefexObject
         var __o = new global::Drc.Shape.ShapeHandle();
         int __status = Native.drc_Holder_take(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __o.Assign(__result);
         __scope.Check(__status);
         return __o.IsInvalid ? null : new global::Drc.Shape.Shape(__o);
@@ -2407,6 +2498,7 @@ public unsafe partial class Holder : BridgefexObject
         byte __result;
         int __status = Native.drc_Holder_empty(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return (__result != 0);
     }
@@ -2425,6 +2517,7 @@ public unsafe partial class Holder : BridgefexObject
         double __result;
         int __status = Native.drc_Holder_compare_held(__self.Pointer, __h1, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -2441,6 +2534,7 @@ public unsafe partial class Holder : BridgefexObject
         nuint __size;
         int __status = Native.drc_Holder_describe(__self.Pointer, &__text, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -2464,6 +2558,7 @@ public unsafe partial class Holder : BridgefexObject
         nuint __size;
         int __status = Native.drc_Holder_describe_on_thread(__self.Pointer, &__text, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -2490,6 +2585,7 @@ public unsafe partial class Holder : BridgefexObject
         int __result;
         int __status = Native.drc_Holder_apply(__self.Pointer, __o1.Callback, __o1.UserData, __o1.Release, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }

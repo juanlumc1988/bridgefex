@@ -51,7 +51,7 @@ public unsafe partial class Stage : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
-        Director = __box;
+        SetDirector(__box);
         __scope.Check(__status);
     }
 
@@ -75,7 +75,7 @@ public unsafe partial class Stage : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
-        Director = __box;
+        SetDirector(__box);
         __scope.Check(__status);
     }
 
@@ -105,6 +105,7 @@ public unsafe partial class Stage : BridgefexObject
         nuint __size;
         int __status = Native.drc_Stage_run(__self.Pointer, (byte)mode, &__text, &__size);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         try
         {
             __scope.Check(__status);
@@ -127,6 +128,7 @@ public unsafe partial class Stage : BridgefexObject
         int __result;
         int __status = Native.drc_Stage_steps(__self.Pointer, &__result);
         __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __scope.Check(__status);
         return __result;
     }
@@ -162,6 +164,7 @@ public unsafe partial class Stage : BridgefexObject
                     Native.drc_Point __result;
                     int __status = Native.drc_Stage_director_base_origin(__self.Pointer, &__result);
                     __scope.Returned();
+                    global::System.GC.KeepAlive(this);
                     __scope.Check(__status);
                     return global::Drc.Shape.Point.FromNative(&__result);
                 }
@@ -176,7 +179,7 @@ public unsafe partial class Stage : BridgefexObject
 
     private static bool[]? DirectorOverrides(global::System.Type type, bool always)
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new[]
+        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
         {
             DirectorBox.Overrides(t, typeof(global::Drc.Stage.Stage), "Step", new global::System.Type[] { typeof(global::Drc.Shape.Mode), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),
             DirectorBox.Overrides(t, typeof(global::Drc.Stage.Stage), "Origin_", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),

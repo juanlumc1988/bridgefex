@@ -66,6 +66,10 @@ class Names:
     directors: Mapping[str, Any] = field(default_factory=dict)
     """The classes that can be derived from, by C type (see ``directors.py``)."""
 
+    guarded: frozenset[str] = frozenset()
+    """The classes (by C type) that derive from one of those but cannot be derived from themselves:
+    C++ would not call the overrides of a C# class that derives from them."""
+
     thunks: callbacks.ThunkTable = field(default_factory=callbacks.ThunkTable)
     """The thunks that the wrappers use (they are added as the wrappers are lowered)."""
 
@@ -261,6 +265,12 @@ class _Lowerer:
             if self.callbacks:
                 # From here on C++ owns the callbacks, and releases each one of them.
                 body.add(f"{L}scope.Returned();")
+            if self.names.has_directors and plan.kind in (
+                CallableKind.METHOD,
+                CallableKind.DIRECTOR_BASE,
+            ):
+                # C++ may call an override of this object: the collector must not collect it first.
+                body.add("global::System.GC.KeepAlive(this);")
             for line in out.after_call:
                 body.add(line)
             # An exception of a callback is the one the call raises.
@@ -492,7 +502,7 @@ class _Lowerer:
             out.after_call = [
                 f"Handle.Assign({L}result);",
                 f"{L}box.Pointer = {L}director;",
-                f"Director = {L}box;",
+                f"SetDirector({L}box);",
             ]
             return out
         if plan.kind is CallableKind.CONSTRUCTOR:

@@ -198,7 +198,7 @@ constructor of a derived class fills with the ones it overrides), `module.py` wr
 a file per header with its classes, enums and structs), `check.py` builds the project with
 `dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime
 (`Runtime.cs`, `Objects.cs`, the `.csproj`, and `BridgefexCallbacks.cs`, only for a module that has
-callbacks). What C# cannot do the way the plan assumes is
+callbacks or directors). What C# cannot do the way the plan assumes is
 solved in the backend: a class has one base class, so the first base of a C++ class is the
 C# one and the others are views of the same object (`AsLabeled()`-like accessors, an implicit conversion, and the
 base's methods copied into the class); a garbage collector does not order finalizers, so what a

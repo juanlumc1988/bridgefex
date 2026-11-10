@@ -192,8 +192,7 @@ def _director_thunk(
         expression = argument.read
         for index, local in enumerate(locals_):
             expression = expression.replace(f"{{{index}}}", local)
-        # A const char* is null for NULL; the method may not take null.
-        values.append(expression + ("!" if argument.public.endswith("?") else ""))
+        values.append(expression)
     result = callback.result
     kind = result.type
     call = f"target.{method}({', '.join(values)})"
@@ -205,7 +204,19 @@ def _director_thunk(
         if isinstance(kind, StringType):
             parameters.append("nint sink")
             pointer.append("nint")
-            give = [
+            nullable = "" if kind.sized else None
+            give = (
+                [
+                    "if (value is null)",
+                    "{",
+                    "    throw new global::System.InvalidOperationException("
+                    f'"the override {root.rsplit(".", 1)[-1]}.{entry.name} returned null for a '
+                    'std::string");',
+                    "}",
+                ]
+                if nullable is not None
+                else []
+            ) + [
                 "if (value is not null)",
                 "{",
                 '    byte[] bytes = Runtime.Utf8(value, "result");',
@@ -226,7 +237,8 @@ def _director_thunk(
             pointer.append(f"{out.native}*")
             if out.check is not None:
                 low, high = out.check
-                give.append(f"box.CheckResult((long)value, {low}, {high});")
+                what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
+                give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
             give.append(f"*result = {_to_native(out, 'value')};")
     pointer.append("void")
     body = [
@@ -234,9 +246,15 @@ def _director_thunk(
         "try",
         "{",
         "    box = (DirectorBox)CallbackBox.Of(userData);",
-        "    if (box.Skip || box.Target is not " + root + " target)",
+        "    if (box.Skip)",
         "    {",
         "        return;",
+        "    }",
+        "    if (box.Target is not " + root + " target)",
+        "    {",
+        "        throw new global::System.InvalidOperationException(",
+        '            "C++ called an override of an object that was collected: '
+        'keep a reference to it while C++ uses it");',
         "    }",
         "    using var running = box.Enter();",
         *(f"    {line}" for line in statement),

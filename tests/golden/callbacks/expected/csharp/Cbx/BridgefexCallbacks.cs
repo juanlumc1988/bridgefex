@@ -96,7 +96,6 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly object _gate = new();
     private readonly CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
@@ -154,7 +153,7 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
-        lock (_gate)
+        lock (this)
         {
             if (!_active)
             {
@@ -173,7 +172,7 @@ internal sealed class CallScope : global::System.IDisposable
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (_gate)
+        lock (this)
         {
             // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
             error = _error;
@@ -202,7 +201,7 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (_gate)
+        lock (this)
         {
             _active = false;
             _failed = false;
@@ -289,13 +288,13 @@ internal unsafe class CallbackBox
     }
 
     /// <summary>An enum without a fixed type holds only some values, and C++ would not.</summary>
-    internal void CheckResult(long value, long low, long high)
+    internal void CheckResult(long value, long low, long high, string? method = null)
     {
         if (value < low || value > high)
         {
             throw new global::System.InvalidOperationException(
-                "the callback '" + Name + "' returned " + value + ", which is not a value of the enum ("
-                + low + ".." + high + ")");
+                (method is null ? "the callback '" + Name + "'" : "the override " + method) + " returned " + value
+                + ", which is not a value of the enum (" + low + ".." + high + ")");
         }
     }
 

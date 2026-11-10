@@ -96,7 +96,6 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly object _gate = new();
     private readonly CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
@@ -163,7 +162,7 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
-        lock (_gate)
+        lock (this)
         {
             if (!_active)
             {
@@ -182,7 +181,7 @@ internal sealed class CallScope : global::System.IDisposable
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (_gate)
+        lock (this)
         {
             // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
             error = _error;
@@ -211,7 +210,7 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (_gate)
+        lock (this)
         {
             _active = false;
             _failed = false;
@@ -298,13 +297,13 @@ internal unsafe class CallbackBox
     }
 
     /// <summary>An enum without a fixed type holds only some values, and C++ would not.</summary>
-    internal void CheckResult(long value, long low, long high)
+    internal void CheckResult(long value, long low, long high, string? method = null)
     {
         if (value < low || value > high)
         {
             throw new global::System.InvalidOperationException(
-                "the callback '" + Name + "' returned " + value + ", which is not a value of the enum ("
-                + low + ".." + high + ")");
+                (method is null ? "the callback '" + Name + "'" : "the override " + method) + " returned " + value
+                + ", which is not a value of the enum (" + low + ".." + high + ")");
         }
     }
 
@@ -418,7 +417,8 @@ internal sealed class DirectorBox : CallbackBox
     }
 
     /// <summary>True if a class of the user overrides the virtual method of <paramref name="root"/> with these
-    /// parameters (the classes that were generated do not count).</summary>
+    /// parameters (the classes that were generated do not count; a method that hides it with <c>new</c> does not
+    /// override it, and an override above it still does).</summary>
     internal static bool Overrides(
         global::System.Type type,
         global::System.Type root,
@@ -426,17 +426,68 @@ internal sealed class DirectorBox : CallbackBox
         global::System.Type[] parameters,
         global::System.Type[] generated)
     {
-        global::System.Reflection.MethodInfo? method = type.GetMethod(
-            name,
-            global::System.Reflection.BindingFlags.Instance
-                | global::System.Reflection.BindingFlags.Public
-                | global::System.Reflection.BindingFlags.NonPublic,
-            null,
-            parameters,
-            null);
-        return method is not null
-            && method.GetBaseDefinition().DeclaringType == root
-            && global::System.Array.IndexOf(generated, method.DeclaringType) < 0;
+        for (global::System.Type? current = type;
+            current is not null && global::System.Array.IndexOf(generated, current) < 0;
+            current = current.BaseType)
+        {
+            foreach (global::System.Reflection.MethodInfo method in current.GetMethods(
+                global::System.Reflection.BindingFlags.DeclaredOnly
+                    | global::System.Reflection.BindingFlags.Instance
+                    | global::System.Reflection.BindingFlags.Public
+                    | global::System.Reflection.BindingFlags.NonPublic))
+            {
+                if (method.Name == name && method.IsVirtual && !method.IsGenericMethodDefinition
+                    && (method.Attributes & global::System.Reflection.MethodAttributes.NewSlot) == 0
+                    && method.GetBaseDefinition().DeclaringType == root
+                    && SameTypes(method.GetParameters(), parameters))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool SameTypes(global::System.Reflection.ParameterInfo[] actual, global::System.Type[] expected)
+    {
+        if (actual.Length != expected.Length)
+        {
+            return false;
+        }
+        for (int i = 0; i < actual.Length; i++)
+        {
+            if (actual[i].ParameterType != expected[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>A class of the user that derives from <paramref name="generated"/>, whose C++ class has no director
+    /// (or one that C# cannot use), cannot have its overrides called by C++: it is refused.</summary>
+    internal static void RefuseOverrides(global::System.Type type, global::System.Type generated)
+    {
+        for (global::System.Type? current = type; current is not null && current != generated; current = current.BaseType)
+        {
+            foreach (global::System.Reflection.MethodInfo method in current.GetMethods(
+                global::System.Reflection.BindingFlags.DeclaredOnly
+                    | global::System.Reflection.BindingFlags.Instance
+                    | global::System.Reflection.BindingFlags.Public
+                    | global::System.Reflection.BindingFlags.NonPublic))
+            {
+                global::System.Type? declared = method.GetBaseDefinition().DeclaringType;
+                if (method.IsVirtual && declared is not null && declared != method.DeclaringType
+                    && declared != typeof(BridgefexObject) && typeof(BridgefexObject).IsAssignableFrom(declared)
+                    && declared.IsAssignableFrom(generated))
+                {
+                    throw new global::System.NotSupportedException(
+                        current.Name + "." + method.Name + " overrides a virtual method of " + declared.Name
+                        + ", but the C++ class " + generated.Name + " has no director that C# can use: C++ would not call it"
+                        + " (ask for a director in the annotations file, or do not override)");
+                }
+            }
+        }
     }
 
     internal nint Key { get; set; }
@@ -516,9 +567,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Beam target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Beam target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Length();
@@ -540,9 +596,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Area();
@@ -564,12 +625,21 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
             }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
             using var running = box.Enter();
             var value = target.Name();
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.name returned null for a std::string");
+            }
             if (value is not null)
             {
                 byte[] bytes = Runtime.Utf8(value, "result");
@@ -595,9 +665,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Sides();
@@ -619,9 +694,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Center();
@@ -643,9 +723,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Move(global::Drc.Shape.Point.FromNative(a1), global::Drc.Shape.Point.FromNative(a2));
@@ -667,9 +752,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Mode((global::Drc.Shape.Mode)a1);
@@ -691,9 +781,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             target.Scale(a1);
@@ -714,9 +809,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.AddInt32Int32(a1, a2);
@@ -738,9 +838,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.AddDoubleDouble(a1, a2);
@@ -762,12 +867,21 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
             }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
             using var running = box.Enter();
-            var value = target.Greet(Runtime.TakeText((nint)a1d, a1s), Runtime.TakeText((nint)a2d, a2s), Runtime.CString(a3)!);
+            var value = target.Greet(Runtime.TakeText((nint)a1d, a1s), Runtime.TakeText((nint)a2d, a2s), Runtime.CString(a3));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.greet returned null for a std::string");
+            }
             if (value is not null)
             {
                 byte[] bytes = Runtime.Utf8(value, "result");
@@ -793,9 +907,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.Quiet();
@@ -817,9 +936,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Shape.Shape target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             target.BridgefexChanged(a1);
@@ -840,12 +964,21 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Stage.Stage target)
+            if (box.Skip)
             {
                 return;
             }
+            if (box.Target is not global::Drc.Stage.Stage target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
             using var running = box.Enter();
             var value = target.BridgefexStep((global::Drc.Shape.Mode)a1, a2);
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Stage.step returned null for a std::string");
+            }
             if (value is not null)
             {
                 byte[] bytes = Runtime.Utf8(value, "result");
@@ -871,9 +1004,14 @@ internal static unsafe class Thunks
         try
         {
             box = (DirectorBox)CallbackBox.Of(userData);
-            if (box.Skip || box.Target is not global::Drc.Stage.Stage target)
+            if (box.Skip)
             {
                 return;
+            }
+            if (box.Target is not global::Drc.Stage.Stage target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
             }
             using var running = box.Enter();
             var value = target.BridgefexOrigin_();

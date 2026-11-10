@@ -27,19 +27,25 @@ LOCAL_PREFIX = "__"
 BODY_TYPES = frozenset(
     """
     Runtime Native Block StringBlock Lease Keep BridgefexObject BridgefexException ObjectHandle
-    BridgefexCallbacks CallScope CallbackBox Thunks
+    BridgefexCallbacks CallScope CallbackBox Thunks DirectorBox
     """.split()
 )
 
 # Parameters cannot have those names, nor those of the members that the bodies call.
-PARAMETER_RESERVED = BODY_TYPES | frozenset("Handle Hold Retain System nameof".split())
+# (The names that the C layer gives to the parameters of the functions of a director too: the base
+# call of an override is lowered with them, and the method with the same ones.)
+PARAMETER_RESERVED = BODY_TYPES | frozenset(
+    "Handle Hold Retain System nameof Director HoldDirector SetDirector "
+    "director vtable out_object out_director".split()
+)
 
 # Members that every object of a generated class has: a wrapped method cannot take their names.
 RESERVED_MEMBERS = BODY_TYPES | frozenset(
     """
     Dispose Close Equals GetHashCode GetType ToString Finalize MemberwiseClone ReferenceEquals
     IsClosed Handle Hold Owners ReadOnly Retained Origin CppType Retain Attach Surrender KeepOf
-    ClaimToGive CollectOwning RetainForever Borrow
+    ClaimToGive CollectOwning RetainForever Borrow Director HoldDirector SetDirector
+    DirectorOverrides
     """.split()
 )
 

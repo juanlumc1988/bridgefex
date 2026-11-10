@@ -1,0 +1,10 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): what the directors of the golden
+# case "directors" do not reach, found by an adversarial review: a director that C++ retains, an
+# object that is an argument while C++ calls its overrides, overrides hidden by `new`, a constructor
+# that fails, a class that derives from one that can be derived from but has no director, overrides that
+# throw on a thread of C++, enums without a fixed type, bool, long, and a NULL const char*.
+module = "de"
+headers = ["de.h"]
+std = "c++17"
+annotations = ["annotations.toml"]
+languages = ["csharp"]
