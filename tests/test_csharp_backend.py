@@ -599,6 +599,136 @@ def test_a_header_cannot_have_the_name_of_a_file_of_the_callback_runtime(
     assert f"cannot use header name '{stem}'" in message
 
 
+# -- Directors ------------------------------------------------------------------------------------
+
+DIRECTOR_CODE = """
+#include <vector>
+class B {
+public:
+    B();
+    explicit B(int start);
+    virtual ~B();
+    virtual int f(int a) const;
+    virtual double g() const = 0;
+    virtual std::string name() const;
+    virtual int total(const std::vector<int>& v) const;
+    int call() const;
+protected:
+    virtual void h(int reason);
+};
+class D : public B {
+public:
+    D();
+    double g() const override;
+};
+"""
+
+
+def generate_with_directors(
+    tmp_path: Path, code: str, classes: list[str], *, verify: bool = False
+) -> dict[str, str]:
+    annotations = tmp_path / "directors.toml"
+    annotations.write_text("directors = [" + ", ".join(f'"{c}"' for c in classes) + "]\n")
+    header = tmp_path / "api.h"
+    header.write_text(PRELUDE + code + "\n", encoding="utf-8")
+    options = bridgefex.Options(
+        "mod", std="c++17", languages=("csharp",), verify=verify, annotations=(annotations,)
+    )
+    return bridgefex.generate([header], options).files
+
+
+def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
+    text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
+    # A virtual method is virtual in the class that declares it, and an override below it.
+    assert "public virtual int F(int a)" in text
+    assert "public virtual double G()" in text
+    assert "public override double G()" in text
+    assert "protected virtual void H(int reason)" in text
+    # The constructors that only a class of the user can call (the class is abstract).
+    assert "protected B()" in text
+    assert "protected B(int start)" in text
+    # A method with a container is the class's own: C# cannot override it.
+    assert "public int Total(" in text
+    assert "virtual int Total" not in text
+    # A pure virtual method has to be overridden when the object is made.
+    assert "DirectorOverrides(GetType(), true)" in text
+
+
+def test_a_class_with_a_director_checks_what_a_class_of_the_user_overrides(
+    tmp_path: Path,
+) -> None:
+    files = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])
+    text = files["csharp/Mod/Api.cs"]
+    assert 'DirectorBox.Overrides(t, typeof(global::Mod.Api.B), "G"' in text
+    assert "must override the pure virtual method B.g" in text
+    # The module has the runtime of the directors; one without them does not.
+    assert "internal sealed class DirectorBox" in files["csharp/Mod/BridgefexCallbacks.cs"]
+    plain = generate(tmp_path, SMALL)
+    assert "csharp/Mod/BridgefexCallbacks.cs" not in plain
+    assert "Director" not in plain["csharp/Mod/Objects.cs"]
+
+
+def test_every_call_of_a_module_with_directors_can_raise_the_exception_of_an_override(
+    tmp_path: Path,
+) -> None:
+    text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
+    body = text.split("public int Call()")[1].split("\n    }")[0]
+    assert "using var __scope = new CallScope();" in body
+    assert "__scope.Check(__status);" in body
+
+
+def test_a_class_whose_pure_virtual_method_has_a_type_that_c_sharp_cannot_override_is_plain(
+    tmp_path: Path,
+) -> None:
+    code = """
+#include <vector>
+class P { public: P(); virtual ~P(); virtual int n(const std::vector<int>& v) const = 0;
+          virtual int k() const; };
+class Q { public: Q(); virtual ~Q(); virtual int k() const; };
+"""
+    text = generate_with_directors(tmp_path, code, ["mod_P", "mod_Q"])["csharp/Mod/Api.cs"]
+    # P cannot be derived from (it would have to implement n): its methods are plain.
+    assert "virtual int N" not in text
+    assert "public int K()" in text
+    # Q can.
+    assert "public virtual int K()" in text
+
+
+DIRECTOR_COMPILES = {
+    "names like the locals of the director code": (
+        "class B { public: B(int __box, int __vt); virtual ~B();"
+        " virtual int f(int __over, int __director, int __d) const; protected: B(); };"
+    ),
+    "a virtual method named like a member of every object": (
+        "class B { public: B(); virtual ~B(); virtual int equals(int a) const;"
+        " virtual int hold() const; virtual int object() const; };"
+    ),
+    "a derived class that hides an overload of its base": (
+        "class B { public: B(); virtual ~B(); virtual int add(int a, int b) const;"
+        " virtual double add(double a, double b) const; };\n"
+        "class D : public B { public: D(); int add(int a, int b) const override; };"
+    ),
+    "an enum, a struct and strings in the signature": (
+        "enum class E : unsigned char { A, B };\nstruct S { int x; };\n"
+        "class B { public: B(); virtual ~B(); virtual E e(E v) const;"
+        " virtual S s(S v, const S& w) const; virtual std::string t(const std::string& a,"
+        " std::string_view b, const char* c) const; };"
+    ),
+}
+
+
+@needs_dotnet
+@pytest.mark.parametrize("code", DIRECTOR_COMPILES.values(), ids=DIRECTOR_COMPILES.keys())
+def test_the_code_of_a_director_compiles_with_hostile_names(tmp_path: Path, code: str) -> None:
+    classes = ["mod_B", "mod_D"] if "class D" in code else ["mod_B"]
+    generate_with_directors(tmp_path, "#include <string_view>\n" + code, classes, verify=True)
+
+
+@needs_dotnet
+def test_the_director_code_of_the_example_compiles(tmp_path: Path) -> None:
+    generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"], verify=True)
+
+
 # -- What it refuses ------------------------------------------------------------------------------
 
 WIDE = "std::function<void(" + ", ".join(["int"] * 17) + ")>"
