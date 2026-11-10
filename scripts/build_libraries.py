@@ -556,15 +556,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     base = (args.work or ROOT / "build" / "libraries" / args.target).resolve()
     shutil.rmtree(base, ignore_errors=True)
 
+    done: dict[str, Build] = {}
+
     def built(name: str) -> Build:
-        build = Build(load_case(name), tools, base / name)
-        build.work.mkdir(parents=True)
-        build.generate(clang_args)
-        build.build_shared()
-        build.build_static()
-        build.check(static=False)
-        build.check(static=True)
-        return build
+        """The libraries of a case, built and checked once however many times it is asked for."""
+        if name not in done:
+            build = Build(load_case(name), tools, base / name)
+            build.work.mkdir(parents=True)
+            build.generate(clang_args)
+            build.build_shared()
+            build.build_static()
+            build.check(static=False)
+            build.check(static=True)
+            done[name] = build
+        return done[name]
 
     if args.csharp_check and not args.csharp_runtime:
         raise SystemExit("--csharp-check needs --csharp-runtime")

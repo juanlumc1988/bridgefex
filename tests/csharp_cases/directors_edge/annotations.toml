@@ -1,0 +1,4 @@
+directors = ["de_Base", "de_Sub", "de_Thrower"]
+
+[de_Registry_keep]
+base = "retain"

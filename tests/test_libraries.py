@@ -198,3 +198,35 @@ def test_a_csharp_check_needs_a_runtime(toolchain: Toolchain, tmp_path: Path) ->
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert completed.returncode != 0
     assert "--csharp-check needs --csharp-runtime" in completed.stdout + completed.stderr
+
+
+def test_a_case_that_is_checked_and_run_in_csharp_is_built_once(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """The armhf job asks for ``directors`` as a case to check and as a C# check."""
+    runtime = _host_runtime()
+    if runtime is None:
+        pytest.skip("not a runtime of the CI")
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--target",
+        "host",
+        "--output",
+        str(tmp_path / "dist"),
+        "--work",
+        str(tmp_path / "work"),
+        "--cc",
+        toolchain.cc,
+        "--cxx",
+        toolchain.cxx,
+        "--check-case",
+        "containers",
+        "--csharp-runtime",
+        runtime,
+        "--csharp-check",
+        "containers",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "containers: C# round trip OK" in completed.stdout

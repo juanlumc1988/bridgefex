@@ -13,7 +13,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ...model import EnumRef, ScalarType, StringType, StructRef
-from ...plan import CallbackPart, CallbackSpec, ElementSpec, FfiKind, ModulePlan
+from ...plan import (
+    CallbackPart,
+    CallbackSpec,
+    DirectorEntry,
+    ElementSpec,
+    FfiKind,
+    ModulePlan,
+)
 from .elements import Element, element_of
 from .mapping import CDECL_CALLERS, Unsupported
 from .naming import LOCAL_PREFIX
@@ -71,6 +78,11 @@ def _argument(part: CallbackPart, names: Names) -> _Argument:
             element.public, (element.native,), element.from_native.replace("{}", "{0}")
         )
     raise Unsupported(f"the type '{type_.cpp_spelling}' of an argument of a callback")
+
+
+def public_of(part: CallbackPart, names: Names) -> str:
+    """The C# type of an argument of a callback or of a virtual method."""
+    return _argument(part, names).public
 
 
 def _to_native(element: Element, value: str) -> str:
@@ -140,7 +152,7 @@ def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Th
         "    {",
         "        return;",
         "    }",
-        f"    var function = ({delegate})box.Function;",
+        f"    var function = ({delegate})box.Function!;",
     ]
     if out is None:
         body.append(f"    {call};")
@@ -160,12 +172,125 @@ def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Th
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
 
 
+def _director_thunk(
+    name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sink_set: str
+) -> Thunk:
+    """The thunk of a virtual method: it finds the C# object of the director and calls
+    ``method``."""
+    callback = entry.callback
+    arguments = [_argument(part, names) for part in callback.arguments]
+    parameters = ["void* userData"]
+    pointer = ["void*"]
+    values: list[str] = []
+    for position, argument in enumerate(arguments, start=1):
+        locals_ = []
+        for index, native in enumerate(argument.natives):
+            local = f"a{position}" if len(argument.natives) == 1 else f"a{position}{'ds'[index]}"
+            parameters.append(f"{native} {local}")
+            pointer.append(native)
+            locals_.append(local)
+        expression = argument.read
+        for index, local in enumerate(locals_):
+            expression = expression.replace(f"{{{index}}}", local)
+        values.append(expression)
+    result = callback.result
+    kind = result.type
+    call = f"target.{method}({', '.join(values)})"
+    give: list[str] = []
+    if isinstance(kind, ScalarType) and kind.is_void:
+        statement = [f"{call};"]
+    else:
+        statement = [f"var value = {call};"]
+        if isinstance(kind, StringType):
+            parameters.append("nint sink")
+            pointer.append("nint")
+            nullable = "" if kind.sized else None
+            give = (
+                [
+                    "if (value is null)",
+                    "{",
+                    "    throw new global::System.InvalidOperationException("
+                    f'"the override {root.rsplit(".", 1)[-1]}.{entry.name} returned null for a '
+                    'std::string");',
+                    "}",
+                ]
+                if nullable is not None
+                else []
+            ) + [
+                "if (value is not null)",
+                "{",
+                '    byte[] bytes = Runtime.Utf8(value, "result");',
+                "    fixed (byte* text = bytes)",
+                "    {",
+                f"        Native.{sink_set}(sink, text, (nuint)bytes.Length);",
+                "    }",
+                "}",
+            ]
+        elif isinstance(kind, StructRef):
+            out = _element(result, names)
+            parameters.append(f"{out.native}* result")
+            pointer.append(f"{out.native}*")
+            give = ["value.ToNative(result);"]
+        else:
+            out = _element(result, names)
+            parameters.append(f"{out.native}* result")
+            pointer.append(f"{out.native}*")
+            if out.check is not None:
+                low, high = out.check
+                what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
+                give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
+            give.append(f"*result = {_to_native(out, 'value')};")
+    pointer.append("void")
+    body = [
+        "DirectorBox? box = null;",
+        "try",
+        "{",
+        "    box = (DirectorBox)CallbackBox.Of(userData);",
+        "    if (box.Skip)",
+        "    {",
+        "        return;",
+        "    }",
+        "    if (box.Target is not " + root + " target)",
+        "    {",
+        "        throw new global::System.InvalidOperationException(",
+        '            "C++ called an override of an object that was collected: '
+        'keep a reference to it while C++ uses it");',
+        "    }",
+        "    using var running = box.Enter();",
+        *(f"    {line}" for line in statement),
+        *(f"    {line}" for line in give),
+        "}",
+        "catch (global::System.Exception error)",
+        "{",
+        "    CallbackBox.Fail(box, error);",
+        "}",
+    ]
+    return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
+
+
 @dataclass(slots=True)
 class ThunkTable:
     """The thunks that the wrappers of a module use, by C signature and delegate type."""
 
     _items: dict[tuple[str, str], Thunk] = field(default_factory=dict)
     _names: set[str] = field(default_factory=set)
+    _directors: dict[str, Thunk] = field(default_factory=dict)
+
+    def director(
+        self,
+        name: str,
+        root: str,
+        method: str,
+        entry: DirectorEntry,
+        *,
+        names: Names,
+        sink_set: str,
+    ) -> None:
+        """The thunk ``name`` of a virtual method of the C# class ``root``."""
+        if name not in self._directors:
+            self._directors[name] = _director_thunk(
+                name, root, method, entry, names=names, sink_set=sink_set
+            )
 
     def address(self, key: str, callback: CallbackSpec, names: Names) -> str:
         """The expression of the address of the thunk for a callback of C signature ``key``."""
@@ -185,7 +310,7 @@ class ThunkTable:
     def source(self) -> list[str]:
         """The lines of the class with the thunks, in the order they were first used."""
         lines = ["internal static unsafe class Thunks", "{"]
-        for thunk in self._items.values():
+        for thunk in [*self._items.values(), *self._directors.values()]:
             lines += [
                 "    " + _CDECL,
                 f"    internal static void {thunk.name}({', '.join(thunk.parameters)})",

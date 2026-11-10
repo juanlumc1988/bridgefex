@@ -7,7 +7,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 from ...errors import Diagnostic, GenerationError
-from ...model import EnumRef, ScalarType, StructRef
+from ...model import Access, EnumRef, ScalarType, StringType, StructRef
 from ...plan import (
     CallableKind,
     CallablePlan,
@@ -21,6 +21,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from . import directors
 from .callbacks import has_callbacks
 from .lower import Names, lower_callable
 from .mapping import (
@@ -31,7 +32,7 @@ from .mapping import (
     native_type,
     scalar,
 )
-from .naming import CS_KEYWORDS, RESERVED_MEMBERS, identifier, pascal
+from .naming import CS_KEYWORDS, LOCAL_PREFIX, RESERVED_MEMBERS, identifier, parameter, pascal
 from .source import Source
 
 STRUCT_LAYOUT = f"[{INTEROP}.StructLayout({INTEROP}.LayoutKind.Sequential)]"
@@ -40,7 +41,7 @@ _FILE_TYPES = frozenset(
     """
     Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
     BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks CallScope CallbackBox
-    Thunks
+    Thunks DirectorBox
     """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""
@@ -132,6 +133,7 @@ def build_names(plan: ModulePlan) -> Names:
         for plan_ in struct_plans.values()
         if _size_bound(plan_, struct_plans) > LARGE_STRUCT
     )
+    derivable = directors.build(plan)
     return Names(
         root,
         classes,
@@ -141,7 +143,10 @@ def build_names(plan: ModulePlan) -> Names:
         enum_plans,
         struct_plans,
         large,
-        has_callbacks(plan),
+        has_callbacks(plan) or bool(derivable),
+        bool(derivable),
+        derivable,
+        directors.guarded(plan, derivable),
     )
 
 
@@ -205,6 +210,21 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         _declare_function(src, function)
     for line in mirrors_source(plan, names):
         src.line(line)
+    if names.directors:
+        _declare(src, plan.string_sink_set, "void", "nint sink, byte* data, nuint size")
+        for d in names.directors.values():
+            director = d.cls.director
+            assert director is not None
+            src.line()
+            src.line(STRUCT_LAYOUT)
+            src.open(f"internal struct {director.vtable_type}")
+            src.line("public nint user_data;")
+            src.line("public nint release;")
+            for entry in director.entries:
+                src.line(f"public nint {identifier(entry.field)};")
+            src.close()
+            for function in director.functions:
+                _declare_function(src, function)
     src.close()
     return src.text()
 
@@ -310,10 +330,14 @@ def _method(
     modifiers: str = "",
     reserved: frozenset[str] = RESERVED_MEMBERS,
     declaring: ClassPlan | None = None,
+    virtual: tuple[directors.Slot, str] | None = None,
 ) -> str:
     name = pascal(call.name + call.suffix)
     while name in reserved:
         name += "_"
+    if virtual is not None:
+        # The name that the class that declares the virtual method gave it, whatever its overloads.
+        name = virtual[0].name
     if name in taken:
         raise GenerationError(
             [
@@ -328,15 +352,32 @@ def _method(
         )
     taken[name] = call.function.description
     lowered = lower_callable(call, names, plan, declaring=declaring)
+    body = lowered.body
+    if virtual is not None:
+        assert declaring is not None
+        slot, how = virtual
+        # C++ may call an override with a NULL const char*.
+        for position, spec in enumerate(call.params):
+            if isinstance(spec.type, StringType) and not spec.type.sized:
+                lowered.parameters[position] = lowered.parameters[position].replace(
+                    "string ", "string? ", 1
+                )
+        modifiers = f"{modifiers}{how} "
+        body = directors.virtual_body(
+            plan, names, declaring, slot.entry, body, returns=lowered.returns
+        )
     src.doc(call.function.description)
     src.remarks(lowered.remarks)
     src.line(f'[BridgefexFunction("{call.function.name}")]')
     keyword = "public static " if static else "public "
+    if virtual is not None and virtual[0].root_entry.access is not Access.PUBLIC:
+        # An override cannot change the access of what it overrides.
+        keyword = "protected "
     header = (
         f"{keyword}{modifiers}{lowered.returns} {identifier(name)}({', '.join(lowered.parameters)})"
     )
     src.open(header)
-    src.lines_of(lowered.body)
+    src.lines_of(body)
     src.close()
     return name
 
@@ -416,6 +457,7 @@ def _constructors(
     a ``const char*`` are both a ``string``) are static methods, ``Create`` and the suffix of the
     C API, as in the Python bindings."""
     name = pascal(cls.model.name)
+    d = names.directors.get(cls.c_type)
     lowered = [(ctor, lower_callable(ctor, names, plan)) for ctor in cls.constructors]
     count = Counter(_signature(item.parameters) for _, item in lowered)
     for ctor, item in lowered:
@@ -425,7 +467,25 @@ def _constructors(
         src.line(f'[BridgefexFunction("{ctor.function.name}")]')
         if count[_signature(item.parameters)] == 1:
             src.open(f"public {name}({', '.join(item.parameters)}) : base(new {handle}())")
-            src.lines_of(item.body)
+            director_ctor = directors.director_constructor(cls, ctor) if d is not None else None
+            if cls.c_type in names.guarded:
+                # C++ would never call the overrides of a class of the user.
+                src.line(f"DirectorBox.RefuseOverrides(GetType(), typeof({name}));")
+            if d is None or director_ctor is None:
+                src.lines_of(item.body)
+            else:
+                # A class of the user that derives from this one and overrides something makes a
+                # director; this class itself, or one that overrides nothing, a plain object.
+                made = lower_callable(
+                    director_ctor, names, plan, prelude=directors.vtable_prelude(names, d)
+                )
+                src.line(f"bool[]? {LOCAL_PREFIX}over = DirectorOverrides(GetType(), false);")
+                src.open(f"if ({LOCAL_PREFIX}over is null)")
+                src.lines_of(item.body)
+                src.close()
+                src.open("else")
+                src.lines_of(made.body)
+                src.close()
             src.close()
             continue
         factory = pascal(f"create{ctor.suffix}")
@@ -434,6 +494,43 @@ def _constructors(
         taken[factory] = ctor.function.description
         made = lower_callable(ctor, names, plan, factory=(name, handle))
         src.open(f"public static {name} {factory}({', '.join(made.parameters)})")
+        src.lines_of(made.body)
+        src.close()
+    if d is not None:
+        _protected_constructors(src, plan, cls, names, d, handle=handle, signatures=set(count))
+
+
+def _protected_constructors(
+    src: Source,
+    plan: ModulePlan,
+    cls: ClassPlan,
+    names: Names,
+    d: directors.DirectorClass,
+    *,
+    handle: str,
+    signatures: set[tuple[str, ...]],
+) -> None:
+    """The constructors that only a class of the user can call: the ones of the C++ class that
+    make no plain object (protected ones, or all of them if the class is abstract)."""
+    assert cls.director is not None
+    name = pascal(cls.model.name)
+    plain = {ctor.source for ctor in cls.constructors}
+    for director_ctor in cls.director.constructors:
+        if director_ctor.source in plain:
+            continue
+        made = lower_callable(
+            director_ctor, names, plan, prelude=directors.vtable_prelude(names, d)
+        )
+        signature = _signature(made.parameters)
+        if signature in signatures:
+            continue  # C# cannot tell it from another constructor
+        signatures.add(signature)
+        src.line()
+        src.doc(director_ctor.function.description)
+        src.remarks(made.remarks)
+        src.line(f'[BridgefexFunction("{director_ctor.function.name}")]')
+        src.open(f"protected {name}({', '.join(made.parameters)}) : base(new {handle}())")
+        src.line(f"bool[] {LOCAL_PREFIX}over = DirectorOverrides(GetType(), true)!;")
         src.lines_of(made.body)
         src.close()
 
@@ -463,11 +560,13 @@ def _class(
     for nested in cls.enums:
         src.line()
         _enum(src, nested)
+    d = names.directors.get(cls.c_type)
     for member in cls.members:
         src.line()
         member_name = pascal(member.name + member.suffix)
         while member_name in reserved:
             member_name += "_"
+        slot = _virtual_slot(names, cls, d, member)
         _method(
             src,
             plan,
@@ -475,10 +574,13 @@ def _class(
             names,
             taken,
             static=member.kind is CallableKind.STATIC,
-            modifiers="new " if member_name in inherited else "",
+            modifiers=_hiding(names, cls, slot, member_name, inherited),
             reserved=reserved,
             declaring=cls,
+            virtual=slot,
         )
+    if d is not None:
+        _director_members(src, plan, cls, names, d, taken=taken)
     for view in cls.views:
         if view.c_type in chain or view.c_type == cls.c_type:
             continue
@@ -496,6 +598,123 @@ def _class(
             by_type=by_type,
         )
     src.close()
+
+
+def _hiding(
+    names: Names,
+    cls: ClassPlan,
+    slot: tuple[directors.Slot, str] | None,
+    member_name: str,
+    inherited: set[str],
+) -> str:
+    """``new`` for a method that hides one that a class above it has (and ``new virtual`` for a
+    virtual method that starts a new slot with the same name)."""
+    above = directors.names_above(names, cls)
+    if slot is None:
+        return "new " if member_name in inherited or member_name in above else ""
+    if slot[1] == "virtual" and (slot[0].name in inherited or slot[0].name in above):
+        return "new "
+    return ""
+
+
+def _virtual_slot(
+    names: Names, cls: ClassPlan, d: directors.DirectorClass | None, member: CallablePlan
+) -> tuple[directors.Slot, str] | None:
+    """The slot of the virtual method that the wrapper is, and how the C# method declares it."""
+    if d is None or member.kind is not CallableKind.METHOD:
+        return None
+    for slot in d.slots:
+        if slot.entry.method == member.source and directors.emits(names, cls, slot.entry):
+            return slot, directors.modifier(names, cls, slot.entry)
+    return None
+
+
+def _director_members(
+    src: Source,
+    plan: ModulePlan,
+    cls: ClassPlan,
+    names: Names,
+    d: directors.DirectorClass,
+    *,
+    taken: dict[str, str],
+) -> None:
+    """What the class has for its director besides the wrappers: the virtual methods that are not
+    part of the API, the thunks that C++ calls, and the check of what a class of the user
+    overrides."""
+    for slot in d.slots:
+        entry = slot.entry
+        if not directors.emits(names, cls, entry):
+            continue
+        has_wrapper = any(item.source == entry.method for item in cls.members)
+        if not has_wrapper:
+            returns = directors.result_type(entry, names)
+            parameters = ", ".join(
+                f"{type_} {parameter(name)}" for type_, name in directors.types_of(entry, names)
+            )
+            if slot.name in taken:
+                raise GenerationError(
+                    [
+                        Diagnostic(
+                            f"'{entry.description}' gets the C# name '{slot.name}', which "
+                            f"'{taken[slot.name]}' has",
+                            entry.location,
+                        )
+                    ]
+                )
+            taken[slot.name] = entry.description
+            body = directors.virtual_body(plan, names, cls, entry, None, returns=returns)
+            src.line()
+            src.doc(entry.description)
+            if entry.base is not None:
+                src.line(f'[BridgefexFunction("{entry.base.function.name}")]')
+            how = directors.modifier(names, cls, entry)
+            src.open(f"protected {how} {returns} {identifier(slot.name)}({parameters})")
+            src.lines_of(body)
+            src.close()
+        method = identifier(slot.name)
+        if slot.root is cls and entry.access is not Access.PUBLIC:
+            # The thunks are outside the class: they call a method that is not protected.
+            method = f"Bridgefex{slot.name}"
+            arguments = ", ".join(parameter(name) for _, name in directors.types_of(entry, names))
+            parameters = ", ".join(
+                f"{type_} {parameter(name)}" for type_, name in directors.types_of(entry, names)
+            )
+            returns = directors.result_type(entry, names)
+            src.line()
+            call = f"{identifier(slot.name)}({arguments})"
+            src.line(f"internal {returns} {method}({parameters}) => {call};")
+        if slot.root is cls:
+            names.thunks.director(
+                slot.thunk,
+                names.classes[cls.c_type],
+                method,
+                entry,
+                names=names,
+                sink_set=plan.string_sink_set,
+            )
+    for slot in directors.dropped(names, cls):
+        if slot.name in taken:
+            continue  # the class declares a method of its own with that name
+        parameters = ", ".join(
+            f"{type_} {parameter(name)}"
+            for type_, name in directors.types_of(slot.root_entry, names)
+        )
+        arguments = ", ".join(
+            parameter(name) for _, name in directors.types_of(slot.root_entry, names)
+        )
+        returns = directors.result_type(slot.root_entry, names)
+        access = "public" if slot.root_entry.access is Access.PUBLIC else "protected"
+        taken[slot.name] = slot.root_entry.description
+        src.line()
+        src.doc(
+            f"{slot.root_entry.description}: the C++ class implements it where it cannot be "
+            "overridden, so it cannot be overridden from C# either."
+        )
+        call = f"base.{identifier(slot.name)}({arguments})"
+        src.line(
+            f"{access} sealed override {returns} {identifier(slot.name)}({parameters}) => {call};"
+        )
+    directors.overrides_helper(src, names, d)
 
 
 def _secondary_base(

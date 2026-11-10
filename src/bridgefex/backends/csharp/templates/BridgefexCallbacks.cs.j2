@@ -96,7 +96,6 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly object _gate = new();
     private readonly CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
@@ -144,6 +143,18 @@ internal sealed class CallScope : global::System.IDisposable
         return new Registration(thunk, key, CallbackBox.ReleaseAddress);
     }
 
+{% if directors %}
+    /// <summary>A director that this call creates: C++ releases it if the C function runs, else the scope drops it.</summary>
+    internal DirectorBox BeginDirector(BridgefexObject target, int kind)
+    {
+        var box = new DirectorBox(target, kind);
+        nint key = CallbackBox.Add(box);
+        box.Key = key;
+        (_keys ??= new List<nint>()).Add(key);
+        return box;
+    }
+{% endif %}
+
     /// <summary>The C function has returned: from now on C++ owns the callbacks.</summary>
     internal void Returned()
     {
@@ -153,7 +164,7 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
-        lock (_gate)
+        lock (this)
         {
             if (!_active)
             {
@@ -172,7 +183,7 @@ internal sealed class CallScope : global::System.IDisposable
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (_gate)
+        lock (this)
         {
             // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
             error = _error;
@@ -201,7 +212,7 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (_gate)
+        lock (this)
         {
             _active = false;
             _failed = false;
@@ -224,7 +235,7 @@ internal sealed class CallScope : global::System.IDisposable
 }
 
 /// <summary>A callback that C++ holds. C++ identifies it by its key (the <c>user_data</c>), never by an address.</summary>
-internal sealed unsafe class CallbackBox
+internal unsafe class CallbackBox
 {
     private static readonly ConcurrentDictionary<nint, CallbackBox> Table = new();
     private static readonly object Gate = new();
@@ -232,22 +243,22 @@ internal sealed unsafe class CallbackBox
     private static volatile bool _started;
     private static volatile bool _disabled;
 
-    private CallbackBox(global::System.Delegate function, string name, CallScope scope)
+    protected CallbackBox(global::System.Delegate? function, string name, CallScope? scope)
     {
         Function = function;
         Name = name;
         Scope = scope;
     }
 
-    internal global::System.Delegate Function { get; }
+    internal global::System.Delegate? Function { get; }
 
     internal string Name { get; }
 
-    /// <summary>The call that gave the callback.</summary>
-    internal CallScope Scope { get; }
+    /// <summary>The call that gave the callback (a director has none).</summary>
+    internal CallScope? Scope { get; }
 
-    /// <summary>True if the call that gave the callback has already failed: C++ gets the default result.</summary>
-    internal bool Skip => Scope.Failed;
+    /// <summary>True if the call that runs the callback has already failed: C++ gets the default result.</summary>
+    internal virtual bool Skip => Scope is { Failed: true };
 
     internal static int Count => Table.Count;
 
@@ -255,8 +266,12 @@ internal sealed unsafe class CallbackBox
 
     internal static nint Add(global::System.Delegate function, string name, CallScope scope)
     {
-        Start(name);
-        var box = new CallbackBox(function, name, scope);
+        return Add(new CallbackBox(function, name, scope));
+    }
+
+    internal static nint Add(CallbackBox box)
+    {
+        Start(box.Name);
         while (true)
         {
             // The keys wrap around where nint has 32 bits; a key in use is skipped. 0 is no key.
@@ -284,13 +299,13 @@ internal sealed unsafe class CallbackBox
     }
 
     /// <summary>An enum without a fixed type holds only some values, and C++ would not.</summary>
-    internal void CheckResult(long value, long low, long high)
+    internal void CheckResult(long value, long low, long high, string? method = null)
     {
         if (value < low || value > high)
         {
             throw new global::System.InvalidOperationException(
-                "the callback '" + Name + "' returned " + value + ", which is not a value of the enum ("
-                + low + ".." + high + ")");
+                (method is null ? "the callback '" + Name + "'" : "the override " + method) + " returned " + value
+                + ", which is not a value of the enum (" + low + ".." + high + ")");
         }
     }
 
@@ -310,7 +325,7 @@ internal sealed unsafe class CallbackBox
                     return;
                 }
             }
-            else if (!CallScope.InCall && box is not null && box.Scope.Fail(error))
+            else if (!CallScope.InCall && box?.Scope is { } given && given.Fail(error))
             {
                 return;
             }
@@ -387,6 +402,142 @@ internal sealed unsafe class CallbackBox
     }
 }
 
+{% if directors %}
+/// <summary>The C# object of a director. While C# owns it the box does not keep it alive (the collector may collect it,
+/// and then C++ destroys the director); once it is given to C++ the box does, until C++ destroys the director.</summary>
+internal sealed class DirectorBox : CallbackBox
+{
+    [global::System.ThreadStatic]
+    private static List<DirectorBox>? t_running;
+
+    private readonly global::System.WeakReference<BridgefexObject> _weak;
+    private BridgefexObject? _strong;
+
+    internal DirectorBox(BridgefexObject target, int kind) : base(null, target.GetType().Name, null)
+    {
+        _weak = new global::System.WeakReference<BridgefexObject>(target);
+        Kind = kind;
+    }
+
+    /// <summary>True if a class of the user overrides the virtual method of <paramref name="root"/> with these
+    /// parameters (the classes that were generated do not count; a method that hides it with <c>new</c> does not
+    /// override it, and an override above it still does).</summary>
+    internal static bool Overrides(
+        global::System.Type type,
+        global::System.Type root,
+        string name,
+        global::System.Type[] parameters,
+        global::System.Type[] generated)
+    {
+        for (global::System.Type? current = type;
+            current is not null && global::System.Array.IndexOf(generated, current) < 0;
+            current = current.BaseType)
+        {
+            foreach (global::System.Reflection.MethodInfo method in current.GetMethods(
+                global::System.Reflection.BindingFlags.DeclaredOnly
+                    | global::System.Reflection.BindingFlags.Instance
+                    | global::System.Reflection.BindingFlags.Public
+                    | global::System.Reflection.BindingFlags.NonPublic))
+            {
+                if (method.Name == name && method.IsVirtual && !method.IsGenericMethodDefinition
+                    && (method.Attributes & global::System.Reflection.MethodAttributes.NewSlot) == 0
+                    && method.GetBaseDefinition().DeclaringType == root
+                    && SameTypes(method.GetParameters(), parameters))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static bool SameTypes(global::System.Reflection.ParameterInfo[] actual, global::System.Type[] expected)
+    {
+        if (actual.Length != expected.Length)
+        {
+            return false;
+        }
+        for (int i = 0; i < actual.Length; i++)
+        {
+            if (actual[i].ParameterType != expected[i])
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// <summary>A class of the user that derives from <paramref name="generated"/>, whose C++ class has no director
+    /// (or one that C# cannot use), cannot have its overrides called by C++: it is refused.</summary>
+    internal static void RefuseOverrides(global::System.Type type, global::System.Type generated)
+    {
+        for (global::System.Type? current = type; current is not null && current != generated; current = current.BaseType)
+        {
+            foreach (global::System.Reflection.MethodInfo method in current.GetMethods(
+                global::System.Reflection.BindingFlags.DeclaredOnly
+                    | global::System.Reflection.BindingFlags.Instance
+                    | global::System.Reflection.BindingFlags.Public
+                    | global::System.Reflection.BindingFlags.NonPublic))
+            {
+                global::System.Type? declared = method.GetBaseDefinition().DeclaringType;
+                if (method.IsVirtual && declared is not null && declared != method.DeclaringType
+                    && declared != typeof(BridgefexObject) && typeof(BridgefexObject).IsAssignableFrom(declared)
+                    && declared.IsAssignableFrom(generated))
+                {
+                    throw new global::System.NotSupportedException(
+                        current.Name + "." + method.Name + " overrides a virtual method of " + declared.Name
+                        + ", but the C++ class " + generated.Name + " has no director that C# can use: C++ would not call it"
+                        + " (ask for a director in the annotations file, or do not override)");
+                }
+            }
+        }
+    }
+
+    internal nint Key { get; set; }
+
+    /// <summary>The director (the pointer for its base calls); 0 until the C function has created it.</summary>
+    internal nint Pointer { get; set; }
+
+    /// <summary>The director of which class: the base call to use.</summary>
+    internal int Kind { get; }
+
+    internal BridgefexObject? Target => _strong ?? (_weak.TryGetTarget(out BridgefexObject? target) ? target : null);
+
+    /// <summary>The object was given to C++: nobody else keeps it alive.</summary>
+    internal void Root(BridgefexObject target)
+    {
+        _strong = target;
+    }
+
+    /// <summary>The innermost call that gave no callbacks cannot fail the override of another call.</summary>
+    internal override bool Skip => CallScope.Innermost is { Failed: true };
+
+    /// <summary>C++ is running an override of the object on this thread: its director is alive until it returns.</summary>
+    internal Running Enter()
+    {
+        (t_running ??= new List<DirectorBox>()).Add(this);
+        return new Running(this);
+    }
+
+    internal bool IsRunning => t_running is { } list && list.Contains(this);
+
+    internal readonly ref struct Running
+    {
+        private readonly DirectorBox _box;
+
+        internal Running(DirectorBox box)
+        {
+            _box = box;
+        }
+
+        public void Dispose()
+        {
+            t_running?.Remove(_box);
+        }
+    }
+}
+
+{% endif %}
 {% for line in thunks %}
 {{ line }}
 {% endfor %}

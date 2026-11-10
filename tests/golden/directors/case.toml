@@ -4,3 +4,4 @@ headers = ["shape.h", "stage.h"]
 std = "c++17"
 annotations = ["annotations.toml"]
 min_cxx = "c++17"
+languages = ["python", "csharp"]

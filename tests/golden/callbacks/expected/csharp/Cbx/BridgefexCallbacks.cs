@@ -96,7 +96,6 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly object _gate = new();
     private readonly CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
@@ -144,6 +143,7 @@ internal sealed class CallScope : global::System.IDisposable
         return new Registration(thunk, key, CallbackBox.ReleaseAddress);
     }
 
+
     /// <summary>The C function has returned: from now on C++ owns the callbacks.</summary>
     internal void Returned()
     {
@@ -153,7 +153,7 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
-        lock (_gate)
+        lock (this)
         {
             if (!_active)
             {
@@ -172,7 +172,7 @@ internal sealed class CallScope : global::System.IDisposable
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (_gate)
+        lock (this)
         {
             // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
             error = _error;
@@ -201,7 +201,7 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (_gate)
+        lock (this)
         {
             _active = false;
             _failed = false;
@@ -224,7 +224,7 @@ internal sealed class CallScope : global::System.IDisposable
 }
 
 /// <summary>A callback that C++ holds. C++ identifies it by its key (the <c>user_data</c>), never by an address.</summary>
-internal sealed unsafe class CallbackBox
+internal unsafe class CallbackBox
 {
     private static readonly ConcurrentDictionary<nint, CallbackBox> Table = new();
     private static readonly object Gate = new();
@@ -232,22 +232,22 @@ internal sealed unsafe class CallbackBox
     private static volatile bool _started;
     private static volatile bool _disabled;
 
-    private CallbackBox(global::System.Delegate function, string name, CallScope scope)
+    protected CallbackBox(global::System.Delegate? function, string name, CallScope? scope)
     {
         Function = function;
         Name = name;
         Scope = scope;
     }
 
-    internal global::System.Delegate Function { get; }
+    internal global::System.Delegate? Function { get; }
 
     internal string Name { get; }
 
-    /// <summary>The call that gave the callback.</summary>
-    internal CallScope Scope { get; }
+    /// <summary>The call that gave the callback (a director has none).</summary>
+    internal CallScope? Scope { get; }
 
-    /// <summary>True if the call that gave the callback has already failed: C++ gets the default result.</summary>
-    internal bool Skip => Scope.Failed;
+    /// <summary>True if the call that runs the callback has already failed: C++ gets the default result.</summary>
+    internal virtual bool Skip => Scope is { Failed: true };
 
     internal static int Count => Table.Count;
 
@@ -255,8 +255,12 @@ internal sealed unsafe class CallbackBox
 
     internal static nint Add(global::System.Delegate function, string name, CallScope scope)
     {
-        Start(name);
-        var box = new CallbackBox(function, name, scope);
+        return Add(new CallbackBox(function, name, scope));
+    }
+
+    internal static nint Add(CallbackBox box)
+    {
+        Start(box.Name);
         while (true)
         {
             // The keys wrap around where nint has 32 bits; a key in use is skipped. 0 is no key.
@@ -284,13 +288,13 @@ internal sealed unsafe class CallbackBox
     }
 
     /// <summary>An enum without a fixed type holds only some values, and C++ would not.</summary>
-    internal void CheckResult(long value, long low, long high)
+    internal void CheckResult(long value, long low, long high, string? method = null)
     {
         if (value < low || value > high)
         {
             throw new global::System.InvalidOperationException(
-                "the callback '" + Name + "' returned " + value + ", which is not a value of the enum ("
-                + low + ".." + high + ")");
+                (method is null ? "the callback '" + Name + "'" : "the override " + method) + " returned " + value
+                + ", which is not a value of the enum (" + low + ".." + high + ")");
         }
     }
 
@@ -310,7 +314,7 @@ internal sealed unsafe class CallbackBox
                     return;
                 }
             }
-            else if (!CallScope.InCall && box is not null && box.Scope.Fail(error))
+            else if (!CallScope.InCall && box?.Scope is { } given && given.Fail(error))
             {
                 return;
             }
@@ -400,7 +404,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action<int>)box.Function;
+            var function = (global::System.Action<int>)box.Function!;
             function(a1);
         }
         catch (global::System.Exception error)
@@ -423,7 +427,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<int, int>)box.Function;
+            var function = (global::System.Func<int, int>)box.Function!;
             var value = function(a1);
             *result = value;
         }
@@ -447,7 +451,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action<string, global::Cbx.Events.Point>)box.Function;
+            var function = (global::System.Action<string, global::Cbx.Events.Point>)box.Function!;
             function(Runtime.TakeText((nint)a1d, a1s), global::Cbx.Events.Point.FromNative(a2));
         }
         catch (global::System.Exception error)
@@ -470,7 +474,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<long, bool>)box.Function;
+            var function = (global::System.Func<long, bool>)box.Function!;
             var value = function(a1);
             *result = (value ? (byte)1 : (byte)0);
         }
@@ -494,7 +498,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action)box.Function;
+            var function = (global::System.Action)box.Function!;
             function();
         }
         catch (global::System.Exception error)
@@ -517,7 +521,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<int, global::Cbx.Events.Level>)box.Function;
+            var function = (global::System.Func<int, global::Cbx.Events.Level>)box.Function!;
             var value = function(a1);
             *result = (byte)value;
         }
@@ -541,7 +545,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<global::Cbx.Events.Mode>)box.Function;
+            var function = (global::System.Func<global::Cbx.Events.Mode>)box.Function!;
             var value = function();
             box.CheckResult((long)value, 0, 3);
             *result = (int)value;
@@ -566,7 +570,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<double, double>)box.Function;
+            var function = (global::System.Func<double, double>)box.Function!;
             var value = function(a1);
             *result = value;
         }
@@ -590,7 +594,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<global::Cbx.Events.Point, string?, double>)box.Function;
+            var function = (global::System.Func<global::Cbx.Events.Point, string?, double>)box.Function!;
             var value = function(global::Cbx.Events.Point.FromNative(a1), Runtime.CString(a2));
             *result = value;
         }
@@ -614,7 +618,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action<global::Cbx.Events.Point, global::Cbx.Events.Mode>)box.Function;
+            var function = (global::System.Action<global::Cbx.Events.Point, global::Cbx.Events.Mode>)box.Function!;
             function(global::Cbx.Events.Point.FromNative(a1), (global::Cbx.Events.Mode)a2);
         }
         catch (global::System.Exception error)
@@ -637,7 +641,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action<string, string, string>)box.Function;
+            var function = (global::System.Action<string, string, string>)box.Function!;
             function(Runtime.TakeText((nint)a1d, a1s), Runtime.TakeText((nint)a2d, a2s), Runtime.TakeText((nint)a3d, a3s));
         }
         catch (global::System.Exception error)
@@ -660,7 +664,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Func<string, int>)box.Function;
+            var function = (global::System.Func<string, int>)box.Function!;
             var value = function(Runtime.TakeText((nint)a1d, a1s));
             *result = value;
         }
@@ -684,7 +688,7 @@ internal static unsafe class Thunks
             {
                 return;
             }
-            var function = (global::System.Action<global::Cbx.Events.Level, string>)box.Function;
+            var function = (global::System.Action<global::Cbx.Events.Level, string>)box.Function!;
             function((global::Cbx.Events.Level)a1, Runtime.TakeText((nint)a2d, a2s));
         }
         catch (global::System.Exception error)

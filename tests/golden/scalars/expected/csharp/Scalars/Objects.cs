@@ -329,6 +329,7 @@ internal sealed class Keep
         var duplicated = new List<ObjectHandle>();
         lock (other)
         {
+
             foreach (ObjectHandle handle in pinned)
             {
                 if (!other._pinned.Add(handle))
