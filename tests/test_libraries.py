@@ -146,3 +146,55 @@ def test_the_csharp_bindings_are_compiled_for_a_runtime(
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert f"-r {runtime}" in completed.stdout
     assert (tmp_path / "work" / "demo" / "csharp-check" / "bin" / "Demo.Bindings.dll").exists()
+
+
+@pytest.mark.usefixtures("dotnet")
+def test_the_csharp_check_of_a_case_is_published_and_run(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """What the armhf job does with ``--csharp-check`` (there under QEMU): the check of the case is
+    published self-contained for the runtime and run against the library of the case."""
+    runtime = _host_runtime()
+    if runtime is None:
+        pytest.skip("not a runtime of the CI")
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--target",
+        "host",
+        "--output",
+        str(tmp_path / "dist"),
+        "--work",
+        str(tmp_path / "work"),
+        "--cc",
+        toolchain.cc,
+        "--cxx",
+        toolchain.cxx,
+        "--csharp-runtime",
+        runtime,
+        "--csharp-check",
+        "containers",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "containers: C# round trip OK" in completed.stdout
+
+
+def test_a_csharp_check_needs_a_runtime(toolchain: Toolchain, tmp_path: Path) -> None:
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--target",
+        "host",
+        "--output",
+        str(tmp_path / "dist"),
+        "--cc",
+        toolchain.cc,
+        "--cxx",
+        toolchain.cxx,
+        "--csharp-check",
+        "containers",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode != 0
+    assert "--csharp-check needs --csharp-runtime" in completed.stdout + completed.stderr

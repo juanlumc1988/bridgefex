@@ -14,115 +14,129 @@ internal static unsafe partial class Native
         Runtime.Initialize();
     }
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct StringIn
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct StringOut
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial byte* demo_last_error();
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial byte* demo_api_fingerprint();
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void demo_free(IntPtr memory);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void demo_free(nint memory);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_create_void(IntPtr* out_self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_create_void(nint* out_self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_create_int32(IntPtr* out_self, int start);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_create_int32(nint* out_self, int start);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void demo_Counter_destroy(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void demo_Counter_destroy(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_increment(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_increment(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_add_int32(IntPtr self, int delta);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_add_int32(nint self, int delta);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_add_double(IntPtr self, double delta);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_add_double(nint self, double delta);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_value(IntPtr self, int* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_value(nint self, int* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_isZero(IntPtr self, byte* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_isZero(nint self, byte* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_setLimit(IntPtr self, long limit);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_setLimit(nint self, long limit);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_limit(IntPtr self, long* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_limit(nint self, long* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_reserve(IntPtr self, nuint bytes);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_reserve(nint self, nuint bytes);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Counter_fail(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Counter_fail(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int demo_Counter_liveInstances(nuint* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int demo_multiply_int32_int32(int a, int b, long* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int demo_multiply_double_double(double a, double b, double* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_geometry_Circle_create(IntPtr* out_self, double radius);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_geometry_Circle_create(nint* out_self, double radius);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void demo_geometry_Circle_destroy(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void demo_geometry_Circle_destroy(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_geometry_Circle_radius(IntPtr self, double* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_geometry_Circle_radius(nint self, double* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_geometry_Circle_area(IntPtr self, double* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_geometry_Circle_area(nint self, double* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_geometry_Circle_scale(IntPtr self, double factor);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_geometry_Circle_scale(nint self, double factor);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int demo_geometry_distance(double x1, double y1, double x2, double y2, double* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Sleeper_create(IntPtr* out_self, uint milliseconds);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Sleeper_create(nint* out_self, uint milliseconds);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void demo_Sleeper_destroy(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void demo_Sleeper_destroy(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int demo_Sleeper_nap(IntPtr self, uint milliseconds);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int demo_Sleeper_nap(nint self, uint milliseconds);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int demo_Sleeper_liveInstances(nuint* out_result);
 }

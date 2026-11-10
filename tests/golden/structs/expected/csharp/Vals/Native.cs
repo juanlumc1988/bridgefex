@@ -14,126 +14,140 @@ internal static unsafe partial class Native
         Runtime.Initialize();
     }
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct StringIn
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct StringOut
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial byte* vals_last_error();
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial byte* vals_api_fingerprint();
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void vals_free(IntPtr memory);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void vals_free(nint memory);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Point_init(Native.geo_Point* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Config_init(Native.geo_Config* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Msg_init(Native.geo_Msg* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Wide_init(Native.geo_Wide* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Names_init(Native.geo_Names* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Tagged_init(Native.geo_Tagged* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_mid(Native.geo_Point* a, Native.geo_Point* b, Native.geo_Point* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_echo(Native.geo_Msg* m, Native.geo_Msg* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_shift(Native.geo_Msg* m, short delta, Native.geo_Msg* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_configure(Native.geo_Config* c, Native.geo_Config* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_widen(Native.geo_Wide* w, Native.geo_Wide* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_rename(Native.geo_Names* n, Native.geo_Names* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_toggle(Native.geo_Tagged* t, Native.geo_Tagged* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_scale(Native.geo_Point* p, double factor, Native.geo_Point* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_area_geo_Point(Native.geo_Point* a, int* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_area_geo_Wide(Native.geo_Wide* w, int* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int geo_Path_create(IntPtr* out_self, Native.geo_Point* start);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int geo_Path_create(nint* out_self, Native.geo_Point* start);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial void geo_Path_destroy(IntPtr self);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void geo_Path_destroy(nint self);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int geo_Path_add(IntPtr self, Native.geo_Point* p);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int geo_Path_add(nint self, Native.geo_Point* p);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
-    internal static partial int geo_Path_last(IntPtr self, Native.geo_Point* out_result);
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int geo_Path_last(nint self, Native.geo_Point* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int geo_Path_origin(Native.geo_Point* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int route_Leg_init(Native.route_Leg* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int route_length(Native.route_Leg* leg, double* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int route_reverse(Native.route_Leg* leg, Native.route_Leg* out_result);
 
-    [LibraryImport(Runtime.Library)]
-    [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int route_start(Native.route_Leg* leg, Native.geo_Point* out_result);
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Point
     {
         public double x;
         public double y;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Config
     {
         public uint baud;
@@ -141,19 +155,19 @@ internal static unsafe partial class Native
         public byte kind;
     }
 
-    [InlineArray(3)]
+    [global::System.Runtime.CompilerServices.InlineArray(3)]
     internal struct geo_Msg_samples_Array
     {
         private short _element;
     }
 
-    [InlineArray(2)]
+    [global::System.Runtime.CompilerServices.InlineArray(2)]
     internal struct geo_Msg_path_Array
     {
         private Native.geo_Point _element;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Msg
     {
         public byte tag;
@@ -164,24 +178,24 @@ internal static unsafe partial class Native
         public int quality;
     }
 
-    [InlineArray(4)]
+    [global::System.Runtime.CompilerServices.InlineArray(4)]
     internal struct geo_Wide_bytes_Array
     {
         private byte _element;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Wide
     {
         public float f;
         public long big;
         public nuint size;
-        public CLong l;
+        public global::System.Runtime.InteropServices.CLong l;
         public sbyte c;
         public geo_Wide_bytes_Array bytes;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Names
     {
         public int from_;
@@ -189,14 +203,14 @@ internal static unsafe partial class Native
         public int errno_;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct geo_Tagged
     {
         public sbyte mode;
         public int value;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct route_Leg
     {
         public Native.geo_Point from_;

@@ -7,8 +7,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ...model import (
+    CallbackType,
     ClassForm,
     ClassRef,
+    ContainerKind,
+    ContainerType,
     EnumRef,
     ScalarType,
     StringType,
@@ -26,6 +29,7 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
+from . import callbacks, containers
 from .mapping import Unsupported, scalar
 from .naming import LOCAL_PREFIX, parameter
 from .source import Source
@@ -50,6 +54,12 @@ class Names:
     large_structs: frozenset[str] = frozenset()
     """The structs (by C type) whose mirror is too big for the stack."""
 
+    has_callbacks: bool = False
+    """True if the module has a function that takes a callback."""
+
+    thunks: callbacks.ThunkTable = field(default_factory=callbacks.ThunkTable)
+    """The thunks that the wrappers use (they are added as the wrappers are lowered)."""
+
     def cls(self, info: ClassInfo) -> str:
         return self.classes[info.c_type]
 
@@ -67,6 +77,8 @@ class Lowering:
     parameters: list[str] = field(default_factory=list)
     returns: str = "void"
     body: list[str] = field(default_factory=list)
+    remarks: list[str] = field(default_factory=list)
+    """What the signature does not say (for the documentation comment)."""
 
 
 def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec | None = None) -> str:
@@ -74,8 +86,19 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec | None =
     if isinstance(type_, ScalarType):
         return "void" if type_.is_void else scalar(type_.c_name).public
     nullable = isinstance(spec, ParamSpec) and "nullable" in spec.words
+    if isinstance(type_, ContainerType) and spec is not None:
+        if isinstance(spec, ParamSpec):
+            return containers.public_param(spec, names)
+        return containers.public_result(spec, names)
     if isinstance(type_, StringType):
         return "string?" if nullable else "string"
+    if (
+        isinstance(type_, CallbackType)
+        and isinstance(spec, ParamSpec)
+        and spec.callback is not None
+    ):
+        # Null is an empty std::function.
+        return callbacks.delegate_type(spec.callback, names) + "?"
     if spec is None:
         raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in C# yet")
     if isinstance(type_, EnumRef) and spec.enum is not None:
@@ -116,6 +139,10 @@ class _Result:
     before_call: list[str] = field(default_factory=list)
     after_call: list[str] = field(default_factory=list)
     after_check: list[str] = field(default_factory=list)
+    cleanup: list[str] = field(default_factory=list)
+    """What releases what C++ allocated for the result: it runs whatever happens after the call
+    (a callback that throws makes the check fail after C++ has written its result)."""
+
     checks_after: bool = False
 
 
@@ -160,10 +187,19 @@ class _Lowerer:
 
         self.retained: list[str] = []
         self.owners: list[str] = []
+        self.callbacks = False
 
     def run(self) -> Lowering:
         plan = self.plan
         body = self.body
+        self.callbacks = any(spec.callback is not None for spec in plan.params)
+        if self.callbacks:
+            # The call that C++ runs the callbacks of: it raises their exceptions, and drops the
+            # callbacks if the C function is never called.
+            body.add(f"using var {L}scope = new CallScope();")
+        elif self.names.has_callbacks:
+            # A callback that C++ stored and runs now is not one of the callbacks of this call.
+            body.add(f"using var {L}call = CallScope.Enter();")
         if plan.kind is CallableKind.METHOD:
             mutable = "false" if plan.is_const else "true"
             # A class that others derive from is reached through the address of its own part
@@ -195,11 +231,21 @@ class _Lowerer:
         if plan.kind is not CallableKind.CONSTRUCTOR:
             for name in self.retained:
                 body.add(f"{target}({name});")
-        if out.checks_after:
+        if out.checks_after or self.callbacks or out.cleanup:
             body.add(f"int {L}status = {call};")
+            if self.callbacks:
+                # From here on C++ owns the callbacks, and releases each one of them.
+                body.add(f"{L}scope.Returned();")
             for line in out.after_call:
                 body.add(line)
-            body.add(f"Runtime.Check({L}status);")
+            # An exception of a callback is the one the call raises.
+            check = (
+                f"{L}scope.Check({L}status);" if self.callbacks else f"Runtime.Check({L}status);"
+            )
+            if out.cleanup:
+                self.protected(check, out)
+            else:
+                body.add(check)
         else:
             body.add(f"Runtime.Check({call});")
         if plan.kind is CallableKind.CONSTRUCTOR and self.factory is None:
@@ -216,6 +262,23 @@ class _Lowerer:
             body.add(line)
         self.lowering.body = body.finish()
         return self.lowering
+
+    def protected(self, check: str, out: _Result) -> None:
+        """The check and the statements after it, with the release of the result of C++ in a
+        ``finally``: also a callback that threw has C++ succeed, and allocate."""
+        body = self.body
+        body.add("try")
+        body.add("{")
+        body.add(f"    {check}")
+        for line in out.after_check:
+            body.add(f"    {line}" if line else line)
+        body.add("}")
+        body.add("finally")
+        body.add("{")
+        for line in out.cleanup:
+            body.add(f"    {line}")
+        body.add("}")
+        out.after_check = []
 
     def same_object_checks(self) -> None:
         """An object that is given to C++ (which destroys it) cannot also be used by the call:
@@ -292,11 +355,38 @@ class _Lowerer:
                 self.arguments[spec.name] = f"&{local}"
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
+        elif isinstance(type_, ContainerType):
+            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            containers.param(spec, type_, position, name, site)
+            if type_.kind is ContainerKind.ARRAY:
+                self.lowering.remarks.append(
+                    f"{name}: must have exactly {type_.length} elements (ArgumentException)."
+                )
+        elif isinstance(type_, CallbackType):
+            self.callback_param(spec, position, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
                 "in C# yet"
             )
+
+    def callback_param(self, spec: ParamSpec, position: int, name: str) -> None:
+        """A delegate (or null) goes to C as a thunk, a key and the release function."""
+        assert spec.callback is not None
+        assert spec.user_data
+        assert spec.release
+        key = next(param.ffi.name for param in self.plan.function.params if param.name == spec.name)
+        thunk = self.names.thunks.address(key, spec.callback, self.names)
+        self.lowering.remarks.append(
+            f"{name}: null is an empty std::function, and C++ that calls it fails with "
+            "BridgefexException. An exception of the callback that no call raises (a callback that "
+            "C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved."
+        )
+        registration = f"{L}o{position}"
+        self.body.add(f'var {registration} = {L}scope.Register({name}, "{spec.name}", {thunk});')
+        self.arguments[spec.name] = f"{registration}.Callback"
+        self.arguments[spec.user_data] = f"{registration}.UserData"
+        self.arguments[spec.release] = f"{registration}.Release"
 
     def enum_param(self, spec: ParamSpec, name: str) -> None:
         assert spec.enum is not None
@@ -385,58 +475,61 @@ class _Lowerer:
             return out
         type_ = spec.type
         self.lowering.returns = public_type(type_, self.names, spec)
-        returns = self.lowering.returns
         if isinstance(type_, ScalarType):
-            info = scalar(type_.c_name)
-            body.add(f"{info.native} {L}result;")
-            self.arguments["out_result"] = f"&{L}result"
-            value = info.from_native.replace("{}", f"{L}result") if info.converts else f"{L}result"
-            out.after_check = [f"return {value};"]
+            self.scalar_result(type_, out)
         elif isinstance(type_, EnumRef):
-            assert spec.enum is not None
-            underlying = scalar(spec.enum.model.underlying.c_name)
-            body.add(f"{underlying.native} {L}result;")
-            self.arguments["out_result"] = f"&{L}result"
-            raw = underlying.from_native.replace("{}", f"{L}result")
-            out.after_check = [f"return ({returns}){raw};"]
+            self.enum_result(spec, out)
         elif isinstance(type_, StringType):
             self.string_result(type_, spec.as_bytes, out)
         elif isinstance(type_, StructRef):
-            assert spec.struct is not None
-            mirror = f"Native.{spec.struct.c_type}"
-            if spec.struct.c_type in self.names.large_structs:
-                body.add(f"using var {L}result = Block<{mirror}>.Alloc();")
-                self.arguments["out_result"] = f"{L}result.Pointer"
-                out.after_check = [f"return {returns}.FromNative({L}result.Pointer);"]
-            else:
-                body.add(f"{mirror} {L}result;")
-                self.arguments["out_result"] = f"&{L}result"
-                out.after_check = [f"return {returns}.FromNative(&{L}result);"]
+            self.struct_result(spec, out)
         elif isinstance(type_, ClassRef):
             self.object_result(spec, type_, out)
+        elif isinstance(type_, ContainerType):
+            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            out.after_check, out.cleanup = containers.result(spec, type_, site)
         else:
             raise Unsupported(
                 f"the result of type '{type_.cpp_spelling}' is not supported in C# yet"
             )
         return out
 
+    def scalar_result(self, type_: ScalarType, out: _Result) -> None:
+        info = scalar(type_.c_name)
+        self.body.add(f"{info.native} {L}result;")
+        self.arguments["out_result"] = f"&{L}result"
+        value = info.from_native.replace("{}", f"{L}result") if info.converts else f"{L}result"
+        out.after_check = [f"return {value};"]
+
+    def enum_result(self, spec: ResultSpec, out: _Result) -> None:
+        assert spec.enum is not None
+        underlying = scalar(spec.enum.model.underlying.c_name)
+        self.body.add(f"{underlying.native} {L}result;")
+        self.arguments["out_result"] = f"&{L}result"
+        raw = underlying.from_native.replace("{}", f"{L}result")
+        out.after_check = [f"return ({self.lowering.returns}){raw};"]
+
+    def struct_result(self, spec: ResultSpec, out: _Result) -> None:
+        assert spec.struct is not None
+        returns = self.lowering.returns
+        mirror = f"Native.{spec.struct.c_type}"
+        if spec.struct.c_type in self.names.large_structs:
+            self.body.add(f"using var {L}result = Block<{mirror}>.Alloc();")
+            self.arguments["out_result"] = f"{L}result.Pointer"
+            out.after_check = [f"return {returns}.FromNative({L}result.Pointer);"]
+        else:
+            self.body.add(f"{mirror} {L}result;")
+            self.arguments["out_result"] = f"&{L}result"
+            out.after_check = [f"return {returns}.FromNative(&{L}result);"]
+
     def string_result(self, type_: StringType, as_bytes: bool, out: _Result) -> None:
         self.body.add(f"nint {L}text;")
         self.body.add(f"nuint {L}size;")
         self.arguments["out_result"] = f"&{L}text"
         self.arguments["out_result_size"] = f"&{L}size"
-        free = f"Native.{self.module.free_function}({L}text);"
+        out.cleanup = [f"Native.{self.module.free_function}({L}text);"]
         take = "TakeBytes" if as_bytes else "TakeText"
-        decode = [
-            "try",
-            "{",
-            f"    return Runtime.{take}({L}text, {L}size);",
-            "}",
-            "finally",
-            "{",
-            f"    {free}",
-            "}",
-        ]
+        decode = [f"return Runtime.{take}({L}text, {L}size);"]
         public = "byte[]" if as_bytes else "string"
         if type_.sized:
             out.after_check = decode

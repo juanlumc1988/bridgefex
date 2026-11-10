@@ -56,9 +56,10 @@ public unsafe partial class Named : BridgefexObject
         using var __self = Hold_inh_Named(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Named_name(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Named_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -76,9 +77,10 @@ public unsafe partial class Named : BridgefexObject
         using var __self = Hold_inh_Named(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Named_greeting(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Named_greeting(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -168,9 +170,10 @@ public unsafe partial class Shape : global::Inh.Shape.Named
         using var __self = Hold_inh_Shape(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Shape_describe(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Shape_describe(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally

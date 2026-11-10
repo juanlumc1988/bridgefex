@@ -80,9 +80,10 @@ public unsafe partial class Circle : global::Inh.Shape.Shape
         using var __self = Hold_inh_Circle(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Circle_name(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Circle_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -200,9 +201,10 @@ public unsafe partial class Square : global::Inh.Shape.Shape
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Square_name(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Square_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -314,9 +316,10 @@ public unsafe partial class Ring : global::Inh.Shapes.Circle
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Ring_name(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Ring_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -396,9 +399,10 @@ public static unsafe class Functions
         nint __h1 = __t1.Pointer;
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_describe_first(__h1, &__text, &__size));
+        int __status = Native.inh_describe_first(__h1, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -418,9 +422,10 @@ public static unsafe class Functions
         nint __h1 = __t1.Pointer;
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_call_name(__h1, &__text, &__size));
+        int __status = Native.inh_call_name(__h1, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally

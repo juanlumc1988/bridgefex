@@ -51,7 +51,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      # The C# bindings are compiled for 32-bit ARM, not run (.NET under QEMU is slow and fragile).
+      # The C# bindings are compiled for 32-bit ARM, and the C# checks of the containers, spans and
+      # callbacks are published for it (self-contained) and run under QEMU: a few seconds each.
       - uses: actions/setup-dotnet@v4
         if: matrix.target == 'linux-armhf'
         with:
@@ -89,6 +90,7 @@ jobs:
             --ar arm-linux-gnueabihf-ar --clang-target armv7a-linux-gnueabihf \
             --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
             --csharp-runtime linux-arm \
+            --csharp-check containers --csharp-check spans --csharp-check callbacks \
             --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)
         if: matrix.target == 'windows-x64'

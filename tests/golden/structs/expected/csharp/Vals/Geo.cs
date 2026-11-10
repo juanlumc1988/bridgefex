@@ -193,7 +193,7 @@ public unsafe partial struct Wide
         raw->f = F;
         raw->big = Big;
         raw->size = Size;
-        raw->l = new CLong(checked((nint)L));
+        raw->l = new global::System.Runtime.InteropServices.CLong(checked((nint)L));
         raw->c = C;
         if (Bytes is null || Bytes.Length != 4)
         {

@@ -8,6 +8,7 @@
 // what to call by that name, and uses nothing but the generated code, as a user would.
 using System.Numerics;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text.Json;
 using BridgefexRunner;
 
@@ -452,7 +453,7 @@ namespace BridgefexRunner
             if (step.TryGetProperty("new", out JsonElement created))
             {
                 var constructor = (ConstructorInfo)Function(step.GetProperty("c").GetString()!);
-                call = () => constructor.Invoke(Convert(arguments, constructor.GetParameters()));
+                call = () => Invoke(constructor, null, Convert(arguments, constructor.GetParameters()));
             }
             else
             {
@@ -460,7 +461,7 @@ namespace BridgefexRunner
                 string[] parts = target.Split('.');
                 object? instance = parts.Length == 2 && _variables.TryGetValue(parts[0], out object? found) ? found : null;
                 MethodBase method = Function(step.GetProperty("c").GetString()!, instance?.GetType());
-                call = () => method.Invoke(instance, Convert(arguments, method.GetParameters()));
+                call = () => Invoke(method, instance, Convert(arguments, method.GetParameters()));
             }
             object? result = Attempt(call, step);
             if (step.TryGetProperty("as", out JsonElement name))
@@ -488,9 +489,88 @@ namespace BridgefexRunner
             var result = new object?[count];
             for (int position = 0; position < count; position++)
             {
-                result[position] = Decode(arguments[position], parameters[position].ParameterType);
+                Type type = parameters[position].ParameterType;
+                // A span is given as the array that it is made of (see Invoke).
+                result[position] = Decode(arguments[position], IsSpan(type) ? type.GetGenericArguments()[0].MakeArrayType() : type);
             }
             return result;
+        }
+
+        private static bool IsSpan(Type type)
+        {
+            return type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ReadOnlySpan<>);
+        }
+
+        private static readonly Dictionary<MethodBase, Func<object?, object?[], object?>> Invokers = new();
+
+        /// <summary>The call of a method. Reflection cannot pass a ReadOnlySpan (it cannot be boxed), so
+        /// a method that takes one is called by a method written for it, which makes the spans of the arrays.</summary>
+        private static object? Invoke(MethodBase method, object? instance, object?[] arguments)
+        {
+            if (!method.GetParameters().Any(parameter => IsSpan(parameter.ParameterType)))
+            {
+                return method is ConstructorInfo constructor ? constructor.Invoke(arguments) : method.Invoke(instance, arguments);
+            }
+            if (!Invokers.TryGetValue(method, out Func<object?, object?[], object?>? invoker))
+            {
+                invoker = Invokers[method] = Invoker(method);
+            }
+            return invoker(instance, arguments);
+        }
+
+        private static Func<object?, object?[], object?> Invoker(MethodBase method)
+        {
+            var dynamic = new DynamicMethod("invoke", typeof(object), new[] { typeof(object), typeof(object[]) }, typeof(Player).Module, skipVisibility: true);
+            ILGenerator il = dynamic.GetILGenerator();
+            if (!method.IsStatic && method is not ConstructorInfo)
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Castclass, method.DeclaringType!);
+            }
+            ParameterInfo[] parameters = method.GetParameters();
+            for (int position = 0; position < parameters.Length; position++)
+            {
+                Type type = parameters[position].ParameterType;
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Ldc_I4, position);
+                il.Emit(OpCodes.Ldelem_Ref);
+                if (IsSpan(type))
+                {
+                    Type array = type.GetGenericArguments()[0].MakeArrayType();
+                    il.Emit(OpCodes.Castclass, array);
+                    il.Emit(OpCodes.Call, type.GetMethod("op_Implicit", new[] { array })!);
+                }
+                else if (type.IsValueType)
+                {
+                    il.Emit(OpCodes.Unbox_Any, type);
+                }
+                else
+                {
+                    il.Emit(OpCodes.Castclass, type);
+                }
+            }
+            Type returns;
+            if (method is ConstructorInfo constructor)
+            {
+                il.Emit(OpCodes.Newobj, constructor);
+                returns = constructor.DeclaringType!;
+            }
+            else
+            {
+                var info = (MethodInfo)method;
+                il.Emit(info.IsStatic || info.DeclaringType!.IsValueType ? OpCodes.Call : OpCodes.Callvirt, info);
+                returns = info.ReturnType;
+            }
+            if (returns == typeof(void))
+            {
+                il.Emit(OpCodes.Ldnull);
+            }
+            else if (returns.IsValueType)
+            {
+                il.Emit(OpCodes.Box, returns);
+            }
+            il.Emit(OpCodes.Ret);
+            return (Func<object?, object?[], object?>)dynamic.CreateDelegate(typeof(Func<object?, object?[], object?>));
         }
 
         private static readonly object Nothing = new();

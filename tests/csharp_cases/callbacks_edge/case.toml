@@ -1,0 +1,8 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): what the callbacks of the
+# golden case "callbacks" do not reach (an argument that fails after a callback, C++ that keeps a
+# callback and fails, a C++ thread that runs one after the call, every scalar kind, the widest
+# delegate, text that is not UTF-8).
+module = "cbk"
+headers = ["cb.h"]
+std = "c++17"
+languages = ["csharp"]

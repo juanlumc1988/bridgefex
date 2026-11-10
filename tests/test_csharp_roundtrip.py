@@ -165,6 +165,78 @@ def test_a_failure_to_load_the_library_is_not_for_ever(
     assert "retry OK" in completed.stdout
 
 
+def test_a_callback_given_before_the_library_is_found_is_dropped_and_the_next_call_works(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, tmp_path: Path
+) -> None:
+    """The first callback starts the callbacks of the module, which loads the library: if that
+    fails, the call fails with the error of the library, nothing stays registered, and the next
+    call tries again."""
+    case = next(case for case in CASES if case.name == "callbacks_edge")
+    directory = tmp_path_factory.mktemp("csharp_callbacks_retry")
+    library, output = build(case, toolchain, directory)
+    program = tmp_path / "CallbackRetry.cs"
+    program.write_text(
+        "bool called = false;\n"
+        'try { Cbk.Cb.Functions.Run(() => called = true, "ok"); '
+        'throw new Exception("no error"); }\n'
+        "catch (DllNotFoundException) { }\n"
+        "if (called || Cbk.BridgefexCallbacks.Registered != 0) "
+        'throw new Exception("the callback stayed: " + Cbk.BridgefexCallbacks.Registered);\n'
+        'Environment.SetEnvironmentVariable("CBK_LIBRARY", args[0]);\n'
+        'Cbk.Cb.Functions.Run(() => called = true, "ok");\n'
+        'if (!called || Cbk.BridgefexCallbacks.Registered != 0) throw new Exception("wrong");\n'
+        'Console.WriteLine("retry OK");\n',
+        encoding="utf-8",
+    )
+    dll = runner_csharp.build_program(case, output, program, "CallbackRetry")
+    environment = runner_csharp.environment()
+    environment.pop("CBK_LIBRARY", None)
+    completed = subprocess.run(
+        ["dotnet", str(dll), str(library)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "retry OK" in completed.stdout
+
+
+def test_the_first_callback_given_while_the_process_exits_is_refused(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, tmp_path: Path
+) -> None:
+    """The bindings disable the callbacks on ProcessExit, which they subscribe when the module
+    starts: a handler of the user that runs later and gives the first callback (that C++ keeps in
+    a global, and a static destructor calls) must find them disabled, not be accepted."""
+    case = next(case for case in CASES if case.name == "callbacks")
+    directory = tmp_path_factory.mktemp("csharp_callbacks_exit")
+    library, output = build(case, toolchain, directory)
+    program = tmp_path / "CallbackExit.cs"
+    program.write_text(
+        "using Cbx.Events;\nusing F = Cbx.Events.Functions;\n"
+        'F.Log(Level.Info, "starts the module, without a callback");\n'
+        "AppDomain.CurrentDomain.ProcessExit += (_, _) =>\n"
+        "{\n"
+        "    try\n"
+        "    {\n"
+        '        F.SetLogHandler((level, text) => { if (text == "exit") '
+        'Environment.FailFast("a callback ran at exit"); });\n'
+        "        F.LogAtExit(true);\n"
+        '        Console.Error.WriteLine("FAILED: the callback was accepted");\n'
+        "        Environment.ExitCode = 3;\n"
+        "    }\n"
+        "    catch (InvalidOperationException) { }\n"
+        "};\n"
+        'Console.WriteLine("exit OK");\n',
+        encoding="utf-8",
+    )
+    dll = runner_csharp.build_program(case, output, program, "CallbackExit")
+    completed = runner_csharp.execute(case, dll, library)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "exit OK" in completed.stdout
+
+
 def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:
     """Bindings whose fingerprint is not the one of the library refuse to run."""
     case, library, _output, _dll = demo

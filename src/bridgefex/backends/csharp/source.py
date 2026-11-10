@@ -36,5 +36,15 @@ class Source:
         self.line(f"/// {escaped}")
         self.line("/// </summary>")
 
+    def remarks(self, texts: list[str]) -> None:
+        """A documentation comment (XML-escaped) with what the signature does not say."""
+        if not texts:
+            return
+        self.line("/// <remarks>")
+        for text in texts:
+            escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            self.line(f"/// {escaped}")
+        self.line("/// </remarks>")
+
     def text(self) -> str:
         return "\n".join(self.lines).rstrip("\n") + "\n"

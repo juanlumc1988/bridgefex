@@ -198,8 +198,8 @@ public static unsafe class Functions
     [BridgefexFunction("scalars_echo_long")]
     public static long EchoLong(long value)
     {
-        CLong __result;
-        Runtime.Check(Native.scalars_echo_long(new CLong(checked((nint)value)), &__result));
+        global::System.Runtime.InteropServices.CLong __result;
+        Runtime.Check(Native.scalars_echo_long(new global::System.Runtime.InteropServices.CLong(checked((nint)value)), &__result));
         return (long)__result.Value;
     }
 
@@ -209,8 +209,8 @@ public static unsafe class Functions
     [BridgefexFunction("scalars_echo_ulong")]
     public static ulong EchoUlong(ulong value)
     {
-        CULong __result;
-        Runtime.Check(Native.scalars_echo_ulong(new CULong(checked((nuint)value)), &__result));
+        global::System.Runtime.InteropServices.CULong __result;
+        Runtime.Check(Native.scalars_echo_ulong(new global::System.Runtime.InteropServices.CULong(checked((nuint)value)), &__result));
         return (ulong)__result.Value;
     }
 
