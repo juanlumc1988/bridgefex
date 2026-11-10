@@ -54,6 +54,16 @@ Expect<BridgefexException>(() => F.Run(() => called = false, "fail"), "run faile
 NoCallbacks("after a C++ exception");
 Check(called, "C++ failed before it called the callback");
 
+// -- The exception of a callback wins over the failure of C++, which is kept with it ----------------
+
+var winner = Expect<FormatException>(() => F.CallThenThrow(() => throw new FormatException("callback")), "callback");
+var failure = winner.Data["Bridgefex.CallFailed"] as BridgefexException;
+Check(failure is not null && failure.Message.Contains("after the callback"), "the failure of C++ goes with it");
+Expect<BridgefexException>(() => F.CallThenThrow(() => { }), "after the callback");
+var plain = Expect<FormatException>(() => F.Nest(1, i => throw new FormatException("alone")));
+Check(!plain.Data.Contains("Bridgefex.CallFailed"), "nothing is added if C++ did not fail");
+NoCallbacks("after the failures");
+
 // -- C++ keeps the callback although the call fails -----------------------------------------------
 
 Expect<BridgefexException>(() => F.KeepAndThrow(value => value + 1), "kept and failed");

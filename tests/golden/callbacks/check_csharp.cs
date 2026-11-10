@@ -269,6 +269,19 @@ timer.Tick(2);
 Check(timer.Ticks() == 7 && unobserved.IsEmpty, "the object is usable after the exceptions");
 timer.Dispose();
 
+// A callback may close the object whose method runs it: the object is destroyed when the call ends.
+var closing = new Timer(null);
+int closingTicks = 0;
+closing.SetOnTick(value =>
+{
+    closingTicks++;
+    closing.Dispose();
+});
+closing.Tick(3);
+Check(closingTicks == 3, "C++ finishes its loop, with the object alive until the call ends: " + closingTicks);
+Check(closing.IsClosed, "and it is closed");
+NoCallbacks("after a callback closed its object");
+
 // A call that fails before the C call drops what it registered.
 timer = new Timer(null);
 timer.Dispose();

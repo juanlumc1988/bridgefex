@@ -189,14 +189,21 @@ is written, and `templates/` holds the Jinja templates and the runtime.
 The C# backend has the same parts: `mapping.py` maps `Ffi` and the scalars to the blittable
 types of P/Invoke (`LibraryImport`, pointers, no marshalling), `lower.py` lowers a
 `CallablePlan` to a method (a `fixed` block per string, a `Lease` per object, a claim per
-object that is given, the retains after the call), `module.py` writes the files (`Native.cs`,
+object that is given, the retains after the call), `containers.py` and `elements.py` lower the
+containers (a `ReadOnlySpan<T>` is pinned or converted into a `Block<T>`; a result is copied and
+what C++ allocated is freed), `callbacks.py` the callbacks (a delegate, one thunk per C
+signature, `[UnmanagedCallersOnly]`), `module.py` writes the files (`Native.cs`,
 a file per header with its classes, enums and structs), `check.py` builds the project with
 `dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime
-(`Runtime.cs`, `Objects.cs`, the `.csproj`). What C# cannot do the way the plan assumes is
+(`Runtime.cs`, `Objects.cs`, the `.csproj`, and `BridgefexCallbacks.cs`, only for a module that has
+callbacks). What C# cannot do the way the plan assumes is
 solved in the backend: a class has one base class, so the first base of a C++ class is the
 C# one and the others are views of the same object (`AsLabeled()`-like accessors, an implicit conversion, and the
 base's methods copied into the class); a garbage collector does not order finalizers, so what a
-C++ object keeps pointers to is held (`Keep`) until the object has been destroyed. What a
+C++ object keeps pointers to is held (`Keep`) until the object has been destroyed; C++ can call a
+callback on any thread and a managed exception must not cross it, so a thunk catches it and a
+`CallScope` (the call that gave the callback, or the innermost one of the thread) raises it when C++
+returns. What a
 backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`
 that says so, instead of a half-working class.
 

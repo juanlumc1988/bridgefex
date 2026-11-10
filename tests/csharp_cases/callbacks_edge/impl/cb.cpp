@@ -25,6 +25,12 @@ void run(std::function<void()> f, const std::string& text)
     f();
 }
 
+void call_then_throw(std::function<void()> f)
+{
+    f();
+    throw std::runtime_error("after the callback");
+}
+
 void keep_and_throw(std::function<std::int32_t(std::int32_t)> f)
 {
     g_kept = std::move(f);

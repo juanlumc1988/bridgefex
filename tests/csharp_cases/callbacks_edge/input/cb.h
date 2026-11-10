@@ -11,6 +11,9 @@ namespace cb {
 // Calls f once. The text is a parameter after the callback.
 void run(std::function<void()> f, const std::string& text);
 
+// Calls f, then fails.
+void call_then_throw(std::function<void()> f);
+
 // Keeps f, then fails: C++ holds the callback all the same.
 void keep_and_throw(std::function<std::int32_t(std::int32_t)> f);
 // The kept callback's result for value, or -1.

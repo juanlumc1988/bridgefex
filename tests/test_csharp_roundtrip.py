@@ -165,6 +165,44 @@ def test_a_failure_to_load_the_library_is_not_for_ever(
     assert "retry OK" in completed.stdout
 
 
+def test_a_callback_given_before_the_library_is_found_is_dropped_and_the_next_call_works(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, tmp_path: Path
+) -> None:
+    """The first callback starts the callbacks of the module, which loads the library: if that
+    fails, the call fails with the error of the library, nothing stays registered, and the next
+    call tries again."""
+    case = next(case for case in CASES if case.name == "callbacks_edge")
+    directory = tmp_path_factory.mktemp("csharp_callbacks_retry")
+    library, output = build(case, toolchain, directory)
+    program = tmp_path / "CallbackRetry.cs"
+    program.write_text(
+        "bool called = false;\n"
+        'try { Cbk.Cb.Functions.Run(() => called = true, "ok"); '
+        'throw new Exception("no error"); }\n'
+        "catch (DllNotFoundException) { }\n"
+        "if (called || Cbk.BridgefexCallbacks.Registered != 0) "
+        'throw new Exception("the callback stayed: " + Cbk.BridgefexCallbacks.Registered);\n'
+        'Environment.SetEnvironmentVariable("CBK_LIBRARY", args[0]);\n'
+        'Cbk.Cb.Functions.Run(() => called = true, "ok");\n'
+        'if (!called || Cbk.BridgefexCallbacks.Registered != 0) throw new Exception("wrong");\n'
+        'Console.WriteLine("retry OK");\n',
+        encoding="utf-8",
+    )
+    dll = runner_csharp.build_program(case, output, program, "CallbackRetry")
+    environment = runner_csharp.environment()
+    environment.pop("CBK_LIBRARY", None)
+    completed = subprocess.run(
+        ["dotnet", str(dll), str(library)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "retry OK" in completed.stdout
+
+
 def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:
     """Bindings whose fingerprint is not the one of the library refuse to run."""
     case, library, _output, _dll = demo
