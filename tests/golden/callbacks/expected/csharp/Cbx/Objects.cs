@@ -257,6 +257,7 @@ internal readonly ref struct Lease
 
     internal nint Pointer { get; }
 
+
     /// <summary>The same hold, for the address of the object as another of its classes.</summary>
     internal Lease As(nint pointer)
     {

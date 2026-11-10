@@ -144,6 +144,7 @@ internal sealed class CallScope : global::System.IDisposable
         return new Registration(thunk, key, CallbackBox.ReleaseAddress);
     }
 
+{% if directors %}
     /// <summary>A director that this call creates: C++ releases it if the C function runs, else the scope drops it.</summary>
     internal DirectorBox BeginDirector(BridgefexObject target, int kind)
     {
@@ -153,6 +154,7 @@ internal sealed class CallScope : global::System.IDisposable
         (_keys ??= new List<nint>()).Add(key);
         return box;
     }
+{% endif %}
 
     /// <summary>The C function has returned: from now on C++ owns the callbacks.</summary>
     internal void Returned()
