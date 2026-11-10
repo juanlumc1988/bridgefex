@@ -192,7 +192,9 @@ types of P/Invoke (`LibraryImport`, pointers, no marshalling), `lower.py` lowers
 object that is given, the retains after the call), `containers.py` and `elements.py` lower the
 containers (a `ReadOnlySpan<T>` is pinned or converted into a `Block<T>` or a `StringBlock`; a result is
 copied and what C++ allocated is freed in a `finally` that includes the check of the call), `callbacks.py` the callbacks (a delegate, one thunk per C
-signature, `[UnmanagedCallersOnly]`), `module.py` writes the files (`Native.cs`,
+signature, `[UnmanagedCallersOnly]`), `directors.py` the classes that C# can derive from (a `virtual`
+method for each virtual method of the C++ class, a thunk per method, and the vtable that the
+constructor of a derived class fills with the ones it overrides), `module.py` writes the files (`Native.cs`,
 a file per header with its classes, enums and structs), `check.py` builds the project with
 `dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime
 (`Runtime.cs`, `Objects.cs`, the `.csproj`, and `BridgefexCallbacks.cs`, only for a module that has

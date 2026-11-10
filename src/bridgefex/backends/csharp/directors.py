@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 from ...model import Access, EnumRef, ScalarType, StringType, StructRef
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import public_of
+from .lower import lower_callable
 from .mapping import scalar
 from .naming import LOCAL_PREFIX, RESERVED_MEMBERS, identifier, pascal
 from .source import Source
@@ -223,13 +224,12 @@ def virtual_body(
     cls: ClassPlan,
     entry: DirectorEntry,
     normal: list[str] | None,
+    *,
     returns: str,
 ) -> list[str]:
     """The body of the C# method of a virtual method: on an object that is a director, the
     implementation of the C++ class (through the director that the object has); else the call
     of the wrapper."""
-    from .lower import lower_callable
-
     lines: list[str] = []
     if entry.is_pure:
         lines += [
@@ -259,7 +259,8 @@ def virtual_body(
     if normal is None:
         lines.append(
             "throw new global::System.InvalidOperationException("
-            f'"{cls.model.name}.{entry.name} is not part of the API: only an override of it can call it");'
+            f'"{cls.model.name}.{entry.name} is not part of the API: only an override of it '
+            'can call it");'
         )
     else:
         lines += ["{", *_indent(normal, 4), "}"]
@@ -289,7 +290,8 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
         root = names.classes[slot.root.c_type]
         src.line(
             f'DirectorBox.Overrides(t, typeof({root}), "{slot.name}", '
-            f"new global::System.Type[] {{ {parameters} }}, new global::System.Type[] {{ {generated} }}),"
+            f"new global::System.Type[] {{ {parameters} }}, "
+            f"new global::System.Type[] {{ {generated} }}),"
         )
     src.close(");")
     src.line(

@@ -356,7 +356,9 @@ def _method(
         assert declaring is not None
         slot, how = virtual
         modifiers = f"{how} "
-        body = directors.virtual_body(plan, names, declaring, slot.entry, body, lowered.returns)
+        body = directors.virtual_body(
+            plan, names, declaring, slot.entry, body, returns=lowered.returns
+        )
     src.doc(call.function.description)
     src.remarks(lowered.remarks)
     src.line(f'[BridgefexFunction("{call.function.name}")]')
@@ -565,7 +567,7 @@ def _class(
             virtual=slot,
         )
     if d is not None:
-        _director_members(src, plan, cls, names, d, taken)
+        _director_members(src, plan, cls, names, d, taken=taken)
     for view in cls.views:
         if view.c_type in chain or view.c_type == cls.c_type:
             continue
@@ -603,10 +605,12 @@ def _director_members(
     cls: ClassPlan,
     names: Names,
     d: directors.DirectorClass,
+    *,
     taken: dict[str, str],
 ) -> None:
     """What the class has for its director besides the wrappers: the virtual methods that are not
-    part of the API, the thunks that C++ calls, and the check of what a class of the user overrides."""
+    part of the API, the thunks that C++ calls, and the check of what a class of the user
+    overrides."""
     for slot in d.slots:
         entry = slot.entry
         if not directors.emits(names, cls, entry):
@@ -621,13 +625,14 @@ def _director_members(
                 raise GenerationError(
                     [
                         Diagnostic(
-                            f"'{entry.description}' gets the C# name '{slot.name}', which '{taken[slot.name]}' has",
+                            f"'{entry.description}' gets the C# name '{slot.name}', which "
+                            f"'{taken[slot.name]}' has",
                             entry.location,
                         )
                     ]
                 )
             taken[slot.name] = entry.description
-            body = directors.virtual_body(plan, names, cls, entry, None, returns)
+            body = directors.virtual_body(plan, names, cls, entry, None, returns=returns)
             src.line()
             src.doc(entry.description)
             if entry.base is not None:
@@ -646,9 +651,8 @@ def _director_members(
             )
             returns = directors.result_type(entry, names)
             src.line()
-            src.line(
-                f"internal {returns} {method}({parameters}) => {identifier(slot.name)}({arguments});"
-            )
+            call = f"{identifier(slot.name)}({arguments})"
+            src.line(f"internal {returns} {method}({parameters}) => {call};")
         if slot.root is cls:
             names.thunks.director(
                 slot.thunk,
