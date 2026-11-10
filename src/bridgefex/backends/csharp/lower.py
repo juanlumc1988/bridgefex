@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
 from ...model import (
     CallbackType,
@@ -55,7 +56,15 @@ class Names:
     """The structs (by C type) whose mirror is too big for the stack."""
 
     has_callbacks: bool = False
-    """True if the module has a function that takes a callback."""
+    """True if the module needs the runtime of the callbacks (a function takes one, or a class has
+    a director)."""
+
+    has_directors: bool = False
+    """True if a class of the module can be derived from in C#: every call is then a call that
+    can run an override, which a callback may fail."""
+
+    directors: Mapping[str, Any] = field(default_factory=dict)
+    """The classes that can be derived from, by C type (see ``directors.py``)."""
 
     thunks: callbacks.ThunkTable = field(default_factory=callbacks.ThunkTable)
     """The thunks that the wrappers use (they are added as the wrappers are lowered)."""
@@ -153,12 +162,16 @@ def lower_callable(
     *,
     declaring: ClassPlan | None = None,
     factory: tuple[str, str] | None = None,
+    prelude: tuple[str, ...] = (),
 ) -> Lowering:
     """The C# method (or constructor) for ``plan``. ``declaring`` is the class that
     declares a method. ``factory`` (the class and its handle) lowers a constructor to a static
-    method that returns the object."""
+    method that returns the object. ``prelude``: statements that follow the scope of the call
+    (the vtable of a director)."""
     try:
-        return _Lowerer(plan, names, module, declaring, factory).run()
+        return _Lowerer(
+            plan, names, module, declaring=declaring, factory=factory, prelude=prelude
+        ).run()
     except Unsupported as error:
         if error.location is not None:
             raise
@@ -171,9 +184,12 @@ class _Lowerer:
         plan: CallablePlan,
         names: Names,
         module: ModulePlan,
+        *,
         declaring: ClassPlan | None,
         factory: tuple[str, str] | None = None,
+        prelude: tuple[str, ...] = (),
     ) -> None:
+        self.prelude = prelude
         self.factory = factory
         self.plan = plan
         self.names = names
@@ -192,7 +208,10 @@ class _Lowerer:
     def run(self) -> Lowering:
         plan = self.plan
         body = self.body
-        self.callbacks = any(spec.callback is not None for spec in plan.params)
+        # Every call of a module with directors can run an override, whose exception it raises.
+        self.callbacks = self.names.has_directors or any(
+            spec.callback is not None for spec in plan.params
+        )
         if self.callbacks:
             # The call that C++ runs the callbacks of: it raises their exceptions, and drops the
             # callbacks if the C function is never called.
@@ -200,6 +219,12 @@ class _Lowerer:
         elif self.names.has_callbacks:
             # A callback that C++ stored and runs now is not one of the callbacks of this call.
             body.add(f"using var {L}call = CallScope.Enter();")
+        for line in self.prelude:
+            body.add(line)
+        if plan.kind is CallableKind.DIRECTOR_BASE:
+            # The base call of an override: the director, not the object, is what C++ runs.
+            body.add(f"using var {L}self = HoldDirector({'false' if plan.is_const else 'true'});")
+            self.arguments["director"] = f"{L}self.Pointer"
         if plan.kind is CallableKind.METHOD:
             mutable = "false" if plan.is_const else "true"
             # A class that others derive from is reached through the address of its own part
@@ -456,6 +481,20 @@ class _Lowerer:
         plan = self.plan
         body = self.body
         out = _Result()
+        if plan.kind is CallableKind.DIRECTOR_CONSTRUCTOR:
+            # The vtable and the box were made by the prelude.
+            body.add(f"nint {L}result;")
+            body.add(f"nint {L}director;")
+            self.arguments["out_object"] = f"&{L}result"
+            self.arguments["out_director"] = f"&{L}director"
+            self.arguments["vtable"] = f"&{L}vt"
+            out.checks_after = True
+            out.after_call = [
+                f"Handle.Assign({L}result);",
+                f"{L}box.Pointer = {L}director;",
+                f"Director = {L}box;",
+            ]
+            return out
         if plan.kind is CallableKind.CONSTRUCTOR:
             body.add(f"nint {L}result;")
             self.arguments["out_self"] = f"&{L}result"

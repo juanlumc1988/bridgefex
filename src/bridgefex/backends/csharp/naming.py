@@ -97,6 +97,11 @@ def locals_of(count: int) -> frozenset[str]:
             "scope",
             "call",
             "new",
+            "box",
+            "vt",
+            "over",
+            "director",
+            "d",
         )
     }
     for position in range(1, 3 * count + 5):
