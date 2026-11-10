@@ -25,7 +25,9 @@ LOCAL_PREFIX = "__"
 # The types of the generated runtime that the bodies of the wrappers name: a member or a parameter
 # called so would hide them there.
 BODY_TYPES = frozenset(
-    "Runtime Native Block Lease Keep BridgefexObject BridgefexException ObjectHandle".split()
+    """
+    Runtime Native Block StringBlock Lease Keep BridgefexObject BridgefexException ObjectHandle
+    """.split()
 )
 
 # Parameters cannot have those names, nor those of the members that the bodies call.
@@ -78,7 +80,10 @@ def namespace_word(stem: str) -> str:
 
 def locals_of(count: int) -> frozenset[str]:
     """The locals of the bindings of a function with ``count`` parameters."""
-    names = {f"{LOCAL_PREFIX}{word}" for word in ("result", "status", "self", "size", "text", "o")}
+    names = {
+        f"{LOCAL_PREFIX}{word}"
+        for word in ("result", "status", "self", "size", "text", "o", "count", "items", "i", "b")
+    }
     for position in range(1, 3 * count + 5):
         names.update(
             f"{LOCAL_PREFIX}{word}{position}" for word in ("h", "b", "p", "n", "s", "o", "t")

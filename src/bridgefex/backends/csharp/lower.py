@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from ...model import (
     ClassForm,
     ClassRef,
+    ContainerType,
     EnumRef,
     ScalarType,
     StringType,
@@ -26,6 +27,7 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
+from . import containers
 from .mapping import Unsupported, scalar
 from .naming import LOCAL_PREFIX, parameter
 from .source import Source
@@ -74,6 +76,10 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec | None =
     if isinstance(type_, ScalarType):
         return "void" if type_.is_void else scalar(type_.c_name).public
     nullable = isinstance(spec, ParamSpec) and "nullable" in spec.words
+    if isinstance(type_, ContainerType) and spec is not None:
+        if isinstance(spec, ParamSpec):
+            return containers.public_param(spec, names)
+        return containers.public_result(spec, names)
     if isinstance(type_, StringType):
         return "string?" if nullable else "string"
     if spec is None:
@@ -292,6 +298,9 @@ class _Lowerer:
                 self.arguments[spec.name] = f"&{local}"
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
+        elif isinstance(type_, ContainerType):
+            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            containers.param(spec, type_, position, name, site)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
@@ -385,40 +394,52 @@ class _Lowerer:
             return out
         type_ = spec.type
         self.lowering.returns = public_type(type_, self.names, spec)
-        returns = self.lowering.returns
         if isinstance(type_, ScalarType):
-            info = scalar(type_.c_name)
-            body.add(f"{info.native} {L}result;")
-            self.arguments["out_result"] = f"&{L}result"
-            value = info.from_native.replace("{}", f"{L}result") if info.converts else f"{L}result"
-            out.after_check = [f"return {value};"]
+            self.scalar_result(type_, out)
         elif isinstance(type_, EnumRef):
-            assert spec.enum is not None
-            underlying = scalar(spec.enum.model.underlying.c_name)
-            body.add(f"{underlying.native} {L}result;")
-            self.arguments["out_result"] = f"&{L}result"
-            raw = underlying.from_native.replace("{}", f"{L}result")
-            out.after_check = [f"return ({returns}){raw};"]
+            self.enum_result(spec, out)
         elif isinstance(type_, StringType):
             self.string_result(type_, spec.as_bytes, out)
         elif isinstance(type_, StructRef):
-            assert spec.struct is not None
-            mirror = f"Native.{spec.struct.c_type}"
-            if spec.struct.c_type in self.names.large_structs:
-                body.add(f"using var {L}result = Block<{mirror}>.Alloc();")
-                self.arguments["out_result"] = f"{L}result.Pointer"
-                out.after_check = [f"return {returns}.FromNative({L}result.Pointer);"]
-            else:
-                body.add(f"{mirror} {L}result;")
-                self.arguments["out_result"] = f"&{L}result"
-                out.after_check = [f"return {returns}.FromNative(&{L}result);"]
+            self.struct_result(spec, out)
         elif isinstance(type_, ClassRef):
             self.object_result(spec, type_, out)
+        elif isinstance(type_, ContainerType):
+            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            out.after_check = containers.result(spec, type_, site)
         else:
             raise Unsupported(
                 f"the result of type '{type_.cpp_spelling}' is not supported in C# yet"
             )
         return out
+
+    def scalar_result(self, type_: ScalarType, out: _Result) -> None:
+        info = scalar(type_.c_name)
+        self.body.add(f"{info.native} {L}result;")
+        self.arguments["out_result"] = f"&{L}result"
+        value = info.from_native.replace("{}", f"{L}result") if info.converts else f"{L}result"
+        out.after_check = [f"return {value};"]
+
+    def enum_result(self, spec: ResultSpec, out: _Result) -> None:
+        assert spec.enum is not None
+        underlying = scalar(spec.enum.model.underlying.c_name)
+        self.body.add(f"{underlying.native} {L}result;")
+        self.arguments["out_result"] = f"&{L}result"
+        raw = underlying.from_native.replace("{}", f"{L}result")
+        out.after_check = [f"return ({self.lowering.returns}){raw};"]
+
+    def struct_result(self, spec: ResultSpec, out: _Result) -> None:
+        assert spec.struct is not None
+        returns = self.lowering.returns
+        mirror = f"Native.{spec.struct.c_type}"
+        if spec.struct.c_type in self.names.large_structs:
+            self.body.add(f"using var {L}result = Block<{mirror}>.Alloc();")
+            self.arguments["out_result"] = f"{L}result.Pointer"
+            out.after_check = [f"return {returns}.FromNative({L}result.Pointer);"]
+        else:
+            self.body.add(f"{mirror} {L}result;")
+            self.arguments["out_result"] = f"&{L}result"
+            out.after_check = [f"return {returns}.FromNative(&{L}result);"]
 
     def string_result(self, type_: StringType, as_bytes: bool, out: _Result) -> None:
         self.body.add(f"nint {L}text;")

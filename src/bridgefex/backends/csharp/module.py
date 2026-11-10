@@ -28,7 +28,7 @@ from .source import Source
 
 _FILE_TYPES = frozenset(
     """
-    Runtime Native Lease Block Keep ObjectHandle BridgefexObject BridgefexException
+    Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
     BridgefexFunction BridgefexFunctionAttribute Functions
     """.split()
 )
@@ -163,6 +163,14 @@ def native_source(plan: ModulePlan, names: Names) -> str:
     functions: list[CFunction] = []
     for header in plan.headers:
         functions.extend(header.c_functions)
+    # The strings of the containers: (data, size), also in the arrays that C++ gives.
+    for mirror in ("StringIn", "StringOut"):
+        src.line()
+        src.line("[StructLayout(LayoutKind.Sequential)]")
+        src.open(f"internal struct {mirror}")
+        src.line("public byte* Data;")
+        src.line("public nuint Size;")
+        src.close()
     _declare(src, plan.last_error, "byte*", "")
     _declare(src, plan.api_fingerprint_function, "byte*", "")
     _declare(src, plan.free_function, "void", "IntPtr memory")

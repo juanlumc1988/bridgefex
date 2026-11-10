@@ -14,6 +14,20 @@ internal static unsafe partial class Native
         Runtime.Initialize();
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct StringIn
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct StringOut
+    {
+        public byte* Data;
+        public nuint Size;
+    }
+
     [LibraryImport(Runtime.Library)]
     [UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]
     internal static partial byte* scalars_last_error();

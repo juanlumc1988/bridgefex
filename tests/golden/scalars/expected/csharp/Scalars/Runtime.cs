@@ -57,9 +57,56 @@ internal readonly unsafe ref struct Block<T> where T : unmanaged
         return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)sizeof(T)));
     }
 
+    /// <summary>A block for <paramref name="count"/> elements.</summary>
+    internal static Block<T> Alloc(int count)
+    {
+        return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)Math.Max(count, 1), (nuint)sizeof(T)));
+    }
+
     public void Dispose()
     {
         NativeMemory.Free(_pointer);
+    }
+}
+
+/// <summary>The strings of a container, for C++: an array of (data, size) and the bytes they point to, in one block.</summary>
+internal readonly unsafe ref struct StringBlock
+{
+    private readonly byte* _block;
+
+    private StringBlock(byte* block)
+    {
+        _block = block;
+    }
+
+    internal Native.StringIn* Pointer => (Native.StringIn*)_block;
+
+    /// <summary>The strings as UTF-8 (strictly: a lone surrogate is refused). An element is named <c>name[i]</c> in the errors.</summary>
+    internal static StringBlock Make(ReadOnlySpan<string> values, string name)
+    {
+        var encoded = new byte[values.Length][];
+        long bytes = (long)Math.Max(values.Length, 1) * sizeof(Native.StringIn);
+        for (int i = 0; i < values.Length; i++)
+        {
+            encoded[i] = Runtime.Utf8(values[i], name + "[" + i + "]");
+            bytes += encoded[i].Length + 1;
+        }
+        byte* block = (byte*)NativeMemory.AllocZeroed(checked((nuint)bytes));
+        var entries = (Native.StringIn*)block;
+        byte* chars = block + (long)Math.Max(values.Length, 1) * sizeof(Native.StringIn);
+        for (int i = 0; i < values.Length; i++)
+        {
+            encoded[i].CopyTo(new Span<byte>(chars, encoded[i].Length));
+            entries[i].Data = chars;
+            entries[i].Size = (nuint)encoded[i].Length;
+            chars += encoded[i].Length + 1;
+        }
+        return new StringBlock(block);
+    }
+
+    public void Dispose()
+    {
+        NativeMemory.Free(_block);
     }
 }
 
@@ -212,6 +259,16 @@ internal static unsafe class Runtime
             return "";
         }
         return Strict.GetString((byte*)data, checked((int)size));
+    }
+
+    /// <summary>The number of elements of a container that C++ gave: NULL is empty, and no more than C# can hold.</summary>
+    internal static int Count(void* data, nuint size)
+    {
+        if (data == null && size != 0)
+        {
+            throw new InvalidOperationException("the C layer returned NULL with a size that is not 0");
+        }
+        return checked((int)size);
     }
 
     /// <summary>The bytes that C++ gave (a result that the annotations want as bytes, not text).</summary>
