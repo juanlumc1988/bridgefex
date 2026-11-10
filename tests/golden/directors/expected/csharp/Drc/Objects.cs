@@ -262,7 +262,6 @@ internal readonly ref struct Lease
     {
         return new Lease(null, pointer, null, true);
     }
-
     /// <summary>The same hold, for the address of the object as another of its classes.</summary>
     internal Lease As(nint pointer)
     {
