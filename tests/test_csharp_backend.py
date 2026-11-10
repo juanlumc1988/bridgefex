@@ -539,12 +539,12 @@ def test_a_module_with_callbacks_has_their_runtime_and_the_thunks_they_use(
         "Thunk_void__int",
     ]
     native = files["csharp/Mod/Native.cs"]
-    assert "internal static partial void mod_enable_callbacks(IntPtr release);" in native
-    assert "internal static partial void mod_disable_callbacks(IntPtr release);" in native
+    assert "internal static partial void mod_enable_callbacks(nint release);" in native
+    assert "internal static partial void mod_disable_callbacks(nint release);" in native
     # The callback, its user_data and its release function are addresses.
     assert (
-        "internal static partial int mod_apply(int n, IntPtr g, IntPtr g_user_data, "
-        "IntPtr g_release, int* out_result);" in native
+        "internal static partial int mod_apply(int n, nint g, nint g_user_data, "
+        "nint g_release, int* out_result);" in native
     )
     # No exception crosses to C++, and a callback is found by a key, never by an address.
     assert "catch (global::System.Exception error)" in text
