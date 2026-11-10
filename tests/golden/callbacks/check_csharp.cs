@@ -396,7 +396,15 @@ Check(unobserved.IsEmpty, "nothing was left unobserved");
 
 // -- At exit, a C++ global still holds a callback and a static destructor calls it: the bindings
 // disable the callbacks first (see the top of the file), so it is neither called nor released.
-F.SetLogHandler((level, text) => log.Add((level, text)));
+F.SetLogHandler((level, text) =>
+{
+    if (text == "exit")
+    {
+        // The static destructor of C++ calls the handler with "exit": that must not happen.
+        Environment.FailFast("a callback was called at exit");
+    }
+    log.Add((level, text));
+});
 F.LogAtExit(true);
 Check(BridgefexCallbacks.Registered == 1, "the handler stays at exit");
 
