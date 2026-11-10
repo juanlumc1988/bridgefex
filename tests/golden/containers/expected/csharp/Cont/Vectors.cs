@@ -120,9 +120,10 @@ public unsafe partial class Bag : BridgefexObject
         using var __self = Hold(false);
         Native.StringOut* __result;
         nuint __size;
-        Runtime.Check(Native.vec_Bag_items(__self.Pointer, &__result, &__size));
+        int __status = Native.vec_Bag_items(__self.Pointer, &__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             var __items = new string[__count];
             for (int __i = 0; __i < __count; __i++)
@@ -159,9 +160,10 @@ public unsafe partial class Bag : BridgefexObject
         using var __self = Hold(false);
         int* __result;
         nuint __size;
-        Runtime.Check(Native.vec_Bag_counts(__self.Pointer, &__result, &__size));
+        int __status = Native.vec_Bag_counts(__self.Pointer, &__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
         }
@@ -184,9 +186,10 @@ public static unsafe class Functions
         {
             long* __result;
             nuint __size;
-            Runtime.Check(Native.vec_scale((long*)__p1, (nuint)values.Length, factor, &__result, &__size));
+            int __status = Native.vec_scale((long*)__p1, (nuint)values.Length, factor, &__result, &__size);
             try
             {
+                Runtime.Check(__status);
                 int __count = Runtime.Count(__result, __size);
                 return new global::System.ReadOnlySpan<long>(__result, __count).ToArray();
             }
@@ -207,9 +210,10 @@ public static unsafe class Functions
         {
             byte* __result;
             nuint __size;
-            Runtime.Check(Native.vec_invert((byte*)__p1, (nuint)flags.Length, &__result, &__size));
+            int __status = Native.vec_invert((byte*)__p1, (nuint)flags.Length, &__result, &__size);
             try
             {
+                Runtime.Check(__status);
                 int __count = Runtime.Count(__result, __size);
                 var __items = new bool[__count];
                 for (int __i = 0; __i < __count; __i++)
@@ -235,9 +239,10 @@ public static unsafe class Functions
         {
             byte* __result;
             nuint __size;
-            Runtime.Check(Native.vec_echo_bytes((byte*)__p1, (nuint)data.Length, &__result, &__size));
+            int __status = Native.vec_echo_bytes((byte*)__p1, (nuint)data.Length, &__result, &__size);
             try
             {
+                Runtime.Check(__status);
                 int __count = Runtime.Count(__result, __size);
                 return new global::System.ReadOnlySpan<byte>(__result, __count).ToArray();
             }
@@ -258,9 +263,10 @@ public static unsafe class Functions
         {
             float* __result;
             nuint __size;
-            Runtime.Check(Native.vec_halves((float*)__p1, (nuint)values.Length, &__result, &__size));
+            int __status = Native.vec_halves((float*)__p1, (nuint)values.Length, &__result, &__size);
             try
             {
+                Runtime.Check(__status);
                 int __count = Runtime.Count(__result, __size);
                 return new global::System.ReadOnlySpan<float>(__result, __count).ToArray();
             }
@@ -292,9 +298,10 @@ public static unsafe class Functions
         using var __b1 = StringBlock.Make(words, "words");
         Native.StringOut* __result;
         nuint __size;
-        Runtime.Check(Native.vec_upper(__b1.Pointer, (nuint)words.Length, &__result, &__size));
+        int __status = Native.vec_upper(__b1.Pointer, (nuint)words.Length, &__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             var __items = new string[__count];
             for (int __i = 0; __i < __count; __i++)
@@ -319,9 +326,10 @@ public static unsafe class Functions
         {
             byte* __result;
             nuint __size;
-            Runtime.Check(Native.vec_rotate((byte*)__p1, (nuint)colors.Length, &__result, &__size));
+            int __status = Native.vec_rotate((byte*)__p1, (nuint)colors.Length, &__result, &__size);
             try
             {
+                Runtime.Check(__status);
                 int __count = Runtime.Count(__result, __size);
                 var __items = new global::Cont.Vectors.Color[__count];
                 for (int __i = 0; __i < __count; __i++)
@@ -363,9 +371,10 @@ public static unsafe class Functions
     {
         int* __result;
         nuint __size;
-        Runtime.Check(Native.vec_levels(count, &__result, &__size));
+        int __status = Native.vec_levels(count, &__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             var __items = new global::Cont.Vectors.Level[__count];
             for (int __i = 0; __i < __count; __i++)
@@ -393,9 +402,10 @@ public static unsafe class Functions
         }
         Native.vec_Point* __result;
         nuint __size;
-        Runtime.Check(Native.vec_shift(__b1.Pointer, (nuint)points.Length, dx, &__result, &__size));
+        int __status = Native.vec_shift(__b1.Pointer, (nuint)points.Length, dx, &__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             var __items = new global::Cont.Vectors.Point[__count];
             for (int __i = 0; __i < __count; __i++)
@@ -418,9 +428,10 @@ public static unsafe class Functions
     {
         int* __result;
         nuint __size;
-        Runtime.Check(Native.vec_primes(&__result, &__size));
+        int __status = Native.vec_primes(&__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
         }
@@ -438,9 +449,10 @@ public static unsafe class Functions
     {
         int* __result;
         nuint __size;
-        Runtime.Check(Native.vec_too_big(&__result, &__size));
+        int __status = Native.vec_too_big(&__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
         }
@@ -458,9 +470,10 @@ public static unsafe class Functions
     {
         Native.StringOut* __result;
         nuint __size;
-        Runtime.Check(Native.vec_empty_strings(&__result, &__size));
+        int __status = Native.vec_empty_strings(&__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             var __items = new string[__count];
             for (int __i = 0; __i < __count; __i++)
@@ -492,6 +505,9 @@ public static unsafe class Functions
     /// <summary>
     /// std::array&lt;float, 4&gt; vec::twice(const std::array&lt;float, 4&gt;&amp; m)
     /// </summary>
+    /// <remarks>
+    /// m: must have exactly 4 elements (ArgumentException).
+    /// </remarks>
     [BridgefexFunction("vec_twice")]
     public static float[] Twice(global::System.ReadOnlySpan<float> m)
     {
@@ -510,6 +526,9 @@ public static unsafe class Functions
     /// <summary>
     /// std::array&lt;vec::Point, 2&gt; vec::swap(std::array&lt;vec::Point, 2&gt; points)
     /// </summary>
+    /// <remarks>
+    /// points: must have exactly 2 elements (ArgumentException).
+    /// </remarks>
     [BridgefexFunction("vec_swap")]
     public static global::Cont.Vectors.Point[] Swap(global::System.ReadOnlySpan<global::Cont.Vectors.Point> points)
     {
@@ -551,6 +570,9 @@ public static unsafe class Functions
     /// <summary>
     /// int vec::sum_levels(const std::array&lt;vec::Level, 2&gt;&amp; levels)
     /// </summary>
+    /// <remarks>
+    /// levels: must have exactly 2 elements (ArgumentException).
+    /// </remarks>
     [BridgefexFunction("vec_sum_levels")]
     public static int SumLevels(global::System.ReadOnlySpan<global::Cont.Vectors.Level> levels)
     {

@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from ...model import EnumRef, ScalarType, StringType, StructRef
 from ...plan import CallbackPart, CallbackSpec, ElementSpec, FfiKind, ModulePlan
 from .elements import Element, element_of
-from .mapping import Unsupported
+from .mapping import CDECL_CALLERS, Unsupported
 from .naming import LOCAL_PREFIX
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ L = LOCAL_PREFIX
 MAX_ARGUMENTS = 16
 """``Func`` and ``Action`` have no more parameters than this."""
 
-_CDECL = "[UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]"
+_CDECL = CDECL_CALLERS
 
 
 def has_callbacks(plan: ModulePlan) -> bool:

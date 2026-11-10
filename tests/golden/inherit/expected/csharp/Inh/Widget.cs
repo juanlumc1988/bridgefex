@@ -162,9 +162,10 @@ public unsafe partial class Labeled : BridgefexObject
         using var __self = Hold_inh_Labeled(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Labeled_label(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Labeled_label(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -254,9 +255,10 @@ public unsafe partial class Widget : global::Inh.Widget.Counter
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Widget_label(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Widget_label(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -478,9 +480,10 @@ public unsafe partial class Observer : global::Inh.Widget.Tagged
         using var __self = Hold_inh_Labeled(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_Labeled_label(__self.Pointer, &__text, &__size));
+        int __status = Native.inh_Labeled_label(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -767,9 +770,10 @@ public static unsafe class Functions
         nint __h1 = __t1.Pointer;
         nint __text;
         nuint __size;
-        Runtime.Check(Native.inh_name_of(__h1, &__text, &__size));
+        int __status = Native.inh_name_of(__h1, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally

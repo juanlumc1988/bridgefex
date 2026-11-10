@@ -113,32 +113,26 @@ def _check_range(element: Element, c_name: str, name: str, body: Emitter) -> Non
 # -- Results -----------------------------------------------------------------------------------
 
 
-def result(spec: ResultSpec, type_: ContainerType, site: Site) -> list[str]:
-    """The statements that declare what C++ writes and, after the call has succeeded, build the
-    array and release what C++ allocated."""
+def result(spec: ResultSpec, type_: ContainerType, site: Site) -> tuple[list[str], list[str]]:
+    """The statements that declare what C++ writes, and, to run after the call has succeeded, the
+    ones that build the array, and the ones that release what C++ allocated (to run whatever
+    happens: the call may fail after C++ has allocated, if a callback threw)."""
     body, arguments = site.body, site.arguments
     element = element_of(spec.element, site.names)
     if type_.kind is ContainerKind.ARRAY:
         # std::array: the caller gives the room.
         body.add(f"using var {L}b = Block<{element.native}>.Alloc({type_.length});")
         arguments["out_result"] = f"{L}b.Pointer"
-        return _items(element, f"{L}b.Pointer", str(type_.length))
+        return _items(element, f"{L}b.Pointer", str(type_.length)), []
     body.add(f"{element.result_native}* {L}result;")
     body.add(f"nuint {L}size;")
     arguments["out_result"] = f"&{L}result"
     arguments["out_result_size"] = f"&{L}size"
-    inner = _items(element, f"{L}result", f"{L}count")
-    return [
-        "try",
-        "{",
-        f"    int {L}count = Runtime.Count({L}result, {L}size);",
-        *(f"    {line}" for line in inner),
-        "}",
-        "finally",
-        "{",
-        f"    Native.{site.free_function}((nint){L}result);",
-        "}",
+    items = [
+        f"int {L}count = Runtime.Count({L}result, {L}size);",
+        *_items(element, f"{L}result", f"{L}count"),
     ]
+    return items, [f"Native.{site.free_function}((nint){L}result);"]
 
 
 def _items(element: Element, source: str, count: str) -> list[str]:

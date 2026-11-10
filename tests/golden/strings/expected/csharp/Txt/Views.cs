@@ -19,9 +19,10 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.views_first_word(__p1, (nuint)__b1.Length, &__text, &__size));
+            int __status = Native.views_first_word(__p1, (nuint)__b1.Length, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -54,9 +55,10 @@ public static unsafe class Functions
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.views_empty(&__text, &__size));
+        int __status = Native.views_empty(&__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -73,9 +75,10 @@ public static unsafe class Functions
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.views_literal(&__text, &__size));
+        int __status = Native.views_literal(&__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally

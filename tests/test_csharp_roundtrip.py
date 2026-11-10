@@ -203,6 +203,40 @@ def test_a_callback_given_before_the_library_is_found_is_dropped_and_the_next_ca
     assert "retry OK" in completed.stdout
 
 
+def test_the_first_callback_given_while_the_process_exits_is_refused(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, tmp_path: Path
+) -> None:
+    """The bindings disable the callbacks on ProcessExit, which they subscribe when the module
+    starts: a handler of the user that runs later and gives the first callback (that C++ keeps in
+    a global, and a static destructor calls) must find them disabled, not be accepted."""
+    case = next(case for case in CASES if case.name == "callbacks")
+    directory = tmp_path_factory.mktemp("csharp_callbacks_exit")
+    library, output = build(case, toolchain, directory)
+    program = tmp_path / "CallbackExit.cs"
+    program.write_text(
+        "using Cbx.Events;\nusing F = Cbx.Events.Functions;\n"
+        'F.Log(Level.Info, "starts the module, without a callback");\n'
+        "AppDomain.CurrentDomain.ProcessExit += (_, _) =>\n"
+        "{\n"
+        "    try\n"
+        "    {\n"
+        '        F.SetLogHandler((level, text) => { if (text == "exit") '
+        'Environment.FailFast("a callback ran at exit"); });\n'
+        "        F.LogAtExit(true);\n"
+        '        Console.Error.WriteLine("FAILED: the callback was accepted");\n'
+        "        Environment.ExitCode = 3;\n"
+        "    }\n"
+        "    catch (InvalidOperationException) { }\n"
+        "};\n"
+        'Console.WriteLine("exit OK");\n',
+        encoding="utf-8",
+    )
+    dll = runner_csharp.build_program(case, output, program, "CallbackExit")
+    completed = runner_csharp.execute(case, dll, library)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "exit OK" in completed.stdout
+
+
 def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:
     """Bindings whose fingerprint is not the one of the library refuse to run."""
     case, library, _output, _dll = demo

@@ -7,6 +7,7 @@
 using System.Collections.Concurrent;
 using System.Text;
 using Cbk;
+using Cbk.Cb;
 using F = Cbk.Cb.Functions;
 
 static void Check(bool condition, string what)
@@ -133,6 +134,52 @@ Expect<DecoderFallbackException>(() => F.BadText(text => called = true));
 Expect<DecoderFallbackException>(() => F.BadCText(text => called = true));
 Check(!called, "the callback does not get text that is not valid");
 NoCallbacks("after the invalid text");
+
+// -- What C++ allocated for the result is released whatever happens after the call ------------------
+// A callback that throws makes the call fail after C++ succeeded and allocated; a conversion that
+// fails does too. Each failing call would leak a megabyte or more.
+
+static long Growth(Action failing, int turns)
+{
+    GC.Collect();
+    long before = Environment.WorkingSet;
+    for (int turn = 0; turn < turns; turn++)
+    {
+        failing();
+    }
+    GC.Collect();
+    return (Environment.WorkingSet - before) >> 20;
+}
+
+long grown = Growth(() => Expect<FormatException>(() => F.Big(() => throw new FormatException("big"))), 300);
+Check(grown < 100, $"a string result is released when a callback throws (grew {grown} MiB)");
+grown = Growth(() => Expect<FormatException>(() => F.Numbers(() => throw new FormatException("numbers"))), 300);
+Check(grown < 100, $"a vector result is released when a callback throws (grew {grown} MiB)");
+grown = Growth(() => Expect<DecoderFallbackException>(() => F.BadStrings(8)), 60);
+Check(grown < 100, $"a vector is released when its conversion fails (grew {grown} MiB)");
+// The results are right when nothing throws.
+Check(F.Big(() => 1).Length == 1 << 20 && F.Numbers(() => { }).Length == 1 << 18, "the results");
+NoCallbacks("after the results");
+
+// -- C longs and enums over them, in containers and callbacks ---------------------------------------------
+
+Check(F.Longs(new long[] { 1, -2, 3 }).SequenceEqual(new long[] { 3, -2, 1 }), "vector<long>");
+Check(F.Ulongs(new ulong[] { 1, 2, 3 }).SequenceEqual(new ulong[] { 3, 2, 1 }), "vector<unsigned long>");
+Check(F.Longs(new long[] { int.MinValue, int.MaxValue }).SequenceEqual(new long[] { int.MaxValue, int.MinValue }), "the limits of 32 bits");
+Check(F.Two(new long[] { 4, -5 }).SequenceEqual(new long[] { -5, 4 }), "array<long, 2>");
+Check(F.LongEnums(new[] { LongE.A, LongE.B }).SequenceEqual(new[] { LongE.B, LongE.A }), "vector of an enum over long");
+Check(F.LongEnum(value => value == LongE.A ? LongE.B : LongE.A, LongE.A) == LongE.B, "a callback with an enum over long");
+Check(F.Longs(Array.Empty<long>()).Length == 0, "empty");
+if (System.Runtime.CompilerServices.Unsafe.SizeOf<System.Runtime.InteropServices.CLong>() == 4)
+{
+    // A C long of 32 bits (Windows, 32-bit ARM) refuses a value it cannot hold, instead of cutting it.
+    Expect<OverflowException>(() => F.Longs(new long[] { 1L << 40 }));
+    Expect<OverflowException>(() => F.Ulongs(new ulong[] { 1UL << 40 }));
+}
+else
+{
+    Check(F.Longs(new long[] { 1L << 40 })[0] == 1L << 40, "a C long of 64 bits holds it");
+}
 
 // -- A callback that calls the function again -------------------------------------------------------------
 

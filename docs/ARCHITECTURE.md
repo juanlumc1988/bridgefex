@@ -190,8 +190,8 @@ The C# backend has the same parts: `mapping.py` maps `Ffi` and the scalars to th
 types of P/Invoke (`LibraryImport`, pointers, no marshalling), `lower.py` lowers a
 `CallablePlan` to a method (a `fixed` block per string, a `Lease` per object, a claim per
 object that is given, the retains after the call), `containers.py` and `elements.py` lower the
-containers (a `ReadOnlySpan<T>` is pinned or converted into a `Block<T>`; a result is copied and
-what C++ allocated is freed), `callbacks.py` the callbacks (a delegate, one thunk per C
+containers (a `ReadOnlySpan<T>` is pinned or converted into a `Block<T>` or a `StringBlock`; a result is
+copied and what C++ allocated is freed in a `finally` that includes the check of the call), `callbacks.py` the callbacks (a delegate, one thunk per C
 signature, `[UnmanagedCallersOnly]`), `module.py` writes the files (`Native.cs`,
 a file per header with its classes, enums and structs), `check.py` builds the project with
 `dotnet build` and warnings as errors when the SDK is there, and `templates/` holds the runtime

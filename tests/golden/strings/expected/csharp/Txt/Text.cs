@@ -86,9 +86,10 @@ public unsafe partial class Person : BridgefexObject
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_Person_name(__self.Pointer, &__text, &__size));
+        int __status = Native.text_Person_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -106,9 +107,10 @@ public unsafe partial class Person : BridgefexObject
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_Person_name_ref(__self.Pointer, &__text, &__size));
+        int __status = Native.text_Person_name_ref(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -126,13 +128,14 @@ public unsafe partial class Person : BridgefexObject
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_Person_c_name(__self.Pointer, &__text, &__size));
-        if (__text == 0)
-        {
-            return null;
-        }
+        int __status = Native.text_Person_c_name(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
+            if (__text == 0)
+            {
+                return null;
+            }
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -182,9 +185,10 @@ public unsafe partial class Person : BridgefexObject
             {
                 nint __text;
                 nuint __size;
-                Runtime.Check(Native.text_Person_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, &__text, &__size));
+                int __status = Native.text_Person_greet(__self.Pointer, __p1, (nuint)__b1.Length, __p2, &__text, &__size);
                 try
                 {
+                    Runtime.Check(__status);
                     return Runtime.TakeText(__text, __size);
                 }
                 finally
@@ -203,9 +207,10 @@ public unsafe partial class Person : BridgefexObject
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_Person_species(&__text, &__size));
+        int __status = Native.text_Person_species(&__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -261,9 +266,10 @@ public static unsafe class Functions
             {
                 nint __text;
                 nuint __size;
-                Runtime.Check(Native.text_concat(__p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, &__text, &__size));
+                int __status = Native.text_concat(__p1, (nuint)__b1.Length, __p2, (nuint)__b2.Length, &__text, &__size);
                 try
                 {
+                    Runtime.Check(__status);
                     return Runtime.TakeText(__text, __size);
                 }
                 finally
@@ -285,9 +291,10 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.text_echo(__p1, (nuint)__b1.Length, &__text, &__size));
+            int __status = Native.text_echo(__p1, (nuint)__b1.Length, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -305,13 +312,14 @@ public static unsafe class Functions
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_maybe_null((@null ? (byte)1 : (byte)0), &__text, &__size));
-        if (__text == 0)
-        {
-            return null;
-        }
+        int __status = Native.text_maybe_null((@null ? (byte)1 : (byte)0), &__text, &__size);
         try
         {
+            Runtime.Check(__status);
+            if (__text == 0)
+            {
+                return null;
+            }
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -331,9 +339,10 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.text_fail(__p1, (nuint)__b1.Length, &__text, &__size));
+            int __status = Native.text_fail(__p1, (nuint)__b1.Length, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -351,9 +360,10 @@ public static unsafe class Functions
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_binary(&__text, &__size));
+        int __status = Native.text_binary(&__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally
@@ -373,13 +383,14 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.text_first_char(__p1, (nuint)__b1.Length, &__text, &__size));
-            if (__text == 0)
-            {
-                return null;
-            }
+            int __status = Native.text_first_char(__p1, (nuint)__b1.Length, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
+                if (__text == 0)
+                {
+                    return null;
+                }
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -438,9 +449,10 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.text_alias(__p1, (nuint)__b1.Length, &__text, &__size));
+            int __status = Native.text_alias(__p1, (nuint)__b1.Length, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -461,13 +473,14 @@ public static unsafe class Functions
         {
             nint __text;
             nuint __size;
-            Runtime.Check(Native.text_c_alias(__p1, &__text, &__size));
-            if (__text == 0)
-            {
-                return null;
-            }
+            int __status = Native.text_c_alias(__p1, &__text, &__size);
             try
             {
+                Runtime.Check(__status);
+                if (__text == 0)
+                {
+                    return null;
+                }
                 return Runtime.TakeText(__text, __size);
             }
             finally
@@ -485,9 +498,10 @@ public static unsafe class Functions
     {
         nint __text;
         nuint __size;
-        Runtime.Check(Native.text_signal_twice(size, &__text, &__size));
+        int __status = Native.text_signal_twice(size, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeText(__text, __size);
         }
         finally

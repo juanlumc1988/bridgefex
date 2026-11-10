@@ -73,9 +73,10 @@ public static unsafe class Functions
     {
         int* __result;
         nuint __size;
-        Runtime.Check(Native.views_numbers(&__result, &__size));
+        int __status = Native.views_numbers(&__result, &__size);
         try
         {
+            Runtime.Check(__status);
             int __count = Runtime.Count(__result, __size);
             return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
         }

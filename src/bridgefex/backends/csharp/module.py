@@ -23,9 +23,18 @@ from ...plan import (
 )
 from .callbacks import has_callbacks
 from .lower import Names, lower_callable
-from .mapping import Unsupported, native_type, scalar
+from .mapping import (
+    CDECL_ATTRIBUTE,
+    COMPILER,
+    INTEROP,
+    Unsupported,
+    native_type,
+    scalar,
+)
 from .naming import CS_KEYWORDS, RESERVED_MEMBERS, identifier, pascal
 from .source import Source
+
+STRUCT_LAYOUT = f"[{INTEROP}.StructLayout({INTEROP}.LayoutKind.Sequential)]"
 
 _FILE_TYPES = frozenset(
     """
@@ -178,18 +187,20 @@ def native_source(plan: ModulePlan, names: Names) -> str:
     # The strings of the containers: (data, size), also in the arrays that C++ gives.
     for mirror in ("StringIn", "StringOut"):
         src.line()
-        src.line("[StructLayout(LayoutKind.Sequential)]")
+        src.line(
+            "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]"
+        )
         src.open(f"internal struct {mirror}")
         src.line("public byte* Data;")
         src.line("public nuint Size;")
         src.close()
     _declare(src, plan.last_error, "byte*", "")
     _declare(src, plan.api_fingerprint_function, "byte*", "")
-    _declare(src, plan.free_function, "void", "IntPtr memory")
+    _declare(src, plan.free_function, "void", "nint memory")
     if names.has_callbacks:
         # For the callbacks that C++ keeps (see BridgefexCallbacks.cs).
-        _declare(src, plan.enable_callbacks, "void", "IntPtr release")
-        _declare(src, plan.disable_callbacks, "void", "IntPtr release")
+        _declare(src, plan.enable_callbacks, "void", "nint release")
+        _declare(src, plan.disable_callbacks, "void", "nint release")
     for function in functions:
         _declare_function(src, function)
     for line in mirrors_source(plan, names):
@@ -200,8 +211,8 @@ def native_source(plan: ModulePlan, names: Names) -> str:
 
 def _declare(src: Source, name: str, returns: str, parameters: str) -> None:
     src.line()
-    src.line("[LibraryImport(Runtime.Library)]")
-    src.line("[UnmanagedCallConv(CallConvs = new[] { typeof(CallConvCdecl) })]")
+    src.line(f"[{INTEROP}.LibraryImport(Runtime.Library)]")
+    src.line(CDECL_ATTRIBUTE)
     src.line(f"internal static partial {returns} {name}({parameters});")
 
 
@@ -318,6 +329,7 @@ def _method(
     taken[name] = call.function.description
     lowered = lower_callable(call, names, plan, declaring=declaring)
     src.doc(call.function.description)
+    src.remarks(lowered.remarks)
     src.line(f'[BridgefexFunction("{call.function.name}")]')
     keyword = "public static " if static else "public "
     header = (
@@ -409,6 +421,7 @@ def _constructors(
     for ctor, item in lowered:
         src.line()
         src.doc(ctor.function.description)
+        src.remarks(item.remarks)
         src.line(f'[BridgefexFunction("{ctor.function.name}")]')
         if count[_signature(item.parameters)] == 1:
             src.open(f"public {name}({', '.join(item.parameters)}) : base(new {handle}())")
@@ -670,12 +683,14 @@ def mirrors_source(plan: ModulePlan, names: Names) -> list[str]:
         for member in members:
             if member.length is not None:
                 src.line()
-                src.line(f"[InlineArray({member.length})]")
+                src.line(f"[{COMPILER}.InlineArray({member.length})]")
                 src.open(f"internal struct {member.native}")
                 src.line(f"private {member.element_native} _element;")
                 src.close()
         src.line()
-        src.line("[StructLayout(LayoutKind.Sequential)]")
+        src.line(
+            "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]"
+        )
         src.open(f"internal struct {struct.c_type}")
         for member in members:
             src.line(f"public {member.native} {identifier(member.native_name)};")

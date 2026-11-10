@@ -289,7 +289,8 @@ def test_enums_with_an_underlying_type_of_c_long_compile(tmp_path: Path) -> None
 
 
 @pytest.mark.parametrize(
-    "name", ["Runtime", "Native", "Lease", "Block", "Keep", "Functions", "BridgefexObject"]
+    "name",
+    ["Runtime", "Native", "Lease", "Block", "StringBlock", "Keep", "Functions", "BridgefexObject"],
 )
 def test_a_class_cannot_hide_a_type_of_the_generated_code(tmp_path: Path, name: str) -> None:
     message = error_of(tmp_path, f"class {name} {{ public: {name}(); ~{name}(); }};")
@@ -353,6 +354,20 @@ COMPILES = {
         "void k(std::function<void(const CallGuard&, Registration)> g);\n"
         "void h(std::function<void(const Action&, const char*, const std::string&)> g);"
     ),
+    "types named like the C long of .NET": (
+        "#include <vector>\nstruct CLong { int a; };\nstruct CULong { int a; };\n"
+        "enum class LongE : long { A, B };\n"
+        "std::vector<long> vl(const std::vector<long>& v);\nunsigned long ul(unsigned long x);\n"
+        "std::vector<LongE> ve(const std::vector<LongE>& v);"
+    ),
+    "a parameter named like the local of a factory": (
+        "#include <functional>\nclass K { public:"
+        " K(const char* __new, std::function<void()> g);"
+        " K(const std::string& __new, std::function<void()> g); virtual ~K(); };"
+    ),
+    "a std::array parameter named like the operator that names it": (
+        "#include <array>\nclass K { public: K(); ~K(); void m(std::array<int, 2> nameof); };"
+    ),
     "a method of a base named like the class": (
         "class B { public: B(); virtual ~B(); int b() const; };\n"
         "class D : public B { public: D(); };"
@@ -364,6 +379,43 @@ COMPILES = {
 @pytest.mark.parametrize("code", COMPILES.values(), ids=COMPILES.keys())
 def test_what_hides_the_names_of_the_generated_code_compiles(tmp_path: Path, code: str) -> None:
     generate(tmp_path, code, verify=True)
+
+
+# Names of types of .NET that the generated files of the root namespace use. The namespace of a
+# header (`Mod.Math`) or the module itself (`Math`) would hide the type of that name there.
+DOTNET_NAMES = """
+Exception Delegate Console Array Math Type Environment Marshal Interlocked Volatile Attribute
+AppDomain IntPtr IDisposable MemoryMarshal NativeMemory NativeLibrary LayoutKind StructLayout
+MethodImplOptions UTF8Encoding CallConvCdecl DllImportSearchPath ExceptionDispatchInfo
+AssemblyLoadContext
+OperatingSystem EventArgs ArgumentException InvalidOperationException DllNotFoundException
+SafeHandleZeroOrMinusOneIsInvalid ThreadStatic MethodImpl InlineArray LibraryImport
+UnmanagedCallersOnly UnmanagedCallConv BadImageFormatException ObjectDisposedException
+""".split()
+
+
+@needs_dotnet
+def test_a_header_named_like_a_type_of_dotnet_compiles(tmp_path: Path) -> None:
+    """Every file of the project is in the namespace of the module, where the namespace of a header
+    hides the type of its name: the runtime names the types of .NET in full."""
+    headers = []
+    for name in DOTNET_NAMES:
+        header = tmp_path / f"{name}.h"
+        header.write_text(
+            "#pragma once\n#include <functional>\n#include <vector>\n"
+            f"int f_{name.lower()}(std::function<int(int)> g, const std::vector<int>& v);\n",
+            encoding="utf-8",
+        )
+        headers.append(header)
+    options = bridgefex.Options("mm", std="c++17", languages=("csharp",), verify=True)
+    assert bridgefex.generate(headers, options).files
+
+
+@needs_dotnet
+@pytest.mark.parametrize("module", ["exception", "console", "type", "environment", "delegate"])
+def test_a_module_named_like_a_type_of_dotnet_compiles(tmp_path: Path, module: str) -> None:
+    code = "#include <functional>\nint f(std::function<int(int)> g);"
+    generate(tmp_path, code, module=module, verify=True)
 
 
 @pytest.mark.parametrize(

@@ -79,7 +79,8 @@ Check(shifted.Length == 2 && shifted[0].X == 1.5 && shifted[0].Y == 2 && shifted
 // -- Arrays have a length -----------------------------------------------------------------------
 
 Check(F.Twice(new[] { 1f, 2f, 3.5f, 4f }).SequenceEqual(new[] { 2f, 4f, 7f, 8f }), "std::array");
-Expect<ArgumentException>(() => F.Twice(new[] { 1f, 2f }), "must have 4 elements, got 2");
+var wrongLength = Expect<ArgumentException>(() => F.Twice(new[] { 1f, 2f }), "argument 'm' must have 4 elements, got 2");
+Check(wrongLength.ParamName == "m", "the parameter is named: " + wrongLength.ParamName);
 Expect<ArgumentException>(() => F.Twice(new float[5]), "must have 4 elements, got 5");
 Expect<ArgumentException>(() => F.Twice(default), "must have 4 elements, got 0");
 var swapped = F.Swap(new[] { new V.Point { X = 1, Y = 2 }, new V.Point { X = 3, Y = 4 } });

@@ -32,7 +32,7 @@ BODY_TYPES = frozenset(
 )
 
 # Parameters cannot have those names, nor those of the members that the bodies call.
-PARAMETER_RESERVED = BODY_TYPES | frozenset("Handle Hold Retain System".split())
+PARAMETER_RESERVED = BODY_TYPES | frozenset("Handle Hold Retain System nameof".split())
 
 # Members that every object of a generated class has: a wrapped method cannot take their names.
 RESERVED_MEMBERS = BODY_TYPES | frozenset(
@@ -96,6 +96,7 @@ def locals_of(count: int) -> frozenset[str]:
             "b",
             "scope",
             "call",
+            "new",
         )
     }
     for position in range(1, 3 * count + 5):

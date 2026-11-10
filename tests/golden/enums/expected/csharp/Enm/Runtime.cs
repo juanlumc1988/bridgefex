@@ -11,7 +11,7 @@ namespace Enm;
 
 /// <summary>A call of the C++ code failed. <see cref="Status"/> is the status of the C API
 /// and the message is the one that C++ reported.</summary>
-public class BridgefexException : Exception
+public class BridgefexException : global::System.Exception
 {
     public const int Exception = 1;
     public const int UnknownException = 2;
@@ -54,18 +54,18 @@ internal readonly unsafe ref struct Block<T> where T : unmanaged
 
     internal static Block<T> Alloc()
     {
-        return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)sizeof(T)));
+        return new Block<T>((T*)global::System.Runtime.InteropServices.NativeMemory.AllocZeroed((nuint)sizeof(T)));
     }
 
     /// <summary>A block for <paramref name="count"/> elements.</summary>
     internal static Block<T> Alloc(int count)
     {
-        return new Block<T>((T*)NativeMemory.AllocZeroed((nuint)Math.Max(count, 1), (nuint)sizeof(T)));
+        return new Block<T>((T*)global::System.Runtime.InteropServices.NativeMemory.AllocZeroed((nuint)global::System.Math.Max(count, 1), (nuint)sizeof(T)));
     }
 
     public void Dispose()
     {
-        NativeMemory.Free(_pointer);
+        global::System.Runtime.InteropServices.NativeMemory.Free(_pointer);
     }
 }
 
@@ -85,15 +85,15 @@ internal readonly unsafe ref struct StringBlock
     internal static StringBlock Make(ReadOnlySpan<string> values, string name)
     {
         var encoded = new byte[values.Length][];
-        long bytes = (long)Math.Max(values.Length, 1) * sizeof(Native.StringIn);
+        long bytes = (long)global::System.Math.Max(values.Length, 1) * sizeof(Native.StringIn);
         for (int i = 0; i < values.Length; i++)
         {
             encoded[i] = Runtime.Utf8(values[i], name + "[" + i + "]");
             bytes += encoded[i].Length + 1;
         }
-        byte* block = (byte*)NativeMemory.AllocZeroed(checked((nuint)bytes));
+        byte* block = (byte*)global::System.Runtime.InteropServices.NativeMemory.AllocZeroed(checked((nuint)bytes));
         var entries = (Native.StringIn*)block;
-        byte* chars = block + (long)Math.Max(values.Length, 1) * sizeof(Native.StringIn);
+        byte* chars = block + (long)global::System.Math.Max(values.Length, 1) * sizeof(Native.StringIn);
         for (int i = 0; i < values.Length; i++)
         {
             encoded[i].CopyTo(new Span<byte>(chars, encoded[i].Length));
@@ -106,7 +106,7 @@ internal readonly unsafe ref struct StringBlock
 
     public void Dispose()
     {
-        NativeMemory.Free(_block);
+        global::System.Runtime.InteropServices.NativeMemory.Free(_block);
     }
 }
 
@@ -117,7 +117,7 @@ internal static unsafe partial class Runtime
 
     internal const string Variable = "ENM_LIBRARY";
     private static readonly object Gate = new();
-    private static IntPtr _library;
+    private static nint _library;
 
     /// <summary>Tells .NET where the library is (the first use of the C API, before it loads it).</summary>
     internal static void Initialize()
@@ -125,30 +125,30 @@ internal static unsafe partial class Runtime
         System.Reflection.Assembly assembly = typeof(Runtime).Assembly;
         try
         {
-            NativeLibrary.SetDllImportResolver(assembly, Resolve);
+            global::System.Runtime.InteropServices.NativeLibrary.SetDllImportResolver(assembly, Resolve);
         }
-        catch (InvalidOperationException)
+        catch (global::System.InvalidOperationException)
         {
             // An assembly has one resolver, and another module of it (or the code of the user)
             // has it: ours is asked when the usual search of .NET finds nothing.
-            AssemblyLoadContext context = AssemblyLoadContext.GetLoadContext(assembly) ?? AssemblyLoadContext.Default;
-            context.ResolvingUnmanagedDll += (loaded, name) => name == Library ? Resolve(name, loaded, null) : IntPtr.Zero;
+            global::System.Runtime.Loader.AssemblyLoadContext context = global::System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(assembly) ?? global::System.Runtime.Loader.AssemblyLoadContext.Default;
+            context.ResolvingUnmanagedDll += (loaded, name) => name == Library ? Resolve(name, loaded, null) : nint.Zero;
         }
     }
 
     /// <summary>Finds the library, and accepts it if it is a build of the C API of these bindings. A
     /// failure is that of the call that needed the library, and the next call tries again.</summary>
-    private static IntPtr Resolve(string name, System.Reflection.Assembly assembly, DllImportSearchPath? path)
+    private static nint Resolve(string name, System.Reflection.Assembly assembly, global::System.Runtime.InteropServices.DllImportSearchPath? path)
     {
         if (name != Library)
         {
-            return IntPtr.Zero;
+            return nint.Zero;
         }
         lock (Gate)
         {
-            if (_library == IntPtr.Zero)
+            if (_library == nint.Zero)
             {
-                IntPtr handle = Open(assembly, path);
+                nint handle = Open(assembly, path);
                 Verify(handle);
                 _library = handle;
             }
@@ -156,51 +156,51 @@ internal static unsafe partial class Runtime
         }
     }
 
-    private static IntPtr Open(System.Reflection.Assembly assembly, DllImportSearchPath? path)
+    private static nint Open(System.Reflection.Assembly assembly, global::System.Runtime.InteropServices.DllImportSearchPath? path)
     {
-        string? given = Environment.GetEnvironmentVariable(Variable);
+        string? given = global::System.Environment.GetEnvironmentVariable(Variable);
         try
         {
             if (!string.IsNullOrEmpty(given))
             {
-                return NativeLibrary.Load(given);
+                return global::System.Runtime.InteropServices.NativeLibrary.Load(given);
             }
-            string file = OperatingSystem.IsWindows() ? "enm.dll"
-                : OperatingSystem.IsMacOS() ? "libenm.dylib" : "libenm.so";
-            if (NativeLibrary.TryLoad(file, assembly, path, out IntPtr handle))
+            string file = global::System.OperatingSystem.IsWindows() ? "enm.dll"
+                : global::System.OperatingSystem.IsMacOS() ? "libenm.dylib" : "libenm.so";
+            if (global::System.Runtime.InteropServices.NativeLibrary.TryLoad(file, assembly, path, out nint handle))
             {
                 return handle;
             }
-            throw new DllNotFoundException(
+            throw new global::System.DllNotFoundException(
                 "cannot find the library '" + file + "' of the module 'enm': put it next to the application "
                 + "or on the library search path, or set the environment variable " + Variable + " to its path");
         }
-        catch (Exception error) when (error is DllNotFoundException or BadImageFormatException && !string.IsNullOrEmpty(given))
+        catch (global::System.Exception error) when (error is global::System.DllNotFoundException or global::System.BadImageFormatException && !string.IsNullOrEmpty(given))
         {
-            throw new DllNotFoundException(
+            throw new global::System.DllNotFoundException(
                 "cannot load the library '" + given + "' (the environment variable " + Variable + "): " + error.Message,
                 error);
         }
     }
 
-    private static unsafe void Verify(IntPtr handle)
+    private static unsafe void Verify(nint handle)
     {
         string actual = "";
-        if (NativeLibrary.TryGetExport(handle, "enm_api_fingerprint", out IntPtr export))
+        if (global::System.Runtime.InteropServices.NativeLibrary.TryGetExport(handle, "enm_api_fingerprint", out nint export))
         {
             byte* text = ((delegate* unmanaged[Cdecl]<byte*>)export)();
-            actual = Marshal.PtrToStringUTF8((IntPtr)text) ?? "";
+            actual = global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)text) ?? "";
         }
         if (actual != Fingerprint)
         {
-            NativeLibrary.Free(handle);
-            throw new InvalidOperationException(
+            global::System.Runtime.InteropServices.NativeLibrary.Free(handle);
+            throw new global::System.InvalidOperationException(
                 "the library does not match these bindings (it has the C API '" + actual
                 + "', the bindings expect '" + Fingerprint + "'): rebuild it from the same bridgefex output");
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
     internal static void Check(int status)
     {
         if (status != 0)
@@ -209,15 +209,15 @@ internal static unsafe partial class Runtime
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
+    [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static BridgefexException Failure(int status)
     {
         byte* text = Native.enm_last_error();
-        string message = text == null ? "" : Marshal.PtrToStringUTF8((IntPtr)text) ?? "";
+        string message = text == null ? "" : global::System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)text) ?? "";
         return new BridgefexException(status, message);
     }
 
-    private static readonly UTF8Encoding Strict = new(false, true);
+    private static readonly global::System.Text.UTF8Encoding Strict = new(false, true);
 
     /// <summary>The bytes of a text, which C++ gets with its size. Text that is not valid UTF-16
     /// (a lone surrogate) is refused instead of being replaced.</summary>
@@ -225,15 +225,15 @@ internal static unsafe partial class Runtime
     {
         if (text is null)
         {
-            throw new ArgumentNullException(name);
+            throw new global::System.ArgumentNullException(name);
         }
         try
         {
             return Strict.GetBytes(text);
         }
-        catch (EncoderFallbackException)
+        catch (global::System.Text.EncoderFallbackException)
         {
-            throw new ArgumentException("the text is not valid Unicode (a lone surrogate)", name);
+            throw new global::System.ArgumentException("the text is not valid Unicode (a lone surrogate)", name);
         }
     }
 
@@ -242,9 +242,9 @@ internal static unsafe partial class Runtime
     internal static byte[] Utf8Z(string? text, string name)
     {
         byte[] bytes = Utf8(text, name);
-        if (Array.IndexOf(bytes, (byte)0) >= 0)
+        if (global::System.Array.IndexOf(bytes, (byte)0) >= 0)
         {
-            throw new ArgumentException("the text has a NUL, which C++ would take as its end", name);
+            throw new global::System.ArgumentException("the text has a NUL, which C++ would take as its end", name);
         }
         byte[] result = new byte[bytes.Length + 1];
         bytes.CopyTo(result, 0);
@@ -252,7 +252,7 @@ internal static unsafe partial class Runtime
     }
 
     /// <summary>A text that C++ gave, of the exact size: invalid UTF-8 is an error.</summary>
-    internal static string TakeText(IntPtr data, nuint size)
+    internal static string TakeText(nint data, nuint size)
     {
         if (size == 0)
         {
@@ -266,20 +266,20 @@ internal static unsafe partial class Runtime
     {
         if (data == null && size != 0)
         {
-            throw new InvalidOperationException("the C layer returned NULL with a size that is not 0");
+            throw new global::System.InvalidOperationException("the C layer returned NULL with a size that is not 0");
         }
         return checked((int)size);
     }
 
     /// <summary>The bytes that C++ gave (a result that the annotations want as bytes, not text).</summary>
-    internal static byte[] TakeBytes(IntPtr data, nuint size)
+    internal static byte[] TakeBytes(nint data, nuint size)
     {
         if (size == 0)
         {
-            return Array.Empty<byte>();
+            return global::System.Array.Empty<byte>();
         }
         byte[] result = new byte[checked((int)size)];
-        Marshal.Copy(data, result, 0, result.Length);
+        global::System.Runtime.InteropServices.Marshal.Copy(data, result, 0, result.Length);
         return result;
     }
 
@@ -288,19 +288,19 @@ internal static unsafe partial class Runtime
     {
         if (value < low || value > high)
         {
-            throw new ArgumentOutOfRangeException(
+            throw new global::System.ArgumentOutOfRangeException(
                 name, value, "not a value of the enum (" + low + ".." + high + ")");
         }
     }
 
     /// <summary>C++ destroys an object that it is given through a class without a virtual destructor:
     /// only an object of exactly that class (or a C# class of the user derived from it) can be given.</summary>
-    internal static void CheckExact(BridgefexObject value, Type cppType, string name)
+    internal static void CheckExact(BridgefexObject value, global::System.Type cppType, string name)
     {
         BridgefexObject whole = value.Origin ?? value;
         if (whole.CppType != cppType)
         {
-            throw new ArgumentException(
+            throw new global::System.ArgumentException(
                 whole.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
                 + cppType.Name + " and which has no virtual destructor", name);
         }

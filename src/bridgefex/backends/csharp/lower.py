@@ -10,6 +10,7 @@ from ...model import (
     CallbackType,
     ClassForm,
     ClassRef,
+    ContainerKind,
     ContainerType,
     EnumRef,
     ScalarType,
@@ -76,6 +77,8 @@ class Lowering:
     parameters: list[str] = field(default_factory=list)
     returns: str = "void"
     body: list[str] = field(default_factory=list)
+    remarks: list[str] = field(default_factory=list)
+    """What the signature does not say (for the documentation comment)."""
 
 
 def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec | None = None) -> str:
@@ -136,6 +139,10 @@ class _Result:
     before_call: list[str] = field(default_factory=list)
     after_call: list[str] = field(default_factory=list)
     after_check: list[str] = field(default_factory=list)
+    cleanup: list[str] = field(default_factory=list)
+    """What releases what C++ allocated for the result: it runs whatever happens after the call
+    (a callback that throws makes the check fail after C++ has written its result)."""
+
     checks_after: bool = False
 
 
@@ -224,7 +231,7 @@ class _Lowerer:
         if plan.kind is not CallableKind.CONSTRUCTOR:
             for name in self.retained:
                 body.add(f"{target}({name});")
-        if out.checks_after or self.callbacks:
+        if out.checks_after or self.callbacks or out.cleanup:
             body.add(f"int {L}status = {call};")
             if self.callbacks:
                 # From here on C++ owns the callbacks, and releases each one of them.
@@ -232,9 +239,13 @@ class _Lowerer:
             for line in out.after_call:
                 body.add(line)
             # An exception of a callback is the one the call raises.
-            body.add(
+            check = (
                 f"{L}scope.Check({L}status);" if self.callbacks else f"Runtime.Check({L}status);"
             )
+            if out.cleanup:
+                self.protected(check, out)
+            else:
+                body.add(check)
         else:
             body.add(f"Runtime.Check({call});")
         if plan.kind is CallableKind.CONSTRUCTOR and self.factory is None:
@@ -251,6 +262,23 @@ class _Lowerer:
             body.add(line)
         self.lowering.body = body.finish()
         return self.lowering
+
+    def protected(self, check: str, out: _Result) -> None:
+        """The check and the statements after it, with the release of the result of C++ in a
+        ``finally``: also a callback that threw has C++ succeed, and allocate."""
+        body = self.body
+        body.add("try")
+        body.add("{")
+        body.add(f"    {check}")
+        for line in out.after_check:
+            body.add(f"    {line}" if line else line)
+        body.add("}")
+        body.add("finally")
+        body.add("{")
+        for line in out.cleanup:
+            body.add(f"    {line}")
+        body.add("}")
+        out.after_check = []
 
     def same_object_checks(self) -> None:
         """An object that is given to C++ (which destroys it) cannot also be used by the call:
@@ -330,6 +358,10 @@ class _Lowerer:
         elif isinstance(type_, ContainerType):
             site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
             containers.param(spec, type_, position, name, site)
+            if type_.kind is ContainerKind.ARRAY:
+                self.lowering.remarks.append(
+                    f"{name}: must have exactly {type_.length} elements (ArgumentException)."
+                )
         elif isinstance(type_, CallbackType):
             self.callback_param(spec, position, name)
         else:
@@ -345,6 +377,11 @@ class _Lowerer:
         assert spec.release
         key = next(param.ffi.name for param in self.plan.function.params if param.name == spec.name)
         thunk = self.names.thunks.address(key, spec.callback, self.names)
+        self.lowering.remarks.append(
+            f"{name}: null is an empty std::function, and C++ that calls it fails with "
+            "BridgefexException. An exception of the callback that no call raises (a callback that "
+            "C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved."
+        )
         registration = f"{L}o{position}"
         self.body.add(f'var {registration} = {L}scope.Register({name}, "{spec.name}", {thunk});')
         self.arguments[spec.name] = f"{registration}.Callback"
@@ -450,7 +487,7 @@ class _Lowerer:
             self.object_result(spec, type_, out)
         elif isinstance(type_, ContainerType):
             site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
-            out.after_check = containers.result(spec, type_, site)
+            out.after_check, out.cleanup = containers.result(spec, type_, site)
         else:
             raise Unsupported(
                 f"the result of type '{type_.cpp_spelling}' is not supported in C# yet"
@@ -490,18 +527,9 @@ class _Lowerer:
         self.body.add(f"nuint {L}size;")
         self.arguments["out_result"] = f"&{L}text"
         self.arguments["out_result_size"] = f"&{L}size"
-        free = f"Native.{self.module.free_function}({L}text);"
+        out.cleanup = [f"Native.{self.module.free_function}({L}text);"]
         take = "TakeBytes" if as_bytes else "TakeText"
-        decode = [
-            "try",
-            "{",
-            f"    return Runtime.{take}({L}text, {L}size);",
-            "}",
-            "finally",
-            "{",
-            f"    {free}",
-            "}",
-        ]
+        decode = [f"return Runtime.{take}({L}text, {L}size);"]
         public = "byte[]" if as_bytes else "string"
         if type_.sized:
             out.after_check = decode

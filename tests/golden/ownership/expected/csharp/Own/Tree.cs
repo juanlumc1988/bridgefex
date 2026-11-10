@@ -409,9 +409,10 @@ public unsafe partial class Tree : BridgefexObject
         using var __self = Hold(false);
         nint __text;
         nuint __size;
-        Runtime.Check(Native.own_Tree_signature(__self.Pointer, &__text, &__size));
+        int __status = Native.own_Tree_signature(__self.Pointer, &__text, &__size);
         try
         {
+            Runtime.Check(__status);
             return Runtime.TakeBytes(__text, __size);
         }
         finally

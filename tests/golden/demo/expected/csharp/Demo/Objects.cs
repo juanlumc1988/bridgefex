@@ -10,8 +10,8 @@ using Microsoft.Win32.SafeHandles;
 namespace Demo;
 
 /// <summary>The C function of the C API that a member wraps.</summary>
-[AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor)]
-public sealed class BridgefexFunctionAttribute : Attribute
+[global::System.AttributeUsage(global::System.AttributeTargets.Method | global::System.AttributeTargets.Constructor)]
+public sealed class BridgefexFunctionAttribute : global::System.Attribute
 {
     public BridgefexFunctionAttribute(string name)
     {
@@ -39,7 +39,7 @@ internal enum LeaseResult
 /// order of the finalizers is not defined, and a destructor may use what it points to.</item>
 /// </list>
 /// An object that belongs to C++ (a reference or a pointer that a function gave) is not destroyed by any of them.</summary>
-internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
+internal abstract class ObjectHandle : global::Microsoft.Win32.SafeHandles.SafeHandleZeroOrMinusOneIsInvalid
 {
     private const int LeaseMask = (1 << 27) - 1;
     private const int DisposedBit = 1 << 28;
@@ -47,7 +47,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     private const int GivenBit = 1 << 30;
 
     private static readonly object Gate = new();
-    private static readonly HashSet<ObjectHandle> Deferred = new(ReferenceEqualityComparer.Instance);
+    private static readonly HashSet<ObjectHandle> Deferred = new(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);
 
     private int _state;
     private int _pins;
@@ -67,20 +67,20 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     /// <summary>Destroys the C++ object.</summary>
     protected abstract void Destroy();
 
-    internal void Assign(IntPtr value)
+    internal void Assign(nint value)
     {
         SetHandle(value);
     }
 
     /// <summary>True if the object was closed or given, or never was built.</summary>
-    internal bool IsGone => (Volatile.Read(ref _state) & (DisposedBit | GivenBit)) != 0 || IsInvalid;
+    internal bool IsGone => (global::System.Threading.Volatile.Read(ref _state) & (DisposedBit | GivenBit)) != 0 || IsInvalid;
 
     /// <summary>A call starts to use the object.</summary>
     internal LeaseResult TryLease()
     {
         while (true)
         {
-            int state = Volatile.Read(ref _state);
+            int state = global::System.Threading.Volatile.Read(ref _state);
             if ((state & (DisposedBit | GivenBit)) != 0 || IsInvalid)
             {
                 return LeaseResult.Closed;
@@ -89,7 +89,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
             {
                 return LeaseResult.Busy;
             }
-            if (Interlocked.CompareExchange(ref _state, state + 1, state) == state)
+            if (global::System.Threading.Interlocked.CompareExchange(ref _state, state + 1, state) == state)
             {
                 return LeaseResult.Ok;
             }
@@ -101,7 +101,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         while (true)
         {
-            int state = Volatile.Read(ref _state);
+            int state = global::System.Threading.Volatile.Read(ref _state);
             if ((state & (DisposedBit | GivenBit)) != 0 || IsInvalid)
             {
                 return LeaseResult.Closed;
@@ -117,7 +117,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
                     return LeaseResult.Pinned;
                 }
             }
-            if (Interlocked.CompareExchange(ref _state, state | ClaimedBit | 1, state) == state)
+            if (global::System.Threading.Interlocked.CompareExchange(ref _state, state | ClaimedBit | 1, state) == state)
             {
                 return LeaseResult.Ok;
             }
@@ -129,13 +129,13 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         while (true)
         {
-            int state = Volatile.Read(ref _state);
+            int state = global::System.Threading.Volatile.Read(ref _state);
             int next = state - 1;
             if ((next & GivenBit) == 0)
             {
                 next &= ~ClaimedBit;  // a claim that did not give the object ends with the call
             }
-            if (Interlocked.CompareExchange(ref _state, next, state) == state)
+            if (global::System.Threading.Interlocked.CompareExchange(ref _state, next, state) == state)
             {
                 if ((next & DisposedBit) != 0 && (next & (LeaseMask | GivenBit)) == 0)
                 {
@@ -149,7 +149,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     /// <summary>C++ owns the object from now on: this handle never destroys it.</summary>
     internal void GiveUp()
     {
-        Interlocked.Or(ref _state, GivenBit);
+        global::System.Threading.Interlocked.Or(ref _state, GivenBit);
         SetHandleAsInvalid();
     }
 
@@ -158,12 +158,12 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
     {
         while (true)
         {
-            int state = Volatile.Read(ref _state);
+            int state = global::System.Threading.Volatile.Read(ref _state);
             if ((state & (DisposedBit | GivenBit)) != 0)
             {
                 return;
             }
-            if (Interlocked.CompareExchange(ref _state, state | DisposedBit, state) == state)
+            if (global::System.Threading.Interlocked.CompareExchange(ref _state, state | DisposedBit, state) == state)
             {
                 if ((state & LeaseMask) == 0)
                 {
@@ -221,7 +221,7 @@ internal abstract class ObjectHandle : SafeHandleZeroOrMinusOneIsInvalid
 
     private void DestroyNow()
     {
-        if (Interlocked.Exchange(ref _destroyed, 1) != 0)
+        if (global::System.Threading.Interlocked.Exchange(ref _destroyed, 1) != 0)
         {
             return;
         }
@@ -241,30 +241,30 @@ internal readonly ref struct Lease
     private readonly ObjectHandle? _handle;
     private readonly ObjectHandle[]? _owners;
 
-    internal Lease(ObjectHandle handle, IntPtr pointer, ObjectHandle[]? owners)
+    internal Lease(ObjectHandle handle, nint pointer, ObjectHandle[]? owners)
     {
         _handle = handle;
         Pointer = pointer;
         _owners = owners;
     }
 
-    private Lease(ObjectHandle? handle, IntPtr pointer, ObjectHandle[]? owners, bool _)
+    private Lease(ObjectHandle? handle, nint pointer, ObjectHandle[]? owners, bool _)
     {
         _handle = handle;
         Pointer = pointer;
         _owners = owners;
     }
 
-    internal IntPtr Pointer { get; }
+    internal nint Pointer { get; }
 
     /// <summary>The same hold, for the address of the object as another of its classes.</summary>
-    internal Lease As(IntPtr pointer)
+    internal Lease As(nint pointer)
     {
         return new Lease(_handle, pointer, _owners, true);
     }
 
     /// <summary>The object (claimed by <c>Hold(..., give: true)</c>) goes to C++, which destroys it.</summary>
-    internal IntPtr Give()
+    internal nint Give()
     {
         _handle?.GiveUp();
         return Pointer;
@@ -292,7 +292,7 @@ internal sealed class Keep
     internal static readonly Keep Forever = new(null);
 
     private readonly ObjectHandle? _owner;
-    private readonly HashSet<ObjectHandle> _pinned = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<ObjectHandle> _pinned = new(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);
 
     internal Keep(ObjectHandle? owner)
     {
@@ -361,7 +361,7 @@ internal sealed class Keep
 
 /// <summary>The root of the wrapped classes. <see cref="Dispose"/> (or the collection) destroys the C++
 /// object; an object that C++ keeps owning is valid while the objects it was obtained from are.</summary>
-public abstract class BridgefexObject : IDisposable
+public abstract class BridgefexObject : global::System.IDisposable
 {
     internal readonly ObjectHandle Handle;
     internal BridgefexObject[]? Owners;
@@ -372,7 +372,7 @@ public abstract class BridgefexObject : IDisposable
     internal BridgefexObject? Origin { get; set; }
 
     /// <summary>The C++ class of the object: the generated class that it is, or that a class of the user derives from.</summary>
-    internal abstract Type CppType { get; }
+    internal abstract global::System.Type CppType { get; }
 
     internal BridgefexObject(ObjectHandle handle)
     {
@@ -412,9 +412,9 @@ public abstract class BridgefexObject : IDisposable
         Dispose();
     }
 
-    private Exception Closed()
+    private global::System.Exception Closed()
     {
-        return new ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
+        return new global::System.ObjectDisposedException(GetType().Name, GetType().Name + " object is closed");
     }
 
     /// <summary>A hold on the object for a call. With <paramref name="give"/> the call gives the object to C++:
@@ -424,7 +424,7 @@ public abstract class BridgefexObject : IDisposable
     {
         if (mutable && ReadOnly)
         {
-            throw new InvalidOperationException(
+            throw new global::System.InvalidOperationException(
                 GetType().Name + " object is read-only: it was obtained through a const reference or pointer");
         }
         BridgefexObject target = give ? Origin ?? this : this;
@@ -434,7 +434,7 @@ public abstract class BridgefexObject : IDisposable
         }
         if (give && (target.Handle is { Owns: false } || target.Owners is not null))
         {
-            throw new InvalidOperationException(
+            throw new global::System.InvalidOperationException(
                 GetType().Name + " object cannot be transferred: it is borrowed from another object");
         }
         // An object that is borrowed is valid while the objects it lives in are: they are held too.
@@ -455,15 +455,15 @@ public abstract class BridgefexObject : IDisposable
         return new Lease(leased, Handle.DangerousGetHandle(), owners);
     }
 
-    private Exception Refusal(LeaseResult result, bool give)
+    private global::System.Exception Refusal(LeaseResult result, bool give)
     {
         string name = GetType().Name;
         return result switch
         {
             LeaseResult.Closed => Closed(),
-            LeaseResult.Pinned => new InvalidOperationException(
+            LeaseResult.Pinned => new global::System.InvalidOperationException(
                 name + " object cannot be transferred: the C++ object of another one points to it"),
-            _ => new InvalidOperationException(
+            _ => new global::System.InvalidOperationException(
                 give
                     ? name + " object cannot be transferred: another call uses it, or is giving it"
                     : name + " object is being given to C++ by another call"),
@@ -521,7 +521,7 @@ public abstract class BridgefexObject : IDisposable
         if (kept is null)
         {
             var fresh = new Keep(Handle);
-            kept = Interlocked.CompareExchange(ref Handle.Kept, fresh, null) ?? fresh;
+            kept = global::System.Threading.Interlocked.CompareExchange(ref Handle.Kept, fresh, null) ?? fresh;
             Retained = kept;
         }
         return kept;

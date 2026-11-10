@@ -88,6 +88,9 @@ public unsafe partial class Timer : BridgefexObject
     /// <summary>
     /// ev::Timer::Timer(std::function&lt;void (int32_t)&gt; on_tick)
     /// </summary>
+    /// <remarks>
+    /// on_tick: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_Timer_create")]
     public Timer(global::System.Action<int>? on_tick) : base(new TimerHandle())
     {
@@ -117,6 +120,9 @@ public unsafe partial class Timer : BridgefexObject
     /// <summary>
     /// void ev::Timer::set_on_tick(std::function&lt;void (int32_t)&gt; on_tick)
     /// </summary>
+    /// <remarks>
+    /// on_tick: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_Timer_set_on_tick")]
     public void SetOnTick(global::System.Action<int>? on_tick)
     {
@@ -155,6 +161,9 @@ public unsafe partial class Timer : BridgefexObject
     /// <summary>
     /// int32_t ev::Timer::each(const std::vector&lt;int32_t&gt;&amp; values, std::function&lt;void (int32_t)&gt; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_Timer_each")]
     public int Each(global::System.ReadOnlySpan<int> values, global::System.Action<int>? f)
     {
@@ -174,6 +183,9 @@ public unsafe partial class Timer : BridgefexObject
     /// <summary>
     /// static int32_t ev::Timer::apply(int32_t value, std::function&lt;int32_t (int32_t)&gt; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_Timer_apply")]
     public static int Apply(int value, global::System.Func<int, int>? f)
     {
@@ -215,6 +227,9 @@ public unsafe partial class Watcher : BridgefexObject
     /// <summary>
     /// ev::Watcher::Watcher(const std::string&amp; name, const ev::Point&amp; at, std::function&lt;void (const std::string&amp;, ev::Point)&gt; on_notify)
     /// </summary>
+    /// <remarks>
+    /// on_notify: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_Watcher_create")]
     public Watcher(string name, global::Cbx.Events.Point at, global::System.Action<string, global::Cbx.Events.Point>? on_notify) : base(new WatcherHandle())
     {
@@ -264,6 +279,9 @@ public static unsafe class Functions
     /// <summary>
     /// int64_t ev::sum(int32_t n, const std::function&lt;int32_t (int32_t)&gt;&amp; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_sum")]
     public static long Sum(int n, global::System.Func<int, int>? f)
     {
@@ -279,6 +297,9 @@ public static unsafe class Functions
     /// <summary>
     /// int32_t ev::count_if(int32_t n, std::function&lt;bool (const int64_t&amp;)&gt; predicate)
     /// </summary>
+    /// <remarks>
+    /// predicate: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_count_if")]
     public static int CountIf(int n, global::System.Func<long, bool>? predicate)
     {
@@ -294,6 +315,9 @@ public static unsafe class Functions
     /// <summary>
     /// bool ev::is_empty(std::function&lt;void ()&gt; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_is_empty")]
     public static bool IsEmpty(global::System.Action? f)
     {
@@ -309,6 +333,9 @@ public static unsafe class Functions
     /// <summary>
     /// ev::Level ev::classify(int32_t value, std::function&lt;ev::Level (int32_t)&gt; classifier)
     /// </summary>
+    /// <remarks>
+    /// classifier: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_classify")]
     public static global::Cbx.Events.Level Classify(int value, global::System.Func<int, global::Cbx.Events.Level>? classifier)
     {
@@ -324,6 +351,9 @@ public static unsafe class Functions
     /// <summary>
     /// ev::Mode ev::pick(std::function&lt;ev::Mode ()&gt; chooser)
     /// </summary>
+    /// <remarks>
+    /// chooser: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_pick")]
     public static global::Cbx.Events.Mode Pick(global::System.Func<global::Cbx.Events.Mode>? chooser)
     {
@@ -339,6 +369,9 @@ public static unsafe class Functions
     /// <summary>
     /// double ev::integrate(std::function&lt;double (double)&gt;&amp;&amp; f, double a, double b, int32_t steps)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_integrate")]
     public static double Integrate(global::System.Func<double, double>? f, double a, double b, int steps)
     {
@@ -354,6 +387,9 @@ public static unsafe class Functions
     /// <summary>
     /// double ev::walk(std::function&lt;double (const ev::Point&amp;, const char*)&gt; visit)
     /// </summary>
+    /// <remarks>
+    /// visit: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_walk")]
     public static double Walk(global::System.Func<global::Cbx.Events.Point, string?, double>? visit)
     {
@@ -369,6 +405,9 @@ public static unsafe class Functions
     /// <summary>
     /// void ev::shift(std::function&lt;void (ev::Point, ev::Mode)&gt; sink)
     /// </summary>
+    /// <remarks>
+    /// sink: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_shift")]
     public static void Shift(global::System.Action<global::Cbx.Events.Point, global::Cbx.Events.Mode>? sink)
     {
@@ -382,6 +421,9 @@ public static unsafe class Functions
     /// <summary>
     /// void ev::strings(std::function&lt;void (const std::string&amp;, std::string, std::string_view)&gt; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_strings")]
     public static void Strings(global::System.Action<string, string, string>? f)
     {
@@ -395,6 +437,9 @@ public static unsafe class Functions
     /// <summary>
     /// void ev::parallel(int32_t threads, int32_t n, std::function&lt;void (int32_t)&gt; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_parallel")]
     public static void Parallel(int threads, int n, global::System.Action<int>? f)
     {
@@ -408,6 +453,9 @@ public static unsafe class Functions
     /// <summary>
     /// int32_t ev::prefixed(const std::string&amp; prefix, const std::function&lt;int32_t (const std::string&amp;)&gt;&amp; f)
     /// </summary>
+    /// <remarks>
+    /// f: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_prefixed")]
     public static int Prefixed(string prefix, global::System.Func<string, int>? f)
     {
@@ -427,6 +475,9 @@ public static unsafe class Functions
     /// <summary>
     /// void ev::store_and_sleep(std::function&lt;int32_t (int32_t)&gt; handler, int32_t ms)
     /// </summary>
+    /// <remarks>
+    /// handler: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_store_and_sleep")]
     public static void StoreAndSleep(global::System.Func<int, int>? handler, int ms)
     {
@@ -452,6 +503,9 @@ public static unsafe class Functions
     /// <summary>
     /// void ev::set_log_handler(std::function&lt;void (ev::Level, const std::string&amp;)&gt; handler)
     /// </summary>
+    /// <remarks>
+    /// handler: null is an empty std::function, and C++ that calls it fails with BridgefexException. An exception of the callback that no call raises (a callback that C++ stored and a later call runs) goes to BridgefexCallbacks.Unobserved.
+    /// </remarks>
     [BridgefexFunction("ev_set_log_handler")]
     public static void SetLogHandler(global::System.Action<global::Cbx.Events.Level, string>? handler)
     {

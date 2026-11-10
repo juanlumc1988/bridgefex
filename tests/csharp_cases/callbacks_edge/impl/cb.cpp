@@ -128,4 +128,46 @@ std::int32_t nest(std::int32_t n, std::function<std::int32_t(std::int32_t)> f)
     return f(n);
 }
 
+std::string big(std::function<std::int32_t()> f)
+{
+    f();
+    return std::string(1 << 20, 'x');
+}
+
+std::vector<std::int32_t> numbers(std::function<void()> f)
+{
+    f();
+    return std::vector<std::int32_t>(1 << 18, 7);
+}
+
+std::vector<std::string> bad_strings(std::int32_t megabytes)
+{
+    return {std::string(static_cast<std::size_t>(megabytes) << 20, 'a'), std::string("ab\xff")};
+}
+
+std::vector<long> longs(const std::vector<long>& values)
+{
+    return {values.rbegin(), values.rend()};
+}
+
+std::vector<unsigned long> ulongs(const std::vector<unsigned long>& values)
+{
+    return {values.rbegin(), values.rend()};
+}
+
+std::vector<LongE> long_enums(const std::vector<LongE>& values)
+{
+    return {values.rbegin(), values.rend()};
+}
+
+std::array<long, 2> two(const std::array<long, 2>& values)
+{
+    return {values[1], values[0]};
+}
+
+LongE long_enum(std::function<LongE(LongE)> f, LongE value)
+{
+    return f(value);
+}
+
 }  // namespace cb

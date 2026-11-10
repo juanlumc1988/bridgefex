@@ -58,6 +58,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "fingerprint": fingerprint,
         "last_error": plan.last_error,
         "api_fingerprint": plan.api_fingerprint_function,
+        "callbacks": names.has_callbacks,
     }
     renderer.put(f"{base}/{root}.csproj", "Project.csproj.j2", **context)
     renderer.put(f"{base}/Runtime.cs", "Runtime.cs.j2", **context)

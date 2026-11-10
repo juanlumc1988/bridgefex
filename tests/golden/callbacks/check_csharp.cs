@@ -24,7 +24,7 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     {
         F.Sum(1, i => i);
     }
-    catch (InvalidOperationException error) when (error.Message.Contains("disabled at exit"))
+    catch (InvalidOperationException error) when (error.Message.Contains("argument 'f': callbacks are disabled at exit"))
     {
         return;
     }
@@ -100,6 +100,8 @@ NoCallbacks("after the callbacks with arguments");
 // -- A result that C++ cannot hold is refused, and the call raises it ---------------------------------
 
 Expect<InvalidOperationException>(() => F.Pick(() => (Mode)42), "which is not a value of the enum (0..3)");
+Expect<InvalidOperationException>(() => F.Pick(() => (Mode)4), "returned 4");
+Check(F.Pick(() => (Mode)3) == (Mode)3, "the last value of the enum is accepted");
 Expect<InvalidOperationException>(() => F.Pick(() => (Mode)(-1)), "returned -1");
 Check(F.Classify(1, value => (Level)200) == (Level)200, "an enum with a fixed type holds every value of it");
 NoCallbacks("after the refused results");
@@ -229,6 +231,31 @@ Check(unobserved.Count == 1 && unobserved.TryDequeue(out var late) && late is Ke
 Check(F.Log(Level.Info, "fine"), "the handler goes on");
 Check(unobserved.IsEmpty, "an exception is reported once");
 F.SetLogHandler(null);
+
+// Without a handler of Unobserved, the exception is written to the standard error; a handler that
+// throws does not reach C++.
+{
+    BridgefexCallbacks.Unobserved -= unobserved.Enqueue;
+    var standardError = Console.Error;
+    var captured = new StringWriter();
+    Console.SetError(captured);
+    F.SetLogHandler((level, text) =>
+    {
+        if (text == "x")
+        {
+            throw new KeyNotFoundException("to stderr");
+        }
+    });
+    Check(F.Log(Level.Info, "x"), "the call returns");
+    Console.SetError(standardError);
+    Check(captured.ToString().Contains("Unobserved exception in a C++ callback") && captured.ToString().Contains("to stderr"), "stderr: " + captured);
+    Action<Exception> throwing = _ => throw new InvalidOperationException("the handler fails");
+    BridgefexCallbacks.Unobserved += throwing;
+    Check(F.Log(Level.Info, "x"), "a handler that throws does not reach C++");
+    BridgefexCallbacks.Unobserved -= throwing;
+    F.SetLogHandler(null);
+    BridgefexCallbacks.Unobserved += unobserved.Enqueue;
+}
 
 // -- Objects: the callback lives as long as the C++ object ------------------------------------------
 

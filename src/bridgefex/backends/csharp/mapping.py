@@ -8,6 +8,17 @@ from dataclasses import dataclass
 from ...errors import Location
 from ...plan import Ffi, FfiKind
 
+# The generated code names the types of .NET with their namespace: the namespace of a header or of
+# the module (`Math`, `Type`, `Exception`...) would hide a type of that name.
+INTEROP = "global::System.Runtime.InteropServices"
+COMPILER = "global::System.Runtime.CompilerServices"
+CDECL_ATTRIBUTE = (
+    f"[{INTEROP}.UnmanagedCallConv(CallConvs = new[] {{ typeof({COMPILER}.CallConvCdecl) }})]"
+)
+CDECL_CALLERS = (
+    f"[{INTEROP}.UnmanagedCallersOnly(CallConvs = new[] {{ typeof({COMPILER}.CallConvCdecl) }})]"
+)
+
 
 class Unsupported(Exception):
     """The plan has something that the C# bindings do not have yet."""
@@ -33,8 +44,18 @@ class Scalar:
         return self.public != self.native
 
 
-_CLONG = Scalar("long", "CLong", "new CLong(checked((nint){}))", "(long){}.Value")
-_CULONG = Scalar("ulong", "CULong", "new CULong(checked((nuint){}))", "(ulong){}.Value")
+_CLONG = Scalar(
+    "long",
+    f"{INTEROP}.CLong",
+    f"new {INTEROP}.CLong(checked((nint){{}}))",
+    "(long){}.Value",
+)
+_CULONG = Scalar(
+    "ulong",
+    f"{INTEROP}.CULong",
+    f"new {INTEROP}.CULong(checked((nuint){{}}))",
+    "(ulong){}.Value",
+)
 
 SCALARS: dict[str, Scalar] = {
     "bool": Scalar("bool", "byte", "({} ? (byte)1 : (byte)0)", "({} != 0)"),
@@ -78,7 +99,7 @@ def native_type(ffi: Ffi, *, out: bool = False) -> str:
         return scalar(ffi.name).native
     if kind in (FfiKind.HANDLE, FfiKind.VOID_POINTER, FfiKind.CALLBACK, FfiKind.RELEASE):
         # A callback and its release function are the addresses of thunks.
-        return "IntPtr"
+        return "nint"
     if kind is FfiKind.CHAR_POINTER:
         return "byte*"
     if kind is FfiKind.STRUCT:

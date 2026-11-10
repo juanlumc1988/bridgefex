@@ -24,25 +24,25 @@ public static class BridgefexCallbacks
     /// <summary>Raised for an exception of a callback that no call raises: one that C++ runs after the
     /// call that gave it has returned, in a call that gives no callbacks. Without a handler, the
     /// exception is written to the standard error.</summary>
-    public static event Action<Exception>? Unobserved;
+    public static event global::System.Action<global::System.Exception>? Unobserved;
 
     /// <summary>The number of callbacks that C++ holds (for the tests of the code that uses the
     /// bindings: it is 0 when C++ keeps none).</summary>
     public static int Registered => CallbackBox.Count;
 
-    internal static void Report(Exception error)
+    internal static void Report(global::System.Exception error)
     {
         try
         {
-            Action<Exception>? handler = Unobserved;
+            global::System.Action<global::System.Exception>? handler = Unobserved;
             if (handler is null)
             {
-                Console.Error.WriteLine("Unobserved exception in a C++ callback: " + error);
+                global::System.Console.Error.WriteLine("Unobserved exception in a C++ callback: " + error);
                 return;
             }
             handler(error);
         }
-        catch (Exception)
+        catch (global::System.Exception)
         {
             // An exception of a handler must not cross to C++.
         }
@@ -58,7 +58,7 @@ internal static unsafe partial class Runtime
         {
             return null;
         }
-        return Strict.GetString(MemoryMarshal.CreateReadOnlySpanFromNullTerminated(data));
+        return Strict.GetString(global::System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpanFromNullTerminated(data));
     }
 }
 
@@ -74,12 +74,12 @@ internal readonly ref struct CallGuard
 /// <summary>A call of the bindings that gives callbacks. The exception of one of its callbacks is raised by the
 /// call when C++ returns, and its remaining callbacks do not run (C++ gets their default result). If the C
 /// function is never called, C++ never releases the callbacks, and the scope drops them.</summary>
-internal sealed class CallScope : IDisposable
+internal sealed class CallScope : global::System.IDisposable
 {
-    [ThreadStatic]
+    [global::System.ThreadStatic]
     private static CallScope? t_innermost;
 
-    [ThreadStatic]
+    [global::System.ThreadStatic]
     private static int t_calls;
 
     internal readonly struct Registration
@@ -101,7 +101,7 @@ internal sealed class CallScope : IDisposable
     private List<nint>? _keys;
     private bool _active = true;
     private bool _returned;
-    private Exception? _error;
+    private global::System.Exception? _error;
     private volatile bool _failed;
 
     internal CallScope()
@@ -133,7 +133,7 @@ internal sealed class CallScope : IDisposable
 
     /// <summary>The arguments of the C function for <paramref name="function"/>: a null delegate is an empty
     /// <c>std::function</c>.</summary>
-    internal Registration Register(Delegate? function, string name, nint thunk)
+    internal Registration Register(global::System.Delegate? function, string name, nint thunk)
     {
         if (function is null)
         {
@@ -151,7 +151,7 @@ internal sealed class CallScope : IDisposable
     }
 
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
-    internal bool Fail(Exception error)
+    internal bool Fail(global::System.Exception error)
     {
         lock (_gate)
         {
@@ -171,7 +171,7 @@ internal sealed class CallScope : IDisposable
     /// <summary>Raises the exception of a callback, else the error of the C function.</summary>
     internal void Check(int status)
     {
-        Exception? error;
+        global::System.Exception? error;
         lock (_gate)
         {
             // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
@@ -196,7 +196,7 @@ internal sealed class CallScope : IDisposable
                 error.Data["Bridgefex.CallFailed"] = failure;
             }
         }
-        ExceptionDispatchInfo.Capture(error).Throw();
+        global::System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
     }
 
     public void Dispose()
@@ -228,18 +228,18 @@ internal sealed unsafe class CallbackBox
 {
     private static readonly ConcurrentDictionary<nint, CallbackBox> Table = new();
     private static readonly object Gate = new();
-    private static long _next;
+    private static int _next;
     private static volatile bool _started;
     private static volatile bool _disabled;
 
-    private CallbackBox(Delegate function, string name, CallScope scope)
+    private CallbackBox(global::System.Delegate function, string name, CallScope scope)
     {
         Function = function;
         Name = name;
         Scope = scope;
     }
 
-    internal Delegate Function { get; }
+    internal global::System.Delegate Function { get; }
 
     internal string Name { get; }
 
@@ -253,14 +253,14 @@ internal sealed unsafe class CallbackBox
 
     internal static nint ReleaseAddress => (nint)(delegate* unmanaged[Cdecl]<void*, void>)&ReleaseThunk;
 
-    internal static nint Add(Delegate function, string name, CallScope scope)
+    internal static nint Add(global::System.Delegate function, string name, CallScope scope)
     {
         Start(name);
         var box = new CallbackBox(function, name, scope);
         while (true)
         {
             // The keys wrap around where nint has 32 bits; a key in use is skipped. 0 is no key.
-            nint key = (nint)(Interlocked.Increment(ref _next) & (long)nint.MaxValue);
+            nint key = global::System.Threading.Interlocked.Increment(ref _next) & int.MaxValue;
             if (key != 0 && Table.TryAdd(key, box))
             {
                 return key;
@@ -279,7 +279,7 @@ internal sealed unsafe class CallbackBox
         {
             return box;
         }
-        throw new InvalidOperationException(
+        throw new global::System.InvalidOperationException(
             "a C++ callback was called after it was released (user_data " + (nint)userData + ")");
     }
 
@@ -288,7 +288,7 @@ internal sealed unsafe class CallbackBox
     {
         if (value < low || value > high)
         {
-            throw new InvalidOperationException(
+            throw new global::System.InvalidOperationException(
                 "the callback '" + Name + "' returned " + value + ", which is not a value of the enum ("
                 + low + ".." + high + ")");
         }
@@ -298,7 +298,7 @@ internal sealed unsafe class CallbackBox
     /// that gives callbacks. On a thread of C++ (no call runs on it), it goes to the call that gave the
     /// callback, if that still runs. Any other case is a callback that C++ stored and runs in a call that
     /// gives none (or after the call returned): the error belongs to no call.</summary>
-    internal static void Fail(CallbackBox? box, Exception error)
+    internal static void Fail(CallbackBox? box, global::System.Exception error)
     {
         try
         {
@@ -316,17 +316,25 @@ internal sealed unsafe class CallbackBox
             }
             BridgefexCallbacks.Report(error);
         }
-        catch (Exception)
+        catch (global::System.Exception)
         {
             // Nothing crosses to C++.
         }
+    }
+
+    /// <summary>The module starts: its callbacks are disabled at exit from now on. A handler of
+    /// <c>ProcessExit</c> that subscribes while the event is raised is never called, so this is done
+    /// before any callback, not when the first one is given.</summary>
+    internal static void Watch()
+    {
+        global::System.AppDomain.CurrentDomain.ProcessExit += OnExit;
     }
 
     private static void Start(string name)
     {
         if (_disabled)
         {
-            throw new InvalidOperationException(
+            throw new global::System.InvalidOperationException(
                 "argument '" + name + "': callbacks are disabled at exit, C++ would not call it");
         }
         if (_started)
@@ -340,35 +348,39 @@ internal sealed unsafe class CallbackBox
                 return;
             }
             Native.cbx_enable_callbacks(ReleaseAddress);
-            AppDomain.CurrentDomain.ProcessExit += OnExit;
             _started = true;
         }
     }
 
     /// <summary>C++ may still hold callbacks in globals whose destructors run after this runtime is gone:
     /// from here on it neither calls nor releases the ones of this module.</summary>
-    private static void OnExit(object? sender, EventArgs e)
+    private static void OnExit(object? sender, global::System.EventArgs e)
     {
         _disabled = true;
+        if (!_started)
+        {
+            // No callback was ever given: nothing to disable, and the library may not be loaded.
+            return;
+        }
         try
         {
             Native.cbx_disable_callbacks(ReleaseAddress);
         }
-        catch (Exception)
+        catch (global::System.Exception)
         {
             // The process is ending.
         }
     }
 
     /// <summary>C++ calls it exactly once for each callback, on any thread, when it destroys its last copy.</summary>
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     private static void ReleaseThunk(void* userData)
     {
         try
         {
             Table.TryRemove((nint)userData, out _);
         }
-        catch (Exception)
+        catch (global::System.Exception)
         {
             // Nothing crosses to C++.
         }
@@ -377,7 +389,7 @@ internal sealed unsafe class CallbackBox
 
 internal static unsafe class Thunks
 {
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void__int32(void* userData, int a1)
     {
         CallbackBox? box = null;
@@ -400,7 +412,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_void__int32 =>
         (nint)(delegate* unmanaged[Cdecl]<void*, int, void>)&Thunk_void__int32;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_int32__int32(void* userData, int a1, int* result)
     {
         CallbackBox? box = null;
@@ -424,7 +436,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_int32__int32 =>
         (nint)(delegate* unmanaged[Cdecl]<void*, int, int*, void>)&Thunk_int32__int32;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void__string__ev_Point(void* userData, byte* a1d, nuint a1s, Native.ev_Point* a2)
     {
         CallbackBox? box = null;
@@ -447,7 +459,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_void__string__ev_Point =>
         (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, Native.ev_Point*, void>)&Thunk_void__string__ev_Point;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_bool__int64(void* userData, long a1, byte* result)
     {
         CallbackBox? box = null;
@@ -471,7 +483,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_bool__int64 =>
         (nint)(delegate* unmanaged[Cdecl]<void*, long, byte*, void>)&Thunk_bool__int64;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void(void* userData)
     {
         CallbackBox? box = null;
@@ -494,7 +506,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_void =>
         (nint)(delegate* unmanaged[Cdecl]<void*, void>)&Thunk_void;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_ev_Level__int32(void* userData, int a1, byte* result)
     {
         CallbackBox? box = null;
@@ -518,7 +530,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_ev_Level__int32 =>
         (nint)(delegate* unmanaged[Cdecl]<void*, int, byte*, void>)&Thunk_ev_Level__int32;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_ev_Mode(void* userData, int* result)
     {
         CallbackBox? box = null;
@@ -543,7 +555,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_ev_Mode =>
         (nint)(delegate* unmanaged[Cdecl]<void*, int*, void>)&Thunk_ev_Mode;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_double__double(void* userData, double a1, double* result)
     {
         CallbackBox? box = null;
@@ -567,7 +579,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_double__double =>
         (nint)(delegate* unmanaged[Cdecl]<void*, double, double*, void>)&Thunk_double__double;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_double__ev_Point__cstr(void* userData, Native.ev_Point* a1, byte* a2, double* result)
     {
         CallbackBox? box = null;
@@ -591,7 +603,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_double__ev_Point__cstr =>
         (nint)(delegate* unmanaged[Cdecl]<void*, Native.ev_Point*, byte*, double*, void>)&Thunk_double__ev_Point__cstr;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void__ev_Point__ev_Mode(void* userData, Native.ev_Point* a1, int a2)
     {
         CallbackBox? box = null;
@@ -614,7 +626,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_void__ev_Point__ev_Mode =>
         (nint)(delegate* unmanaged[Cdecl]<void*, Native.ev_Point*, int, void>)&Thunk_void__ev_Point__ev_Mode;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void__string__string__string(void* userData, byte* a1d, nuint a1s, byte* a2d, nuint a2s, byte* a3d, nuint a3s)
     {
         CallbackBox? box = null;
@@ -637,7 +649,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_void__string__string__string =>
         (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, byte*, nuint, byte*, nuint, void>)&Thunk_void__string__string__string;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_int32__string(void* userData, byte* a1d, nuint a1s, int* result)
     {
         CallbackBox? box = null;
@@ -661,7 +673,7 @@ internal static unsafe class Thunks
     internal static nint Address_Thunk_int32__string =>
         (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, int*, void>)&Thunk_int32__string;
 
-    [UnmanagedCallersOnly(CallConvs = new[] { typeof(CallConvCdecl) })]
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void Thunk_void__ev_Level__string(void* userData, byte a1, byte* a2d, nuint a2s)
     {
         CallbackBox? box = null;
