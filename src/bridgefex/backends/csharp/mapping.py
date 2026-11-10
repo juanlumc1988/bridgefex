@@ -76,7 +76,8 @@ def native_type(ffi: Ffi, *, out: bool = False) -> str:
         return "int"
     if kind is FfiKind.SCALAR:
         return scalar(ffi.name).native
-    if kind in (FfiKind.HANDLE, FfiKind.VOID_POINTER):
+    if kind in (FfiKind.HANDLE, FfiKind.VOID_POINTER, FfiKind.CALLBACK, FfiKind.RELEASE):
+        # A callback and its release function are the addresses of thunks.
         return "IntPtr"
     if kind is FfiKind.CHAR_POINTER:
         return "byte*"

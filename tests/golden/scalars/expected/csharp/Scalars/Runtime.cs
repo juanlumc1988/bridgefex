@@ -110,7 +110,7 @@ internal readonly unsafe ref struct StringBlock
     }
 }
 
-internal static unsafe class Runtime
+internal static unsafe partial class Runtime
 {
     internal const string Library = "scalars";
     internal const string Fingerprint = "5ccf45e4de1e1ea0922db24076bce971";

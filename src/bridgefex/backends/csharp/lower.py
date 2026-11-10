@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ...model import (
+    CallbackType,
     ClassForm,
     ClassRef,
     ContainerType,
@@ -27,7 +28,7 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
-from . import containers
+from . import callbacks, containers
 from .mapping import Unsupported, scalar
 from .naming import LOCAL_PREFIX, parameter
 from .source import Source
@@ -51,6 +52,12 @@ class Names:
 
     large_structs: frozenset[str] = frozenset()
     """The structs (by C type) whose mirror is too big for the stack."""
+
+    has_callbacks: bool = False
+    """True if the module has a function that takes a callback."""
+
+    thunks: callbacks.ThunkTable = field(default_factory=callbacks.ThunkTable)
+    """The thunks that the wrappers use (they are added as the wrappers are lowered)."""
 
     def cls(self, info: ClassInfo) -> str:
         return self.classes[info.c_type]
@@ -82,6 +89,13 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec | None =
         return containers.public_result(spec, names)
     if isinstance(type_, StringType):
         return "string?" if nullable else "string"
+    if (
+        isinstance(type_, CallbackType)
+        and isinstance(spec, ParamSpec)
+        and spec.callback is not None
+    ):
+        # Null is an empty std::function.
+        return callbacks.delegate_type(spec.callback, names) + "?"
     if spec is None:
         raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in C# yet")
     if isinstance(type_, EnumRef) and spec.enum is not None:
@@ -166,10 +180,19 @@ class _Lowerer:
 
         self.retained: list[str] = []
         self.owners: list[str] = []
+        self.callbacks = False
 
     def run(self) -> Lowering:
         plan = self.plan
         body = self.body
+        self.callbacks = any(spec.callback is not None for spec in plan.params)
+        if self.callbacks:
+            # The call that C++ runs the callbacks of: it raises their exceptions, and drops the
+            # callbacks if the C function is never called.
+            body.add(f"using var {L}scope = new CallScope();")
+        elif self.names.has_callbacks:
+            # A callback that C++ stored and runs now is not one of the callbacks of this call.
+            body.add(f"using var {L}call = CallScope.Enter();")
         if plan.kind is CallableKind.METHOD:
             mutable = "false" if plan.is_const else "true"
             # A class that others derive from is reached through the address of its own part
@@ -201,11 +224,17 @@ class _Lowerer:
         if plan.kind is not CallableKind.CONSTRUCTOR:
             for name in self.retained:
                 body.add(f"{target}({name});")
-        if out.checks_after:
+        if out.checks_after or self.callbacks:
             body.add(f"int {L}status = {call};")
+            if self.callbacks:
+                # From here on C++ owns the callbacks, and releases each one of them.
+                body.add(f"{L}scope.Returned();")
             for line in out.after_call:
                 body.add(line)
-            body.add(f"Runtime.Check({L}status);")
+            # An exception of a callback is the one the call raises.
+            body.add(
+                f"{L}scope.Check({L}status);" if self.callbacks else f"Runtime.Check({L}status);"
+            )
         else:
             body.add(f"Runtime.Check({call});")
         if plan.kind is CallableKind.CONSTRUCTOR and self.factory is None:
@@ -301,11 +330,26 @@ class _Lowerer:
         elif isinstance(type_, ContainerType):
             site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
             containers.param(spec, type_, position, name, site)
+        elif isinstance(type_, CallbackType):
+            self.callback_param(spec, position, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
                 "in C# yet"
             )
+
+    def callback_param(self, spec: ParamSpec, position: int, name: str) -> None:
+        """A delegate (or null) goes to C as a thunk, a key and the release function."""
+        assert spec.callback is not None
+        assert spec.user_data
+        assert spec.release
+        key = next(param.ffi.name for param in self.plan.function.params if param.name == spec.name)
+        thunk = self.names.thunks.address(key, spec.callback, self.names)
+        registration = f"{L}o{position}"
+        self.body.add(f'var {registration} = {L}scope.Register({name}, "{spec.name}", {thunk});')
+        self.arguments[spec.name] = f"{registration}.Callback"
+        self.arguments[spec.user_data] = f"{registration}.UserData"
+        self.arguments[spec.release] = f"{registration}.Release"
 
     def enum_param(self, spec: ParamSpec, name: str) -> None:
         assert spec.enum is not None

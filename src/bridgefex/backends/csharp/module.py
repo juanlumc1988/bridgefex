@@ -21,6 +21,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from .callbacks import has_callbacks
 from .lower import Names, lower_callable
 from .mapping import Unsupported, native_type, scalar
 from .naming import CS_KEYWORDS, RESERVED_MEMBERS, identifier, pascal
@@ -29,7 +30,8 @@ from .source import Source
 _FILE_TYPES = frozenset(
     """
     Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
-    BridgefexFunction BridgefexFunctionAttribute Functions
+    BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks CallScope CallbackBox
+    Thunks
     """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""
@@ -121,7 +123,17 @@ def build_names(plan: ModulePlan) -> Names:
         for plan_ in struct_plans.values()
         if _size_bound(plan_, struct_plans) > LARGE_STRUCT
     )
-    return Names(root, classes, enums, structs, handles, enum_plans, struct_plans, large)
+    return Names(
+        root,
+        classes,
+        enums,
+        structs,
+        handles,
+        enum_plans,
+        struct_plans,
+        large,
+        has_callbacks(plan),
+    )
 
 
 LARGE_STRUCT = 4096
@@ -174,6 +186,10 @@ def native_source(plan: ModulePlan, names: Names) -> str:
     _declare(src, plan.last_error, "byte*", "")
     _declare(src, plan.api_fingerprint_function, "byte*", "")
     _declare(src, plan.free_function, "void", "IntPtr memory")
+    if names.has_callbacks:
+        # For the callbacks that C++ keeps (see BridgefexCallbacks.cs).
+        _declare(src, plan.enable_callbacks, "void", "IntPtr release")
+        _declare(src, plan.disable_callbacks, "void", "IntPtr release")
     for function in functions:
         _declare_function(src, function)
     for line in mirrors_source(plan, names):

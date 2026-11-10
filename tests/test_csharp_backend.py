@@ -337,6 +337,22 @@ COMPILES = {
         "class P2 { public: P2(); virtual ~P2(); };\n"
         "class Q : public P1, public P2 { public: Q(); int asP2(); };"
     ),
+    "parameters named like what the callback wrappers use": (
+        "#include <functional>\n"
+        "int f(int Thunks, int CallScope, int CallbackBox, int BridgefexCallbacks, int __scope,"
+        " int __call, std::function<int(int)> g, int __o1);\n"
+        "class K { public: K(std::function<void(int)> Thunks); ~K();"
+        " void m(std::function<void()> CallScope, int Registration) const; };"
+    ),
+    "types named like what the thunks use": (
+        "#include <functional>\n"
+        "struct Func { int a; };\nstruct Action { int a; };\nstruct Exception { int a; };\n"
+        "enum class Level : unsigned char { Low };\n"
+        "int f(std::function<Level(const Func&, const Exception&)> g);\n"
+        "struct CallGuard { int a; };\nstruct Registration { int a; };\n"
+        "void k(std::function<void(const CallGuard&, Registration)> g);\n"
+        "void h(std::function<void(const Action&, const char*, const std::string&)> g);"
+    ),
     "a method of a base named like the class": (
         "class B { public: B(); virtual ~B(); int b() const; };\n"
         "class D : public B { public: D(); };"
@@ -404,40 +420,171 @@ def test_the_accessor_of_a_base_does_not_take_the_name_of_a_method(tmp_path: Pat
     assert " AsP2_()" in text
 
 
+# -- Callbacks ------------------------------------------------------------------------------------
+
+CALLBACKS = (
+    "#include <functional>\n"
+    "int apply(int n, const std::function<int(int)>& g);\n"
+    "void note(std::function<void()> h, int k);\n"
+    "int plain(int a);\n"
+    "class K { public: explicit K(std::function<void(int)> on); ~K();"
+    " void set(std::function<void(int)> on); int count() const; };"
+)
+
+
+def test_a_callback_is_a_delegate_that_may_be_null(tmp_path: Path) -> None:
+    text = generate(tmp_path, CALLBACKS)["csharp/Mod/Api.cs"]
+    assert "public static int Apply(int n, global::System.Func<int, int>? g)" in text
+    assert "public static void Note(global::System.Action? h, int k)" in text
+    assert "public K(global::System.Action<int>? on)" in text
+    # The C function gets the thunk, the key of the delegate and the release function.
+    assert 'var __o2 = __scope.Register(g, "g", Thunks.Address_Thunk_int__int);' in text
+    assert "Native.mod_apply(n, __o2.Callback, __o2.UserData, __o2.Release, &__result)" in text
+
+
+def test_the_call_that_gives_callbacks_raises_their_exceptions(tmp_path: Path) -> None:
+    text = generate(tmp_path, CALLBACKS)["csharp/Mod/Api.cs"]
+    body = text.split("public static int Apply")[1].split("}")[0]
+    lines = [line.strip() for line in body.splitlines()]
+    # The scope is the first statement, and the check is the one of the scope, after the call
+    # (C++ owns the callbacks from the moment the C function returns).
+    assert lines[2] == "using var __scope = new CallScope();"
+    call = next(i for i, line in enumerate(lines) if line.startswith("int __status = Native."))
+    assert lines[call + 1] == "__scope.Returned();"
+    assert lines[call + 2] == "__scope.Check(__status);"
+    assert "Runtime.Check" not in body
+
+
+def test_a_call_without_callbacks_of_a_module_that_has_them_is_a_call_of_the_bindings(
+    tmp_path: Path,
+) -> None:
+    """A stored callback that it runs is not one of the callbacks of a call that is still running
+    on another thread."""
+    text = generate(tmp_path, CALLBACKS)["csharp/Mod/Api.cs"]
+    plain = text.split("public static int Plain")[1].split("}")[0]
+    assert "using var __call = CallScope.Enter();" in plain
+    assert "__scope" not in plain
+    method = text.split("public int Count")[1].split("}")[0]
+    assert "using var __call = CallScope.Enter();" in method
+
+
+def test_a_module_without_callbacks_has_no_runtime_for_them(tmp_path: Path) -> None:
+    files = generate(tmp_path, SMALL)
+    assert "csharp/Mod/BridgefexCallbacks.cs" not in files
+    assert "CallScope" not in files["csharp/Mod/Api.cs"]
+    assert "enable_callbacks" not in files["csharp/Mod/Native.cs"]
+
+
+def test_a_module_with_callbacks_has_their_runtime_and_the_thunks_they_use(
+    tmp_path: Path,
+) -> None:
+    files = generate(tmp_path, CALLBACKS)
+    text = files["csharp/Mod/BridgefexCallbacks.cs"]
+    # One thunk for each C signature that is used, and no other.
+    assert sorted(re.findall(r"internal static void (Thunk_\w+)\(", text)) == [
+        "Thunk_int__int",
+        "Thunk_void",
+        "Thunk_void__int",
+    ]
+    native = files["csharp/Mod/Native.cs"]
+    assert "internal static partial void mod_enable_callbacks(IntPtr release);" in native
+    assert "internal static partial void mod_disable_callbacks(IntPtr release);" in native
+    # The callback, its user_data and its release function are addresses.
+    assert (
+        "internal static partial int mod_apply(int n, IntPtr g, IntPtr g_user_data, "
+        "IntPtr g_release, int* out_result);" in native
+    )
+    # No exception crosses to C++, and a callback is found by a key, never by an address.
+    assert "catch (global::System.Exception error)" in text
+    assert "CallbackBox.Of(userData)" in text
+
+
+def test_callbacks_that_have_the_same_c_signature_share_a_thunk(tmp_path: Path) -> None:
+    code = (
+        "#include <functional>\n"
+        "void a(std::function<int(int)> f);\nvoid b(const std::function<int(int)>& f);\n"
+        "class C { public: C(); ~C(); void c(std::function<int(int)>&& f); };"
+    )
+    text = generate(tmp_path, code)["csharp/Mod/BridgefexCallbacks.cs"]
+    assert text.count("internal static void Thunk_") == 1
+
+
+def test_callbacks_of_different_types_have_thunks_of_their_own(tmp_path: Path) -> None:
+    code = (
+        "#include <functional>\n"
+        "enum class A : int { X };\nenum class B : int { Y };\n"
+        "struct P { int x; };\n"
+        "void a(std::function<A()> f);\nvoid b(std::function<B()> f);\n"
+        "void c(std::function<void(const P&, const char*, const std::string&)> f);"
+    )
+    files = generate(tmp_path, code)
+    text = files["csharp/Mod/BridgefexCallbacks.cs"]
+    assert "(void* userData, int* result)" in text
+    assert text.count("internal static void Thunk_") == 3
+    api = files["csharp/Mod/Api.cs"]
+    assert "global::System.Func<global::Mod.Api.A>? f" in api
+    assert "global::System.Func<global::Mod.Api.B>? f" in api
+    assert "global::System.Action<global::Mod.Api.P, string?, string>? f" in api
+
+
+def test_a_result_that_c_plus_plus_cannot_hold_is_checked_by_the_thunk(tmp_path: Path) -> None:
+    code = "#include <functional>\nenum Mode { Off, On };\nint f(std::function<Mode()> g);"
+    text = generate(tmp_path, code)["csharp/Mod/BridgefexCallbacks.cs"]
+    assert "box.CheckResult((long)value, 0, 1);" in text
+
+
+@pytest.mark.parametrize("name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks"])
+def test_a_class_cannot_hide_a_type_of_the_callback_runtime(tmp_path: Path, name: str) -> None:
+    code = f"#include <functional>\nvoid f(std::function<void()> g);\nstruct {name} {{ int a; }};"
+    assert f"gets the C# name '{name}'" in error_of(tmp_path, code)
+
+
+@pytest.mark.parametrize("stem", ["thunks", "call_scope", "callback_box", "bridgefex_callbacks"])
+def test_a_header_cannot_have_the_name_of_a_file_of_the_callback_runtime(
+    tmp_path: Path, stem: str
+) -> None:
+    message = error_of(tmp_path, "int f(int a);", name=f"{stem}.h")
+    assert f"cannot use header name '{stem}'" in message
+
+
 # -- What it refuses ------------------------------------------------------------------------------
+
+WIDE = "std::function<void(" + ", ".join(["int"] * 17) + ")>"
 
 
 @pytest.mark.parametrize(
     ("code", "std", "what"),
     [
-        ("#include <vector>\nint f(const std::vector<int>& v);", "c++17", "std::vector"),
-        ("#include <vector>\nstd::vector<std::string> f();", "c++17", "std::vector"),
-        ("#include <functional>\nint f(const std::function<int(int)>& g);", "c++17", "callback"),
-        ("#include <span>\nint f(std::span<const int> s);", "c++20", "std::span"),
+        (f"#include <functional>\nint f({WIDE} g);", "c++17", "a callback with 17 arguments"),
+        (
+            f"#include <functional>\nclass K {{ public: K(); ~K(); void m({WIDE} g); }};",
+            "c++17",
+            "a callback with 17 arguments",
+        ),
     ],
 )
-def test_what_the_csharp_bindings_do_not_have_yet_is_refused_clearly(
+def test_what_the_csharp_bindings_do_not_have_is_refused_clearly(
     tmp_path: Path, code: str, std: str, what: str
 ) -> None:
     message = error_of(tmp_path, code, std=std)
     assert "C#:" in message
-    assert "not supported in C# yet" in message
     assert what in message
+    assert "no delegate with more than 16" in message
     # The Python bindings of the same header are generated all the same.
     assert generate(tmp_path, code, languages=("python",), std=std)
 
 
 def test_a_failure_of_the_csharp_backend_names_the_function(tmp_path: Path) -> None:
-    code = "#include <functional>\nint add(int a, int b);\nint apply(std::function<int(int)> f);"
+    code = f"#include <functional>\nint add(int a, int b);\nint apply({WIDE} f);"
     assert "apply" in error_of(tmp_path, code)
 
 
 @pytest.mark.parametrize(
     "code",
     [
-        "#include <vector>\nint sum(const std::vector<int>& values);",
-        "#include <vector>\nstd::vector<int> make();",
-        "#include <vector>\nclass K { public: K(); ~K(); void put(std::vector<int> v); };",
+        f"#include <functional>\nint sum({WIDE} g);",
+        f"#include <functional>\nclass K {{ public: K({WIDE} g); ~K(); }};",
+        f"#include <functional>\nclass K {{ public: K(); ~K(); void put({WIDE} g); }};",
     ],
 )
 def test_a_refusal_says_which_declaration_and_where(tmp_path: Path, code: str) -> None:
@@ -445,7 +592,7 @@ def test_a_refusal_says_which_declaration_and_where(tmp_path: Path, code: str) -
         generate(tmp_path, code)
     [diagnostic] = raised.value.diagnostics
     assert "C#:" in diagnostic.message
-    assert "std::vector" in diagnostic.message
+    assert "17 arguments" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line >= 1
     assert str(raised.value).count("api.h") >= 1

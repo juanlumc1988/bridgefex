@@ -27,6 +27,7 @@ LOCAL_PREFIX = "__"
 BODY_TYPES = frozenset(
     """
     Runtime Native Block StringBlock Lease Keep BridgefexObject BridgefexException ObjectHandle
+    BridgefexCallbacks CallScope CallbackBox Thunks
     """.split()
 )
 
@@ -82,7 +83,20 @@ def locals_of(count: int) -> frozenset[str]:
     """The locals of the bindings of a function with ``count`` parameters."""
     names = {
         f"{LOCAL_PREFIX}{word}"
-        for word in ("result", "status", "self", "size", "text", "o", "count", "items", "i", "b")
+        for word in (
+            "result",
+            "status",
+            "self",
+            "size",
+            "text",
+            "o",
+            "count",
+            "items",
+            "i",
+            "b",
+            "scope",
+            "call",
+        )
     }
     for position in range(1, 3 * count + 5):
         names.update(

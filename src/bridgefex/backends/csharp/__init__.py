@@ -68,6 +68,14 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
             files[f"{base}/{pascal(header.stem)}.cs"] = header_source(plan, header, names)
     except Unsupported as error:
         raise GenerationError([Diagnostic(f"C#: {error}", error.location)]) from error
+    if names.has_callbacks:
+        # After the headers: the thunks are those that their wrappers use.
+        renderer.put(
+            f"{base}/BridgefexCallbacks.cs",
+            "BridgefexCallbacks.cs.j2",
+            **context,
+            thunks=names.thunks.source(),
+        )
     return files
 
 
