@@ -668,9 +668,8 @@ def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
     # The constructors that only a class of the user can call (the class is abstract).
     assert "protected B()" in text
     assert "protected B(int start)" in text
-    # A method with a container is the class's own: C# cannot override it.
-    assert "public int Total(" in text
-    assert "virtual int Total" not in text
+    # A container is a span that C++ lends and an array that C++ copies.
+    assert "public virtual int Total(global::System.ReadOnlySpan<int> v)" in text
     # A pure virtual method has to be overridden when the object is made.
     assert "DirectorOverrides.Of(GetType(), true)" in text
 
@@ -748,6 +747,41 @@ DIRECTOR_COMPILES = {
         "class B { public: B(); virtual ~B(); virtual E e(E v) const;"
         " virtual S s(S v, const S& w) const; virtual std::string t(const std::string& a,"
         " std::string_view b, const char* c) const; };",
+        ["mod_B"],
+    ),
+    "containers of every kind of element in the signature": (
+        "#include <array>\n#include <vector>\n"
+        "enum class E : unsigned char { A, B };\nenum F { P, Q };\nstruct S { int x; };\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual std::vector<int> a(const std::vector<int>& v) const;"
+        " virtual std::vector<long> b(const std::vector<long>& v) const;"
+        " virtual std::vector<unsigned long> c(std::vector<unsigned long> v) const;"
+        " virtual std::vector<E> d(const std::vector<E>& v) const;"
+        " virtual std::vector<F> e(const std::vector<F>& v) const;"
+        " virtual std::vector<bool> f(const std::vector<bool>& v) const;"
+        " virtual std::vector<S> g(const std::vector<S>& v) const;"
+        " virtual std::vector<std::string> h(const std::vector<std::string>& v) const;"
+        " virtual std::array<int, 3> i(const std::array<int, 3>& v) const;"
+        " virtual std::array<S, 2> j(const std::array<S, 2>& v) const;"
+        " virtual std::array<F, 2> k(const std::array<F, 2>& v) const;"
+        " virtual int l(const std::vector<int>& a, const std::array<S, 2>& b, const char* c)"
+        " const; };",
+        ["mod_B"],
+    ),
+    "a pure virtual method with containers, which a class of the user has to override": (
+        "#include <array>\n#include <vector>\n"
+        "class B { public: B(); virtual ~B(); virtual std::vector<int> f(const std::vector<int>& v)"
+        " const = 0; protected: virtual std::array<int, 2> g(std::vector<std::string> w) const"
+        " = 0; };",
+        ["mod_B"],
+    ),
+    "containers whose parameters are named like the locals of the thunks": (
+        "#include <vector>\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual std::vector<int> f(const std::vector<int>& value, const std::vector<int>& block,"
+        " const std::vector<int>& data, const std::vector<int>& sink, const std::vector<int>& i,"
+        " const std::vector<int>& box, const std::vector<int>& target, const std::vector<int>& c1,"
+        " const std::vector<int>& a1d) const; };",
         ["mod_B"],
     ),
     "a method that is protected in the base and public in the derived class": (

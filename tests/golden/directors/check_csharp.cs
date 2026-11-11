@@ -76,7 +76,18 @@ using (var square = new Square())
     Check(square.Sum(3, 4) == 12, "an overload");
     Check(square.SumDouble(5.0, 2.0) == 3.0, "the other overload");
     Check(square.HowQuiet() == 9, "a noexcept method");
-    Check(square.TotalOfThree() == 6, "a method that has a container is the class's own");
+    // Containers, in both directions: a span of what C++ holds, and an array that C++ copies.
+    Check(square.TotalOfThree() == 12, "total() is the override, which calls the base with the span: " + square.TotalOfThree());
+    Check(square.CallTotal(new[] { 5, 6 }) == 22, "a vector of int");
+    Check(square.CallNumbers(new[] { 1, 2, 3 }).SequenceEqual(new[] { 3, 2, 1, 99 }), "the base result, and one more");
+    Check(square.CallWords(new[] { "a", "bé" }).SequenceEqual(new[] { "a?", "bé?" }), "strings");
+    Check(square.CallModes(new[] { Mode.On, Mode.Off }).SequenceEqual(new[] { Mode.Off, Mode.On }), "enums");
+    Check(
+        square.CallPoints(new[] { new Point { X = 1.0, Y = 2.0 } }).SequenceEqual(new[] { new Point { X = 3.0, Y = 2.0 } }),
+        "structs");
+    Check(square.CallFlags(new[] { true, false }).SequenceEqual(new[] { false, true }), "bool");
+    Check(square.CallTriple(new[] { 1.0, 2.0, 3.0 }).SequenceEqual(new[] { 1.5, 3.0, 4.5 }), "std::array");
+    Check(square.CallTotal(Array.Empty<int>()) == 0, "an empty vector");
     Check(square.Middle(new Point { X = 4.0, Y = 0.0 }).X == 3.0, "structs go both ways");
     Check(square.Choose(Mode.On) == Mode.Off && square.Choose(Mode.Off) == (Mode)5, "enums");
     Check(square.Welcome("Ann") == ">>|hello|Ann|>> hello Ann, I am sq:shape", "strings: " + square.Welcome("Ann"));
@@ -256,6 +267,21 @@ class Square : Shape
     public override string Greet(string who, string tag, string? mark) => $"{mark}|{tag}|{who}|" + base.Greet(who, tag, mark);
 
     public override int Quiet() => 9;
+
+    public override int Total(ReadOnlySpan<int> values) => base.Total(values) * 2;
+
+    public override int[] Numbers(ReadOnlySpan<int> values) => [.. base.Numbers(values), 99];
+
+    public override string[] Words(ReadOnlySpan<string> input) => input.ToArray().Select(word => word + "?").ToArray();
+
+    public override Drc.Shape.Mode[] Modes(ReadOnlySpan<Drc.Shape.Mode> wanted) => wanted.ToArray().Reverse().ToArray();
+
+    public override Point[] Points(ReadOnlySpan<Point> list) =>
+        list.ToArray().Select(point => new Point { X = point.X + 2.0, Y = point.Y }).ToArray();
+
+    public override bool[] Flags(ReadOnlySpan<bool> input) => input.ToArray().Select(flag => !flag).ToArray();
+
+    public override double[] Triple(ReadOnlySpan<double> values) => values.ToArray().Select(value => value * 1.5).ToArray();
 
     protected override void Changed(int reason)
     {

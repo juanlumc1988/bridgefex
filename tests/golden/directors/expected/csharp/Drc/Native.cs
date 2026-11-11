@@ -415,6 +415,14 @@ internal static unsafe partial class Native
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial void drc_string_sink_set(nint sink, byte* data, nuint size);
 
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void drc_vector_sink_set(nint sink, void* data, nuint count, nuint element_size);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void drc_vector_sink_set_strings(nint sink, Native.StringIn* items, nuint count);
+
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     internal struct drc_Beam_vtable
     {

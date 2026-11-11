@@ -1000,6 +1000,265 @@ internal static unsafe class Thunks
         (nint)(delegate* unmanaged[Cdecl]<void*, int*, void>)&D_drc_Shape_quiet;
 
     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_total(void* userData, int* a1d, nuint a1s, int* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Total(new global::System.ReadOnlySpan<int>((int*)a1d, Runtime.Count(a1d, a1s)));
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_total =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, int*, nuint, int*, void>)&D_drc_Shape_total;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_numbers(void* userData, int* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Numbers(new global::System.ReadOnlySpan<int>((int*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.numbers returned null for a std::vector");
+            }
+            fixed (int* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(int));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_numbers =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, int*, nuint, nint, void>)&D_drc_Shape_numbers;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_words(void* userData, Native.StringIn* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var c1 = new string[Runtime.Count(a1d, a1s)];
+            for (int i1 = 0; i1 < c1.Length; i1++)
+            {
+                c1[i1] = Runtime.TakeText((nint)a1d[i1].Data, a1d[i1].Size);
+            }
+            var value = target.Words(c1);
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.words returned null for a std::vector");
+            }
+            using var block = StringBlock.Make(value, "result");
+            Native.drc_vector_sink_set_strings(sink, block.Pointer, (nuint)value.Length);
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_words =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, Native.StringIn*, nuint, nint, void>)&D_drc_Shape_words;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_modes(void* userData, byte* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Modes(new global::System.ReadOnlySpan<global::Drc.Shape.Mode>((global::Drc.Shape.Mode*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.modes returned null for a std::vector");
+            }
+            fixed (global::Drc.Shape.Mode* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(byte));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_modes =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, nint, void>)&D_drc_Shape_modes;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_points(void* userData, Native.drc_Point* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var c1 = new global::Drc.Shape.Point[Runtime.Count(a1d, a1s)];
+            for (int i1 = 0; i1 < c1.Length; i1++)
+            {
+                c1[i1] = global::Drc.Shape.Point.FromNative(&a1d[i1]);
+            }
+            var value = target.Points(c1);
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.points returned null for a std::vector");
+            }
+            using var block = Block<Native.drc_Point>.Alloc(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                value[i].ToNative(&block.Pointer[i]);
+            }
+            Native.drc_vector_sink_set(sink, block.Pointer, (nuint)value.Length, (nuint)sizeof(Native.drc_Point));
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_points =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, Native.drc_Point*, nuint, nint, void>)&D_drc_Shape_points;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_flags(void* userData, byte* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Flags(new global::System.ReadOnlySpan<bool>((bool*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.flags returned null for a std::vector");
+            }
+            fixed (bool* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(byte));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_flags =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, nint, void>)&D_drc_Shape_flags;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_triple(void* userData, double* a1, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Triple(new global::System.ReadOnlySpan<double>((double*)a1, Runtime.Count(a1, 3)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.triple returned null for a std::array");
+            }
+            if (value.Length != 3)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.triple returned " + value.Length + " elements for a std::array of 3");
+            }
+            fixed (double* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(double));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_triple =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, double*, nint, void>)&D_drc_Shape_triple;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void D_drc_Shape_changed(void* userData, int a1)
     {
         DirectorBox? box = null;

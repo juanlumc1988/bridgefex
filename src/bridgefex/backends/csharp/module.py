@@ -21,7 +21,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
-from . import directors
+from . import callbacks, directors
 from .callbacks import has_callbacks
 from .lower import Names, lower_callable
 from .mapping import (
@@ -212,6 +212,18 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         src.line(line)
     if names.directors:
         _declare(src, plan.string_sink_set, "void", "nint sink, byte* data, nuint size")
+        _declare(
+            src,
+            plan.vector_sink_set,
+            "void",
+            "nint sink, void* data, nuint count, nuint element_size",
+        )
+        _declare(
+            src,
+            plan.vector_sink_set_strings,
+            "void",
+            "nint sink, Native.StringIn* items, nuint count",
+        )
         for d in names.directors.values():
             director = d.cls.director
             assert director is not None
@@ -693,7 +705,7 @@ def _director_members(
                 method,
                 entry,
                 names=names,
-                sink_set=plan.string_sink_set,
+                sinks=callbacks.sinks_of(plan),
             )
     for slot in directors.dropped(names, cls):
         if slot.name in taken:

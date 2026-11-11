@@ -15,9 +15,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, EnumRef, ScalarType, StringType, StructRef
+from ...model import Access, ContainerType, EnumRef, ScalarType, StringType, StructRef
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import public_of
+from .elements import element_of
 from .lower import lower_callable
 from .mapping import scalar
 from .naming import LOCAL_PREFIX, RESERVED_MEMBERS, identifier, pascal
@@ -30,6 +31,8 @@ L = LOCAL_PREFIX
 
 
 def supported_part(part: CallbackPart) -> bool:
+    if isinstance(part.type, ContainerType):
+        return part.element is not None
     return isinstance(part.type, ScalarType | EnumRef | StructRef | StringType)
 
 
@@ -225,6 +228,8 @@ def result_type(entry: DirectorEntry, names: Names) -> str:
         return names.enum(part.enum)
     if isinstance(kind, StructRef) and part.struct is not None:
         return names.struct(part.struct)
+    if isinstance(kind, ContainerType):
+        return f"{element_of(part.element, names).public}[]"
     raise AssertionError(kind)
 
 

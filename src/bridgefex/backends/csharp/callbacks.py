@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from ...model import EnumRef, ScalarType, StringType, StructRef
+from ...model import ContainerKind, ContainerType, EnumRef, ScalarType, StringType, StructRef
 from ...plan import (
     CallbackPart,
     CallbackSpec,
@@ -58,6 +58,9 @@ class _Argument:
     public: str
     natives: tuple[str, ...]
     read: str
+    prelude: tuple[str, ...] = ()
+    """Statements that run before the call (a container that is converted is built there):
+    ``{v}`` is a local of the argument, ``{i}`` its index."""
 
 
 def _element(part: CallbackPart, names: Names) -> Element:
@@ -81,7 +84,41 @@ def _argument(part: CallbackPart, names: Names) -> _Argument:
         return _Argument(
             element.public, (element.native,), element.from_native.replace("{}", "{0}")
         )
+    if isinstance(type_, ContainerType):
+        return _container_argument(part, type_, names)
     raise Unsupported(f"the type '{type_.cpp_spelling}' of an argument of a callback")
+
+
+def _container_argument(part: CallbackPart, type_: ContainerType, names: Names) -> _Argument:
+    """A container that C++ gives to an override: a span over what C++ holds (it is only valid
+    while the override runs, and a span cannot be kept), or an array if its elements have to be
+    converted."""
+    element = element_of(part.element, names)
+    span = f"global::System.ReadOnlySpan<{element.public}>"
+    pointer = f"{element.native}*"
+    natives: tuple[str, ...]
+    if type_.kind is ContainerKind.ARRAY:
+        natives = (pointer,)
+        count = f"Runtime.Count({{0}}, {type_.length})"
+    else:
+        natives = (pointer, "nuint")
+        count = "Runtime.Count({0}, {1})"
+    if element.pinnable:
+        return _Argument(span, natives, f"new {span}(({element.public}*){{0}}, {count})")
+    if element.kind == "struct":
+        value = f"{element.public}.FromNative(&{{0}}[{{i}}])"
+    elif element.kind == "string":
+        value = "Runtime.TakeText((nint){0}[{i}].Data, {0}[{i}].Size)"
+    else:
+        value = element.from_native.replace("{}", "{0}[{i}]")
+    prelude = (
+        f"var {{v}} = new {element.public}[{count}];",
+        "for (int {i} = 0; {i} < {v}.Length; {i}++)",
+        "{",
+        f"    {{v}}[{{i}}] = {value};",
+        "}",
+    )
+    return _Argument(span, natives, "{v}", prelude)
 
 
 def public_of(part: CallbackPart, names: Names) -> str:
@@ -126,6 +163,26 @@ class Thunk:
     """The function pointer type, to take the address of the method."""
 
     body: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Sinks:
+    """The functions of the C layer that set what an override gives back."""
+
+    string: str
+    vector: str
+    strings: str
+
+
+def sinks_of(plan: ModulePlan) -> Sinks:
+    return Sinks(plan.string_sink_set, plan.vector_sink_set, plan.vector_sink_set_strings)
+
+
+def _fill(text: str, locals_: list[str], position: int) -> str:
+    """The expression or statement of an argument, with its C parameters and its locals."""
+    for index, local in enumerate(locals_):
+        text = text.replace(f"{{{index}}}", local)
+    return text.replace("{v}", f"c{position}").replace("{i}", f"i{position}")
 
 
 def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Thunk:
@@ -183,7 +240,7 @@ def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Th
 
 
 def _director_thunk(
-    name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sink_set: str
+    name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sinks: Sinks
 ) -> Thunk:
     """The thunk of a virtual method: it finds the C# object of the director and calls
     ``method``."""
@@ -192,6 +249,7 @@ def _director_thunk(
     parameters = ["void* userData"]
     pointer = ["void*"]
     values: list[str] = []
+    before: list[str] = []
     for position, argument in enumerate(arguments, start=1):
         locals_ = []
         for index, native in enumerate(argument.natives):
@@ -199,12 +257,11 @@ def _director_thunk(
             parameters.append(f"{native} {local}")
             pointer.append(native)
             locals_.append(local)
-        expression = argument.read
-        for index, local in enumerate(locals_):
-            expression = expression.replace(f"{{{index}}}", local)
-        values.append(expression)
+        before += [_fill(line, locals_, position) for line in argument.prelude]
+        values.append(_fill(argument.read, locals_, position))
     result = callback.result
     kind = result.type
+    what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
     call = f"target.{method}({', '.join(values)})"
     give: list[str] = []
     if isinstance(kind, ScalarType) and kind.is_void:
@@ -220,8 +277,7 @@ def _director_thunk(
                     "if (value is null)",
                     "{",
                     "    throw new global::System.InvalidOperationException("
-                    f'"the override {root.rsplit(".", 1)[-1]}.{entry.name} returned null for a '
-                    'std::string");',
+                    f'"the override {what} returned null for a std::string");',
                     "}",
                 ]
                 if nullable is not None
@@ -232,7 +288,7 @@ def _director_thunk(
                 '    byte[] bytes = Runtime.Utf8(value, "result");',
                 "    fixed (byte* text = bytes)",
                 "    {",
-                f"        Native.{sink_set}(sink, text, (nuint)bytes.Length);",
+                f"        Native.{sinks.string}(sink, text, (nuint)bytes.Length);",
                 "    }",
                 "}",
             ]
@@ -241,13 +297,16 @@ def _director_thunk(
             parameters.append(f"{out.native}* result")
             pointer.append(f"{out.native}*")
             give = ["value.ToNative(result);"]
+        elif isinstance(kind, ContainerType):
+            parameters.append("nint sink")
+            pointer.append("nint")
+            give = _container_result(kind, result, names, what, sinks)
         else:
             out = _element(result, names)
             parameters.append(f"{out.native}* result")
             pointer.append(f"{out.native}*")
             if out.check is not None:
                 low, high = out.check
-                what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
                 give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
             give.append(f"*result = {_to_native(out, 'value')};")
     pointer.append("void")
@@ -267,6 +326,7 @@ def _director_thunk(
         'keep a reference to it while C++ uses it");',
         "    }",
         "    using var running = box.Enter();",
+        *(f"    {line}" for line in before),
         *(f"    {line}" for line in statement),
         *(f"    {line}" for line in give),
         "}",
@@ -276,6 +336,74 @@ def _director_thunk(
         "}",
     ]
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
+
+
+def _container_result(
+    type_: ContainerType, part: CallbackPart, names: Names, what: str, sinks: Sinks
+) -> list[str]:
+    """The statements that give C++ the array that an override returned: C++ copies it into the
+    container before the thunk returns."""
+    element = element_of(part.element, names)
+    shape = "std::array" if type_.kind is ContainerKind.ARRAY else "std::vector"
+    lines = [
+        "if (value is null)",
+        "{",
+        "    throw new global::System.InvalidOperationException("
+        f'"the override {what} returned null for a {shape}");',
+        "}",
+    ]
+    if type_.kind is ContainerKind.ARRAY:
+        lines += [
+            f"if (value.Length != {type_.length})",
+            "{",
+            "    throw new global::System.InvalidOperationException("
+            f'"the override {what} returned " + value.Length + " elements for a std::array of '
+            f'{type_.length}");',
+            "}",
+        ]
+    if element.kind == "string":
+        return [
+            *lines,
+            'using var block = StringBlock.Make(value, "result");',
+            f"Native.{sinks.strings}(sink, block.Pointer, (nuint)value.Length);",
+        ]
+    check: list[str] = []
+    if element.check is not None:
+        low, high = element.check
+        check = [
+            "for (int i = 0; i < value.Length; i++)",
+            "{",
+            f'    box.CheckResult((long)value[i], {low}, {high}, "{what}[" + i + "]");',
+            "}",
+        ]
+    size = f"(nuint)sizeof({element.native})"
+    if element.pinnable:
+        return (
+            lines
+            + check
+            + [
+                f"fixed ({element.public}* data = value)",
+                "{",
+                f"    Native.{sinks.vector}(sink, data, (nuint)value.Length, {size});",
+                "}",
+            ]
+        )
+    if element.kind == "struct":
+        convert = "value[i].ToNative(&block.Pointer[i]);"
+    else:
+        convert = f"block.Pointer[i] = {element.to_native.replace('{}', 'value[i]')};"
+    return (
+        lines
+        + check
+        + [
+            f"using var block = Block<{element.native}>.Alloc(value.Length);",
+            "for (int i = 0; i < value.Length; i++)",
+            "{",
+            f"    {convert}",
+            "}",
+            f"Native.{sinks.vector}(sink, block.Pointer, (nuint)value.Length, {size});",
+        ]
+    )
 
 
 @dataclass(slots=True)
@@ -317,12 +445,12 @@ class ThunkTable:
         entry: DirectorEntry,
         *,
         names: Names,
-        sink_set: str,
+        sinks: Sinks,
     ) -> None:
         """The thunk ``name`` of a virtual method of the C# class ``root``."""
         if name not in self._directors:
             self._directors[name] = _director_thunk(
-                name, root, method, entry, names=names, sink_set=sink_set
+                name, root, method, entry, names=names, sinks=sinks
             )
 
     def address(self, key: str, callback: CallbackSpec, names: Names) -> str:
@@ -361,4 +489,4 @@ class ThunkTable:
         return lines
 
 
-__all__ = ["ThunkTable", "delegate_type", "has_callbacks"]
+__all__ = ["ThunkTable", "delegate_type", "has_callbacks", "sinks_of"]

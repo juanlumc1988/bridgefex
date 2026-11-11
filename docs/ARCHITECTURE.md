@@ -205,7 +205,14 @@ base's methods copied into the class); a garbage collector does not order finali
 C++ object keeps pointers to is held (`Keep`) until the object has been destroyed; C++ can call a
 callback on any thread and a managed exception must not cross it, so a thunk catches it and a
 `CallScope` (the call that gave the callback, or the innermost one of the thread) raises it when C++
-returns. What a
+returns (a scope that gave no callback is reached by its own thread only, so it takes no lock and the
+thread reuses it). The container of an override is a `ReadOnlySpan<T>` over what C++ holds (a
+span cannot be kept, so it cannot outlive the call), or an array if its elements are converted, and
+the result is a `T[]` that C++ copies through the sink of the vtable before the thunk returns. The
+classes that C++ calls back are annotated `DynamicallyAccessedMembers`, so that the trimmer and the
+native AOT compiler keep the methods of the classes of the user that the constructors read by
+reflection; the project turns the analyzers of both on, so that the generation check fails on a
+warning. What a
 backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`
 that says so, instead of a half-working class.
 
