@@ -8,5 +8,6 @@
     <RootNamespace>Cont</RootNamespace>
     <AssemblyName>Cont.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

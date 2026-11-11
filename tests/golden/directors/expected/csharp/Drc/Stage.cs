@@ -23,6 +23,7 @@ internal sealed class StageHandle : ObjectHandle
 /// <summary>
 /// drc::Stage
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Stage : BridgefexObject
 {
     internal Stage(ObjectHandle handle) : base(handle)
@@ -37,7 +38,7 @@ public unsafe partial class Stage : BridgefexObject
     [BridgefexFunction("drc_Stage_director_create_void")]
     protected Stage() : base(new StageHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 6);
         Native.drc_Stage_vtable __vt = default;
@@ -61,7 +62,7 @@ public unsafe partial class Stage : BridgefexObject
     [BridgefexFunction("drc_Stage_director_create_int32")]
     protected Stage(int steps) : base(new StageHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 6);
         Native.drc_Stage_vtable __vt = default;
@@ -175,23 +176,36 @@ public unsafe partial class Stage : BridgefexObject
 
     internal global::Drc.Shape.Point BridgefexOrigin_() => Origin_();
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Stage.Stage), "Step", new global::System.Type[] { typeof(global::Drc.Shape.Mode), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Stage.Stage), "Origin_", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),
-        });
-        if (!always && (type == typeof(Stage) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Stage.Stage), "Step", new global::System.Type[] { typeof(global::Drc.Shape.Mode), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Stage.Stage), "Origin_", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Stage.Stage) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        if (!found[0])
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
         {
-            throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Stage.step");
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Stage) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            if (!found[0])
+            {
+                throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Stage.step");
+            }
+            return found;
         }
-        return found;
     }
 }

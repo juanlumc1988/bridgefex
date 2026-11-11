@@ -8,5 +8,6 @@
     <RootNamespace>Drc</RootNamespace>
     <AssemblyName>Drc.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

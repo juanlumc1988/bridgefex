@@ -341,3 +341,30 @@ def test_two_modules_can_be_compiled_into_one_assembly(
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert completed.stdout.split() == ["12", "12"]
+
+
+# -- Trimmed and native AOT --------------------------------------------------------------------
+#
+# A program that is trimmed, or compiled ahead of time, keeps what it can see used. C++ calls the
+# overrides of a class of the user through function pointers, and the bindings find which methods
+# a class overrides by reflection: these are the cases where that matters.
+
+REDUCED = ("directors", "directors_edge", "callbacks", "containers")
+
+
+@pytest.mark.parametrize("mode", ["trim", "aot"])
+@pytest.mark.parametrize("name", REDUCED)
+def test_the_check_runs_when_published_trimmed_or_ahead_of_time(
+    name: str,
+    mode: str,
+    toolchain: Toolchain,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    case = next(case for case in CASES if case.name == name)
+    directory = tmp_path_factory.mktemp(f"csharp_{mode}_{name}")
+    library, output = build(case, toolchain, directory)
+    executable = runner_csharp.publish_program(case, output, case.check_csharp, "Check", mode)
+    assert executable is not None
+    completed = runner_csharp.execute_native(case, executable, library)
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout

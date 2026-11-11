@@ -8,5 +8,6 @@
     <RootNamespace>Vals</RootNamespace>
     <AssemblyName>Vals.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

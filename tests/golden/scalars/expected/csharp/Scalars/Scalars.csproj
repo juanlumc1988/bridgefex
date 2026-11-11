@@ -8,5 +8,6 @@
     <RootNamespace>Scalars</RootNamespace>
     <AssemblyName>Scalars.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

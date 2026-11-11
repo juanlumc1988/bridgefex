@@ -479,7 +479,7 @@ def _constructors(
                 made = lower_callable(
                     director_ctor, names, plan, prelude=directors.vtable_prelude(names, d)
                 )
-                src.line(f"bool[]? {LOCAL_PREFIX}over = DirectorOverrides(GetType(), false);")
+                src.line(f"bool[]? {LOCAL_PREFIX}over = DirectorOverrides.Of(GetType(), false);")
                 src.open(f"if ({LOCAL_PREFIX}over is null)")
                 src.lines_of(item.body)
                 src.close()
@@ -530,7 +530,7 @@ def _protected_constructors(
         src.remarks(made.remarks)
         src.line(f'[BridgefexFunction("{director_ctor.function.name}")]')
         src.open(f"protected {name}({', '.join(made.parameters)}) : base(new {handle}())")
-        src.line(f"bool[] {LOCAL_PREFIX}over = DirectorOverrides(GetType(), true)!;")
+        src.line(f"bool[] {LOCAL_PREFIX}over = DirectorOverrides.Of(GetType(), true)!;")
         src.lines_of(made.body)
         src.close()
 
@@ -543,6 +543,9 @@ def _class(
     base = names.classes[cls.bases[0].c_type] if cls.bases else "BridgefexObject"
     _handle_class(src, cls, handle)
     src.doc(cls.model.qualified_name)
+    if cls.c_type in names.directors or cls.c_type in names.guarded:
+        # The constructors read the overrides of the class of the object by reflection.
+        src.line(directors.ANNOTATION.strip())
     src.open(f"public unsafe partial class {name} : {base}")
     taken: dict[str, str] = {}
     inherited = _inherited_names(cls, by_type)

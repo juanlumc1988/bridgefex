@@ -639,6 +639,25 @@ def generate_with_directors(
     return bridgefex.generate([header], options).files
 
 
+def test_the_bindings_are_marked_for_the_trimmer_and_native_aot(tmp_path: Path) -> None:
+    """The classes that C++ calls back are annotated, so that what is trimmed or compiled ahead of
+    time keeps the methods of the classes of the user (the bindings read them by reflection), and
+    the project has the analyzers of both on: the compiler checks what is annotated."""
+    files = generate_with_directors(
+        tmp_path, DIRECTOR_CODE + "\nclass Plain { public: int a(); };", ["mod_B", "mod_D"]
+    )
+    project = next(text for path, text in files.items() if path.endswith(".csproj"))
+    assert "<IsAotCompatible>true</IsAotCompatible>" in project
+    text = files["csharp/Mod/Api.cs"]
+    annotated = re.findall(
+        r"DynamicallyAccessedMembers\([^\n]*\)\]\n\s*public unsafe partial class (\w+)", text
+    )
+    assert annotated == ["B", "D"]
+    # The methods that read the types are in a class that is not annotated.
+    assert text.count("private static class DirectorOverrides") == 2
+    assert "DirectorOverrides.Of(GetType(), " in text
+
+
 def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
     text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
     # A virtual method is virtual in the class that declares it, and an override below it.
@@ -653,7 +672,7 @@ def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
     assert "public int Total(" in text
     assert "virtual int Total" not in text
     # A pure virtual method has to be overridden when the object is made.
-    assert "DirectorOverrides(GetType(), true)" in text
+    assert "DirectorOverrides.Of(GetType(), true)" in text
 
 
 def test_a_class_with_a_director_checks_what_a_class_of_the_user_overrides(
@@ -661,7 +680,7 @@ def test_a_class_with_a_director_checks_what_a_class_of_the_user_overrides(
 ) -> None:
     files = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])
     text = files["csharp/Mod/Api.cs"]
-    assert 'DirectorBox.Overrides(t, typeof(global::Mod.Api.B), "G"' in text
+    assert 'DirectorBox.Overrides(type, typeof(global::Mod.Api.B), "G"' in text
     assert "must override the pure virtual method B.g" in text
     # The module has the runtime of the directors; one without them does not.
     assert "internal sealed class DirectorBox" in files["csharp/Mod/BridgefexCallbacks.cs"]

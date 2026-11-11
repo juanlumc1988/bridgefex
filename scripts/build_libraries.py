@@ -161,6 +161,7 @@ CHECK_PROJECT = """\
     <SelfContained>true</SelfContained>
     <TieredPGO>false</TieredPGO>
     <UseAppHost>true</UseAppHost>
+    {reduce}
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="{program}" />
@@ -168,6 +169,10 @@ CHECK_PROJECT = """\
   </ItemGroup>
 </Project>
 """
+
+
+TRIM = "<PublishTrimmed>true</PublishTrimmed><TrimMode>full</TrimMode>"
+"""What a deployment on a small device does: the trimmer removes what the program does not use."""
 
 
 @dataclass(frozen=True)
@@ -264,9 +269,10 @@ class Build:
             ]
         )
 
-    def run_csharp(self, runtime: str, clang_args: tuple[str, ...]) -> None:
+    def run_csharp(self, runtime: str, clang_args: tuple[str, ...], *, trim: bool = False) -> None:
         """The C# check of the case, built with the bindings and published self-contained for
-        ``runtime``, run by the runner against the shared library of the case."""
+        ``runtime`` (trimmed if ``trim``), run by the runner against the shared library of the
+        case."""
         program = self.case.check_csharp
         if program is None:
             raise SystemExit(f"the case '{self.case.name}' has no check_csharp.cs")
@@ -276,7 +282,10 @@ class Build:
         directory.mkdir(exist_ok=True)
         (directory / "Check.csproj").write_text(
             CHECK_PROJECT.format(
-                runtime=runtime, program=program.as_posix(), project=project.as_posix()
+                runtime=runtime,
+                program=program.as_posix(),
+                project=project.as_posix(),
+                reduce=TRIM if trim else "",
             ),
             encoding="utf-8",
         )
@@ -539,6 +548,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="also run the C# check of this golden case for --csharp-runtime, with --runner "
         "(repeatable; it is built and its C program run first, like a --check-case)",
     )
+    parser.add_argument(
+        "--csharp-trim",
+        action="store_true",
+        help="publish the C# checks trimmed (what a deployment on a small device does)",
+    )
     parser.add_argument("--runner", default="", help="command that runs a program of the target")
     parser.add_argument("--work", type=Path, help="working directory (default: temporary)")
     args = parser.parse_args(argv)
@@ -573,13 +587,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.csharp_check and not args.csharp_runtime:
         raise SystemExit("--csharp-check needs --csharp-runtime")
+    if args.csharp_trim and not args.csharp_check:
+        raise SystemExit("--csharp-trim needs --csharp-check")
     if args.csharp_runtime and shutil.which("dotnet") is None:
         raise SystemExit("--csharp-runtime needs the .NET SDK (dotnet)")
     # The cases that are only checked first: nothing is packaged if one fails.
     for name in args.check_case:
         built(name)
     for name in args.csharp_check:
-        built(name).run_csharp(args.csharp_runtime, clang_args)
+        built(name).run_csharp(args.csharp_runtime, clang_args, trim=args.csharp_trim)
     main_build = built(args.case)
     if args.csharp_runtime:
         main_build.compile_csharp(args.csharp_runtime, clang_args)

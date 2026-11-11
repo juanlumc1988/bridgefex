@@ -8,5 +8,6 @@
     <RootNamespace>Inh</RootNamespace>
     <AssemblyName>Inh.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

@@ -14,6 +14,7 @@ import dataclasses
 import json
 import math
 import os
+import platform
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -50,6 +51,39 @@ _PROJECT = """\
   </ItemGroup>
 </Project>
 """
+
+
+_PUBLISH_PROJECT = """\
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>BridgefexRunner</RootNamespace>
+    <AssemblyName>{name}</AssemblyName>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RuntimeIdentifier>{runtime}</RuntimeIdentifier>
+    {mode}
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="{program}" />
+    <ProjectReference Include="{project}" />
+  </ItemGroup>
+</Project>
+"""
+
+PUBLISH_MODES = {
+    # The trimmer removes everything that it cannot see used, assemblies of the framework included.
+    "trim": "<SelfContained>true</SelfContained><PublishTrimmed>true</PublishTrimmed>"
+    "<TrimMode>full</TrimMode>",
+    # Native AOT: no JIT, no reflection metadata that nothing asks for.
+    "aot": "<PublishAot>true</PublishAot>",
+}
 
 
 def environment() -> dict[str, str]:
@@ -138,6 +172,86 @@ def execute(
     """Run a built program with the library of ``case``."""
     return subprocess.run(
         ["dotnet", str(dll), *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**environment(), f"{case.module.upper()}_LIBRARY": str(library)},
+        timeout=600,
+    )
+
+
+def host_runtime() -> str | None:
+    """The .NET runtime identifier of this machine, or None if it is not one that is tested."""
+    system = {"Linux": "linux", "Darwin": "osx", "Windows": "win"}.get(platform.system())
+    machine = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}.get(
+        platform.machine().lower()
+    )
+    if system is None or machine is None:
+        return None
+    return f"{system}-{machine}"
+
+
+def publish_program(case: Case, output: Path, program: Path, name: str, mode: str) -> Path | None:
+    """``program`` built with the bindings of ``case`` and published as a self-contained
+    executable that the trimmer (``mode`` "trim") or the native AOT compiler ("aot") has
+    reduced: the executable. None if the machine cannot do it (no packages of the SDK to
+    download, no C compiler for native AOT): a failure then, if the CI requires it. Raises
+    RuntimeError if the program does not publish."""
+    runtime = host_runtime()
+    if runtime is None:
+        pytest.skip(f"no runtime identifier for {platform.system()} {platform.machine()}")
+    work = output / f"csharp-{name}-{mode}"
+    executable = work / "publish" / (name + (".exe" if platform.system() == "Windows" else ""))
+    if executable.exists():
+        return executable
+    options = dataclasses.replace(case.options(("csharp",)), verify=False)
+    result = bridgefex.generate(case.headers, options)
+    generated = work / "generated"
+    bridgefex.write_files(result.files, generated)
+    project = next(generated / path for path in result.files if path.endswith(".csproj"))
+    (work / f"{name}.csproj").write_text(
+        _PUBLISH_PROJECT.format(
+            program=program.as_posix(),
+            project=project.as_posix(),
+            name=name,
+            runtime=runtime,
+            mode=PUBLISH_MODES[mode],
+        ),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [
+            "dotnet",
+            "publish",
+            str(work / f"{name}.csproj"),
+            "-c",
+            "Release",
+            "-nologo",
+            "-v",
+            "q",
+            "-p:UseSharedCompilation=false",
+            "-o",
+            str(work / "publish"),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment(),
+        timeout=1800,
+    )
+    if completed.returncode != 0:
+        text = completed.stdout + completed.stderr
+        missing = ("NU1101", "NU1102", "NU1301", "Unable to find package", "platform linker")
+        if any(word in text for word in missing) and os.environ.get(ENV_REQUIRED) != "1":
+            pytest.skip("the packages or the linker of this publish mode are not available")
+        raise RuntimeError(f"{name} does not publish ({mode}):\n" + text)
+    return executable
+
+
+def execute_native(case: Case, executable: Path, library: Path) -> subprocess.CompletedProcess[str]:
+    """Run a published executable with the library of ``case``."""
+    return subprocess.run(
+        [str(executable)],
         capture_output=True,
         text=True,
         check=False,

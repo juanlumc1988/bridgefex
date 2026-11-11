@@ -89,7 +89,7 @@ jobs:
             --cc arm-linux-gnueabihf-gcc-14 --cxx arm-linux-gnueabihf-g++-14 \
             --ar arm-linux-gnueabihf-ar --clang-target armv7a-linux-gnueabihf \
             --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
-            --csharp-runtime linux-arm \
+            --csharp-runtime linux-arm --csharp-trim \
             --csharp-check containers --csharp-check spans --csharp-check callbacks --csharp-check directors \
             --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)

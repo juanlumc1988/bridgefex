@@ -422,8 +422,14 @@ internal sealed class DirectorBox : CallbackBox
     /// <summary>True if a class of the user overrides the virtual method of <paramref name="root"/> with these
     /// parameters (the classes that were generated do not count; a method that hides it with <c>new</c> does not
     /// override it, and an override above it still does).</summary>
+    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075",
+        Justification = "The types that are walked derive from a class that is annotated to keep its methods.")]
     internal static bool Overrides(
-        global::System.Type type,
+        [global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods
+            | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type,
         global::System.Type root,
         string name,
         global::System.Type[] parameters,
@@ -469,7 +475,15 @@ internal sealed class DirectorBox : CallbackBox
 
     /// <summary>A class of the user that derives from <paramref name="generated"/>, whose C++ class has no director
     /// (or one that C# cannot use), cannot have its overrides called by C++: it is refused.</summary>
-    internal static void RefuseOverrides(global::System.Type type, global::System.Type generated)
+    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075",
+        Justification = "The types that are walked derive from a class that is annotated to keep its methods.")]
+    internal static void RefuseOverrides(
+        [global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods
+            | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type,
+        global::System.Type generated)
     {
         for (global::System.Type? current = type; current is not null && current != generated; current = current.BaseType)
         {

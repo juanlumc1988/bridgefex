@@ -67,6 +67,7 @@ internal sealed class BeamHandle : ObjectHandle
 /// <summary>
 /// drc::Beam
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Beam : BridgefexObject
 {
     internal Beam(ObjectHandle handle) : base(handle)
@@ -81,7 +82,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_create")]
     public Beam(int length) : base(new BeamHandle())
     {
-        bool[]? __over = DirectorOverrides(GetType(), false);
+        bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
             using var __scope = new CallScope();
@@ -116,7 +117,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_director_create_void")]
     protected Beam() : base(new BeamHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
@@ -139,7 +140,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_director_create_string")]
     protected Beam(string label) : base(new BeamHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
@@ -241,19 +242,32 @@ public unsafe partial class Beam : BridgefexObject
         return __result;
     }
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Beam), "Length", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Beam) }),
-        });
-        if (!always && (type == typeof(Beam) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Beam), "Length", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Beam) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        return found;
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
+        {
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Beam) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            return found;
+        }
     }
 }
 
@@ -274,6 +288,7 @@ internal sealed class ShapeHandle : ObjectHandle
 /// <summary>
 /// drc::Shape
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Shape : BridgefexObject
 {
     internal Shape(ObjectHandle handle) : base(handle)
@@ -288,7 +303,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_director_create_void")]
     protected Shape() : base(new ShapeHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
@@ -322,7 +337,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_director_create_string_int32")]
     protected Shape(string label, int sides) : base(new ShapeHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
         using var __scope = new CallScope();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
@@ -1934,47 +1949,60 @@ public unsafe partial class Shape : BridgefexObject
 
     internal void BridgefexChanged(int reason) => Changed(reason);
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-        });
-        if (!always && (type == typeof(Shape) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        if (!found[0])
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
         {
-            throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Shape.area");
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Shape) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            if (!found[0])
+            {
+                throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Shape.area");
+            }
+            return found;
         }
-        return found;
     }
 }
 
@@ -1995,6 +2023,7 @@ internal sealed class CircleHandle : ObjectHandle
 /// <summary>
 /// drc::Circle
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Circle : global::Drc.Shape.Shape
 {
     internal Circle(ObjectHandle handle) : base(handle)
@@ -2009,7 +2038,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Circle_create")]
     public Circle(double radius) : base(new CircleHandle())
     {
-        bool[]? __over = DirectorOverrides(GetType(), false);
+        bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
             using var __scope = new CallScope();
@@ -2206,43 +2235,56 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         return __result;
     }
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-        });
-        if (!always && (type == typeof(Circle) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        return found;
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
+        {
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Circle) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            return found;
+        }
     }
 }
 
@@ -2263,6 +2305,7 @@ internal sealed class DotHandle : ObjectHandle
 /// <summary>
 /// drc::Dot
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Dot : global::Drc.Shape.Shape
 {
     internal Dot(ObjectHandle handle) : base(handle)

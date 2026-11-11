@@ -281,19 +281,34 @@ def virtual_body(
     return lines
 
 
+ANNOTATION = (
+    "[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers("
+    "global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods "
+    "| global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] "
+)
+"""The annotation of a class and of the parameter that receives its ``GetType()``: the trimmer
+and the native AOT compiler keep the methods of the classes that derive from it, which
+``DirectorOverrides`` reads by reflection. A method with an annotated parameter cannot be in an
+annotated class, so those are in a nested class."""
+
+
 def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
-    """``DirectorOverrides``: which virtual methods does the C# class of an object override."""
+    """``DirectorOverrides.Of``: which virtual methods does the C# class of an object override."""
     cls = d.cls
     name = pascal(cls.model.name)
     generated = ", ".join(f"typeof({names.classes[item.c_type]})" for item in d.chain)
     src.line()
+    src.open("private static class DirectorOverrides")
     src.line(
         "private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<"
-        "global::System.Type, bool[]> s_overrides = new();"
+        "global::System.Type, bool[]> s_found = new();"
     )
     src.line()
-    src.open("private static bool[]? DirectorOverrides(global::System.Type type, bool always)")
-    src.open("bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]")
+    src.open(f"private static bool[] Read({ANNOTATION}global::System.Type type)")
+    src.open("if (s_found.TryGetValue(type, out bool[]? known))")
+    src.line("return known;")
+    src.close()
+    src.open("bool[] found = new bool[]")
     for slot in d.slots:
         if not slot.ok:
             src.line("false,")
@@ -303,11 +318,16 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
         )
         root = names.classes[slot.root.c_type]
         src.line(
-            f'DirectorBox.Overrides(t, typeof({root}), "{slot.name}", '
+            f'DirectorBox.Overrides(type, typeof({root}), "{slot.name}", '
             f"new global::System.Type[] {{ {parameters} }}, "
             f"new global::System.Type[] {{ {generated} }}),"
         )
-    src.close(");")
+    src.close(";")
+    src.line("return s_found.GetOrAdd(type, found);")
+    src.close()
+    src.line()
+    src.open(f"internal static bool[]? Of({ANNOTATION}global::System.Type type, bool always)")
+    src.line("bool[] found = Read(type);")
     src.line(
         f"if (!always && (type == typeof({name}) || !global::System.Array.Exists(found, x => x)))"
     )
@@ -325,6 +345,7 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
             )
             src.close()
     src.line("return found;")
+    src.close()
     src.close()
 
 

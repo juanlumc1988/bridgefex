@@ -149,11 +149,13 @@ def test_the_csharp_bindings_are_compiled_for_a_runtime(
 
 
 @pytest.mark.usefixtures("dotnet")
+@pytest.mark.parametrize("trim", [False, True], ids=["whole", "trimmed"])
 def test_the_csharp_check_of_a_case_is_published_and_run(
-    toolchain: Toolchain, tmp_path: Path
+    toolchain: Toolchain, tmp_path: Path, trim: bool
 ) -> None:
-    """What the armhf job does with ``--csharp-check`` (there under QEMU): the check of the case is
-    published self-contained for the runtime and run against the library of the case."""
+    """What the armhf job does with ``--csharp-check`` (there under QEMU, trimmed): the check of
+    the case is published self-contained for the runtime and run against the library of the
+    case."""
     runtime = _host_runtime()
     if runtime is None:
         pytest.skip("not a runtime of the CI")
@@ -174,6 +176,7 @@ def test_the_csharp_check_of_a_case_is_published_and_run(
         runtime,
         "--csharp-check",
         "containers",
+        *(["--csharp-trim"] if trim else []),
     ]
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -198,6 +201,27 @@ def test_a_csharp_check_needs_a_runtime(toolchain: Toolchain, tmp_path: Path) ->
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert completed.returncode != 0
     assert "--csharp-check needs --csharp-runtime" in completed.stdout + completed.stderr
+
+
+def test_a_trimmed_csharp_check_needs_a_check(toolchain: Toolchain, tmp_path: Path) -> None:
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--target",
+        "host",
+        "--output",
+        str(tmp_path / "dist"),
+        "--cc",
+        toolchain.cc,
+        "--cxx",
+        toolchain.cxx,
+        "--csharp-runtime",
+        "linux-x64",
+        "--csharp-trim",
+    ]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert completed.returncode != 0
+    assert "--csharp-trim needs --csharp-check" in completed.stdout + completed.stderr
 
 
 def test_a_case_that_is_checked_and_run_in_csharp_is_built_once(
