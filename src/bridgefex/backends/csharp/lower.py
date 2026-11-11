@@ -70,6 +70,9 @@ class Names:
     """The classes (by C type) that derive from one of those but cannot be derived from themselves:
     C++ would not call the overrides of a C# class that derives from them."""
 
+    lent: frozenset[str] = frozenset()
+    """The classes (by C type) that an override takes or gives as objects."""
+
     thunks: callbacks.ThunkTable = field(default_factory=callbacks.ThunkTable)
     """The thunks that the wrappers use (they are added as the wrappers are lowered)."""
 
@@ -502,6 +505,7 @@ class _Lowerer:
             out.after_call = [
                 f"Handle.Assign({L}result);",
                 f"{L}box.Pointer = {L}director;",
+                f"{L}box.Publish({L}result);",
                 f"SetDirector({L}box);",
             ]
             return out

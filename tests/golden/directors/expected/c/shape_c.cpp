@@ -1434,9 +1434,6 @@ drc_status drc_Shape_same(const drc_Shape* self, const drc_Shape* other, bool* o
     if (self == nullptr) {
         return drc_detail::null_argument("drc_Shape_same: 'self' is NULL");
     }
-    if (other == nullptr) {
-        return drc_detail::null_argument("drc_Shape_same: 'other' is NULL");
-    }
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_same: 'out_result' is NULL");
     }

@@ -353,6 +353,7 @@ REDUCED = (
     "directors",
     "directors_edge",
     "directors_containers",
+    "directors_objects",
     "callbacks",
     "callbacks_edge",
     "containers",

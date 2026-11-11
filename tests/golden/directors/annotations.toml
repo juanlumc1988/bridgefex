@@ -4,3 +4,7 @@ directors = ["drc_Shape", "drc_Circle", "drc_Stage", "drc_Beam"]
 # A pointer that may be NULL (None).
 [drc_Shape_call_same]
 other = "nullable"
+
+# The override gets null when C++ passes NULL.
+[drc_Shape_same]
+other = "nullable"

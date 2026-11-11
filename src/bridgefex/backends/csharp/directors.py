@@ -15,7 +15,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, ContainerType, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    Access,
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import public_of
 from .elements import element_of
@@ -33,6 +41,8 @@ L = LOCAL_PREFIX
 def supported_part(part: CallbackPart) -> bool:
     if isinstance(part.type, ContainerType):
         return part.element is not None
+    if isinstance(part.type, ClassRef):
+        return part.cls is not None
     return isinstance(part.type, ScalarType | EnumRef | StructRef | StringType)
 
 
@@ -230,7 +240,22 @@ def result_type(entry: DirectorEntry, names: Names) -> str:
         return names.struct(part.struct)
     if isinstance(kind, ContainerType):
         return f"{element_of(part.element, names).public}[]"
+    if isinstance(kind, ClassRef) and part.cls is not None:
+        return names.cls(part.cls) + "?"
     raise AssertionError(kind)
+
+
+def object_classes(derivable: dict[str, DirectorClass]) -> frozenset[str]:
+    """The classes (by C type) that an override takes or gives as objects."""
+    found: set[str] = set()
+    for d in derivable.values():
+        for slot in d.slots:
+            if not slot.ok:
+                continue
+            for part in (*slot.entry.callback.arguments, slot.entry.callback.result):
+                if isinstance(part.type, ClassRef) and part.cls is not None:
+                    found.add(part.cls.c_type)
+    return frozenset(found)
 
 
 def _indent(lines: list[str], width: int) -> list[str]:

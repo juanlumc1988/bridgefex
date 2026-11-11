@@ -1380,8 +1380,12 @@ class Shape(_runtime.Object):
         if self._director is not None:
             return self._base_same(other)
         _out = ctypes.c_bool()
-        _runtime.check_object(other, Shape, "other")
-        _runtime.check(_bind().drc_Shape_same(self._ptr_drc_Shape(), other._ptr_drc_Shape(), _out))
+        _runtime.check_object(other, Shape, "other", nullable=True)
+        _runtime.check(_bind().drc_Shape_same(
+            self._ptr_drc_Shape(),
+            (other._ptr_drc_Shape() if other is not None else None),
+            _out,
+        ))
         return _out.value
 
     def grow(self, beam):

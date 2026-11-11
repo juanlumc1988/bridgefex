@@ -586,7 +586,7 @@ def test_a_result_that_c_plus_plus_cannot_hold_is_checked_by_the_thunk(tmp_path:
 
 
 @pytest.mark.parametrize(
-    "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox"]
+    "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox", "Lent"]
 )
 def test_a_class_cannot_hide_a_type_of_the_callback_runtime(tmp_path: Path, name: str) -> None:
     code = f"#include <functional>\nvoid f(std::function<void()> g);\nstruct {name} {{ int a; }};"
@@ -697,21 +697,23 @@ def test_every_call_of_a_module_with_directors_can_raise_the_exception_of_an_ove
     assert "__scope.Check(__status);" in body
 
 
-def test_a_class_whose_pure_virtual_method_has_a_type_that_c_sharp_cannot_override_is_plain(
+def test_a_class_whose_pure_virtual_method_has_containers_and_objects_can_be_derived_from(
     tmp_path: Path,
 ) -> None:
     code = """
+#include <memory>
 #include <vector>
+class O { public: O(); virtual ~O(); virtual int o() const; };
 class P { public: P(); virtual ~P(); virtual int n(const std::vector<int>& v) const = 0;
-          virtual int k() const; };
-class Q { public: Q(); virtual ~Q(); virtual int k() const; };
+          virtual std::unique_ptr<O> m(const O& o) const = 0; virtual int k() const; };
 """
-    text = generate_with_directors(tmp_path, code, ["mod_P", "mod_Q"])["csharp/Mod/Api.cs"]
-    # P cannot be derived from (it would have to implement n): its methods are plain.
-    assert "virtual int N" not in text
-    assert "public int K()" in text
-    # Q can.
-    assert "public virtual int K()" in text
+    text = generate_with_directors(tmp_path, code, ["mod_P", "mod_O"])["csharp/Mod/Api.cs"]
+    # P is abstract: a class of the user has to implement both.
+    assert "protected P()" in text
+    assert "public virtual int N(global::System.ReadOnlySpan<int> v)" in text
+    assert "public virtual global::Mod.Api.O? M(global::Mod.Api.O o)" in text
+    assert "must override the pure virtual method P.n" in text
+    assert "must override the pure virtual method P.m" in text
 
 
 DIRECTOR_COMPILES = {
@@ -783,6 +785,28 @@ DIRECTOR_COMPILES = {
         " const std::vector<int>& box, const std::vector<int>& target, const std::vector<int>& c1,"
         " const std::vector<int>& a1d) const; };",
         ["mod_B"],
+    ),
+    "objects of every form in the signature": (
+        "#include <memory>\n"
+        "class N { public: N(); virtual ~N(); };\n"
+        "class P { public: P(); ~P(); };\n"
+        "class Q : public P { public: Q(); };\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual int a(const N& n) const; virtual int b(N& n) const;"
+        " virtual int c(const N* n) const; virtual int d(N* n) const;"
+        " virtual int e(std::unique_ptr<N> n) const;"
+        " virtual std::unique_ptr<N> f(int x) const;"
+        " virtual std::unique_ptr<P> g(int x) const;"
+        " virtual int h(std::unique_ptr<N> a, const N& b, std::unique_ptr<N> c) const; };",
+        ["mod_B"],
+    ),
+    "methods named like the helpers that objects get": (
+        "#include <memory>\n"
+        "class N { public: N(); virtual ~N(); virtual int lend_to_override() const;"
+        " virtual int adopt_from_cpp() const; };\n"
+        "class B { public: B(); virtual ~B(); virtual int a(const N& lent) const;"
+        " virtual std::unique_ptr<N> b(std::unique_ptr<N> o1, std::unique_ptr<N> passed) const; };",
+        ["mod_B", "mod_N"],
     ),
     "a method that is protected in the base and public in the derived class": (
         "class B { public: B(); virtual ~B(); protected: virtual int f() const; };\n"

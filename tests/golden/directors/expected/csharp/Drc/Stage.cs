@@ -52,6 +52,7 @@ public unsafe partial class Stage : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
+        __box.Publish(__result);
         SetDirector(__box);
         __scope.Check(__status);
     }
@@ -76,6 +77,7 @@ public unsafe partial class Stage : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
+        __box.Publish(__result);
         SetDirector(__box);
         __scope.Check(__status);
     }

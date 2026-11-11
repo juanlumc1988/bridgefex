@@ -88,6 +88,32 @@ using (var square = new Square())
     Check(square.CallFlags(new[] { true, false }).SequenceEqual(new[] { false, true }), "bool");
     Check(square.CallTriple(new[] { 1.0, 2.0, 3.0 }).SequenceEqual(new[] { 1.5, 3.0, 4.5 }), "std::array");
     Check(square.CallTotal(Array.Empty<int>()) == 0, "an empty vector");
+    // Objects: lent to the override during the call (a reference or a pointer), given to it, and given by it.
+    using (var holder = new Holder())
+    {
+        Check(square.CallPeek(holder) == 10, "a const reference to an object of C++");
+        holder.Put(new Square());
+        Check(square.CallPeek(holder) == 20, "the override sees what the holder holds");
+    }
+    using (var circle = new Circle(1.0))
+    {
+        Check(square.CallCompare(circle) == 4.0 - 3.0 + 100.0, "an object of C++, whose methods the override calls");
+        Check(!square.CallSame(circle), "another object is not this one");
+    }
+    Check(square.CallCompare(square) == 100.0, "the object of C# is itself lent: its override runs");
+    Check(square.CallSame(square), "and it is the same object");
+    Check(!square.CallSame(null), "NULL is null");
+    using (var beam = new Beam(7))
+    {
+        Check(square.CallGrow(beam) == 107, "a reference that is not const");
+    }
+    var given = new Beam(3);
+    Check(square.CallAdopt(given) == 103, "an object that C++ gives up to the override");
+    Check(given.IsClosed, "and the object of C# is closed");
+    using (var made = square.CallMakeBeam(5)!)
+    {
+        Check(made.CallLength() == 10, "an object that the override gives to C++");
+    }
     Check(square.Middle(new Point { X = 4.0, Y = 0.0 }).X == 3.0, "structs go both ways");
     Check(square.Choose(Mode.On) == Mode.Off && square.Choose(Mode.Off) == (Mode)5, "enums");
     Check(square.Welcome("Ann") == ">>|hello|Ann|>> hello Ann, I am sq:shape", "strings: " + square.Welcome("Ann"));
@@ -267,6 +293,23 @@ class Square : Shape
     public override string Greet(string who, string tag, string? mark) => $"{mark}|{tag}|{who}|" + base.Greet(who, tag, mark);
 
     public override int Quiet() => 9;
+
+    public override int Peek(Holder holder) => holder.Empty() ? 10 : 20;
+
+    public override double Compare(Shape other) => Area() - other.Area() + 100.0;
+
+    public override bool Same(Shape? other) => ReferenceEquals(other, this);
+
+    public override int Grow(Beam beam) => beam.CallLength() + 100;
+
+    public override int Adopt(Beam beam)
+    {
+        int length = beam.CallLength() + 100;
+        beam.Dispose();
+        return length;
+    }
+
+    public override Beam? MakeBeam(int length) => new Beam(length * 2);
 
     public override int Total(ReadOnlySpan<int> values) => base.Total(values) * 2;
 

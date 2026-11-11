@@ -12,7 +12,16 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from ...model import ContainerKind, ContainerType, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    ClassForm,
+    ClassRef,
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import (
     CallbackPart,
     CallbackSpec,
@@ -62,6 +71,13 @@ class _Argument:
     """Statements that run before the call (a container that is converted is built there):
     ``{v}`` is a local of the argument, ``{i}`` its index."""
 
+    adopt: str = ""
+    """What C++ gives up (a ``std::unique_ptr``) is wrapped before anything else can fail, so that
+    whatever happens next destroys it: the declaration of ``o{n}``, before the ``try``."""
+
+    lends: bool = False
+    """The argument is an object that C++ lends for the length of the call (see ``Lent``)."""
+
 
 def _element(part: CallbackPart, names: Names) -> Element:
     return element_of(ElementSpec(part.type, part.enum, part.struct), names)  # type: ignore[arg-type]
@@ -86,7 +102,34 @@ def _argument(part: CallbackPart, names: Names) -> _Argument:
         )
     if isinstance(type_, ContainerType):
         return _container_argument(part, type_, names)
+    if isinstance(type_, ClassRef):
+        return _object_argument(part, type_, names)
     raise Unsupported(f"the type '{type_.cpp_spelling}' of an argument of a callback")
+
+
+def _object_argument(part: CallbackPart, type_: ClassRef, names: Names) -> _Argument:
+    """An object that C++ gives to an override: a reference or a pointer is lent (valid while the
+    override runs), a ``std::unique_ptr`` is given for good (a plain object that owns it)."""
+    info = part.cls
+    assert info is not None
+    cls = names.cls(info)
+    if type_.form is ClassForm.UNIQUE:
+        return _Argument(
+            cls + "?",
+            ("nint",),
+            "o{n}!",
+            adopt=f"{cls}? o{{n}} = {cls}.AdoptFromCpp({{0}});",
+        )
+    readonly = (
+        "true" if type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER) else "false"
+    )
+    nullable = "?" if type_.form in (ClassForm.POINTER, ClassForm.CONST_POINTER) else ""
+    return _Argument(
+        cls + nullable,
+        ("nint",),
+        f"{cls}.LendToOverride({{0}}, {readonly}, lent)!",
+        lends=True,
+    )
 
 
 def _container_argument(part: CallbackPart, type_: ContainerType, names: Names) -> _Argument:
@@ -182,7 +225,11 @@ def _fill(text: str, locals_: list[str], position: int) -> str:
     """The expression or statement of an argument, with its C parameters and its locals."""
     for index, local in enumerate(locals_):
         text = text.replace(f"{{{index}}}", local)
-    return text.replace("{v}", f"c{position}").replace("{i}", f"i{position}")
+    return (
+        text.replace("{v}", f"c{position}")
+        .replace("{i}", f"i{position}")
+        .replace("{n}", str(position))
+    )
 
 
 def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Thunk:
@@ -239,17 +286,68 @@ def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Th
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
 
 
+def _director_result(
+    entry: DirectorEntry, what: str, method_call: str, *, names: Names, sinks: Sinks
+) -> tuple[tuple[str, str] | None, list[str], list[str]]:
+    """What the thunk does with the result of the override: the C parameter that C++ gives for
+    it (its C# type and the type for the function pointer, or None), the statements that call
+    the override, and the ones that give its result to C++."""
+    result = entry.callback.result
+    kind = result.type
+    if isinstance(kind, ScalarType) and kind.is_void:
+        return None, [f"{method_call};"], []
+    statement = [f"var value = {method_call};"]
+    if isinstance(kind, StringType):
+        give = (
+            [
+                "if (value is null)",
+                "{",
+                "    throw new global::System.InvalidOperationException("
+                f'"the override {what} returned null for a std::string");',
+                "}",
+            ]
+            if kind.sized
+            else []
+        ) + [
+            "if (value is not null)",
+            "{",
+            '    byte[] bytes = Runtime.Utf8(value, "result");',
+            "    fixed (byte* text = bytes)",
+            "    {",
+            f"        Native.{sinks.string}(sink, text, (nuint)bytes.Length);",
+            "    }",
+            "}",
+        ]
+        return ("nint sink", "nint"), statement, give
+    if isinstance(kind, StructRef):
+        out = _element(result, names)
+        return (f"{out.native}* result", f"{out.native}*"), statement, ["value.ToNative(result);"]
+    if isinstance(kind, ContainerType):
+        give = _container_result(kind, result, names, what, sinks)
+        return ("nint sink", "nint"), statement, give
+    if isinstance(kind, ClassRef):
+        return ("nint* result", "nint*"), statement, _object_result(result, names, what)
+    out = _element(result, names)
+    give = []
+    if out.check is not None:
+        low, high = out.check
+        give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
+    give.append(f"*result = {_to_native(out, 'value')};")
+    return (f"{out.native}* result", f"{out.native}*"), statement, give
+
+
 def _director_thunk(
     name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sinks: Sinks
 ) -> Thunk:
     """The thunk of a virtual method: it finds the C# object of the director and calls
     ``method``."""
-    callback = entry.callback
-    arguments = [_argument(part, names) for part in callback.arguments]
+    arguments = [_argument(part, names) for part in entry.callback.arguments]
     parameters = ["void* userData"]
     pointer = ["void*"]
     values: list[str] = []
     before: list[str] = []
+    adopted: list[str] = []
+    owned: list[str] = []
     for position, argument in enumerate(arguments, start=1):
         locals_ = []
         for index, native in enumerate(argument.natives):
@@ -259,58 +357,20 @@ def _director_thunk(
             locals_.append(local)
         before += [_fill(line, locals_, position) for line in argument.prelude]
         values.append(_fill(argument.read, locals_, position))
-    result = callback.result
-    kind = result.type
+        if argument.adopt:
+            adopted.append(_fill(argument.adopt, locals_, position))
+            owned.append(f"o{position}")
     what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
-    call = f"target.{method}({', '.join(values)})"
-    give: list[str] = []
-    if isinstance(kind, ScalarType) and kind.is_void:
-        statement = [f"{call};"]
-    else:
-        statement = [f"var value = {call};"]
-        if isinstance(kind, StringType):
-            parameters.append("nint sink")
-            pointer.append("nint")
-            nullable = "" if kind.sized else None
-            give = (
-                [
-                    "if (value is null)",
-                    "{",
-                    "    throw new global::System.InvalidOperationException("
-                    f'"the override {what} returned null for a std::string");',
-                    "}",
-                ]
-                if nullable is not None
-                else []
-            ) + [
-                "if (value is not null)",
-                "{",
-                '    byte[] bytes = Runtime.Utf8(value, "result");',
-                "    fixed (byte* text = bytes)",
-                "    {",
-                f"        Native.{sinks.string}(sink, text, (nuint)bytes.Length);",
-                "    }",
-                "}",
-            ]
-        elif isinstance(kind, StructRef):
-            out = _element(result, names)
-            parameters.append(f"{out.native}* result")
-            pointer.append(f"{out.native}*")
-            give = ["value.ToNative(result);"]
-        elif isinstance(kind, ContainerType):
-            parameters.append("nint sink")
-            pointer.append("nint")
-            give = _container_result(kind, result, names, what, sinks)
-        else:
-            out = _element(result, names)
-            parameters.append(f"{out.native}* result")
-            pointer.append(f"{out.native}*")
-            if out.check is not None:
-                low, high = out.check
-                give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
-            give.append(f"*result = {_to_native(out, 'value')};")
+    out, statement, give = _director_result(
+        entry, what, f"target.{method}({', '.join(values)})", names=names, sinks=sinks
+    )
+    if out is not None:
+        parameters.append(out[0])
+        pointer.append(out[1])
     pointer.append("void")
     body = [
+        *adopted,
+        *(["bool passed = false;"] if owned else []),
         "DirectorBox? box = null;",
         "try",
         "{",
@@ -326,7 +386,9 @@ def _director_thunk(
         'keep a reference to it while C++ uses it");',
         "    }",
         "    using var running = box.Enter();",
+        *(["    using var lent = new Lent();"] if any(a.lends for a in arguments) else []),
         *(f"    {line}" for line in before),
+        *(["    passed = true;"] if owned else []),
         *(f"    {line}" for line in statement),
         *(f"    {line}" for line in give),
         "}",
@@ -335,7 +397,38 @@ def _director_thunk(
         "    CallbackBox.Fail(box, error);",
         "}",
     ]
+    if owned:
+        # C++ gave the objects up: if the override never got them, they are destroyed here.
+        body += [
+            "finally",
+            "{",
+            "    if (!passed)",
+            "    {",
+            *(f"        {item}?.Dispose();" for item in owned),
+            "    }",
+            "}",
+        ]
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
+
+
+def _object_result(part: CallbackPart, names: Names, what: str) -> list[str]:
+    """The statements that give C++ the object that an override returned (a ``std::unique_ptr``):
+    C# gives it up, as a call that takes the object does."""
+    info = part.cls
+    assert info is not None
+    cls = names.cls(info)
+    hold = f"Hold_{info.c_type}" if info.is_base else "Hold"
+    lines = ["if (value is null)", "{", "    *result = 0;", "}", "else", "{"]
+    if info.is_base and not info.model.virtual_destructor:
+        # C++ destroys the object through this class: only an object of exactly it.
+        lines.append(f'    Runtime.CheckExact(value, typeof({cls}), "{what}");')
+    lines += [
+        f"    using var lease = value.{hold}(true, true);",
+        "    *result = lease.Give();",
+        "    value.Surrender();",
+        "}",
+    ]
+    return lines
 
 
 def _container_result(

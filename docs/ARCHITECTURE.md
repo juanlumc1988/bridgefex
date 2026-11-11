@@ -208,7 +208,11 @@ callback on any thread and a managed exception must not cross it, so a thunk cat
 returns (a scope that gave no callback is reached by its own thread only, so it takes no lock and the
 thread reuses it). The container of an override is a `ReadOnlySpan<T>` over what C++ holds (a
 span cannot be kept, so it cannot outlive the call), or an array if its elements are converted, and
-the result is a `T[]` that C++ copies through the sink of the vtable before the thunk returns. The
+the result is a `T[]` that C++ copies through the sink of the vtable before the thunk returns. An object that C++ lends to an override is found by the address of its C++ object among the
+directors of the C# objects (`DirectorBox.At`): the object of the user if it still owns it (held until the
+override returns), else a wrapper that a `Lent` closes at the end; a `std::unique_ptr` that it is given is wrapped
+before anything can fail, and destroyed if the override never runs; one that it returns is given up as a call
+that takes the object gives it. The
 classes that C++ calls back are annotated `DynamicallyAccessedMembers`, so that the trimmer and the
 native AOT compiler keep the methods of the classes of the user that the constructors read by
 reflection; the project turns the analyzers of both on, so that the generation check fails on a

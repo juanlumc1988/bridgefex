@@ -344,7 +344,20 @@ internal unsafe class CallbackBox
 
     internal static void Remove(nint key)
     {
-        Table.TryRemove(key, out _);
+        Forget(key);
+    }
+
+    private static void Forget(nint key)
+    {
+        if (Table.TryRemove(key, out CallbackBox? box))
+        {
+            box.Released();
+        }
+    }
+
+    /// <summary>C++ holds the callback (or the director) no more.</summary>
+    internal virtual void Released()
+    {
     }
 
     internal static CallbackBox Of(void* userData)
@@ -452,7 +465,7 @@ internal unsafe class CallbackBox
     {
         try
         {
-            Table.TryRemove((nint)userData, out _);
+            Forget((nint)userData);
         }
         catch (global::System.Exception)
         {
@@ -568,6 +581,38 @@ internal sealed class DirectorBox : CallbackBox
 
     internal nint Key { get; set; }
 
+    /// <summary>The C# objects that are directors, by the address of their C++ object: when C++ lends an object to an
+    /// override, and the object is one of these, the override gets the object itself and not a wrapper of it.</summary>
+    private static readonly ConcurrentDictionary<nint, DirectorBox> s_objects = new();
+
+    /// <summary>The address of the C++ object of the director, as C++ passes it (0 until the C function created it).
+    /// A class with a director derives from at most one class, so the address is the same for all its classes.</summary>
+    internal nint ObjectPointer { get; private set; }
+
+    internal void Publish(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return;
+        }
+        ObjectPointer = pointer;
+        s_objects[pointer] = this;
+    }
+
+    internal static DirectorBox? At(nint pointer)
+    {
+        return s_objects.TryGetValue(pointer, out DirectorBox? box) ? box : null;
+    }
+
+    internal override void Released()
+    {
+        if (ObjectPointer != 0)
+        {
+            // Only its own entry: the address may be another director's by now.
+            s_objects.TryRemove(new global::System.Collections.Generic.KeyValuePair<nint, DirectorBox>(ObjectPointer, this));
+        }
+    }
+
     /// <summary>The director (the pointer for its base calls); 0 until the C function has created it.</summary>
     internal nint Pointer { get; set; }
 
@@ -606,6 +651,51 @@ internal sealed class DirectorBox : CallbackBox
         public void Dispose()
         {
             t_running?.Remove(_box);
+        }
+    }
+}
+
+
+/// <summary>The objects that C++ lends to an override for the length of the call (a reference or a pointer to a
+/// class): the override gets the C# object that is the C++ object, if C# still owns one (it cannot be closed
+/// until the override returns), else a wrapper that is closed when the override returns, so that one that
+/// is kept fails instead of using what C++ may have freed.</summary>
+internal sealed class Lent : global::System.IDisposable
+{
+    private List<BridgefexObject>? _borrowed;
+    private List<ObjectHandle>? _held;
+
+    internal T? Known<T>(nint pointer) where T : BridgefexObject
+    {
+        if (DirectorBox.At(pointer)?.Target is T target && target.Handle.TryLease() == LeaseResult.Ok)
+        {
+            (_held ??= new List<ObjectHandle>()).Add(target.Handle);
+            return target;
+        }
+        return null;
+    }
+
+    internal T Borrowed<T>(T wrapper) where T : BridgefexObject
+    {
+        (_borrowed ??= new List<BridgefexObject>()).Add(wrapper);
+        return wrapper;
+    }
+
+    public void Dispose()
+    {
+        if (_borrowed is not null)
+        {
+            foreach (BridgefexObject wrapper in _borrowed)
+            {
+                wrapper.Close();
+            }
+        }
+        if (_held is not null)
+        {
+            foreach (ObjectHandle handle in _held)
+            {
+                handle.ReleaseLease();
+            }
         }
     }
 }

@@ -41,7 +41,7 @@ _FILE_TYPES = frozenset(
     """
     Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
     BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks CallScope CallbackBox
-    Thunks DirectorBox
+    Thunks DirectorBox Lent
     """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""
@@ -147,6 +147,7 @@ def build_names(plan: ModulePlan) -> Names:
         bool(derivable),
         derivable,
         directors.guarded(plan, derivable),
+        directors.object_classes(derivable),
     )
 
 
@@ -410,8 +411,9 @@ def _handle_class(src: Source, cls: ClassPlan, handle: str) -> None:
     src.line()
 
 
-def _borrow(src: Source, name: str, handle: str) -> None:
-    """``Borrow``: the wrapper of an object that C++ owns (it keeps its ``owners`` alive)."""
+def _borrow(src: Source, name: str, handle: str, *, lent: bool = False) -> None:
+    """``Borrow``: the wrapper of an object that C++ owns (it keeps its ``owners`` alive). For a
+    class that an override takes or gives, also ``LendToOverride`` and ``AdoptFromCpp``."""
     src.line()
     src.open(
         f"internal static {name}? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)"
@@ -426,6 +428,40 @@ def _borrow(src: Source, name: str, handle: str) -> None:
     src.line("result.ReadOnly = readOnly;")
     src.line("result.Attach(owners);")
     src.line("return result;")
+    src.close()
+    if not lent:
+        return
+    src.line()
+    src.line(
+        "/// <summary>The object that C++ lends to an override: the C# object that it is, if C# "
+        "owns one, else a wrapper that is closed when the override returns.</summary>"
+    )
+    src.open(f"internal static {name}? LendToOverride(nint pointer, bool readOnly, Lent lent)")
+    src.line("if (pointer == 0)")
+    src.open()
+    src.line("return null;")
+    src.close()
+    src.line(f"{name}? known = lent.Known<{name}>(pointer);")
+    src.line("if (known is not null)")
+    src.open()
+    src.line("return known;")
+    src.close()
+    src.line(f"{name}? borrowed = Borrow(pointer, null, readOnly);")
+    src.line("return borrowed is null ? null : lent.Borrowed(borrowed);")
+    src.close()
+    src.line()
+    src.line(
+        "/// <summary>The object that C++ gives to an override (a std::unique_ptr): "
+        "it is destroyed when it is closed or collected.</summary>"
+    )
+    src.open(f"internal static {name}? AdoptFromCpp(nint pointer)")
+    src.line("if (pointer == 0)")
+    src.open()
+    src.line("return null;")
+    src.close()
+    src.line(f"var handle = new {handle}();")
+    src.line("handle.Assign(pointer);")
+    src.line(f"return new {name}(handle);")
     src.close()
 
 
@@ -569,7 +605,7 @@ def _class(
     src.line()
     src.line(f"internal override global::System.Type CppType => typeof({name});")
     _constructors(src, plan, cls, names, handle=handle, taken=taken, reserved=reserved)
-    _borrow(src, name, handle)
+    _borrow(src, name, handle, lent=cls.c_type in names.lent)
     chain = _primary_chain(cls, by_type)
     _views(src, cls, chain)
     for nested in cls.enums:

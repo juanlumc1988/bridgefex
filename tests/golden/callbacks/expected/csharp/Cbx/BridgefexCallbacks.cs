@@ -330,7 +330,20 @@ internal unsafe class CallbackBox
 
     internal static void Remove(nint key)
     {
-        Table.TryRemove(key, out _);
+        Forget(key);
+    }
+
+    private static void Forget(nint key)
+    {
+        if (Table.TryRemove(key, out CallbackBox? box))
+        {
+            box.Released();
+        }
+    }
+
+    /// <summary>C++ holds the callback (or the director) no more.</summary>
+    internal virtual void Released()
+    {
     }
 
     internal static CallbackBox Of(void* userData)
@@ -438,7 +451,7 @@ internal unsafe class CallbackBox
     {
         try
         {
-            Table.TryRemove((nint)userData, out _);
+            Forget((nint)userData);
         }
         catch (global::System.Exception)
         {
