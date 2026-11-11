@@ -39,7 +39,7 @@ public unsafe partial class Stage : BridgefexObject
     protected Stage() : base(new StageHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 6);
         Native.drc_Stage_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -63,7 +63,7 @@ public unsafe partial class Stage : BridgefexObject
     protected Stage(int steps) : base(new StageHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 6);
         Native.drc_Stage_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -100,7 +100,7 @@ public unsafe partial class Stage : BridgefexObject
     [BridgefexFunction("drc_Stage_run")]
     public string Run(global::Drc.Shape.Mode mode)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         nint __text;
         nuint __size;
@@ -124,7 +124,7 @@ public unsafe partial class Stage : BridgefexObject
     [BridgefexFunction("drc_Stage_steps")]
     public int Steps()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Stage_steps(__self.Pointer, &__result);
@@ -160,7 +160,7 @@ public unsafe partial class Stage : BridgefexObject
             {
                 case 6:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __result;
                     int __status = Native.drc_Stage_director_base_origin(__self.Pointer, &__result);

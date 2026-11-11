@@ -94,7 +94,7 @@ public unsafe partial class Timer : BridgefexObject
     [BridgefexFunction("ev_Timer_create")]
     public Timer(global::System.Action<int>? on_tick) : base(new TimerHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(on_tick, "on_tick", Thunks.Address_Thunk_void__int32);
         nint __result;
         int __status = Native.ev_Timer_create(&__result, __o1.Callback, __o1.UserData, __o1.Release);
@@ -126,7 +126,7 @@ public unsafe partial class Timer : BridgefexObject
     [BridgefexFunction("ev_Timer_set_on_tick")]
     public void SetOnTick(global::System.Action<int>? on_tick)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         var __o1 = __scope.Register(on_tick, "on_tick", Thunks.Address_Thunk_void__int32);
         int __status = Native.ev_Timer_set_on_tick(__self.Pointer, __o1.Callback, __o1.UserData, __o1.Release);
@@ -167,7 +167,7 @@ public unsafe partial class Timer : BridgefexObject
     [BridgefexFunction("ev_Timer_each")]
     public int Each(global::System.ReadOnlySpan<int> values, global::System.Action<int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         fixed (int* __p1 = values)
         {
@@ -189,7 +189,7 @@ public unsafe partial class Timer : BridgefexObject
     [BridgefexFunction("ev_Timer_apply")]
     public static int Apply(int value, global::System.Func<int, int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o2 = __scope.Register(f, "f", Thunks.Address_Thunk_int32__int32);
         int __result;
         int __status = Native.ev_Timer_apply(value, __o2.Callback, __o2.UserData, __o2.Release, &__result);
@@ -233,7 +233,7 @@ public unsafe partial class Watcher : BridgefexObject
     [BridgefexFunction("ev_Watcher_create")]
     public Watcher(string name, global::Cbx.Events.Point at, global::System.Action<string, global::Cbx.Events.Point>? on_notify) : base(new WatcherHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         byte[] __b1 = Runtime.Utf8(name, "name");
         fixed (byte* __p1 = __b1)
         {
@@ -285,7 +285,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_sum")]
     public static long Sum(int n, global::System.Func<int, int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o2 = __scope.Register(f, "f", Thunks.Address_Thunk_int32__int32);
         long __result;
         int __status = Native.ev_sum(n, __o2.Callback, __o2.UserData, __o2.Release, &__result);
@@ -303,7 +303,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_count_if")]
     public static int CountIf(int n, global::System.Func<long, bool>? predicate)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o2 = __scope.Register(predicate, "predicate", Thunks.Address_Thunk_bool__int64);
         int __result;
         int __status = Native.ev_count_if(n, __o2.Callback, __o2.UserData, __o2.Release, &__result);
@@ -321,7 +321,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_is_empty")]
     public static bool IsEmpty(global::System.Action? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(f, "f", Thunks.Address_Thunk_void);
         byte __result;
         int __status = Native.ev_is_empty(__o1.Callback, __o1.UserData, __o1.Release, &__result);
@@ -339,7 +339,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_classify")]
     public static global::Cbx.Events.Level Classify(int value, global::System.Func<int, global::Cbx.Events.Level>? classifier)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o2 = __scope.Register(classifier, "classifier", Thunks.Address_Thunk_ev_Level__int32);
         byte __result;
         int __status = Native.ev_classify(value, __o2.Callback, __o2.UserData, __o2.Release, &__result);
@@ -357,7 +357,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_pick")]
     public static global::Cbx.Events.Mode Pick(global::System.Func<global::Cbx.Events.Mode>? chooser)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(chooser, "chooser", Thunks.Address_Thunk_ev_Mode);
         int __result;
         int __status = Native.ev_pick(__o1.Callback, __o1.UserData, __o1.Release, &__result);
@@ -375,7 +375,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_integrate")]
     public static double Integrate(global::System.Func<double, double>? f, double a, double b, int steps)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(f, "f", Thunks.Address_Thunk_double__double);
         double __result;
         int __status = Native.ev_integrate(__o1.Callback, __o1.UserData, __o1.Release, a, b, steps, &__result);
@@ -393,7 +393,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_walk")]
     public static double Walk(global::System.Func<global::Cbx.Events.Point, string?, double>? visit)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(visit, "visit", Thunks.Address_Thunk_double__ev_Point__cstr);
         double __result;
         int __status = Native.ev_walk(__o1.Callback, __o1.UserData, __o1.Release, &__result);
@@ -411,7 +411,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_shift")]
     public static void Shift(global::System.Action<global::Cbx.Events.Point, global::Cbx.Events.Mode>? sink)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(sink, "sink", Thunks.Address_Thunk_void__ev_Point__ev_Mode);
         int __status = Native.ev_shift(__o1.Callback, __o1.UserData, __o1.Release);
         __scope.Returned();
@@ -427,7 +427,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_strings")]
     public static void Strings(global::System.Action<string, string, string>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(f, "f", Thunks.Address_Thunk_void__string__string__string);
         int __status = Native.ev_strings(__o1.Callback, __o1.UserData, __o1.Release);
         __scope.Returned();
@@ -443,7 +443,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_parallel")]
     public static void Parallel(int threads, int n, global::System.Action<int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o3 = __scope.Register(f, "f", Thunks.Address_Thunk_void__int32);
         int __status = Native.ev_parallel(threads, n, __o3.Callback, __o3.UserData, __o3.Release);
         __scope.Returned();
@@ -459,7 +459,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_prefixed")]
     public static int Prefixed(string prefix, global::System.Func<string, int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         byte[] __b1 = Runtime.Utf8(prefix, "prefix");
         fixed (byte* __p1 = __b1)
         {
@@ -481,7 +481,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_store_and_sleep")]
     public static void StoreAndSleep(global::System.Func<int, int>? handler, int ms)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(handler, "handler", Thunks.Address_Thunk_int32__int32);
         int __status = Native.ev_store_and_sleep(__o1.Callback, __o1.UserData, __o1.Release, ms);
         __scope.Returned();
@@ -509,7 +509,7 @@ public static unsafe class Functions
     [BridgefexFunction("ev_set_log_handler")]
     public static void SetLogHandler(global::System.Action<global::Cbx.Events.Level, string>? handler)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __o1 = __scope.Register(handler, "handler", Thunks.Address_Thunk_void__ev_Level__string);
         int __status = Native.ev_set_log_handler(__o1.Callback, __o1.UserData, __o1.Release);
         __scope.Returned();

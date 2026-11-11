@@ -219,7 +219,7 @@ class _Lowerer:
         if self.callbacks:
             # The call that C++ runs the callbacks of: it raises their exceptions, and drops the
             # callbacks if the C function is never called.
-            body.add(f"using var {L}scope = new CallScope();")
+            body.add(f"using var {L}scope = CallScope.Begin();")
         elif self.names.has_callbacks:
             # A callback that C++ stored and runs now is not one of the callbacks of this call.
             body.add(f"using var {L}call = CallScope.Enter();")

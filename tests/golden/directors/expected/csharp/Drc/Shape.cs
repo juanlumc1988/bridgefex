@@ -85,7 +85,7 @@ public unsafe partial class Beam : BridgefexObject
         bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             nint __result;
             int __status = Native.drc_Beam_create(&__result, length);
             __scope.Returned();
@@ -94,7 +94,7 @@ public unsafe partial class Beam : BridgefexObject
         }
         else
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             var __box = __scope.BeginDirector(this, 0);
             Native.drc_Beam_vtable __vt = default;
             __vt.user_data = __box.Key;
@@ -118,7 +118,7 @@ public unsafe partial class Beam : BridgefexObject
     protected Beam() : base(new BeamHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -141,7 +141,7 @@ public unsafe partial class Beam : BridgefexObject
     protected Beam(string label) : base(new BeamHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -187,7 +187,7 @@ public unsafe partial class Beam : BridgefexObject
             {
                 case 0:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Beam_director_base_length(__self.Pointer, &__result);
@@ -199,7 +199,7 @@ public unsafe partial class Beam : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             int __result;
             int __status = Native.drc_Beam_length(__self.Pointer, &__result);
@@ -216,7 +216,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_call_length")]
     public int CallLength()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Beam_call_length(__self.Pointer, &__result);
@@ -232,7 +232,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_made_by")]
     public int MadeBy()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Beam_made_by(__self.Pointer, &__result);
@@ -304,7 +304,7 @@ public unsafe partial class Shape : BridgefexObject
     protected Shape() : base(new ShapeHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -338,7 +338,7 @@ public unsafe partial class Shape : BridgefexObject
     protected Shape(string label, int sides) : base(new ShapeHandle())
     {
         bool[] __over = DirectorOverrides.Of(GetType(), true)!;
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -396,7 +396,7 @@ public unsafe partial class Shape : BridgefexObject
             throw new global::System.InvalidOperationException("Shape.area is pure virtual: it has no implementation to call");
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             double __result;
             int __status = Native.drc_Shape_area(__self.Pointer, &__result);
@@ -419,7 +419,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -438,7 +438,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -458,7 +458,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             nint __text;
             nuint __size;
@@ -489,7 +489,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_sides(__self.Pointer, &__result);
@@ -500,7 +500,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_sides(__self.Pointer, &__result);
@@ -512,7 +512,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_sides(__self.Pointer, &__result);
@@ -535,7 +535,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __result;
                     int __status = Native.drc_Circle_director_base_center(__self.Pointer, &__result);
@@ -546,7 +546,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __result;
                     int __status = Native.drc_Shape_director_base_center(__self.Pointer, &__result);
@@ -558,7 +558,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             Native.drc_Point __result;
             int __status = Native.drc_Shape_center(__self.Pointer, &__result);
@@ -581,7 +581,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __s1 = default;
                     by.ToNative(&__s1);
@@ -596,7 +596,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __s1 = default;
                     by.ToNative(&__s1);
@@ -612,7 +612,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             Native.drc_Point __s1 = default;
             by.ToNative(&__s1);
@@ -639,7 +639,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte __result;
                     int __status = Native.drc_Circle_director_base_mode(__self.Pointer, (byte)requested, &__result);
@@ -650,7 +650,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte __result;
                     int __status = Native.drc_Shape_director_base_mode(__self.Pointer, (byte)requested, &__result);
@@ -662,7 +662,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             byte __result;
             int __status = Native.drc_Shape_mode(__self.Pointer, (byte)requested, &__result);
@@ -685,7 +685,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
@@ -695,7 +695,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
@@ -706,7 +706,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(true);
             int __status = Native.drc_Shape_scale(__self.Pointer, factor);
             __scope.Returned();
@@ -727,7 +727,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -738,7 +738,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -750,7 +750,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -773,7 +773,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Circle_director_base_add_double_double(__self.Pointer, a, b, &__result);
@@ -784,7 +784,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Shape_director_base_add_double_double(__self.Pointer, a, b, &__result);
@@ -796,7 +796,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             double __result;
             int __status = Native.drc_Shape_add_double_double(__self.Pointer, a, b, &__result);
@@ -819,7 +819,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte[] __b1 = Runtime.Utf8(who, "who");
                     fixed (byte* __p1 = __b1)
@@ -850,7 +850,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte[] __b1 = Runtime.Utf8(who, "who");
                     fixed (byte* __p1 = __b1)
@@ -882,7 +882,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             byte[] __b1 = Runtime.Utf8(who, "who");
             fixed (byte* __p1 = __b1)
@@ -925,7 +925,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_quiet(__self.Pointer, &__result);
@@ -936,7 +936,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_quiet(__self.Pointer, &__result);
@@ -948,7 +948,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_quiet(__self.Pointer, &__result);
@@ -965,7 +965,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_total")]
     public int Total(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -984,7 +984,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_numbers")]
     public int[] Numbers(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -1012,7 +1012,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_words")]
     public string[] Words(global::System.ReadOnlySpan<string> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = StringBlock.Make(input, "input");
         Native.StringOut* __result;
@@ -1043,7 +1043,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_modes")]
     public global::Drc.Shape.Mode[] Modes(global::System.ReadOnlySpan<global::Drc.Shape.Mode> wanted)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (global::Drc.Shape.Mode* __p1 = wanted)
         {
@@ -1076,7 +1076,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_points")]
     public global::Drc.Shape.Point[] Points(global::System.ReadOnlySpan<global::Drc.Shape.Point> list)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
         for (int __i = 0; __i < list.Length; __i++)
@@ -1111,7 +1111,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_flags")]
     public bool[] Flags(global::System.ReadOnlySpan<bool> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (bool* __p1 = input)
         {
@@ -1147,7 +1147,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_triple")]
     public double[] Triple(global::System.ReadOnlySpan<double> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (values.Length != 3)
         {
@@ -1170,7 +1170,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_peek")]
     public int Peek(global::Drc.Shape.Holder holder)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(holder);
         using var __t1 = holder.Hold(false);
@@ -1189,7 +1189,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_compare")]
     public double Compare(global::Drc.Shape.Shape other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold_drc_Shape(false);
@@ -1208,7 +1208,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_same")]
     public bool Same(global::Drc.Shape.Shape other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold_drc_Shape(false);
@@ -1227,7 +1227,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_grow")]
     public int Grow(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(true);
@@ -1246,7 +1246,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_adopt")]
     public int Adopt(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (object.ReferenceEquals(beam, this))
         {
@@ -1271,7 +1271,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_make_beam")]
     public global::Drc.Shape.Beam? MakeBeam(int length)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __result;
         var __o = new global::Drc.Shape.BeamHandle();
@@ -1289,7 +1289,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_by_value")]
     public int ByValue(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(false);
@@ -1308,7 +1308,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_fixed")]
     public int Fixed()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_fixed(__self.Pointer, &__result);
@@ -1324,7 +1324,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_describe")]
     public string Describe()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __text;
         nuint __size;
@@ -1348,7 +1348,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_scaled_area")]
     public double ScaledArea(double factor)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(true);
         double __result;
         int __status = Native.drc_Shape_scaled_area(__self.Pointer, factor, &__result);
@@ -1364,7 +1364,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_middle")]
     public global::Drc.Shape.Point Middle(global::Drc.Shape.Point other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         Native.drc_Point __s1 = default;
         other.ToNative(&__s1);
@@ -1382,7 +1382,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_move")]
     public global::Drc.Shape.Point CallMove(global::Drc.Shape.Point by)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         Native.drc_Point __s1 = default;
         by.ToNative(&__s1);
@@ -1400,7 +1400,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_total")]
     public int CallTotal(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -1419,7 +1419,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_numbers")]
     public int[] CallNumbers(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -1447,7 +1447,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_words")]
     public string[] CallWords(global::System.ReadOnlySpan<string> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = StringBlock.Make(input, "input");
         Native.StringOut* __result;
@@ -1478,7 +1478,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_modes")]
     public global::Drc.Shape.Mode[] CallModes(global::System.ReadOnlySpan<global::Drc.Shape.Mode> wanted)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (global::Drc.Shape.Mode* __p1 = wanted)
         {
@@ -1511,7 +1511,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_points")]
     public global::Drc.Shape.Point[] CallPoints(global::System.ReadOnlySpan<global::Drc.Shape.Point> list)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
         for (int __i = 0; __i < list.Length; __i++)
@@ -1546,7 +1546,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_flags")]
     public bool[] CallFlags(global::System.ReadOnlySpan<bool> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (bool* __p1 = input)
         {
@@ -1582,7 +1582,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_triple")]
     public double[] CallTriple(global::System.ReadOnlySpan<double> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (values.Length != 3)
         {
@@ -1605,7 +1605,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_peek")]
     public int CallPeek(global::Drc.Shape.Holder holder)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(holder);
         using var __t1 = holder.Hold(false);
@@ -1624,7 +1624,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_compare")]
     public double CallCompare(global::Drc.Shape.Shape other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold_drc_Shape(false);
@@ -1643,7 +1643,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_same")]
     public bool CallSame(global::Drc.Shape.Shape? other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __t1 = other is null ? default : other.Hold_drc_Shape(false);
         nint __h1 = __t1.Pointer;
@@ -1661,7 +1661,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_grow")]
     public int CallGrow(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(true);
@@ -1680,7 +1680,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_adopt")]
     public int CallAdopt(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (object.ReferenceEquals(beam, this))
         {
@@ -1705,7 +1705,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_make_beam")]
     public global::Drc.Shape.Beam? CallMakeBeam(int length)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __result;
         var __o = new global::Drc.Shape.BeamHandle();
@@ -1723,7 +1723,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_by_value")]
     public int CallByValue(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(false);
@@ -1742,7 +1742,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_choose")]
     public global::Drc.Shape.Mode Choose(global::Drc.Shape.Mode requested)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         byte __result;
         int __status = Native.drc_Shape_choose(__self.Pointer, (byte)requested, &__result);
@@ -1758,7 +1758,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_welcome")]
     public string Welcome(string who)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         byte[] __b1 = Runtime.Utf8(who, "who");
         fixed (byte* __p1 = __b1)
@@ -1786,7 +1786,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_sum")]
     public int Sum(int a, int b)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_sum(__self.Pointer, a, b, &__result);
@@ -1802,7 +1802,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_sum_double")]
     public double SumDouble(double a, double b)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         double __result;
         int __status = Native.drc_Shape_sum_double(__self.Pointer, a, b, &__result);
@@ -1818,7 +1818,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_total_of_three")]
     public int TotalOfThree()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_total_of_three(__self.Pointer, &__result);
@@ -1834,7 +1834,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_how_quiet")]
     public int HowQuiet()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_how_quiet(__self.Pointer, &__result);
@@ -1850,7 +1850,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_notify")]
     public void Notify(int reason)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(true);
         int __status = Native.drc_Shape_notify(__self.Pointer, reason);
         __scope.Returned();
@@ -1864,7 +1864,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_last_reason")]
     public int LastReason()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_last_reason(__self.Pointer, &__result);
@@ -1880,7 +1880,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_label")]
     public string Label()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __text;
         nuint __size;
@@ -1904,7 +1904,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_alive")]
     public static int Alive()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         int __result;
         int __status = Native.drc_Shape_alive(&__result);
         __scope.Returned();
@@ -1924,7 +1924,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
@@ -1934,7 +1934,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
@@ -2041,7 +2041,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             nint __result;
             int __status = Native.drc_Circle_create(&__result, radius);
             __scope.Returned();
@@ -2050,7 +2050,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         }
         else
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             var __box = __scope.BeginDirector(this, 1);
             Native.drc_Circle_vtable __vt = default;
             __vt.user_data = __box.Key;
@@ -2110,7 +2110,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Circle_director_base_area(__self.Pointer, &__result);
@@ -2122,7 +2122,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             double __result;
             int __status = Native.drc_Circle_area(__self.Pointer, &__result);
@@ -2145,7 +2145,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -2165,7 +2165,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             nint __text;
             nuint __size;
@@ -2196,7 +2196,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -2208,7 +2208,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             int __result;
             int __status = Native.drc_Circle_add(__self.Pointer, a, b, &__result);
@@ -2225,7 +2225,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Circle_radius")]
     public double Radius()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         double __result;
         int __status = Native.drc_Circle_radius(__self.Pointer, &__result);
@@ -2321,7 +2321,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
     public Dot() : base(new DotHandle())
     {
         DirectorBox.RefuseOverrides(GetType(), typeof(Dot));
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Dot_create(&__result);
         __scope.Returned();
@@ -2355,7 +2355,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Dot_area")]
     public new double Area()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         double __result;
         int __status = Native.drc_Dot_area(__self.Pointer, &__result);
@@ -2397,7 +2397,7 @@ public unsafe partial class Plain : BridgefexObject
     [BridgefexFunction("drc_Plain_create")]
     public Plain() : base(new PlainHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Plain_create(&__result);
         __scope.Returned();
@@ -2425,7 +2425,7 @@ public unsafe partial class Plain : BridgefexObject
     [BridgefexFunction("drc_Plain_value")]
     public int Value()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Plain_value(__self.Pointer, &__result);
@@ -2467,7 +2467,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_create")]
     public Holder() : base(new HolderHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Holder_create(&__result);
         __scope.Returned();
@@ -2495,7 +2495,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_put")]
     public void Put(global::Drc.Shape.Shape shape)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         if (object.ReferenceEquals(shape, this))
         {
@@ -2518,7 +2518,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_take")]
     public global::Drc.Shape.Shape? Take()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         nint __result;
         var __o = new global::Drc.Shape.ShapeHandle();
@@ -2536,7 +2536,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_empty")]
     public bool Empty()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         byte __result;
         int __status = Native.drc_Holder_empty(__self.Pointer, &__result);
@@ -2552,7 +2552,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_compare_held")]
     public double CompareHeld(global::Drc.Shape.Holder other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold(false);
@@ -2571,7 +2571,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_describe")]
     public string Describe()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         nint __text;
         nuint __size;
@@ -2595,7 +2595,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_describe_on_thread")]
     public string DescribeOnThread()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         nint __text;
         nuint __size;
@@ -2622,7 +2622,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_apply")]
     public int Apply(global::System.Func<int, int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         var __o1 = __scope.Register(f, "f", Thunks.Address_Thunk_int32__int32);
         int __result;

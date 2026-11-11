@@ -196,6 +196,51 @@ using (var failing = new ThreadFail())
     Check(unobserved.Count == 1 && unobserved.TryDequeue(out var error) && error is FormatException, "the exception is unobserved");
 }
 
+// -- The scope of a call is reused by the next one on the thread: nothing of a call is left to it -----------
+
+using (var failing = new FailFirst())
+using (var fine = new Full())
+{
+    for (int turn = 0; turn < 50; turn++)
+    {
+        Expect<FormatException>(() => failing.Pair(), "value");
+        Check(fine.CallValue() == 10 && fine.Pair() == "10:full", "a call after one that failed: " + turn);
+    }
+}
+
+// A call inside an override has a scope of its own: its exception is that call's, and the outer call goes on.
+using (var inner = new FailFirst())
+using (var nesting = new Nesting(inner))
+{
+    for (int turn = 0; turn < 20; turn++)
+    {
+        Check(nesting.CallValue() == -1, "the override caught the exception of the call inside it");
+        Check(inner.NamedCalls == 0, "and the override of the inner call did not run twice");
+    }
+}
+using (var inner = new FailFirst())
+using (var through = new Through(inner))
+{
+    Expect<FormatException>(() => through.CallValue(), "value");
+    Check(through.CallValue2() == 1, "the thread is not left in a failed call: " + through.CallValue2());
+}
+
+// A call that C++ runs without overrides makes no garbage: the scope of the thread is reused.
+using (var counted = new Base())
+{
+    for (int warm = 0; warm < 200; warm++)
+    {
+        counted.CallValue();
+    }
+    long start = GC.GetAllocatedBytesForCurrentThread();
+    for (int turn = 0; turn < 1000; turn++)
+    {
+        counted.CallValue();
+    }
+    long allocated = GC.GetAllocatedBytesForCurrentThread() - start;
+    Check(allocated < 4096, "a call allocates nothing, 1000 calls allocated " + allocated + " bytes");
+}
+
 // -- A base call after the object ran an override and was closed ---------------------------------------------
 
 var caller = new Caller();
@@ -325,4 +370,46 @@ class ThreadFail : Base
 class Caller : Base
 {
     public override string Named() => "c:" + base.Named();
+}
+
+class Nesting : Base
+{
+    private readonly Base _other;
+
+    public Nesting(Base other)
+    {
+        _other = other;
+    }
+
+    public override int Value()
+    {
+        try
+        {
+            return _other.CallValue();
+        }
+        catch (FormatException)
+        {
+            return -1;
+        }
+    }
+}
+
+class Through : Base
+{
+    private readonly Base _other;
+
+    public Through(Base other)
+    {
+        _other = other;
+    }
+
+    public override int Value() => _other.CallValue();
+
+    public int CallValue2() => Quiet2();
+
+    private static int Quiet2()
+    {
+        using var plain = new Base();
+        return plain.CallValue();
+    }
 }

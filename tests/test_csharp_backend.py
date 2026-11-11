@@ -500,7 +500,7 @@ def test_the_call_that_gives_callbacks_raises_their_exceptions(tmp_path: Path) -
     lines = [line.strip() for line in body.splitlines()]
     # The scope is the first statement, and the check is the one of the scope, after the call
     # (C++ owns the callbacks from the moment the C function returns).
-    assert lines[2] == "using var __scope = new CallScope();"
+    assert lines[2] == "using var __scope = CallScope.Begin();"
     call = next(i for i, line in enumerate(lines) if line.startswith("int __status = Native."))
     assert lines[call + 1] == "__scope.Returned();"
     assert lines[call + 2] == "__scope.Check(__status);"
@@ -694,7 +694,7 @@ def test_every_call_of_a_module_with_directors_can_raise_the_exception_of_an_ove
 ) -> None:
     text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
     body = text.split("public int Call()")[1].split("\n    }")[0]
-    assert "using var __scope = new CallScope();" in body
+    assert "using var __scope = CallScope.Begin();" in body
     assert "__scope.Check(__status);" in body
 
 

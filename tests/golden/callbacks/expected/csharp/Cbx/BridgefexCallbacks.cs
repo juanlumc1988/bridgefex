@@ -73,7 +73,11 @@ internal readonly ref struct CallGuard
 
 /// <summary>A call of the bindings that gives callbacks. The exception of one of its callbacks is raised by the
 /// call when C++ returns, and its remaining callbacks do not run (C++ gets their default result). If the C
-/// function is never called, C++ never releases the callbacks, and the scope drops them.</summary>
+/// function is never called, C++ never releases the callbacks, and the scope drops them.
+///
+/// A call that gives no callback is the common one, and costs nothing here but a few fields: only this thread can
+/// reach its scope (the callbacks that C++ keeps find theirs through <see cref="CallbackBox.Scope"/>), so it needs
+/// no lock, and the thread keeps one to use again for the next call.</summary>
 internal sealed class CallScope : global::System.IDisposable
 {
     [global::System.ThreadStatic]
@@ -81,6 +85,10 @@ internal sealed class CallScope : global::System.IDisposable
 
     [global::System.ThreadStatic]
     private static int t_calls;
+
+    /// <summary>A scope that no one references any more, to use again on this thread.</summary>
+    [global::System.ThreadStatic]
+    private static CallScope? t_spare;
 
     internal readonly struct Registration
     {
@@ -96,18 +104,27 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly CallScope? _previous;
+    private CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
     private bool _returned;
+    private bool _shared;
     private global::System.Exception? _error;
     private volatile bool _failed;
 
-    internal CallScope()
+    private CallScope()
     {
-        _previous = t_innermost;
-        t_innermost = this;
+    }
+
+    /// <summary>The scope of a call that starts: the innermost of this thread from now on.</summary>
+    internal static CallScope Begin()
+    {
+        CallScope scope = t_spare ?? new CallScope();
+        t_spare = null;
+        scope._previous = t_innermost;
+        t_innermost = scope;
         t_calls++;
+        return scope;
     }
 
     /// <summary>The innermost call of this thread that gives callbacks.</summary>
@@ -138,6 +155,8 @@ internal sealed class CallScope : global::System.IDisposable
         {
             return default;
         }
+        // From here on a thread of C++ may reach this scope, through the callback.
+        _shared = true;
         nint key = CallbackBox.Add(function, name, this);
         (_keys ??= new List<nint>()).Add(key);
         return new Registration(thunk, key, CallbackBox.ReleaseAddress);
@@ -153,32 +172,54 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
+        if (!_shared)
+        {
+            return Keep(error);
+        }
         lock (this)
         {
-            if (!_active)
-            {
-                return false;
-            }
-            if (_error is null)
-            {
-                _error = error;
-                _failed = true;
-            }
-            return true;
+            return Keep(error);
         }
+    }
+
+    private bool Keep(global::System.Exception error)
+    {
+        if (!_active)
+        {
+            return false;
+        }
+        if (_error is null)
+        {
+            _error = error;
+            _failed = true;
+        }
+        return true;
+    }
+
+    private global::System.Exception? Finish()
+    {
+        global::System.Exception? error = _error;
+        _error = null;
+        _failed = false;
+        // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
+        _active = false;
+        return error;
     }
 
     /// <summary>Raises the exception of a callback, else the error of the C function.</summary>
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (this)
+        if (_shared)
         {
-            // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
-            error = _error;
-            _error = null;
-            _failed = false;
-            _active = false;
+            lock (this)
+            {
+                error = Finish();
+            }
+        }
+        else
+        {
+            error = Finish();
         }
         if (error is null)
         {
@@ -201,12 +242,18 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (this)
+        if (_shared)
         {
-            _active = false;
-            _failed = false;
-            _error = null;
+            lock (this)
+            {
+                Finish();
+            }
         }
+        else
+        {
+            Finish();
+        }
+        bool plain = _keys is null;
         if (!_returned && _keys is not null)
         {
             foreach (nint key in _keys)
@@ -215,11 +262,20 @@ internal sealed class CallScope : global::System.IDisposable
             }
         }
         _keys = null;
-        if (ReferenceEquals(t_innermost, this))
+        bool innermost = ReferenceEquals(t_innermost, this);
+        if (innermost)
         {
             t_innermost = _previous;
         }
         t_calls--;
+        if (plain && innermost && t_spare is null)
+        {
+            // Nothing references it: no callback was given, and the call has left the chain of the thread.
+            _previous = null;
+            _active = true;
+            _returned = false;
+            t_spare = this;
+        }
     }
 }
 
