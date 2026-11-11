@@ -31,7 +31,11 @@ if TYPE_CHECKING:
 L = LOCAL_PREFIX
 
 MAX_ARGUMENTS = 16
-"""``Func`` and ``Action`` have no more parameters than this."""
+"""``Func`` and ``Action`` have no more parameters than this: a callback with more has delegates
+of the bindings (``BridgefexCallbacks.Func17``...)."""
+
+WIDEST = 64
+"""The most arguments of a callback that the bindings have delegates for."""
 
 _CDECL = CDECL_CALLERS
 
@@ -92,19 +96,25 @@ def _to_native(element: Element, value: str) -> str:
 
 
 def delegate_type(callback: CallbackSpec, names: Names) -> str:
-    """``Func<A, R>`` or ``Action<A>`` for a ``std::function<R(A)>``."""
-    if len(callback.arguments) > MAX_ARGUMENTS:
+    """``Func<A, R>`` or ``Action<A>`` for a ``std::function<R(A)>``, or a delegate of the
+    bindings if it has more arguments than those have."""
+    count = len(callback.arguments)
+    if count > WIDEST:
         raise Unsupported(
-            f"a callback with {len(callback.arguments)} arguments (C# has no delegate with more "
-            f"than {MAX_ARGUMENTS})"
+            f"a callback with {count} arguments (the bindings have delegates for up to {WIDEST})"
         )
     types = [_argument(part, names).public for part in callback.arguments]
     result = callback.result.type
-    if isinstance(result, ScalarType) and result.is_void:
+    returns = not (isinstance(result, ScalarType) and result.is_void)
+    if returns:
+        types.append(_element(callback.result, names).public)
+    if count > MAX_ARGUMENTS:
+        names.thunks.wide(returns, count)
+        return f"BridgefexCallbacks.{'Func' if returns else 'Action'}{count}<{', '.join(types)}>"
+    if not returns:
         if not types:
             return "global::System.Action"
         return f"global::System.Action<{', '.join(types)}>"
-    types.append(_element(callback.result, names).public)
     return f"global::System.Func<{', '.join(types)}>"
 
 
@@ -275,6 +285,29 @@ class ThunkTable:
     _items: dict[tuple[str, str], Thunk] = field(default_factory=dict)
     _names: set[str] = field(default_factory=set)
     _directors: dict[str, Thunk] = field(default_factory=dict)
+    _wide: set[tuple[bool, int]] = field(default_factory=set)
+    """The delegates with more arguments than ``Func`` and ``Action`` have: (returns, arguments)."""
+
+    def wide(self, returns: bool, count: int) -> None:
+        self._wide.add((returns, count))
+
+    def delegates(self) -> list[str]:
+        """The declarations of the delegates that are used, inside ``BridgefexCallbacks``."""
+        lines: list[str] = []
+        for returns, count in sorted(self._wide):
+            kind = "Func" if returns else "Action"
+            generics = [f"in T{i}" for i in range(1, count + 1)]
+            parameters = [f"T{i} arg{i}" for i in range(1, count + 1)]
+            if returns:
+                generics.append("out TResult")
+            lines += [
+                "",
+                f"    /// <summary>A callback with {count} arguments (<c>{kind}</c> has no more "
+                f"than {MAX_ARGUMENTS}).</summary>",
+                f"    public delegate {'TResult' if returns else 'void'} {kind}{count}"
+                f"<{', '.join(generics)}>({', '.join(parameters)});",
+            ]
+        return lines
 
     def director(
         self,

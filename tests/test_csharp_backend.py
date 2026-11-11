@@ -828,17 +828,17 @@ def test_the_director_code_of_the_example_compiles(tmp_path: Path) -> None:
 
 # -- What it refuses ------------------------------------------------------------------------------
 
-WIDE = "std::function<void(" + ", ".join(["int"] * 17) + ")>"
+WIDE = "std::function<void(" + ", ".join(["int"] * 65) + ")>"
 
 
 @pytest.mark.parametrize(
     ("code", "std", "what"),
     [
-        (f"#include <functional>\nint f({WIDE} g);", "c++17", "a callback with 17 arguments"),
+        (f"#include <functional>\nint f({WIDE} g);", "c++17", "a callback with 65 arguments"),
         (
             f"#include <functional>\nclass K {{ public: K(); ~K(); void m({WIDE} g); }};",
             "c++17",
-            "a callback with 17 arguments",
+            "a callback with 65 arguments",
         ),
     ],
 )
@@ -848,9 +848,36 @@ def test_what_the_csharp_bindings_do_not_have_is_refused_clearly(
     message = error_of(tmp_path, code, std=std)
     assert "C#:" in message
     assert what in message
-    assert "no delegate with more than 16" in message
+    assert "delegates for up to 64" in message
     # The Python bindings of the same header are generated all the same.
     assert generate(tmp_path, code, languages=("python",), std=std)
+
+
+def test_a_callback_with_more_arguments_than_func_and_action_have_gets_a_delegate_of_the_bindings(
+    tmp_path: Path,
+) -> None:
+    wide = lambda count, result: (  # noqa: E731
+        f"std::function<{result}(" + ", ".join(["int"] * count) + ")>"
+    )
+    code = (
+        "#include <functional>\n"
+        f"void a({wide(16, 'void')} g);\n"
+        f"void b({wide(17, 'void')} g);\n"
+        f"int c({wide(20, 'int')} g);\n"
+        f"int d({wide(20, 'int')} g, int x);\n"
+    )
+    files = generate(tmp_path, code)
+    text = files["csharp/Mod/Api.cs"]
+    # 16 arguments are those of Action: the bindings declare delegates only above that.
+    sixteen = ", ".join(["int"] * 16)
+    assert f"global::System.Action<{sixteen}>" in text
+    assert "BridgefexCallbacks.Action17<" in text
+    assert text.count("BridgefexCallbacks.Func20<") >= 2
+    callbacks = files["csharp/Mod/BridgefexCallbacks.cs"]
+    assert callbacks.count("public delegate void Action17<in T1,") == 1
+    assert callbacks.count("public delegate TResult Func20<in T1,") == 1
+    assert "Action16<" not in callbacks
+    assert "out TResult>(T1 arg1," in callbacks
 
 
 def test_a_failure_of_the_csharp_backend_names_the_function(tmp_path: Path) -> None:
@@ -871,7 +898,7 @@ def test_a_refusal_says_which_declaration_and_where(tmp_path: Path, code: str) -
         generate(tmp_path, code)
     [diagnostic] = raised.value.diagnostics
     assert "C#:" in diagnostic.message
-    assert "17 arguments" in diagnostic.message
+    assert "65 arguments" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line >= 1
     assert str(raised.value).count("api.h") >= 1

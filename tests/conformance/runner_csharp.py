@@ -197,6 +197,8 @@ def publish_program(case: Case, output: Path, program: Path, name: str, mode: st
     reduced: the executable. None if the machine cannot do it (no packages of the SDK to
     download, no C compiler for native AOT): a failure then, if the CI requires it. Raises
     RuntimeError if the program does not publish."""
+    if mode == "aot" and platform.system() != "Linux":
+        pytest.skip("native AOT is tested on Linux only")
     runtime = host_runtime()
     if runtime is None:
         pytest.skip(f"no runtime identifier for {platform.system()} {platform.machine()}")

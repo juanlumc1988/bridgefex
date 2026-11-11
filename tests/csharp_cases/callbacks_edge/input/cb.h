@@ -43,6 +43,18 @@ std::int32_t sixteen(std::function<std::int32_t(
                          std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
                          std::int32_t)> f);
 
+// More arguments than the delegates of .NET have: the bindings declare delegates of their own.
+void seventeen(std::function<void(std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t)> f);
+std::int32_t twenty(std::function<std::int32_t(
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, double, const std::string&, bool)> f);
+
 // Text that is not UTF-8 goes to the callback.
 void bad_text(std::function<void(const std::string&)> f);
 void bad_c_text(std::function<void(const char*)> f);

@@ -77,6 +77,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
             "BridgefexCallbacks.cs.j2",
             **context,
             thunks=names.thunks.source(),
+            delegates=names.thunks.delegates(),
         )
     return files
 

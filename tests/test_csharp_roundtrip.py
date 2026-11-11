@@ -349,7 +349,7 @@ def test_two_modules_can_be_compiled_into_one_assembly(
 # overrides of a class of the user through function pointers, and the bindings find which methods
 # a class overrides by reflection: these are the cases where that matters.
 
-REDUCED = ("directors", "directors_edge", "callbacks", "containers")
+REDUCED = ("directors", "directors_edge", "callbacks", "callbacks_edge", "containers")
 
 
 @pytest.mark.parametrize("mode", ["trim", "aot"])
