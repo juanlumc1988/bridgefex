@@ -688,7 +688,7 @@ def test_without_a_jdk_the_code_is_not_checked(
 ) -> None:
     files = generate(tmp_path, SMALL)
     files[f"{JAVA}/api/Counter.java"] += "\nthis is not Java\n"
-    monkeypatch.setattr(jvm_check, "javac", lambda: None)
+    monkeypatch.setattr(jvm_check, "javac", lambda *_: None)
     assert jvm_check.check(_plan(), files, tmp_path / "scratch") == []
 
 

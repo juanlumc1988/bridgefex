@@ -239,11 +239,11 @@ public final class BridgefexHandle implements Runnable {
         } finally {
             DRAINING.remove();
         }
-        if (failure instanceof RuntimeException runtime) {
-            throw runtime;
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
         }
-        if (failure instanceof Error fatal) {
-            throw fatal;
+        if (failure instanceof Error) {
+            throw (Error) failure;
         }
     }
 

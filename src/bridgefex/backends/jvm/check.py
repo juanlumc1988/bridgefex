@@ -14,6 +14,7 @@ from pathlib import Path
 from ...errors import Diagnostic
 from ...plan import ModulePlan
 from ...rendering import write_files
+from .flavor import FFM, Flavor
 
 ENV_SKIP = "BRIDGEFEX_SKIP_JAVA_CHECK"
 """Set to 1 to skip the check."""
@@ -23,9 +24,9 @@ MIN_RELEASE = 22
 
 
 @functools.cache
-def javac() -> str | None:
+def javac(minimum: int = MIN_RELEASE) -> str | None:
     """The ``javac`` command, if the machine has a JDK that can compile the bindings (Java 22
-    or later)."""
+    or later for the FFM flavor; Java 9 or later, which has ``--release 8``, for the JNI one)."""
     for candidate in _candidates():
         try:
             completed = subprocess.run(
@@ -38,7 +39,7 @@ def javac() -> str | None:
         except (OSError, subprocess.SubprocessError):
             continue
         match = re.search(r"javac (\d+)", completed.stdout + completed.stderr)
-        if completed.returncode == 0 and match and int(match.group(1)) >= MIN_RELEASE:
+        if completed.returncode == 0 and match and int(match.group(1)) >= minimum:
             return candidate
     return None
 
@@ -68,13 +69,18 @@ def java_runtime(javac_command: str) -> str:
     return "java"
 
 
-def check(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagnostic]:
+def check(
+    plan: ModulePlan, files: Mapping[str, str], root: Path, flavor: Flavor = FFM
+) -> list[Diagnostic]:
     """Compile the generated sources with ``javac`` (warnings are errors) in a scratch
-    directory. Without a JDK of Java 22 or later the generated code is not checked."""
-    command = javac()
+    directory. Without a JDK that can (Java 22 or later for the FFM flavor, 9 for the JNI one)
+    the generated code is not checked."""
+    command = javac(MIN_RELEASE if flavor.modern else 9)
     if command is None or os.environ.get(ENV_SKIP) == "1":
         return []
-    java_files = {path: text for path, text in files.items() if path.startswith("jvm/")}
+    java_files = {
+        path: text for path, text in files.items() if path.startswith(f"{flavor.directory}/")
+    }
     write_files(java_files, root)
     sources = [str(root / path) for path in java_files if path.endswith(".java")]
     if not sources:
@@ -90,8 +96,9 @@ def check(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagno
     arguments = [
         command,
         "--release",
-        str(MIN_RELEASE),
-        "-Xlint:all",
+        str(flavor.release),
+        # The old releases are deprecated in the newest javac, which says so.
+        "-Xlint:all" if flavor.modern else "-Xlint:all,-options",
         "-Werror",
         "-encoding",
         "UTF-8",

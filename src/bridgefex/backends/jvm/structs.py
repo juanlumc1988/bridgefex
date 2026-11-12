@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from ...model import EnumRef, ScalarType, StructRef
 from ...plan import StructPlan
 from .enums import enum_class
+from .flavor import Flavor
 from .lower import Names
 from .mapping import Unsupported, scalar
 from .naming import PARAMETER_RESERVED, RESERVED_MEMBERS, camel, identifier, pascal
@@ -161,20 +162,20 @@ def struct_class(src: Source, struct: StructPlan, names: Names, *, nested: bool 
         src.line(f"public {member.annotation}{member.java} {member.name};")
     for enum in struct.enums:
         src.line()
-        enum_class(src, enum, nested=True)
+        enum_class(src, enum, nested=True, modern=names.flavor.modern)
     src.line()
     src.line("/** The layout of the C mirror of the struct. */")
     layouts = [_layout_member(member) for member in members]
     if layouts:
         src.line(
-            "public static final java.lang.foreign.StructLayout LAYOUT = BridgefexRuntime.struct("
+            f"public static final {names.flavor.struct_layout} LAYOUT = BridgefexRuntime.struct("
         )
         for position, layout in enumerate(layouts):
             comma = "," if position < len(layouts) - 1 else ");"
             src.line(f"    {layout}{comma}")
     else:
         src.line(
-            "public static final java.lang.foreign.StructLayout LAYOUT = BridgefexRuntime.struct();"
+            f"public static final {names.flavor.struct_layout} LAYOUT = BridgefexRuntime.struct();"
         )
     for member in members:
         src.line(
@@ -185,17 +186,18 @@ def struct_class(src: Source, struct: StructPlan, names: Names, *, nested: bool 
     src.line()
     src.doc("A value with the members that C++ gives a default-constructed object.")
     src.open(f"public static {name} defaults()")
-    src.open("try (var __arena = BridgefexRuntime.arena())")
-    src.line("var __raw = __arena.allocate(LAYOUT);")
+    declare = names.flavor.declare
+    src.open(f"try ({declare(names.flavor.arena)} __arena = BridgefexRuntime.arena())")
+    src.line(f"{declare(names.flavor.segment)} __raw = __arena.allocate(LAYOUT);")
     src.line(f"BridgefexRuntime.check(BridgefexNative.{struct.init.name}(__raw));")
     src.line("return read(__raw);")
     src.close()
     src.close()
     src.line()
-    _write(src, members)
+    _write(src, members, names.flavor)
     src.line()
-    _read(src, name, members)
-    _object_methods(src, name, members)
+    _read(src, name, members, names.flavor)
+    _object_methods(src, name, members, names.flavor)
     src.close()
 
 
@@ -246,9 +248,10 @@ def _layout_member(member: _Member) -> str:
     return f'{layout}.withName("{member.native_name}")'
 
 
-def _write(src: Source, members: list[_Member]) -> None:
+def _write(src: Source, members: list[_Member], flavor: Flavor) -> None:
+    segment = flavor.segment
     src.doc("Writes the value to the C mirror (for the generated code).")
-    src.open("public void write(java.lang.foreign.MemorySegment __seg)")
+    src.open(f"public void write({segment} __seg)")
     src.line("__seg.fill((byte) 0);")
     for member in members:
         offset = member.offset
@@ -270,9 +273,10 @@ def _write(src: Source, members: list[_Member]) -> None:
     src.close()
 
 
-def _read(src: Source, name: str, members: list[_Member]) -> None:
+def _read(src: Source, name: str, members: list[_Member], flavor: Flavor) -> None:
+    segment = flavor.segment
     src.doc("The value in a C mirror (for the generated code).")
-    src.open(f"public static {name} read(java.lang.foreign.MemorySegment __seg)")
+    src.open(f"public static {name} read({segment} __seg)")
     src.line(f"{name} __result = new {name}();")
     for member in members:
         offset = member.offset
@@ -296,13 +300,19 @@ def _read(src: Source, name: str, members: list[_Member]) -> None:
     src.close()
 
 
-def _object_methods(src: Source, name: str, members: list[_Member]) -> None:
+def _object_methods(src: Source, name: str, members: list[_Member], flavor: Flavor) -> None:
     src.line()
     src.line("@java.lang.Override")
     src.open("public boolean equals(java.lang.Object __other)")
-    src.open(f"if (!(__other instanceof {name} __that))")
-    src.line("return false;")
-    src.close()
+    if flavor.modern:
+        src.open(f"if (!(__other instanceof {name} __that))")
+        src.line("return false;")
+        src.close()
+    else:
+        src.open(f"if (!(__other instanceof {name}))")
+        src.line("return false;")
+        src.close()
+        src.line(f"{name} __that = ({name}) __other;")
     terms = []
     for member in members:
         field = member.name

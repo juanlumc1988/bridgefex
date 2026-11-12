@@ -25,6 +25,9 @@ from tests.support.toolchain import Toolchain
 
 # The golden cases that have a check, and the cases of the bindings alone (tests/binding_cases).
 EXTRA_DIR = Path(__file__).parent / "binding_cases"
+EXTRA_NAMES = {"lifetime", "wire"}
+"""The cases of the bindings alone: they ask for no language in their case.toml (the check is
+what they are for), and have both Java bindings."""
 CASES = [
     case
     for case in [
@@ -60,30 +63,41 @@ def built(
     return case, library, output
 
 
-def _check(case: Case, output: Path) -> Path:
+def _check(case: Case, output: Path, language: str = "jvm") -> Path:
+    program = case.check_jni if language == "jni" else case.check_jvm
     return runner_jvm.build_program(
-        case, output, case.check_jvm, "Check", support=(runner_jvm.SUPPORT,)
+        case, output, program, "Check", support=(runner_jvm.SUPPORT,), language=language
     )
 
 
-def test_jvm_round_trip(built: Built) -> None:
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_jvm_round_trip(built: Built, language: str) -> None:
     case, library, output = built
-    classes = _check(case, output)
+    if language not in case.languages and case.name not in EXTRA_NAMES:
+        pytest.skip(f"the case does not ask for the {language} bindings")
+    classes = _check(case, output, language)
     completed = runner_jvm.execute(case, classes, library, "Check")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
 
 
+@pytest.fixture(scope="module", params=["jvm", "jni"])
+def language(request: pytest.FixtureRequest) -> str:
+    """The Java bindings that the tests of the library run on: over the foreign function API, or
+    over JNI."""
+    return str(request.param)
+
+
 @pytest.fixture(scope="module")
 def demo(
-    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, language: str
 ) -> tuple[Case, Path, Path, Path]:
     """The demo case, built, with its check compiled: (case, library, output, classes)."""
     runner_jvm.skip_without_java()
     case = next(case for case in CASES if case.name == "demo")
-    directory = tmp_path_factory.mktemp("jvm_demo_extra")
+    directory = tmp_path_factory.mktemp(f"{language}_demo_extra")
     library, output = build(case, toolchain, directory)
-    return case, library, output, _check(case, output)
+    return case, library, output, _check(case, output, language)
 
 
 def _run(
@@ -179,7 +193,7 @@ def test_a_library_that_is_not_found_says_how_to_give_it(
 
 
 def test_a_failure_to_load_the_library_is_not_for_ever(
-    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path, language: str
 ) -> None:
     """The next call tries again: the property can be set after a first failure."""
     case, library, output, _classes = demo
@@ -201,7 +215,7 @@ def test_a_failure_to_load_the_library_is_not_for_ever(
         "}\n",
         encoding="utf-8",
     )
-    classes = runner_jvm.build_program(case, output, program, "Retry")
+    classes = runner_jvm.build_program(case, output, program, "Retry", language=language)
     completed = _run(case, classes, str(library), main="Retry")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "retry OK" in completed.stdout
@@ -246,7 +260,7 @@ def test_a_library_that_is_refused_says_why(
 
 
 def test_a_function_that_the_library_lacks_fails_alone(
-    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path, language: str
 ) -> None:
     """Each function is bound when it is first called: one that the library does not have fails
     with the name of the function, and the rest of the library works."""
@@ -274,15 +288,22 @@ def test_a_function_that_the_library_lacks_fails_alone(
         encoding="utf-8",
     )
 
+    # What the library lacks: the name that the bindings bind (a string over FFM, a native method
+    # over JNI, which the library registers when it is loaded).
+    wanted = '"demo_multiply_int32_int32"' if language == "jvm" else "n_demo_multiply_int32_int32"
+    missing = '"demo_does_not_exist"' if language == "jvm" else "n_demo_does_not_exist"
+
     def lacking(files: dict[str, str]) -> dict[str, str]:
         return {
-            path: content.replace('"demo_multiply_int32_int32"', '"demo_does_not_exist"')
+            path: content.replace(wanted, missing)
             if path.endswith("BridgefexNative.java")
             else content
             for path, content in files.items()
         }
 
-    classes = runner_jvm.build_program(case, output, program, "Lacks", edit=lacking)
+    classes = runner_jvm.build_program(
+        case, output, program, "Lacks", edit=lacking, language=language
+    )
     completed = _run(
         case, classes, str(library), main="Lacks", environment={"DEMO_LIBRARY": str(library)}
     )
@@ -290,7 +311,9 @@ def test_a_function_that_the_library_lacks_fails_alone(
     assert "lacks OK" in completed.stdout
 
 
-def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:
+def test_a_stale_library_is_refused(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path, language: str
+) -> None:
     """Bindings whose fingerprint is not the one of the library refuse to run."""
     case, library, _output, _classes = demo
 
@@ -304,7 +327,13 @@ def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_pat
         }
 
     classes = runner_jvm.build_program(
-        case, tmp_path, case.check_jvm, "Check", support=(runner_jvm.SUPPORT,), edit=stale
+        case,
+        tmp_path,
+        case.check_jvm,
+        "Check",
+        support=(runner_jvm.SUPPORT,),
+        edit=stale,
+        language=language,
     )
     completed = runner_jvm.execute(case, classes, library, "Check")
     output = completed.stdout + completed.stderr

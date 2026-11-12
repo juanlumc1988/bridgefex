@@ -219,13 +219,22 @@ def test_the_base_of_the_backends_depends_on_the_plan_only() -> None:
             assert name in _BASE_MAY_IMPORT, f"base.py imports {name}"
 
 
+# A package may have more than one backend: the same bindings over another way of calling C.
+_FLAVORS = {"jvm": {"jni"}}
+
+
 def test_every_backend_package_is_registered_under_its_directory_name() -> None:
     directories = sorted(
         path.name
         for path in BACKENDS_DIR.iterdir()
         if path.is_dir() and (path / "__init__.py").exists()
     )
-    assert sorted(backend.name for backend in BACKENDS) == directories
+    flavors = {name for names in _FLAVORS.values() for name in names}
+    assert (
+        sorted(backend.name for backend in BACKENDS if backend.name not in flavors) == directories
+    )
+    # Each flavor belongs to a package that is a backend itself.
+    assert all(package in directories for package in _FLAVORS)
 
 
 # -- the checks themselves: each must see what it is for ----------------------------------

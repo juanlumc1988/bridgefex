@@ -96,14 +96,16 @@ public abstract class BridgefexObject implements AutoCloseable {
 
     private IllegalStateException refusal(BridgefexHandle.LeaseResult result, boolean give) {
         String name = getClass().getSimpleName();
-        return switch (result) {
-            case CLOSED -> closed();
-            case PINNED -> new IllegalStateException(
+        if (result == BridgefexHandle.LeaseResult.CLOSED) {
+            return closed();
+        }
+        if (result == BridgefexHandle.LeaseResult.PINNED) {
+            return new IllegalStateException(
                 name + " object cannot be transferred: the C++ object of another one points to it");
-            default -> new IllegalStateException(give
-                ? name + " object cannot be transferred: another call uses it, or is giving it"
-                : name + " object is being given to C++ by another call");
-        };
+        }
+        return new IllegalStateException(give
+            ? name + " object cannot be transferred: another call uses it, or is giving it"
+            : name + " object is being given to C++ by another call");
     }
 
     private BridgefexHandle[] leaseAll(List<BridgefexHandle> handles) {
@@ -143,10 +145,7 @@ public abstract class BridgefexObject implements AutoCloseable {
         BridgefexKeep kept = retained;
         if (kept == null) {
             BridgefexKeep fresh = new BridgefexKeep(handle);
-            kept = handle.kept.compareAndExchange(null, fresh);
-            if (kept == null) {
-                kept = fresh;
-            }
+            kept = handle.kept.compareAndSet(null, fresh) ? fresh : handle.kept.get();
             retained = kept;
         }
         return kept;

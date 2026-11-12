@@ -2,4 +2,4 @@
 module = "scalars"
 headers = ["numbers.h"]
 std = "c++17"
-languages = ["python", "csharp", "jvm"]
+languages = ["python", "csharp", "jvm", "jni"]

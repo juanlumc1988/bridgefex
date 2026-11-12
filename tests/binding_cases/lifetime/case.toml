@@ -4,4 +4,4 @@ module = "life"
 headers = ["life.h"]
 std = "c++17"
 annotations = ["annotations.toml"]
-languages = ["csharp"]
+languages = ["csharp", "jni"]
