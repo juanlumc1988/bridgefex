@@ -155,7 +155,9 @@ Check(
         Weighted(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17)
         + (d == 2.5 ? 1000 : 0) + (s == "wide" ? 100 : 0) + (b ? 10 : 0)) == 1785 + 1110,
     "20 arguments of several kinds, with a result");
-Expect<BridgefexException>(() => F.Twenty(null!), "bad_function_call");
+// The text of std::bad_function_call is the one of the standard library ("bad_function_call", "bad function call").
+var empty = Expect<BridgefexException>(() => F.Twenty(null!));
+Check(empty.Message.Contains("bad") && empty.Message.Contains("function"), "an empty std::function: " + empty.Message);
 NoCallbacks("after the callbacks of 17 and 20 arguments");
 
 // -- Text that is not UTF-8 is an error of the callback, which the call raises ----------------------------
