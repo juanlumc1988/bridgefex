@@ -36,14 +36,22 @@ def jni_includes() -> list[Path]:
 
 
 def build(
-    case: Case, toolchain: Toolchain, directory: Path, extra_flags: Sequence[str] = ()
+    case: Case,
+    toolchain: Toolchain,
+    directory: Path,
+    extra_flags: Sequence[str] = (),
+    *,
+    glue: bool | None = None,
 ) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir).
 
     A case that asks for the JNI bindings (and a machine with a JDK that has ``jni.h``) has the
     glue of those in the library too, as the bindings need it: the other languages do not mind.
+    ``glue=False`` builds the C layer alone (what its exports are checked on).
     """
-    glue = "jni" in case.languages and bool(jni_includes())
+    if glue is None:
+        glue = "jni" in case.languages
+    glue = glue and bool(jni_includes())
     output = directory / "out"
     result = bridgefex.generate(
         case.headers, case.options(("python", "jni") if glue else ("python",))
