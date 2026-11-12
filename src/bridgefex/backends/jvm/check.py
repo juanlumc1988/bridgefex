@@ -61,8 +61,11 @@ def _candidates() -> list[str]:
 
 def java_runtime(javac_command: str) -> str:
     """The ``java`` command of the same JDK as ``javac_command``."""
-    sibling = Path(javac_command).with_name("java")
-    return str(sibling) if sibling.exists() else "java"
+    for name in ("java", "java.exe"):
+        sibling = Path(javac_command).with_name(name)
+        if sibling.exists():
+            return str(sibling)
+    return "java"
 
 
 def check(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagnostic]:
@@ -78,6 +81,12 @@ def check(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagno
         return []
     out = root / "classes"
     out.mkdir(parents=True, exist_ok=True)
+    # The sources go in a file of arguments: a big module has more of them than a command line of
+    # Windows can hold.
+    listing = root / "sources.txt"
+    listing.write_text(
+        "\n".join(f'"{Path(source).as_posix()}"' for source in sources) + "\n", encoding="utf-8"
+    )
     arguments = [
         command,
         "--release",
@@ -88,7 +97,7 @@ def check(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagno
         "UTF-8",
         "-d",
         str(out),
-        *sources,
+        f"@{listing}",
     ]
     try:
         completed = subprocess.run(
