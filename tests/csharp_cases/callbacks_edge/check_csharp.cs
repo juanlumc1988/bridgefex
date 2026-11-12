@@ -127,6 +127,39 @@ Check(
         + 1000 * (a16 - a1)) == 136 + 15000,
     "16 arguments, the last ones on the stack");
 
+// -- More arguments than the delegates of .NET have ---------------------------------------------------
+
+// Each argument has its own weight, so that two arguments that swap places are noticed.
+static int Weighted(params int[] values)
+{
+    int sum = 0;
+    for (int i = 0; i < values.Length; i++)
+    {
+        sum += values[i] * (i + 1);
+    }
+    return sum;
+}
+
+{
+    int total = 0;
+    F.Seventeen((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =>
+        total = Weighted(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17));
+    Check(total == 1785, "17 arguments, without a result: " + total);
+    Expect<FormatException>(
+        () => F.Seventeen((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =>
+            throw new FormatException("wide")),
+        "wide");
+}
+Check(
+    F.Twenty((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, d, s, b) =>
+        Weighted(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17)
+        + (d == 2.5 ? 1000 : 0) + (s == "wide" ? 100 : 0) + (b ? 10 : 0)) == 1785 + 1110,
+    "20 arguments of several kinds, with a result");
+// The text of std::bad_function_call is the one of the standard library ("bad_function_call", "bad function call").
+var empty = Expect<BridgefexException>(() => F.Twenty(null!));
+Check(empty.Message.Contains("bad") && empty.Message.Contains("function"), "an empty std::function: " + empty.Message);
+NoCallbacks("after the callbacks of 17 and 20 arguments");
+
 // -- Text that is not UTF-8 is an error of the callback, which the call raises ----------------------------
 
 called = false;

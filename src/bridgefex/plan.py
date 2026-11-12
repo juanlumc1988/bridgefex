@@ -3013,8 +3013,8 @@ class _Builder:
             elif not isinstance(type_, ScalarType | EnumRef | StructRef | StringType):
                 problems.append(
                     f"{what}: '{_spelling(type_)}' is not a type that an override can take "
-                    "or give yet (scalars, enums, strings, value structs and containers of "
-                    "them are)"
+                    "or give yet (scalars, enums, strings, value structs, containers of them "
+                    "and objects of wrapped classes are)"
                 )
             else:
                 return True

@@ -8,5 +8,6 @@
     <RootNamespace>Cbx</RootNamespace>
     <AssemblyName>Cbx.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

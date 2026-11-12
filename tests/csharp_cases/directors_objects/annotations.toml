@@ -1,0 +1,20 @@
+directors = ["dob_Visitor", "dob_Node"]
+
+# Pointers that may be NULL (null), and a std::unique_ptr that may be empty.
+[dob_Visitor_pointer]
+node = "nullable"
+
+[dob_Visitor_call_pointer]
+node = "nullable"
+
+[dob_Visitor_take]
+node = "nullable"
+
+[dob_Visitor_call_take]
+node = "nullable"
+
+[dob_Visitor_same]
+other = "nullable"
+
+[dob_Visitor_call_same]
+other = "nullable"

@@ -8,5 +8,6 @@
     <RootNamespace>Txt</RootNamespace>
     <AssemblyName>Txt.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

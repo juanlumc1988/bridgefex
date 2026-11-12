@@ -27,7 +27,7 @@ LOCAL_PREFIX = "__"
 BODY_TYPES = frozenset(
     """
     Runtime Native Block StringBlock Lease Keep BridgefexObject BridgefexException ObjectHandle
-    BridgefexCallbacks CallScope CallbackBox Thunks DirectorBox
+    BridgefexCallbacks CallScope CallbackBox Thunks DirectorBox Lent
     """.split()
 )
 
@@ -45,7 +45,7 @@ RESERVED_MEMBERS = BODY_TYPES | frozenset(
     Dispose Close Equals GetHashCode GetType ToString Finalize MemberwiseClone ReferenceEquals
     IsClosed Handle Hold Owners ReadOnly Retained Origin CppType Retain Attach Surrender KeepOf
     ClaimToGive CollectOwning RetainForever Borrow Director HoldDirector SetDirector
-    DirectorOverrides
+    DirectorOverrides LendToOverride AdoptFromCpp GiveToCpp
     """.split()
 )
 

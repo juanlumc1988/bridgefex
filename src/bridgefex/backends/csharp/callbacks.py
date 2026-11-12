@@ -12,7 +12,16 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from ...model import EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    ClassForm,
+    ClassRef,
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import (
     CallbackPart,
     CallbackSpec,
@@ -31,7 +40,11 @@ if TYPE_CHECKING:
 L = LOCAL_PREFIX
 
 MAX_ARGUMENTS = 16
-"""``Func`` and ``Action`` have no more parameters than this."""
+"""``Func`` and ``Action`` have no more parameters than this: a callback with more has delegates
+of the bindings (``BridgefexCallbacks.Func17``...)."""
+
+WIDEST = 64
+"""The most arguments of a callback that the bindings have delegates for."""
 
 _CDECL = CDECL_CALLERS
 
@@ -54,6 +67,16 @@ class _Argument:
     public: str
     natives: tuple[str, ...]
     read: str
+    prelude: tuple[str, ...] = ()
+    """Statements that run before the call (a container that is converted is built there):
+    ``{v}`` is a local of the argument, ``{i}`` its index."""
+
+    adopt: str = ""
+    """What C++ gives up (a ``std::unique_ptr``) is wrapped before anything else can fail, so that
+    whatever happens next destroys it: the declaration of ``o{n}``, before the ``try``."""
+
+    lends: bool = False
+    """The argument is an object that C++ lends for the length of the call (see ``Lent``)."""
 
 
 def _element(part: CallbackPart, names: Names) -> Element:
@@ -77,7 +100,68 @@ def _argument(part: CallbackPart, names: Names) -> _Argument:
         return _Argument(
             element.public, (element.native,), element.from_native.replace("{}", "{0}")
         )
+    if isinstance(type_, ContainerType):
+        return _container_argument(part, type_, names)
+    if isinstance(type_, ClassRef):
+        return _object_argument(part, type_, names)
     raise Unsupported(f"the type '{type_.cpp_spelling}' of an argument of a callback")
+
+
+def _object_argument(part: CallbackPart, type_: ClassRef, names: Names) -> _Argument:
+    """An object that C++ gives to an override: a reference or a pointer is lent (valid while the
+    override runs), a ``std::unique_ptr`` is given for good (a plain object that owns it)."""
+    info = part.cls
+    assert info is not None
+    cls = names.cls(info)
+    if type_.form is ClassForm.UNIQUE:
+        return _Argument(
+            cls + "?",
+            ("nint",),
+            "o{n}!",
+            adopt=f"{cls}? o{{n}} = {cls}.AdoptFromCpp({{0}});",
+        )
+    readonly = (
+        "true" if type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER) else "false"
+    )
+    nullable = "?" if type_.form in (ClassForm.POINTER, ClassForm.CONST_POINTER) else ""
+    return _Argument(
+        cls + nullable,
+        ("nint",),
+        f"{cls}.LendToOverride({{0}}, {readonly}, lent)!",
+        lends=True,
+    )
+
+
+def _container_argument(part: CallbackPart, type_: ContainerType, names: Names) -> _Argument:
+    """A container that C++ gives to an override: a span over what C++ holds (it is only valid
+    while the override runs, and a span cannot be kept), or an array if its elements have to be
+    converted."""
+    element = element_of(part.element, names)
+    span = f"global::System.ReadOnlySpan<{element.public}>"
+    pointer = f"{element.native}*"
+    natives: tuple[str, ...]
+    if type_.kind is ContainerKind.ARRAY:
+        natives = (pointer,)
+        count = f"Runtime.Count({{0}}, {type_.length})"
+    else:
+        natives = (pointer, "nuint")
+        count = "Runtime.Count({0}, {1})"
+    if element.pinnable:
+        return _Argument(span, natives, f"new {span}(({element.public}*){{0}}, {count})")
+    if element.kind == "struct":
+        value = f"{element.public}.FromNative(&{{0}}[{{i}}])"
+    elif element.kind == "string":
+        value = "Runtime.TakeText((nint){0}[{i}].Data, {0}[{i}].Size)"
+    else:
+        value = element.from_native.replace("{}", "{0}[{i}]")
+    prelude = (
+        f"var {{v}} = new {element.public}[{count}];",
+        "for (int {i} = 0; {i} < {v}.Length; {i}++)",
+        "{",
+        f"    {{v}}[{{i}}] = {value};",
+        "}",
+    )
+    return _Argument(span, natives, "{v}", prelude)
 
 
 def public_of(part: CallbackPart, names: Names) -> str:
@@ -92,19 +176,25 @@ def _to_native(element: Element, value: str) -> str:
 
 
 def delegate_type(callback: CallbackSpec, names: Names) -> str:
-    """``Func<A, R>`` or ``Action<A>`` for a ``std::function<R(A)>``."""
-    if len(callback.arguments) > MAX_ARGUMENTS:
+    """``Func<A, R>`` or ``Action<A>`` for a ``std::function<R(A)>``, or a delegate of the
+    bindings if it has more arguments than those have."""
+    count = len(callback.arguments)
+    if count > WIDEST:
         raise Unsupported(
-            f"a callback with {len(callback.arguments)} arguments (C# has no delegate with more "
-            f"than {MAX_ARGUMENTS})"
+            f"a callback with {count} arguments (the bindings have delegates for up to {WIDEST})"
         )
     types = [_argument(part, names).public for part in callback.arguments]
     result = callback.result.type
-    if isinstance(result, ScalarType) and result.is_void:
+    returns = not (isinstance(result, ScalarType) and result.is_void)
+    if returns:
+        types.append(_element(callback.result, names).public)
+    if count > MAX_ARGUMENTS:
+        names.thunks.wide(returns, count)
+        return f"BridgefexCallbacks.{'Func' if returns else 'Action'}{count}<{', '.join(types)}>"
+    if not returns:
         if not types:
             return "global::System.Action"
         return f"global::System.Action<{', '.join(types)}>"
-    types.append(_element(callback.result, names).public)
     return f"global::System.Func<{', '.join(types)}>"
 
 
@@ -116,6 +206,30 @@ class Thunk:
     """The function pointer type, to take the address of the method."""
 
     body: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Sinks:
+    """The functions of the C layer that set what an override gives back."""
+
+    string: str
+    vector: str
+    strings: str
+
+
+def sinks_of(plan: ModulePlan) -> Sinks:
+    return Sinks(plan.string_sink_set, plan.vector_sink_set, plan.vector_sink_set_strings)
+
+
+def _fill(text: str, locals_: list[str], position: int) -> str:
+    """The expression or statement of an argument, with its C parameters and its locals."""
+    for index, local in enumerate(locals_):
+        text = text.replace(f"{{{index}}}", local)
+    return (
+        text.replace("{v}", f"c{position}")
+        .replace("{i}", f"i{position}")
+        .replace("{n}", str(position))
+    )
 
 
 def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Thunk:
@@ -172,16 +286,68 @@ def _thunk(name: str, callback: CallbackSpec, delegate: str, names: Names) -> Th
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
 
 
+def _director_result(
+    entry: DirectorEntry, what: str, method_call: str, *, names: Names, sinks: Sinks
+) -> tuple[tuple[str, str] | None, list[str], list[str]]:
+    """What the thunk does with the result of the override: the C parameter that C++ gives for
+    it (its C# type and the type for the function pointer, or None), the statements that call
+    the override, and the ones that give its result to C++."""
+    result = entry.callback.result
+    kind = result.type
+    if isinstance(kind, ScalarType) and kind.is_void:
+        return None, [f"{method_call};"], []
+    statement = [f"var value = {method_call};"]
+    if isinstance(kind, StringType):
+        give = (
+            [
+                "if (value is null)",
+                "{",
+                "    throw new global::System.InvalidOperationException("
+                f'"the override {what} returned null for a std::string");',
+                "}",
+            ]
+            if kind.sized
+            else []
+        ) + [
+            "if (value is not null)",
+            "{",
+            '    byte[] bytes = Runtime.Utf8(value, "result");',
+            "    fixed (byte* text = bytes)",
+            "    {",
+            f"        Native.{sinks.string}(sink, text, (nuint)bytes.Length);",
+            "    }",
+            "}",
+        ]
+        return ("nint sink", "nint"), statement, give
+    if isinstance(kind, StructRef):
+        out = _element(result, names)
+        return (f"{out.native}* result", f"{out.native}*"), statement, ["value.ToNative(result);"]
+    if isinstance(kind, ContainerType):
+        give = _container_result(kind, result, names, what, sinks)
+        return ("nint sink", "nint"), statement, give
+    if isinstance(kind, ClassRef):
+        return ("nint* result", "nint*"), statement, _object_result(result, names, what)
+    out = _element(result, names)
+    give = []
+    if out.check is not None:
+        low, high = out.check
+        give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
+    give.append(f"*result = {_to_native(out, 'value')};")
+    return (f"{out.native}* result", f"{out.native}*"), statement, give
+
+
 def _director_thunk(
-    name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sink_set: str
+    name: str, root: str, method: str, entry: DirectorEntry, *, names: Names, sinks: Sinks
 ) -> Thunk:
     """The thunk of a virtual method: it finds the C# object of the director and calls
     ``method``."""
-    callback = entry.callback
-    arguments = [_argument(part, names) for part in callback.arguments]
+    arguments = [_argument(part, names) for part in entry.callback.arguments]
     parameters = ["void* userData"]
     pointer = ["void*"]
     values: list[str] = []
+    before: list[str] = []
+    adopted: list[str] = []
+    owned: list[str] = []
     for position, argument in enumerate(arguments, start=1):
         locals_ = []
         for index, native in enumerate(argument.natives):
@@ -189,59 +355,22 @@ def _director_thunk(
             parameters.append(f"{native} {local}")
             pointer.append(native)
             locals_.append(local)
-        expression = argument.read
-        for index, local in enumerate(locals_):
-            expression = expression.replace(f"{{{index}}}", local)
-        values.append(expression)
-    result = callback.result
-    kind = result.type
-    call = f"target.{method}({', '.join(values)})"
-    give: list[str] = []
-    if isinstance(kind, ScalarType) and kind.is_void:
-        statement = [f"{call};"]
-    else:
-        statement = [f"var value = {call};"]
-        if isinstance(kind, StringType):
-            parameters.append("nint sink")
-            pointer.append("nint")
-            nullable = "" if kind.sized else None
-            give = (
-                [
-                    "if (value is null)",
-                    "{",
-                    "    throw new global::System.InvalidOperationException("
-                    f'"the override {root.rsplit(".", 1)[-1]}.{entry.name} returned null for a '
-                    'std::string");',
-                    "}",
-                ]
-                if nullable is not None
-                else []
-            ) + [
-                "if (value is not null)",
-                "{",
-                '    byte[] bytes = Runtime.Utf8(value, "result");',
-                "    fixed (byte* text = bytes)",
-                "    {",
-                f"        Native.{sink_set}(sink, text, (nuint)bytes.Length);",
-                "    }",
-                "}",
-            ]
-        elif isinstance(kind, StructRef):
-            out = _element(result, names)
-            parameters.append(f"{out.native}* result")
-            pointer.append(f"{out.native}*")
-            give = ["value.ToNative(result);"]
-        else:
-            out = _element(result, names)
-            parameters.append(f"{out.native}* result")
-            pointer.append(f"{out.native}*")
-            if out.check is not None:
-                low, high = out.check
-                what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
-                give.append(f'box.CheckResult((long)value, {low}, {high}, "{what}");')
-            give.append(f"*result = {_to_native(out, 'value')};")
+        before += [_fill(line, locals_, position) for line in argument.prelude]
+        values.append(_fill(argument.read, locals_, position))
+        if argument.adopt:
+            adopted.append(_fill(argument.adopt, locals_, position))
+            owned.append(f"o{position}")
+    what = f"{root.rsplit('.', 1)[-1]}.{entry.name}"
+    out, statement, give = _director_result(
+        entry, what, f"target.{method}({', '.join(values)})", names=names, sinks=sinks
+    )
+    if out is not None:
+        parameters.append(out[0])
+        pointer.append(out[1])
     pointer.append("void")
     body = [
+        *adopted,
+        *(["bool passed = false;"] if owned else []),
         "DirectorBox? box = null;",
         "try",
         "{",
@@ -257,6 +386,9 @@ def _director_thunk(
         'keep a reference to it while C++ uses it");',
         "    }",
         "    using var running = box.Enter();",
+        *(["    using var lent = new Lent();"] if any(a.lends for a in arguments) else []),
+        *(f"    {line}" for line in before),
+        *(["    passed = true;"] if owned else []),
         *(f"    {line}" for line in statement),
         *(f"    {line}" for line in give),
         "}",
@@ -265,7 +397,104 @@ def _director_thunk(
         "    CallbackBox.Fail(box, error);",
         "}",
     ]
+    if owned:
+        # C++ gave the objects up: if the override never got them, they are destroyed here.
+        body += [
+            "finally",
+            "{",
+            "    if (!passed)",
+            "    {",
+            *(f"        {item}?.Dispose();" for item in owned),
+            "    }",
+            "}",
+        ]
     return Thunk(name, tuple(parameters), ", ".join(pointer), tuple(body))
+
+
+def _object_result(part: CallbackPart, names: Names, what: str) -> list[str]:
+    """The statements that give C++ the object that an override returned (a ``std::unique_ptr``):
+    C# gives it up, as a call that takes the object gives it (``GiveToCpp`` of the class)."""
+    info = part.cls
+    assert info is not None
+    cls = names.cls(info)
+    return [
+        "if (value is null)",
+        "{",
+        "    *result = 0;",
+        "}",
+        "else",
+        "{",
+        f'    *result = {cls}.GiveToCpp(value, "{what}");',
+        "}",
+    ]
+
+
+def _container_result(
+    type_: ContainerType, part: CallbackPart, names: Names, what: str, sinks: Sinks
+) -> list[str]:
+    """The statements that give C++ the array that an override returned: C++ copies it into the
+    container before the thunk returns."""
+    element = element_of(part.element, names)
+    shape = "std::array" if type_.kind is ContainerKind.ARRAY else "std::vector"
+    lines = [
+        "if (value is null)",
+        "{",
+        "    throw new global::System.InvalidOperationException("
+        f'"the override {what} returned null for a {shape}");',
+        "}",
+    ]
+    if type_.kind is ContainerKind.ARRAY:
+        lines += [
+            f"if (value.Length != {type_.length})",
+            "{",
+            "    throw new global::System.InvalidOperationException("
+            f'"the override {what} returned " + value.Length + " elements for a std::array of '
+            f'{type_.length}");',
+            "}",
+        ]
+    if element.kind == "string":
+        return [
+            *lines,
+            'using var block = StringBlock.Make(value, "result");',
+            f"Native.{sinks.strings}(sink, block.Pointer, (nuint)value.Length);",
+        ]
+    check: list[str] = []
+    if element.check is not None:
+        low, high = element.check
+        check = [
+            "for (int i = 0; i < value.Length; i++)",
+            "{",
+            f'    box.CheckResult((long)value[i], {low}, {high}, "{what}[" + i + "]");',
+            "}",
+        ]
+    size = f"(nuint)sizeof({element.native})"
+    if element.pinnable:
+        return (
+            lines
+            + check
+            + [
+                f"fixed ({element.public}* data = value)",
+                "{",
+                f"    Native.{sinks.vector}(sink, data, (nuint)value.Length, {size});",
+                "}",
+            ]
+        )
+    if element.kind == "struct":
+        convert = "value[i].ToNative(&block.Pointer[i]);"
+    else:
+        convert = f"block.Pointer[i] = {element.to_native.replace('{}', 'value[i]')};"
+    return (
+        lines
+        + check
+        + [
+            f"using var block = Block<{element.native}>.Alloc(value.Length);",
+            "for (int i = 0; i < value.Length; i++)",
+            "{",
+            f"    {convert}",
+            "}",
+            f"Native.{sinks.vector}(sink, block.Pointer, (nuint)value.Length, {size});",
+        ]
+    )
 
 
 @dataclass(slots=True)
@@ -275,6 +504,29 @@ class ThunkTable:
     _items: dict[tuple[str, str], Thunk] = field(default_factory=dict)
     _names: set[str] = field(default_factory=set)
     _directors: dict[str, Thunk] = field(default_factory=dict)
+    _wide: set[tuple[bool, int]] = field(default_factory=set)
+    """The delegates with more arguments than ``Func`` and ``Action`` have: (returns, arguments)."""
+
+    def wide(self, returns: bool, count: int) -> None:
+        self._wide.add((returns, count))
+
+    def delegates(self) -> list[str]:
+        """The declarations of the delegates that are used, inside ``BridgefexCallbacks``."""
+        lines: list[str] = []
+        for returns, count in sorted(self._wide):
+            kind = "Func" if returns else "Action"
+            generics = [f"in T{i}" for i in range(1, count + 1)]
+            parameters = [f"T{i} arg{i}" for i in range(1, count + 1)]
+            if returns:
+                generics.append("out TResult")
+            lines += [
+                "",
+                f"    /// <summary>A callback with {count} arguments (<c>{kind}</c> has no more "
+                f"than {MAX_ARGUMENTS}).</summary>",
+                f"    public delegate {'TResult' if returns else 'void'} {kind}{count}"
+                f"<{', '.join(generics)}>({', '.join(parameters)});",
+            ]
+        return lines
 
     def director(
         self,
@@ -284,12 +536,12 @@ class ThunkTable:
         entry: DirectorEntry,
         *,
         names: Names,
-        sink_set: str,
+        sinks: Sinks,
     ) -> None:
         """The thunk ``name`` of a virtual method of the C# class ``root``."""
         if name not in self._directors:
             self._directors[name] = _director_thunk(
-                name, root, method, entry, names=names, sink_set=sink_set
+                name, root, method, entry, names=names, sinks=sinks
             )
 
     def address(self, key: str, callback: CallbackSpec, names: Names) -> str:
@@ -328,4 +580,4 @@ class ThunkTable:
         return lines
 
 
-__all__ = ["ThunkTable", "delegate_type", "has_callbacks"]
+__all__ = ["ThunkTable", "delegate_type", "has_callbacks", "sinks_of"]

@@ -8,16 +8,26 @@ through a thunk (a static method with the C signature of the vtable member) that
 object by the ``user_data`` of the vtable; ``base.Method()`` calls the implementation of the C++
 class through the director. The classes that can be derived from are those whose chain of bases
 is single and has a director each, and whose virtual methods that are pure have types that the
-C# side supports: scalars, enums, strings and value structs."""
+C# side supports (every type that the plan supports: scalars, enums, strings, value structs,
+containers and objects)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    Access,
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import public_of
+from .elements import element_of
 from .lower import lower_callable
 from .mapping import scalar
 from .naming import LOCAL_PREFIX, RESERVED_MEMBERS, identifier, pascal
@@ -30,6 +40,10 @@ L = LOCAL_PREFIX
 
 
 def supported_part(part: CallbackPart) -> bool:
+    if isinstance(part.type, ContainerType):
+        return part.element is not None
+    if isinstance(part.type, ClassRef):
+        return part.cls is not None
     return isinstance(part.type, ScalarType | EnumRef | StructRef | StringType)
 
 
@@ -225,7 +239,24 @@ def result_type(entry: DirectorEntry, names: Names) -> str:
         return names.enum(part.enum)
     if isinstance(kind, StructRef) and part.struct is not None:
         return names.struct(part.struct)
+    if isinstance(kind, ContainerType):
+        return f"{element_of(part.element, names).public}[]"
+    if isinstance(kind, ClassRef) and part.cls is not None:
+        return names.cls(part.cls) + "?"
     raise AssertionError(kind)
+
+
+def object_classes(derivable: dict[str, DirectorClass]) -> frozenset[str]:
+    """The classes (by C type) that an override takes or gives as objects."""
+    found: set[str] = set()
+    for d in derivable.values():
+        for slot in d.slots:
+            if not slot.ok:
+                continue
+            for part in (*slot.entry.callback.arguments, slot.entry.callback.result):
+                if isinstance(part.type, ClassRef) and part.cls is not None:
+                    found.add(part.cls.c_type)
+    return frozenset(found)
 
 
 def _indent(lines: list[str], width: int) -> list[str]:
@@ -281,19 +312,34 @@ def virtual_body(
     return lines
 
 
+ANNOTATION = (
+    "[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers("
+    "global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods "
+    "| global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] "
+)
+"""The annotation of a class and of the parameter that receives its ``GetType()``: the trimmer
+and the native AOT compiler keep the methods of the classes that derive from it, which
+``DirectorOverrides`` reads by reflection. A method with an annotated parameter cannot be in an
+annotated class, so those are in a nested class."""
+
+
 def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
-    """``DirectorOverrides``: which virtual methods does the C# class of an object override."""
+    """``DirectorOverrides.Of``: which virtual methods does the C# class of an object override."""
     cls = d.cls
     name = pascal(cls.model.name)
     generated = ", ".join(f"typeof({names.classes[item.c_type]})" for item in d.chain)
     src.line()
+    src.open("private static class DirectorOverrides")
     src.line(
         "private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<"
-        "global::System.Type, bool[]> s_overrides = new();"
+        "global::System.Type, bool[]> s_found = new();"
     )
     src.line()
-    src.open("private static bool[]? DirectorOverrides(global::System.Type type, bool always)")
-    src.open("bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]")
+    src.open(f"private static bool[] Read({ANNOTATION}global::System.Type type)")
+    src.open("if (s_found.TryGetValue(type, out bool[]? known))")
+    src.line("return known;")
+    src.close()
+    src.open("bool[] found = new bool[]")
     for slot in d.slots:
         if not slot.ok:
             src.line("false,")
@@ -303,11 +349,16 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
         )
         root = names.classes[slot.root.c_type]
         src.line(
-            f'DirectorBox.Overrides(t, typeof({root}), "{slot.name}", '
+            f'DirectorBox.Overrides(type, typeof({root}), "{slot.name}", '
             f"new global::System.Type[] {{ {parameters} }}, "
             f"new global::System.Type[] {{ {generated} }}),"
         )
-    src.close(");")
+    src.close(";")
+    src.line("return s_found.GetOrAdd(type, found);")
+    src.close()
+    src.line()
+    src.open(f"internal static bool[]? Of({ANNOTATION}global::System.Type type, bool always)")
+    src.line("bool[] found = Read(type);")
     src.line(
         f"if (!always && (type == typeof({name}) || !global::System.Array.Exists(found, x => x)))"
     )
@@ -325,6 +376,7 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
             )
             src.close()
     src.line("return found;")
+    src.close()
     src.close()
 
 

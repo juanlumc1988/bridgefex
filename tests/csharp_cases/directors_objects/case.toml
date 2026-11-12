@@ -1,0 +1,9 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): the objects that C++ lends to an
+# override (a reference or a pointer: the C# object itself if C# owns it, else a wrapper that is closed
+# when the override returns), gives to it (std::unique_ptr: destroyed even if the override never runs) and
+# takes from it (std::unique_ptr: C# gives the object up), and what an override must not do with them.
+module = "dob"
+headers = ["dob.h"]
+std = "c++17"
+annotations = ["annotations.toml"]
+languages = ["csharp"]

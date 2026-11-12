@@ -113,7 +113,7 @@ internal readonly unsafe ref struct StringBlock
 internal static unsafe partial class Runtime
 {
     internal const string Library = "drc";
-    internal const string Fingerprint = "05dad9db918b59659977658894fe2bd1";
+    internal const string Fingerprint = "76c5f1c2fd950a2b25053a0f36ff49eb";
 
     internal const string Variable = "DRC_LIBRARY";
     private static readonly object Gate = new();
@@ -304,6 +304,19 @@ internal static unsafe partial class Runtime
             throw new global::System.ArgumentException(
                 whole.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
                 + cppType.Name + " and which has no virtual destructor", name);
+        }
+    }
+
+    /// <summary>The same check for the object that an override gives to C++.</summary>
+    internal static void CheckExactResult(BridgefexObject value, global::System.Type cppType, string what)
+    {
+        BridgefexObject whole = value.Origin ?? value;
+        if (whole.CppType != cppType)
+        {
+            throw new global::System.InvalidOperationException(
+                "the override " + what + " returned " + whole.GetType().Name + ", which cannot be given as "
+                + cppType.Name + ": the C++ code destroys it through " + cppType.Name
+                + ", which has no virtual destructor");
         }
     }
 }

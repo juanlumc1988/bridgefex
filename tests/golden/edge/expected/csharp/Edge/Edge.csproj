@@ -8,5 +8,6 @@
     <RootNamespace>Edge</RootNamespace>
     <AssemblyName>Edge.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

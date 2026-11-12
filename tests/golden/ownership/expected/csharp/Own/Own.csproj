@@ -8,5 +8,6 @@
     <RootNamespace>Own</RootNamespace>
     <AssemblyName>Own.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>

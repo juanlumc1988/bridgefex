@@ -67,6 +67,7 @@ internal sealed class BeamHandle : ObjectHandle
 /// <summary>
 /// drc::Beam
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Beam : BridgefexObject
 {
     internal Beam(ObjectHandle handle) : base(handle)
@@ -81,10 +82,10 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_create")]
     public Beam(int length) : base(new BeamHandle())
     {
-        bool[]? __over = DirectorOverrides(GetType(), false);
+        bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             nint __result;
             int __status = Native.drc_Beam_create(&__result, length);
             __scope.Returned();
@@ -93,7 +94,7 @@ public unsafe partial class Beam : BridgefexObject
         }
         else
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             var __box = __scope.BeginDirector(this, 0);
             Native.drc_Beam_vtable __vt = default;
             __vt.user_data = __box.Key;
@@ -105,6 +106,7 @@ public unsafe partial class Beam : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
+            __box.Publish(__result);
             SetDirector(__box);
             __scope.Check(__status);
         }
@@ -116,8 +118,8 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_director_create_void")]
     protected Beam() : base(new BeamHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
-        using var __scope = new CallScope();
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -129,6 +131,7 @@ public unsafe partial class Beam : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
+        __box.Publish(__result);
         SetDirector(__box);
         __scope.Check(__status);
     }
@@ -139,8 +142,8 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_director_create_string")]
     protected Beam(string label) : base(new BeamHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
-        using var __scope = new CallScope();
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 0);
         Native.drc_Beam_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -155,6 +158,7 @@ public unsafe partial class Beam : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
+            __box.Publish(__result);
             SetDirector(__box);
             __scope.Check(__status);
         }
@@ -174,6 +178,54 @@ public unsafe partial class Beam : BridgefexObject
         return result;
     }
 
+    /// <summary>The object that C++ lends to an override: the C# object that it is, if C# owns one, else a wrapper that is closed when the override returns.</summary>
+    internal static Beam? LendToOverride(nint pointer, bool readOnly, Lent lent)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        Beam? known = lent.Known<Beam>(pointer);
+        if (known is not null)
+        {
+            return known;
+        }
+        Beam? borrowed = Borrow(pointer, null, readOnly);
+        return borrowed is null ? null : lent.Borrowed(borrowed);
+    }
+
+    /// <summary>The object that C++ gives to an override (a std::unique_ptr): it is destroyed when it is closed or collected.</summary>
+    internal static Beam? AdoptFromCpp(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new BeamHandle();
+        handle.Assign(pointer);
+        return new Beam(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Beam value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
+    }
+
     /// <summary>
     /// int32_t drc::Beam::length() const
     /// </summary>
@@ -186,7 +238,7 @@ public unsafe partial class Beam : BridgefexObject
             {
                 case 0:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Beam_director_base_length(__self.Pointer, &__result);
@@ -198,7 +250,7 @@ public unsafe partial class Beam : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             int __result;
             int __status = Native.drc_Beam_length(__self.Pointer, &__result);
@@ -215,7 +267,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_call_length")]
     public int CallLength()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Beam_call_length(__self.Pointer, &__result);
@@ -231,7 +283,7 @@ public unsafe partial class Beam : BridgefexObject
     [BridgefexFunction("drc_Beam_made_by")]
     public int MadeBy()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Beam_made_by(__self.Pointer, &__result);
@@ -241,19 +293,32 @@ public unsafe partial class Beam : BridgefexObject
         return __result;
     }
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Beam), "Length", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Beam) }),
-        });
-        if (!always && (type == typeof(Beam) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Beam), "Length", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Beam) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        return found;
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
+        {
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Beam) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            return found;
+        }
     }
 }
 
@@ -274,6 +339,7 @@ internal sealed class ShapeHandle : ObjectHandle
 /// <summary>
 /// drc::Shape
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Shape : BridgefexObject
 {
     internal Shape(ObjectHandle handle) : base(handle)
@@ -288,8 +354,8 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_director_create_void")]
     protected Shape() : base(new ShapeHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
-        using var __scope = new CallScope();
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -305,6 +371,19 @@ public unsafe partial class Shape : BridgefexObject
         if (__over[8]) __vt.add_double_double = Thunks.Address_D_drc_Shape_add_double_double;
         if (__over[9]) __vt.greet = Thunks.Address_D_drc_Shape_greet;
         if (__over[10]) __vt.quiet = Thunks.Address_D_drc_Shape_quiet;
+        if (__over[11]) __vt.total = Thunks.Address_D_drc_Shape_total;
+        if (__over[12]) __vt.numbers = Thunks.Address_D_drc_Shape_numbers;
+        if (__over[13]) __vt.words = Thunks.Address_D_drc_Shape_words;
+        if (__over[14]) __vt.modes = Thunks.Address_D_drc_Shape_modes;
+        if (__over[15]) __vt.points = Thunks.Address_D_drc_Shape_points;
+        if (__over[16]) __vt.flags = Thunks.Address_D_drc_Shape_flags;
+        if (__over[17]) __vt.triple = Thunks.Address_D_drc_Shape_triple;
+        if (__over[18]) __vt.peek = Thunks.Address_D_drc_Shape_peek;
+        if (__over[19]) __vt.compare = Thunks.Address_D_drc_Shape_compare;
+        if (__over[20]) __vt.same = Thunks.Address_D_drc_Shape_same;
+        if (__over[21]) __vt.grow = Thunks.Address_D_drc_Shape_grow;
+        if (__over[22]) __vt.adopt = Thunks.Address_D_drc_Shape_adopt;
+        if (__over[23]) __vt.make_beam = Thunks.Address_D_drc_Shape_make_beam;
         if (__over[24]) __vt.changed = Thunks.Address_D_drc_Shape_changed;
         nint __result;
         nint __director;
@@ -312,6 +391,7 @@ public unsafe partial class Shape : BridgefexObject
         __scope.Returned();
         Handle.Assign(__result);
         __box.Pointer = __director;
+        __box.Publish(__result);
         SetDirector(__box);
         __scope.Check(__status);
     }
@@ -322,8 +402,8 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_director_create_string_int32")]
     protected Shape(string label, int sides) : base(new ShapeHandle())
     {
-        bool[] __over = DirectorOverrides(GetType(), true)!;
-        using var __scope = new CallScope();
+        bool[] __over = DirectorOverrides.Of(GetType(), true)!;
+        using var __scope = CallScope.Begin();
         var __box = __scope.BeginDirector(this, 5);
         Native.drc_Shape_vtable __vt = default;
         __vt.user_data = __box.Key;
@@ -339,6 +419,19 @@ public unsafe partial class Shape : BridgefexObject
         if (__over[8]) __vt.add_double_double = Thunks.Address_D_drc_Shape_add_double_double;
         if (__over[9]) __vt.greet = Thunks.Address_D_drc_Shape_greet;
         if (__over[10]) __vt.quiet = Thunks.Address_D_drc_Shape_quiet;
+        if (__over[11]) __vt.total = Thunks.Address_D_drc_Shape_total;
+        if (__over[12]) __vt.numbers = Thunks.Address_D_drc_Shape_numbers;
+        if (__over[13]) __vt.words = Thunks.Address_D_drc_Shape_words;
+        if (__over[14]) __vt.modes = Thunks.Address_D_drc_Shape_modes;
+        if (__over[15]) __vt.points = Thunks.Address_D_drc_Shape_points;
+        if (__over[16]) __vt.flags = Thunks.Address_D_drc_Shape_flags;
+        if (__over[17]) __vt.triple = Thunks.Address_D_drc_Shape_triple;
+        if (__over[18]) __vt.peek = Thunks.Address_D_drc_Shape_peek;
+        if (__over[19]) __vt.compare = Thunks.Address_D_drc_Shape_compare;
+        if (__over[20]) __vt.same = Thunks.Address_D_drc_Shape_same;
+        if (__over[21]) __vt.grow = Thunks.Address_D_drc_Shape_grow;
+        if (__over[22]) __vt.adopt = Thunks.Address_D_drc_Shape_adopt;
+        if (__over[23]) __vt.make_beam = Thunks.Address_D_drc_Shape_make_beam;
         if (__over[24]) __vt.changed = Thunks.Address_D_drc_Shape_changed;
         byte[] __b1 = Runtime.Utf8(label, "label");
         fixed (byte* __p1 = __b1)
@@ -349,6 +442,7 @@ public unsafe partial class Shape : BridgefexObject
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
+            __box.Publish(__result);
             SetDirector(__box);
             __scope.Check(__status);
         }
@@ -368,6 +462,54 @@ public unsafe partial class Shape : BridgefexObject
         return result;
     }
 
+    /// <summary>The object that C++ lends to an override: the C# object that it is, if C# owns one, else a wrapper that is closed when the override returns.</summary>
+    internal static Shape? LendToOverride(nint pointer, bool readOnly, Lent lent)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        Shape? known = lent.Known<Shape>(pointer);
+        if (known is not null)
+        {
+            return known;
+        }
+        Shape? borrowed = Borrow(pointer, null, readOnly);
+        return borrowed is null ? null : lent.Borrowed(borrowed);
+    }
+
+    /// <summary>The object that C++ gives to an override (a std::unique_ptr): it is destroyed when it is closed or collected.</summary>
+    internal static Shape? AdoptFromCpp(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new ShapeHandle();
+        handle.Assign(pointer);
+        return new Shape(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Shape value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold_drc_Shape(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
+    }
+
     internal virtual Lease Hold_drc_Shape(bool mutable, bool give = false) => Hold(mutable, give);
 
     /// <summary>
@@ -381,7 +523,7 @@ public unsafe partial class Shape : BridgefexObject
             throw new global::System.InvalidOperationException("Shape.area is pure virtual: it has no implementation to call");
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             double __result;
             int __status = Native.drc_Shape_area(__self.Pointer, &__result);
@@ -404,7 +546,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -423,7 +565,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -443,7 +585,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             nint __text;
             nuint __size;
@@ -474,7 +616,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_sides(__self.Pointer, &__result);
@@ -485,7 +627,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_sides(__self.Pointer, &__result);
@@ -497,7 +639,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_sides(__self.Pointer, &__result);
@@ -520,7 +662,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __result;
                     int __status = Native.drc_Circle_director_base_center(__self.Pointer, &__result);
@@ -531,7 +673,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __result;
                     int __status = Native.drc_Shape_director_base_center(__self.Pointer, &__result);
@@ -543,7 +685,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             Native.drc_Point __result;
             int __status = Native.drc_Shape_center(__self.Pointer, &__result);
@@ -566,7 +708,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __s1 = default;
                     by.ToNative(&__s1);
@@ -581,7 +723,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     Native.drc_Point __s1 = default;
                     by.ToNative(&__s1);
@@ -597,7 +739,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             Native.drc_Point __s1 = default;
             by.ToNative(&__s1);
@@ -624,7 +766,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte __result;
                     int __status = Native.drc_Circle_director_base_mode(__self.Pointer, (byte)requested, &__result);
@@ -635,7 +777,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte __result;
                     int __status = Native.drc_Shape_director_base_mode(__self.Pointer, (byte)requested, &__result);
@@ -647,7 +789,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             byte __result;
             int __status = Native.drc_Shape_mode(__self.Pointer, (byte)requested, &__result);
@@ -670,7 +812,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
@@ -680,7 +822,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_scale(__self.Pointer, factor);
                     __scope.Returned();
@@ -691,7 +833,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(true);
             int __status = Native.drc_Shape_scale(__self.Pointer, factor);
             __scope.Returned();
@@ -712,7 +854,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -723,7 +865,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -735,7 +877,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -758,7 +900,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Circle_director_base_add_double_double(__self.Pointer, a, b, &__result);
@@ -769,7 +911,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Shape_director_base_add_double_double(__self.Pointer, a, b, &__result);
@@ -781,7 +923,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             double __result;
             int __status = Native.drc_Shape_add_double_double(__self.Pointer, a, b, &__result);
@@ -804,7 +946,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte[] __b1 = Runtime.Utf8(who, "who");
                     fixed (byte* __p1 = __b1)
@@ -835,7 +977,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     byte[] __b1 = Runtime.Utf8(who, "who");
                     fixed (byte* __p1 = __b1)
@@ -867,7 +1009,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             byte[] __b1 = Runtime.Utf8(who, "who");
             fixed (byte* __p1 = __b1)
@@ -910,7 +1052,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_quiet(__self.Pointer, &__result);
@@ -921,7 +1063,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Shape_director_base_quiet(__self.Pointer, &__result);
@@ -933,7 +1075,7 @@ public unsafe partial class Shape : BridgefexObject
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold_drc_Shape(false);
             int __result;
             int __status = Native.drc_Shape_quiet(__self.Pointer, &__result);
@@ -948,18 +1090,54 @@ public unsafe partial class Shape : BridgefexObject
     /// int32_t drc::Shape::total(const std::vector&lt;int32_t&gt;&amp; values) const
     /// </summary>
     [BridgefexFunction("drc_Shape_total")]
-    public int Total(global::System.ReadOnlySpan<int> values)
+    public virtual int Total(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        fixed (int* __p1 = values)
+        if (Director is { } __d)
         {
-            int __result;
-            int __status = Native.drc_Shape_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
-            __scope.Returned();
-            global::System.GC.KeepAlive(this);
-            __scope.Check(__status);
-            return __result;
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (int* __p1 = values)
+                    {
+                        int __result;
+                        int __status = Native.drc_Circle_director_base_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        __scope.Check(__status);
+                        return __result;
+                    }
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (int* __p1 = values)
+                    {
+                        int __result;
+                        int __status = Native.drc_Shape_director_base_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        __scope.Check(__status);
+                        return __result;
+                    }
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            fixed (int* __p1 = values)
+            {
+                int __result;
+                int __status = Native.drc_Shape_total(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result);
+                __scope.Returned();
+                global::System.GC.KeepAlive(this);
+                __scope.Check(__status);
+                return __result;
+            }
         }
     }
 
@@ -967,26 +1145,80 @@ public unsafe partial class Shape : BridgefexObject
     /// std::vector&lt;int32_t&gt; drc::Shape::numbers(const std::vector&lt;int32_t&gt;&amp; values) const
     /// </summary>
     [BridgefexFunction("drc_Shape_numbers")]
-    public int[] Numbers(global::System.ReadOnlySpan<int> values)
+    public virtual int[] Numbers(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        fixed (int* __p1 = values)
+        if (Director is { } __d)
         {
-            int* __result;
-            nuint __size;
-            int __status = Native.drc_Shape_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
-            __scope.Returned();
-            global::System.GC.KeepAlive(this);
-            try
+            switch (__d.Kind)
             {
-                __scope.Check(__status);
-                int __count = Runtime.Count(__result, __size);
-                return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (int* __p1 = values)
+                    {
+                        int* __result;
+                        nuint __size;
+                        int __status = Native.drc_Circle_director_base_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (int* __p1 = values)
+                    {
+                        int* __result;
+                        nuint __size;
+                        int __status = Native.drc_Shape_director_base_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
+                }
             }
-            finally
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            fixed (int* __p1 = values)
             {
-                Native.drc_free((nint)__result);
+                int* __result;
+                nuint __size;
+                int __status = Native.drc_Shape_numbers(__self.Pointer, (int*)__p1, (nuint)values.Length, &__result, &__size);
+                __scope.Returned();
+                global::System.GC.KeepAlive(this);
+                try
+                {
+                    __scope.Check(__status);
+                    int __count = Runtime.Count(__result, __size);
+                    return new global::System.ReadOnlySpan<int>(__result, __count).ToArray();
+                }
+                finally
+                {
+                    Native.drc_free((nint)__result);
+                }
             }
         }
     }
@@ -995,30 +1227,90 @@ public unsafe partial class Shape : BridgefexObject
     /// std::vector&lt;std::string&gt; drc::Shape::words(std::vector&lt;std::string&gt; input) const
     /// </summary>
     [BridgefexFunction("drc_Shape_words")]
-    public string[] Words(global::System.ReadOnlySpan<string> input)
+    public virtual string[] Words(global::System.ReadOnlySpan<string> input)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        using var __b1 = StringBlock.Make(input, "input");
-        Native.StringOut* __result;
-        nuint __size;
-        int __status = Native.drc_Shape_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        try
+        if (Director is { } __d)
         {
-            __scope.Check(__status);
-            int __count = Runtime.Count(__result, __size);
-            var __items = new string[__count];
-            for (int __i = 0; __i < __count; __i++)
+            switch (__d.Kind)
             {
-                __items[__i] = Runtime.TakeText((nint)__result[__i].Data, __result[__i].Size);
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    using var __b1 = StringBlock.Make(input, "input");
+                    Native.StringOut* __result;
+                    nuint __size;
+                    int __status = Native.drc_Circle_director_base_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    try
+                    {
+                        __scope.Check(__status);
+                        int __count = Runtime.Count(__result, __size);
+                        var __items = new string[__count];
+                        for (int __i = 0; __i < __count; __i++)
+                        {
+                            __items[__i] = Runtime.TakeText((nint)__result[__i].Data, __result[__i].Size);
+                        }
+                        return __items;
+                    }
+                    finally
+                    {
+                        Native.drc_free((nint)__result);
+                    }
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    using var __b1 = StringBlock.Make(input, "input");
+                    Native.StringOut* __result;
+                    nuint __size;
+                    int __status = Native.drc_Shape_director_base_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    try
+                    {
+                        __scope.Check(__status);
+                        int __count = Runtime.Count(__result, __size);
+                        var __items = new string[__count];
+                        for (int __i = 0; __i < __count; __i++)
+                        {
+                            __items[__i] = Runtime.TakeText((nint)__result[__i].Data, __result[__i].Size);
+                        }
+                        return __items;
+                    }
+                    finally
+                    {
+                        Native.drc_free((nint)__result);
+                    }
+                }
             }
-            return __items;
         }
-        finally
         {
-            Native.drc_free((nint)__result);
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            using var __b1 = StringBlock.Make(input, "input");
+            Native.StringOut* __result;
+            nuint __size;
+            int __status = Native.drc_Shape_words(__self.Pointer, __b1.Pointer, (nuint)input.Length, &__result, &__size);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            try
+            {
+                __scope.Check(__status);
+                int __count = Runtime.Count(__result, __size);
+                var __items = new string[__count];
+                for (int __i = 0; __i < __count; __i++)
+                {
+                    __items[__i] = Runtime.TakeText((nint)__result[__i].Data, __result[__i].Size);
+                }
+                return __items;
+            }
+            finally
+            {
+                Native.drc_free((nint)__result);
+            }
         }
     }
 
@@ -1026,31 +1318,95 @@ public unsafe partial class Shape : BridgefexObject
     /// std::vector&lt;drc::Mode&gt; drc::Shape::modes(const std::vector&lt;drc::Mode&gt;&amp; wanted) const
     /// </summary>
     [BridgefexFunction("drc_Shape_modes")]
-    public global::Drc.Shape.Mode[] Modes(global::System.ReadOnlySpan<global::Drc.Shape.Mode> wanted)
+    public virtual global::Drc.Shape.Mode[] Modes(global::System.ReadOnlySpan<global::Drc.Shape.Mode> wanted)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        fixed (global::Drc.Shape.Mode* __p1 = wanted)
+        if (Director is { } __d)
         {
-            byte* __result;
-            nuint __size;
-            int __status = Native.drc_Shape_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
-            __scope.Returned();
-            global::System.GC.KeepAlive(this);
-            try
+            switch (__d.Kind)
             {
-                __scope.Check(__status);
-                int __count = Runtime.Count(__result, __size);
-                var __items = new global::Drc.Shape.Mode[__count];
-                for (int __i = 0; __i < __count; __i++)
+                case 1:
                 {
-                    __items[__i] = (global::Drc.Shape.Mode)__result[__i];
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (global::Drc.Shape.Mode* __p1 = wanted)
+                    {
+                        byte* __result;
+                        nuint __size;
+                        int __status = Native.drc_Circle_director_base_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            var __items = new global::Drc.Shape.Mode[__count];
+                            for (int __i = 0; __i < __count; __i++)
+                            {
+                                __items[__i] = (global::Drc.Shape.Mode)__result[__i];
+                            }
+                            return __items;
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
                 }
-                return __items;
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (global::Drc.Shape.Mode* __p1 = wanted)
+                    {
+                        byte* __result;
+                        nuint __size;
+                        int __status = Native.drc_Shape_director_base_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            var __items = new global::Drc.Shape.Mode[__count];
+                            for (int __i = 0; __i < __count; __i++)
+                            {
+                                __items[__i] = (global::Drc.Shape.Mode)__result[__i];
+                            }
+                            return __items;
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
+                }
             }
-            finally
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            fixed (global::Drc.Shape.Mode* __p1 = wanted)
             {
-                Native.drc_free((nint)__result);
+                byte* __result;
+                nuint __size;
+                int __status = Native.drc_Shape_modes(__self.Pointer, (byte*)__p1, (nuint)wanted.Length, &__result, &__size);
+                __scope.Returned();
+                global::System.GC.KeepAlive(this);
+                try
+                {
+                    __scope.Check(__status);
+                    int __count = Runtime.Count(__result, __size);
+                    var __items = new global::Drc.Shape.Mode[__count];
+                    for (int __i = 0; __i < __count; __i++)
+                    {
+                        __items[__i] = (global::Drc.Shape.Mode)__result[__i];
+                    }
+                    return __items;
+                }
+                finally
+                {
+                    Native.drc_free((nint)__result);
+                }
             }
         }
     }
@@ -1059,34 +1415,102 @@ public unsafe partial class Shape : BridgefexObject
     /// std::vector&lt;drc::Point&gt; drc::Shape::points(const std::vector&lt;drc::Point&gt;&amp; list) const
     /// </summary>
     [BridgefexFunction("drc_Shape_points")]
-    public global::Drc.Shape.Point[] Points(global::System.ReadOnlySpan<global::Drc.Shape.Point> list)
+    public virtual global::Drc.Shape.Point[] Points(global::System.ReadOnlySpan<global::Drc.Shape.Point> list)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
-        for (int __i = 0; __i < list.Length; __i++)
+        if (Director is { } __d)
         {
-            list[__i].ToNative(&__b1.Pointer[__i]);
-        }
-        Native.drc_Point* __result;
-        nuint __size;
-        int __status = Native.drc_Shape_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        try
-        {
-            __scope.Check(__status);
-            int __count = Runtime.Count(__result, __size);
-            var __items = new global::Drc.Shape.Point[__count];
-            for (int __i = 0; __i < __count; __i++)
+            switch (__d.Kind)
             {
-                __items[__i] = global::Drc.Shape.Point.FromNative(&__result[__i]);
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
+                    for (int __i = 0; __i < list.Length; __i++)
+                    {
+                        list[__i].ToNative(&__b1.Pointer[__i]);
+                    }
+                    Native.drc_Point* __result;
+                    nuint __size;
+                    int __status = Native.drc_Circle_director_base_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    try
+                    {
+                        __scope.Check(__status);
+                        int __count = Runtime.Count(__result, __size);
+                        var __items = new global::Drc.Shape.Point[__count];
+                        for (int __i = 0; __i < __count; __i++)
+                        {
+                            __items[__i] = global::Drc.Shape.Point.FromNative(&__result[__i]);
+                        }
+                        return __items;
+                    }
+                    finally
+                    {
+                        Native.drc_free((nint)__result);
+                    }
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
+                    for (int __i = 0; __i < list.Length; __i++)
+                    {
+                        list[__i].ToNative(&__b1.Pointer[__i]);
+                    }
+                    Native.drc_Point* __result;
+                    nuint __size;
+                    int __status = Native.drc_Shape_director_base_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    try
+                    {
+                        __scope.Check(__status);
+                        int __count = Runtime.Count(__result, __size);
+                        var __items = new global::Drc.Shape.Point[__count];
+                        for (int __i = 0; __i < __count; __i++)
+                        {
+                            __items[__i] = global::Drc.Shape.Point.FromNative(&__result[__i]);
+                        }
+                        return __items;
+                    }
+                    finally
+                    {
+                        Native.drc_free((nint)__result);
+                    }
+                }
             }
-            return __items;
         }
-        finally
         {
-            Native.drc_free((nint)__result);
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
+            for (int __i = 0; __i < list.Length; __i++)
+            {
+                list[__i].ToNative(&__b1.Pointer[__i]);
+            }
+            Native.drc_Point* __result;
+            nuint __size;
+            int __status = Native.drc_Shape_points(__self.Pointer, __b1.Pointer, (nuint)list.Length, &__result, &__size);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            try
+            {
+                __scope.Check(__status);
+                int __count = Runtime.Count(__result, __size);
+                var __items = new global::Drc.Shape.Point[__count];
+                for (int __i = 0; __i < __count; __i++)
+                {
+                    __items[__i] = global::Drc.Shape.Point.FromNative(&__result[__i]);
+                }
+                return __items;
+            }
+            finally
+            {
+                Native.drc_free((nint)__result);
+            }
         }
     }
 
@@ -1094,31 +1518,95 @@ public unsafe partial class Shape : BridgefexObject
     /// std::vector&lt;bool&gt; drc::Shape::flags(const std::vector&lt;bool&gt;&amp; input) const
     /// </summary>
     [BridgefexFunction("drc_Shape_flags")]
-    public bool[] Flags(global::System.ReadOnlySpan<bool> input)
+    public virtual bool[] Flags(global::System.ReadOnlySpan<bool> input)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        fixed (bool* __p1 = input)
+        if (Director is { } __d)
         {
-            byte* __result;
-            nuint __size;
-            int __status = Native.drc_Shape_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
-            __scope.Returned();
-            global::System.GC.KeepAlive(this);
-            try
+            switch (__d.Kind)
             {
-                __scope.Check(__status);
-                int __count = Runtime.Count(__result, __size);
-                var __items = new bool[__count];
-                for (int __i = 0; __i < __count; __i++)
+                case 1:
                 {
-                    __items[__i] = (__result[__i] != 0);
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (bool* __p1 = input)
+                    {
+                        byte* __result;
+                        nuint __size;
+                        int __status = Native.drc_Circle_director_base_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            var __items = new bool[__count];
+                            for (int __i = 0; __i < __count; __i++)
+                            {
+                                __items[__i] = (__result[__i] != 0);
+                            }
+                            return __items;
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
                 }
-                return __items;
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    fixed (bool* __p1 = input)
+                    {
+                        byte* __result;
+                        nuint __size;
+                        int __status = Native.drc_Shape_director_base_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        try
+                        {
+                            __scope.Check(__status);
+                            int __count = Runtime.Count(__result, __size);
+                            var __items = new bool[__count];
+                            for (int __i = 0; __i < __count; __i++)
+                            {
+                                __items[__i] = (__result[__i] != 0);
+                            }
+                            return __items;
+                        }
+                        finally
+                        {
+                            Native.drc_free((nint)__result);
+                        }
+                    }
+                }
             }
-            finally
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            fixed (bool* __p1 = input)
             {
-                Native.drc_free((nint)__result);
+                byte* __result;
+                nuint __size;
+                int __status = Native.drc_Shape_flags(__self.Pointer, (byte*)__p1, (nuint)input.Length, &__result, &__size);
+                __scope.Returned();
+                global::System.GC.KeepAlive(this);
+                try
+                {
+                    __scope.Check(__status);
+                    int __count = Runtime.Count(__result, __size);
+                    var __items = new bool[__count];
+                    for (int __i = 0; __i < __count; __i++)
+                    {
+                        __items[__i] = (__result[__i] != 0);
+                    }
+                    return __items;
+                }
+                finally
+                {
+                    Native.drc_free((nint)__result);
+                }
             }
         }
     }
@@ -1130,22 +1618,66 @@ public unsafe partial class Shape : BridgefexObject
     /// values: must have exactly 3 elements (ArgumentException).
     /// </remarks>
     [BridgefexFunction("drc_Shape_triple")]
-    public double[] Triple(global::System.ReadOnlySpan<double> values)
+    public virtual double[] Triple(global::System.ReadOnlySpan<double> values)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        if (values.Length != 3)
+        if (Director is { } __d)
         {
-            throw new global::System.ArgumentException("argument 'values' must have 3 elements, got " + values.Length, nameof(values));
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    if (values.Length != 3)
+                    {
+                        throw new global::System.ArgumentException("argument 'values' must have 3 elements, got " + values.Length, nameof(values));
+                    }
+                    fixed (double* __p1 = values)
+                    {
+                        using var __b = Block<double>.Alloc(3);
+                        int __status = Native.drc_Circle_director_base_triple(__self.Pointer, (double*)__p1, __b.Pointer);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        __scope.Check(__status);
+                        return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
+                    }
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    if (values.Length != 3)
+                    {
+                        throw new global::System.ArgumentException("argument 'values' must have 3 elements, got " + values.Length, nameof(values));
+                    }
+                    fixed (double* __p1 = values)
+                    {
+                        using var __b = Block<double>.Alloc(3);
+                        int __status = Native.drc_Shape_director_base_triple(__self.Pointer, (double*)__p1, __b.Pointer);
+                        __scope.Returned();
+                        global::System.GC.KeepAlive(this);
+                        __scope.Check(__status);
+                        return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
+                    }
+                }
+            }
         }
-        fixed (double* __p1 = values)
         {
-            using var __b = Block<double>.Alloc(3);
-            int __status = Native.drc_Shape_triple(__self.Pointer, (double*)__p1, __b.Pointer);
-            __scope.Returned();
-            global::System.GC.KeepAlive(this);
-            __scope.Check(__status);
-            return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            if (values.Length != 3)
+            {
+                throw new global::System.ArgumentException("argument 'values' must have 3 elements, got " + values.Length, nameof(values));
+            }
+            fixed (double* __p1 = values)
+            {
+                using var __b = Block<double>.Alloc(3);
+                int __status = Native.drc_Shape_triple(__self.Pointer, (double*)__p1, __b.Pointer);
+                __scope.Returned();
+                global::System.GC.KeepAlive(this);
+                __scope.Check(__status);
+                return new global::System.ReadOnlySpan<double>(__b.Pointer, 3).ToArray();
+            }
         }
     }
 
@@ -1153,119 +1685,336 @@ public unsafe partial class Shape : BridgefexObject
     /// int32_t drc::Shape::peek(const drc::Holder&amp; holder) const
     /// </summary>
     [BridgefexFunction("drc_Shape_peek")]
-    public int Peek(global::Drc.Shape.Holder holder)
+    public virtual int Peek(global::Drc.Shape.Holder holder)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        global::System.ArgumentNullException.ThrowIfNull(holder);
-        using var __t1 = holder.Hold(false);
-        nint __h1 = __t1.Pointer;
-        int __result;
-        int __status = Native.drc_Shape_peek(__self.Pointer, __h1, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __scope.Check(__status);
-        return __result;
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(holder);
+                    using var __t1 = holder.Hold(false);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    int __status = Native.drc_Circle_director_base_peek(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(holder);
+                    using var __t1 = holder.Hold(false);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    int __status = Native.drc_Shape_director_base_peek(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            global::System.ArgumentNullException.ThrowIfNull(holder);
+            using var __t1 = holder.Hold(false);
+            nint __h1 = __t1.Pointer;
+            int __result;
+            int __status = Native.drc_Shape_peek(__self.Pointer, __h1, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+            return __result;
+        }
     }
 
     /// <summary>
     /// double drc::Shape::compare(const drc::Shape&amp; other) const
     /// </summary>
     [BridgefexFunction("drc_Shape_compare")]
-    public double Compare(global::Drc.Shape.Shape other)
+    public virtual double Compare(global::Drc.Shape.Shape other)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        global::System.ArgumentNullException.ThrowIfNull(other);
-        using var __t1 = other.Hold_drc_Shape(false);
-        nint __h1 = __t1.Pointer;
-        double __result;
-        int __status = Native.drc_Shape_compare(__self.Pointer, __h1, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __scope.Check(__status);
-        return __result;
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(other);
+                    using var __t1 = other.Hold_drc_Shape(false);
+                    nint __h1 = __t1.Pointer;
+                    double __result;
+                    int __status = Native.drc_Circle_director_base_compare(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(other);
+                    using var __t1 = other.Hold_drc_Shape(false);
+                    nint __h1 = __t1.Pointer;
+                    double __result;
+                    int __status = Native.drc_Shape_director_base_compare(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            global::System.ArgumentNullException.ThrowIfNull(other);
+            using var __t1 = other.Hold_drc_Shape(false);
+            nint __h1 = __t1.Pointer;
+            double __result;
+            int __status = Native.drc_Shape_compare(__self.Pointer, __h1, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+            return __result;
+        }
     }
 
     /// <summary>
     /// bool drc::Shape::same(const drc::Shape* other) const
     /// </summary>
     [BridgefexFunction("drc_Shape_same")]
-    public bool Same(global::Drc.Shape.Shape other)
+    public virtual bool Same(global::Drc.Shape.Shape? other)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        global::System.ArgumentNullException.ThrowIfNull(other);
-        using var __t1 = other.Hold_drc_Shape(false);
-        nint __h1 = __t1.Pointer;
-        byte __result;
-        int __status = Native.drc_Shape_same(__self.Pointer, __h1, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __scope.Check(__status);
-        return (__result != 0);
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(other);
+                    using var __t1 = other.Hold_drc_Shape(false);
+                    nint __h1 = __t1.Pointer;
+                    byte __result;
+                    int __status = Native.drc_Circle_director_base_same(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return (__result != 0);
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(other);
+                    using var __t1 = other.Hold_drc_Shape(false);
+                    nint __h1 = __t1.Pointer;
+                    byte __result;
+                    int __status = Native.drc_Shape_director_base_same(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return (__result != 0);
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            using var __t1 = other is null ? default : other.Hold_drc_Shape(false);
+            nint __h1 = __t1.Pointer;
+            byte __result;
+            int __status = Native.drc_Shape_same(__self.Pointer, __h1, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+            return (__result != 0);
+        }
     }
 
     /// <summary>
     /// int32_t drc::Shape::grow(drc::Beam&amp; beam) const
     /// </summary>
     [BridgefexFunction("drc_Shape_grow")]
-    public int Grow(global::Drc.Shape.Beam beam)
+    public virtual int Grow(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        global::System.ArgumentNullException.ThrowIfNull(beam);
-        using var __t1 = beam.Hold(true);
-        nint __h1 = __t1.Pointer;
-        int __result;
-        int __status = Native.drc_Shape_grow(__self.Pointer, __h1, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __scope.Check(__status);
-        return __result;
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(beam);
+                    using var __t1 = beam.Hold(true);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    int __status = Native.drc_Circle_director_base_grow(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(beam);
+                    using var __t1 = beam.Hold(true);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    int __status = Native.drc_Shape_director_base_grow(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            global::System.ArgumentNullException.ThrowIfNull(beam);
+            using var __t1 = beam.Hold(true);
+            nint __h1 = __t1.Pointer;
+            int __result;
+            int __status = Native.drc_Shape_grow(__self.Pointer, __h1, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+            return __result;
+        }
     }
 
     /// <summary>
     /// int32_t drc::Shape::adopt(std::unique_ptr&lt;drc::Beam&gt; beam) const
     /// </summary>
     [BridgefexFunction("drc_Shape_adopt")]
-    public int Adopt(global::Drc.Shape.Beam beam)
+    public virtual int Adopt(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        if (object.ReferenceEquals(beam, this))
+        if (Director is { } __d)
         {
-            throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(beam));
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(beam);
+                    using var __t1 = beam.Hold(true, true);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    __h1 = __t1.Give();
+                    beam?.Surrender();
+                    int __status = Native.drc_Circle_director_base_adopt(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    global::System.ArgumentNullException.ThrowIfNull(beam);
+                    using var __t1 = beam.Hold(true, true);
+                    nint __h1 = __t1.Pointer;
+                    int __result;
+                    __h1 = __t1.Give();
+                    beam?.Surrender();
+                    int __status = Native.drc_Shape_director_base_adopt(__self.Pointer, __h1, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return __result;
+                }
+            }
         }
-        global::System.ArgumentNullException.ThrowIfNull(beam);
-        using var __t1 = beam.Hold(true, true);
-        nint __h1 = __t1.Pointer;
-        int __result;
-        __h1 = __t1.Give();
-        beam?.Surrender();
-        int __status = Native.drc_Shape_adopt(__self.Pointer, __h1, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __scope.Check(__status);
-        return __result;
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            if (object.ReferenceEquals(beam, this))
+            {
+                throw new global::System.ArgumentException("the object is given to C++, which destroys it, and the call uses it too", nameof(beam));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(beam);
+            using var __t1 = beam.Hold(true, true);
+            nint __h1 = __t1.Pointer;
+            int __result;
+            __h1 = __t1.Give();
+            beam?.Surrender();
+            int __status = Native.drc_Shape_adopt(__self.Pointer, __h1, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+            return __result;
+        }
     }
 
     /// <summary>
     /// std::unique_ptr&lt;drc::Beam&gt; drc::Shape::make_beam(int32_t length) const
     /// </summary>
     [BridgefexFunction("drc_Shape_make_beam")]
-    public global::Drc.Shape.Beam? MakeBeam(int length)
+    public virtual global::Drc.Shape.Beam? MakeBeam(int length)
     {
-        using var __scope = new CallScope();
-        using var __self = Hold_drc_Shape(false);
-        nint __result;
-        var __o = new global::Drc.Shape.BeamHandle();
-        int __status = Native.drc_Shape_make_beam(__self.Pointer, length, &__result);
-        __scope.Returned();
-        global::System.GC.KeepAlive(this);
-        __o.Assign(__result);
-        __scope.Check(__status);
-        return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 1:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    nint __result;
+                    var __o = new global::Drc.Shape.BeamHandle();
+                    int __status = Native.drc_Circle_director_base_make_beam(__self.Pointer, length, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __o.Assign(__result);
+                    __scope.Check(__status);
+                    return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
+                }
+                case 5:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(false);
+                    nint __result;
+                    var __o = new global::Drc.Shape.BeamHandle();
+                    int __status = Native.drc_Shape_director_base_make_beam(__self.Pointer, length, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __o.Assign(__result);
+                    __scope.Check(__status);
+                    return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold_drc_Shape(false);
+            nint __result;
+            var __o = new global::Drc.Shape.BeamHandle();
+            int __status = Native.drc_Shape_make_beam(__self.Pointer, length, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __o.Assign(__result);
+            __scope.Check(__status);
+            return __o.IsInvalid ? null : new global::Drc.Shape.Beam(__o);
+        }
     }
 
     /// <summary>
@@ -1274,7 +2023,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_by_value")]
     public int ByValue(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(false);
@@ -1293,7 +2042,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_fixed")]
     public int Fixed()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_fixed(__self.Pointer, &__result);
@@ -1309,7 +2058,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_describe")]
     public string Describe()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __text;
         nuint __size;
@@ -1333,7 +2082,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_scaled_area")]
     public double ScaledArea(double factor)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(true);
         double __result;
         int __status = Native.drc_Shape_scaled_area(__self.Pointer, factor, &__result);
@@ -1349,7 +2098,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_middle")]
     public global::Drc.Shape.Point Middle(global::Drc.Shape.Point other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         Native.drc_Point __s1 = default;
         other.ToNative(&__s1);
@@ -1367,7 +2116,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_move")]
     public global::Drc.Shape.Point CallMove(global::Drc.Shape.Point by)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         Native.drc_Point __s1 = default;
         by.ToNative(&__s1);
@@ -1385,7 +2134,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_total")]
     public int CallTotal(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -1404,7 +2153,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_numbers")]
     public int[] CallNumbers(global::System.ReadOnlySpan<int> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (int* __p1 = values)
         {
@@ -1432,7 +2181,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_words")]
     public string[] CallWords(global::System.ReadOnlySpan<string> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = StringBlock.Make(input, "input");
         Native.StringOut* __result;
@@ -1463,7 +2212,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_modes")]
     public global::Drc.Shape.Mode[] CallModes(global::System.ReadOnlySpan<global::Drc.Shape.Mode> wanted)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (global::Drc.Shape.Mode* __p1 = wanted)
         {
@@ -1496,7 +2245,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_points")]
     public global::Drc.Shape.Point[] CallPoints(global::System.ReadOnlySpan<global::Drc.Shape.Point> list)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __b1 = Block<Native.drc_Point>.Alloc(list.Length);
         for (int __i = 0; __i < list.Length; __i++)
@@ -1531,7 +2280,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_flags")]
     public bool[] CallFlags(global::System.ReadOnlySpan<bool> input)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         fixed (bool* __p1 = input)
         {
@@ -1567,7 +2316,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_triple")]
     public double[] CallTriple(global::System.ReadOnlySpan<double> values)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (values.Length != 3)
         {
@@ -1590,7 +2339,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_peek")]
     public int CallPeek(global::Drc.Shape.Holder holder)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(holder);
         using var __t1 = holder.Hold(false);
@@ -1609,7 +2358,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_compare")]
     public double CallCompare(global::Drc.Shape.Shape other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold_drc_Shape(false);
@@ -1628,7 +2377,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_same")]
     public bool CallSame(global::Drc.Shape.Shape? other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         using var __t1 = other is null ? default : other.Hold_drc_Shape(false);
         nint __h1 = __t1.Pointer;
@@ -1646,7 +2395,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_grow")]
     public int CallGrow(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(true);
@@ -1665,7 +2414,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_adopt")]
     public int CallAdopt(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         if (object.ReferenceEquals(beam, this))
         {
@@ -1690,7 +2439,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_make_beam")]
     public global::Drc.Shape.Beam? CallMakeBeam(int length)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __result;
         var __o = new global::Drc.Shape.BeamHandle();
@@ -1708,7 +2457,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_call_by_value")]
     public int CallByValue(global::Drc.Shape.Beam beam)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         global::System.ArgumentNullException.ThrowIfNull(beam);
         using var __t1 = beam.Hold(false);
@@ -1727,7 +2476,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_choose")]
     public global::Drc.Shape.Mode Choose(global::Drc.Shape.Mode requested)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         byte __result;
         int __status = Native.drc_Shape_choose(__self.Pointer, (byte)requested, &__result);
@@ -1743,7 +2492,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_welcome")]
     public string Welcome(string who)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         byte[] __b1 = Runtime.Utf8(who, "who");
         fixed (byte* __p1 = __b1)
@@ -1771,7 +2520,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_sum")]
     public int Sum(int a, int b)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_sum(__self.Pointer, a, b, &__result);
@@ -1787,7 +2536,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_sum_double")]
     public double SumDouble(double a, double b)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         double __result;
         int __status = Native.drc_Shape_sum_double(__self.Pointer, a, b, &__result);
@@ -1803,7 +2552,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_total_of_three")]
     public int TotalOfThree()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_total_of_three(__self.Pointer, &__result);
@@ -1819,7 +2568,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_how_quiet")]
     public int HowQuiet()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_how_quiet(__self.Pointer, &__result);
@@ -1835,7 +2584,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_notify")]
     public void Notify(int reason)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(true);
         int __status = Native.drc_Shape_notify(__self.Pointer, reason);
         __scope.Returned();
@@ -1849,7 +2598,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_last_reason")]
     public int LastReason()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         int __result;
         int __status = Native.drc_Shape_last_reason(__self.Pointer, &__result);
@@ -1865,7 +2614,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_label")]
     public string Label()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold_drc_Shape(false);
         nint __text;
         nuint __size;
@@ -1889,7 +2638,7 @@ public unsafe partial class Shape : BridgefexObject
     [BridgefexFunction("drc_Shape_alive")]
     public static int Alive()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         int __result;
         int __status = Native.drc_Shape_alive(&__result);
         __scope.Returned();
@@ -1909,7 +2658,7 @@ public unsafe partial class Shape : BridgefexObject
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Circle_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
@@ -1919,7 +2668,7 @@ public unsafe partial class Shape : BridgefexObject
                 }
                 case 5:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(true);
                     int __status = Native.drc_Shape_director_base_changed(__self.Pointer, reason);
                     __scope.Returned();
@@ -1934,47 +2683,60 @@ public unsafe partial class Shape : BridgefexObject
 
     internal void BridgefexChanged(int reason) => Changed(reason);
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
-        });
-        if (!always && (type == typeof(Shape) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Total", new global::System.Type[] { typeof(global::System.ReadOnlySpan<int>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Numbers", new global::System.Type[] { typeof(global::System.ReadOnlySpan<int>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Words", new global::System.Type[] { typeof(global::System.ReadOnlySpan<string>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Modes", new global::System.Type[] { typeof(global::System.ReadOnlySpan<global::Drc.Shape.Mode>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Points", new global::System.Type[] { typeof(global::System.ReadOnlySpan<global::Drc.Shape.Point>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Flags", new global::System.Type[] { typeof(global::System.ReadOnlySpan<bool>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Triple", new global::System.Type[] { typeof(global::System.ReadOnlySpan<double>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Peek", new global::System.Type[] { typeof(global::Drc.Shape.Holder) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Compare", new global::System.Type[] { typeof(global::Drc.Shape.Shape) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Same", new global::System.Type[] { typeof(global::Drc.Shape.Shape) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Grow", new global::System.Type[] { typeof(global::Drc.Shape.Beam) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Adopt", new global::System.Type[] { typeof(global::Drc.Shape.Beam) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "MakeBeam", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        if (!found[0])
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
         {
-            throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Shape.area");
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Shape) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            if (!found[0])
+            {
+                throw new global::System.InvalidOperationException(type.Name + " must override the pure virtual method Shape.area");
+            }
+            return found;
         }
-        return found;
     }
 }
 
@@ -1995,6 +2757,7 @@ internal sealed class CircleHandle : ObjectHandle
 /// <summary>
 /// drc::Circle
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Circle : global::Drc.Shape.Shape
 {
     internal Circle(ObjectHandle handle) : base(handle)
@@ -2009,10 +2772,10 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Circle_create")]
     public Circle(double radius) : base(new CircleHandle())
     {
-        bool[]? __over = DirectorOverrides(GetType(), false);
+        bool[]? __over = DirectorOverrides.Of(GetType(), false);
         if (__over is null)
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             nint __result;
             int __status = Native.drc_Circle_create(&__result, radius);
             __scope.Returned();
@@ -2021,7 +2784,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         }
         else
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             var __box = __scope.BeginDirector(this, 1);
             Native.drc_Circle_vtable __vt = default;
             __vt.user_data = __box.Key;
@@ -2037,6 +2800,19 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             if (__over[8]) __vt.add_double_double = Thunks.Address_D_drc_Shape_add_double_double;
             if (__over[9]) __vt.greet = Thunks.Address_D_drc_Shape_greet;
             if (__over[10]) __vt.quiet = Thunks.Address_D_drc_Shape_quiet;
+            if (__over[11]) __vt.total = Thunks.Address_D_drc_Shape_total;
+            if (__over[12]) __vt.numbers = Thunks.Address_D_drc_Shape_numbers;
+            if (__over[13]) __vt.words = Thunks.Address_D_drc_Shape_words;
+            if (__over[14]) __vt.modes = Thunks.Address_D_drc_Shape_modes;
+            if (__over[15]) __vt.points = Thunks.Address_D_drc_Shape_points;
+            if (__over[16]) __vt.flags = Thunks.Address_D_drc_Shape_flags;
+            if (__over[17]) __vt.triple = Thunks.Address_D_drc_Shape_triple;
+            if (__over[18]) __vt.peek = Thunks.Address_D_drc_Shape_peek;
+            if (__over[19]) __vt.compare = Thunks.Address_D_drc_Shape_compare;
+            if (__over[20]) __vt.same = Thunks.Address_D_drc_Shape_same;
+            if (__over[21]) __vt.grow = Thunks.Address_D_drc_Shape_grow;
+            if (__over[22]) __vt.adopt = Thunks.Address_D_drc_Shape_adopt;
+            if (__over[23]) __vt.make_beam = Thunks.Address_D_drc_Shape_make_beam;
             if (__over[24]) __vt.changed = Thunks.Address_D_drc_Shape_changed;
             nint __result;
             nint __director;
@@ -2044,6 +2820,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             __scope.Returned();
             Handle.Assign(__result);
             __box.Pointer = __director;
+            __box.Publish(__result);
             SetDirector(__box);
             __scope.Check(__status);
         }
@@ -2081,7 +2858,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     double __result;
                     int __status = Native.drc_Circle_director_base_area(__self.Pointer, &__result);
@@ -2093,7 +2870,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             double __result;
             int __status = Native.drc_Circle_area(__self.Pointer, &__result);
@@ -2116,7 +2893,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     nint __text;
                     nuint __size;
@@ -2136,7 +2913,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             nint __text;
             nuint __size;
@@ -2167,7 +2944,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             {
                 case 1:
                 {
-                    using var __scope = new CallScope();
+                    using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
                     int __result;
                     int __status = Native.drc_Circle_director_base_add_int32_int32(__self.Pointer, a, b, &__result);
@@ -2179,7 +2956,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
             }
         }
         {
-            using var __scope = new CallScope();
+            using var __scope = CallScope.Begin();
             using var __self = Hold(false);
             int __result;
             int __status = Native.drc_Circle_add(__self.Pointer, a, b, &__result);
@@ -2196,7 +2973,7 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Circle_radius")]
     public double Radius()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         double __result;
         int __status = Native.drc_Circle_radius(__self.Pointer, &__result);
@@ -2206,43 +2983,56 @@ public unsafe partial class Circle : global::Drc.Shape.Shape
         return __result;
     }
 
-    private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_overrides = new();
-
-    private static bool[]? DirectorOverrides(global::System.Type type, bool always)
+    private static class DirectorOverrides
     {
-        bool[] found = s_overrides.GetOrAdd(type, static t => new bool[]
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
         {
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            DirectorBox.Overrides(t, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
-        });
-        if (!always && (type == typeof(Circle) || !global::System.Array.Exists(found, x => x)))
-        {
-            return null;
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Area", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Name", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddInt32Int32", new global::System.Type[] { typeof(int), typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Sides", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Center", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Move", new global::System.Type[] { typeof(global::Drc.Shape.Point), typeof(global::Drc.Shape.Point) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Mode", new global::System.Type[] { typeof(global::Drc.Shape.Mode) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Scale", new global::System.Type[] { typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "AddDoubleDouble", new global::System.Type[] { typeof(double), typeof(double) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Greet", new global::System.Type[] { typeof(string), typeof(string), typeof(string) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Quiet", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Total", new global::System.Type[] { typeof(global::System.ReadOnlySpan<int>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Numbers", new global::System.Type[] { typeof(global::System.ReadOnlySpan<int>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Words", new global::System.Type[] { typeof(global::System.ReadOnlySpan<string>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Modes", new global::System.Type[] { typeof(global::System.ReadOnlySpan<global::Drc.Shape.Mode>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Points", new global::System.Type[] { typeof(global::System.ReadOnlySpan<global::Drc.Shape.Point>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Flags", new global::System.Type[] { typeof(global::System.ReadOnlySpan<bool>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Triple", new global::System.Type[] { typeof(global::System.ReadOnlySpan<double>) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Peek", new global::System.Type[] { typeof(global::Drc.Shape.Holder) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Compare", new global::System.Type[] { typeof(global::Drc.Shape.Shape) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Same", new global::System.Type[] { typeof(global::Drc.Shape.Shape) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Grow", new global::System.Type[] { typeof(global::Drc.Shape.Beam) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Adopt", new global::System.Type[] { typeof(global::Drc.Shape.Beam) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "MakeBeam", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+                DirectorBox.Overrides(type, typeof(global::Drc.Shape.Shape), "Changed", new global::System.Type[] { typeof(int) }, new global::System.Type[] { typeof(global::Drc.Shape.Shape), typeof(global::Drc.Shape.Circle) }),
+            };
+            return s_found.GetOrAdd(type, found);
         }
-        return found;
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
+        {
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Circle) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            return found;
+        }
     }
 }
 
@@ -2263,6 +3053,7 @@ internal sealed class DotHandle : ObjectHandle
 /// <summary>
 /// drc::Dot
 /// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
 public unsafe partial class Dot : global::Drc.Shape.Shape
 {
     internal Dot(ObjectHandle handle) : base(handle)
@@ -2278,7 +3069,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
     public Dot() : base(new DotHandle())
     {
         DirectorBox.RefuseOverrides(GetType(), typeof(Dot));
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Dot_create(&__result);
         __scope.Returned();
@@ -2312,7 +3103,7 @@ public unsafe partial class Dot : global::Drc.Shape.Shape
     [BridgefexFunction("drc_Dot_area")]
     public new double Area()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         double __result;
         int __status = Native.drc_Dot_area(__self.Pointer, &__result);
@@ -2354,7 +3145,7 @@ public unsafe partial class Plain : BridgefexObject
     [BridgefexFunction("drc_Plain_create")]
     public Plain() : base(new PlainHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Plain_create(&__result);
         __scope.Returned();
@@ -2382,7 +3173,7 @@ public unsafe partial class Plain : BridgefexObject
     [BridgefexFunction("drc_Plain_value")]
     public int Value()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
         int __status = Native.drc_Plain_value(__self.Pointer, &__result);
@@ -2424,7 +3215,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_create")]
     public Holder() : base(new HolderHandle())
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.drc_Holder_create(&__result);
         __scope.Returned();
@@ -2446,13 +3237,61 @@ public unsafe partial class Holder : BridgefexObject
         return result;
     }
 
+    /// <summary>The object that C++ lends to an override: the C# object that it is, if C# owns one, else a wrapper that is closed when the override returns.</summary>
+    internal static Holder? LendToOverride(nint pointer, bool readOnly, Lent lent)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        Holder? known = lent.Known<Holder>(pointer);
+        if (known is not null)
+        {
+            return known;
+        }
+        Holder? borrowed = Borrow(pointer, null, readOnly);
+        return borrowed is null ? null : lent.Borrowed(borrowed);
+    }
+
+    /// <summary>The object that C++ gives to an override (a std::unique_ptr): it is destroyed when it is closed or collected.</summary>
+    internal static Holder? AdoptFromCpp(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new HolderHandle();
+        handle.Assign(pointer);
+        return new Holder(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Holder value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
+    }
+
     /// <summary>
     /// void drc::Holder::put(std::unique_ptr&lt;drc::Shape&gt; shape)
     /// </summary>
     [BridgefexFunction("drc_Holder_put")]
     public void Put(global::Drc.Shape.Shape shape)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         if (object.ReferenceEquals(shape, this))
         {
@@ -2475,7 +3314,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_take")]
     public global::Drc.Shape.Shape? Take()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         nint __result;
         var __o = new global::Drc.Shape.ShapeHandle();
@@ -2493,7 +3332,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_empty")]
     public bool Empty()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         byte __result;
         int __status = Native.drc_Holder_empty(__self.Pointer, &__result);
@@ -2509,7 +3348,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_compare_held")]
     public double CompareHeld(global::Drc.Shape.Holder other)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         global::System.ArgumentNullException.ThrowIfNull(other);
         using var __t1 = other.Hold(false);
@@ -2528,7 +3367,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_describe")]
     public string Describe()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         nint __text;
         nuint __size;
@@ -2552,7 +3391,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_describe_on_thread")]
     public string DescribeOnThread()
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         nint __text;
         nuint __size;
@@ -2579,7 +3418,7 @@ public unsafe partial class Holder : BridgefexObject
     [BridgefexFunction("drc_Holder_apply")]
     public int Apply(global::System.Func<int, int>? f)
     {
-        using var __scope = new CallScope();
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         var __o1 = __scope.Register(f, "f", Thunks.Address_Thunk_int32__int32);
         int __result;

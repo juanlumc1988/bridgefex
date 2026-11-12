@@ -73,7 +73,11 @@ internal readonly ref struct CallGuard
 
 /// <summary>A call of the bindings that gives callbacks. The exception of one of its callbacks is raised by the
 /// call when C++ returns, and its remaining callbacks do not run (C++ gets their default result). If the C
-/// function is never called, C++ never releases the callbacks, and the scope drops them.</summary>
+/// function is never called, C++ never releases the callbacks, and the scope drops them.
+///
+/// A call that gives no callback is the common one, and costs nothing here but a few fields: only this thread can
+/// reach its scope (the callbacks that C++ keeps find theirs through <see cref="CallbackBox.Scope"/>), so it needs
+/// no lock, and the thread keeps one to use again for the next call.</summary>
 internal sealed class CallScope : global::System.IDisposable
 {
     [global::System.ThreadStatic]
@@ -81,6 +85,10 @@ internal sealed class CallScope : global::System.IDisposable
 
     [global::System.ThreadStatic]
     private static int t_calls;
+
+    /// <summary>A scope that no one references any more, to use again on this thread.</summary>
+    [global::System.ThreadStatic]
+    private static CallScope? t_spare;
 
     internal readonly struct Registration
     {
@@ -96,18 +104,27 @@ internal sealed class CallScope : global::System.IDisposable
         internal readonly nint Release;
     }
 
-    private readonly CallScope? _previous;
+    private CallScope? _previous;
     private List<nint>? _keys;
     private bool _active = true;
     private bool _returned;
+    private bool _shared;
     private global::System.Exception? _error;
     private volatile bool _failed;
 
-    internal CallScope()
+    private CallScope()
     {
-        _previous = t_innermost;
-        t_innermost = this;
+    }
+
+    /// <summary>The scope of a call that starts: the innermost of this thread from now on.</summary>
+    internal static CallScope Begin()
+    {
+        CallScope scope = t_spare ?? new CallScope();
+        t_spare = null;
+        scope._previous = t_innermost;
+        t_innermost = scope;
         t_calls++;
+        return scope;
     }
 
     /// <summary>The innermost call of this thread that gives callbacks.</summary>
@@ -138,6 +155,8 @@ internal sealed class CallScope : global::System.IDisposable
         {
             return default;
         }
+        // From here on a thread of C++ may reach this scope, through the callback.
+        _shared = true;
         nint key = CallbackBox.Add(function, name, this);
         (_keys ??= new List<nint>()).Add(key);
         return new Registration(thunk, key, CallbackBox.ReleaseAddress);
@@ -162,32 +181,54 @@ internal sealed class CallScope : global::System.IDisposable
     /// <summary>Keeps the first exception of a callback; false if the call has returned.</summary>
     internal bool Fail(global::System.Exception error)
     {
+        if (!_shared)
+        {
+            return Keep(error);
+        }
         lock (this)
         {
-            if (!_active)
-            {
-                return false;
-            }
-            if (_error is null)
-            {
-                _error = error;
-                _failed = true;
-            }
-            return true;
+            return Keep(error);
         }
+    }
+
+    private bool Keep(global::System.Exception error)
+    {
+        if (!_active)
+        {
+            return false;
+        }
+        if (_error is null)
+        {
+            _error = error;
+            _failed = true;
+        }
+        return true;
+    }
+
+    private global::System.Exception? Finish()
+    {
+        global::System.Exception? error = _error;
+        _error = null;
+        _failed = false;
+        // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
+        _active = false;
+        return error;
     }
 
     /// <summary>Raises the exception of a callback, else the error of the C function.</summary>
     internal void Check(int status)
     {
         global::System.Exception? error;
-        lock (this)
+        if (_shared)
         {
-            // The call returns: an exception of a callback that C++ keeps goes to nobody from now on.
-            error = _error;
-            _error = null;
-            _failed = false;
-            _active = false;
+            lock (this)
+            {
+                error = Finish();
+            }
+        }
+        else
+        {
+            error = Finish();
         }
         if (error is null)
         {
@@ -210,12 +251,18 @@ internal sealed class CallScope : global::System.IDisposable
 
     public void Dispose()
     {
-        lock (this)
+        if (_shared)
         {
-            _active = false;
-            _failed = false;
-            _error = null;
+            lock (this)
+            {
+                Finish();
+            }
         }
+        else
+        {
+            Finish();
+        }
+        bool plain = _keys is null;
         if (!_returned && _keys is not null)
         {
             foreach (nint key in _keys)
@@ -224,11 +271,20 @@ internal sealed class CallScope : global::System.IDisposable
             }
         }
         _keys = null;
-        if (ReferenceEquals(t_innermost, this))
+        bool innermost = ReferenceEquals(t_innermost, this);
+        if (innermost)
         {
             t_innermost = _previous;
         }
         t_calls--;
+        if (plain && innermost && t_spare is null)
+        {
+            // Nothing references it: no callback was given, and the call has left the chain of the thread.
+            _previous = null;
+            _active = true;
+            _returned = false;
+            t_spare = this;
+        }
     }
 }
 
@@ -283,7 +339,20 @@ internal unsafe class CallbackBox
 
     internal static void Remove(nint key)
     {
-        Table.TryRemove(key, out _);
+        Forget(key);
+    }
+
+    private static void Forget(nint key)
+    {
+        if (Table.TryRemove(key, out CallbackBox? box))
+        {
+            box.Released();
+        }
+    }
+
+    /// <summary>C++ holds the callback (or the director) no more.</summary>
+    internal virtual void Released()
+    {
     }
 
     internal static CallbackBox Of(void* userData)
@@ -391,7 +460,7 @@ internal unsafe class CallbackBox
     {
         try
         {
-            Table.TryRemove((nint)userData, out _);
+            Forget((nint)userData);
         }
         catch (global::System.Exception)
         {
@@ -419,8 +488,14 @@ internal sealed class DirectorBox : CallbackBox
     /// <summary>True if a class of the user overrides the virtual method of <paramref name="root"/> with these
     /// parameters (the classes that were generated do not count; a method that hides it with <c>new</c> does not
     /// override it, and an override above it still does).</summary>
+    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075",
+        Justification = "The types that are walked derive from a class that is annotated to keep its methods.")]
     internal static bool Overrides(
-        global::System.Type type,
+        [global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods
+            | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type,
         global::System.Type root,
         string name,
         global::System.Type[] parameters,
@@ -466,7 +541,15 @@ internal sealed class DirectorBox : CallbackBox
 
     /// <summary>A class of the user that derives from <paramref name="generated"/>, whose C++ class has no director
     /// (or one that C# cannot use), cannot have its overrides called by C++: it is refused.</summary>
-    internal static void RefuseOverrides(global::System.Type type, global::System.Type generated)
+    [global::System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage(
+        "Trimming",
+        "IL2075",
+        Justification = "The types that are walked derive from a class that is annotated to keep its methods.")]
+    internal static void RefuseOverrides(
+        [global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(
+            global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods
+            | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type,
+        global::System.Type generated)
     {
         for (global::System.Type? current = type; current is not null && current != generated; current = current.BaseType)
         {
@@ -491,6 +574,38 @@ internal sealed class DirectorBox : CallbackBox
     }
 
     internal nint Key { get; set; }
+
+    /// <summary>The C# objects that are directors, by the address of their C++ object: when C++ lends an object to an
+    /// override, and the object is one of these, the override gets the object itself and not a wrapper of it.</summary>
+    private static readonly ConcurrentDictionary<nint, DirectorBox> s_objects = new();
+
+    /// <summary>The address of the C++ object of the director, as C++ passes it (0 until the C function created it).
+    /// A class with a director derives from at most one class, so the address is the same for all its classes.</summary>
+    internal nint ObjectPointer { get; private set; }
+
+    internal void Publish(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return;
+        }
+        ObjectPointer = pointer;
+        s_objects[pointer] = this;
+    }
+
+    internal static DirectorBox? At(nint pointer)
+    {
+        return s_objects.TryGetValue(pointer, out DirectorBox? box) ? box : null;
+    }
+
+    internal override void Released()
+    {
+        if (ObjectPointer != 0)
+        {
+            // Only its own entry: the address may be another director's by now.
+            s_objects.TryRemove(new global::System.Collections.Generic.KeyValuePair<nint, DirectorBox>(ObjectPointer, this));
+        }
+    }
 
     /// <summary>The director (the pointer for its base calls); 0 until the C function has created it.</summary>
     internal nint Pointer { get; set; }
@@ -530,6 +645,51 @@ internal sealed class DirectorBox : CallbackBox
         public void Dispose()
         {
             t_running?.Remove(_box);
+        }
+    }
+}
+
+
+/// <summary>The objects that C++ lends to an override for the length of the call (a reference or a pointer to a
+/// class): the override gets the C# object that is the C++ object, if C# still owns one (it cannot be closed
+/// until the override returns), else a wrapper that is closed when the override returns, so that one that
+/// is kept fails instead of using what C++ may have freed.</summary>
+internal sealed class Lent : global::System.IDisposable
+{
+    private List<BridgefexObject>? _borrowed;
+    private List<ObjectHandle>? _held;
+
+    internal T? Known<T>(nint pointer) where T : BridgefexObject
+    {
+        if (DirectorBox.At(pointer)?.Target is T target && target.Handle.TryLease() == LeaseResult.Ok)
+        {
+            (_held ??= new List<ObjectHandle>()).Add(target.Handle);
+            return target;
+        }
+        return null;
+    }
+
+    internal T Borrowed<T>(T wrapper) where T : BridgefexObject
+    {
+        (_borrowed ??= new List<BridgefexObject>()).Add(wrapper);
+        return wrapper;
+    }
+
+    public void Dispose()
+    {
+        if (_borrowed is not null)
+        {
+            foreach (BridgefexObject wrapper in _borrowed)
+            {
+                wrapper.Close();
+            }
+        }
+        if (_held is not null)
+        {
+            foreach (ObjectHandle handle in _held)
+            {
+                handle.ReleaseLease();
+            }
         }
     }
 }
@@ -928,6 +1088,460 @@ internal static unsafe class Thunks
 
     internal static nint Address_D_drc_Shape_quiet =>
         (nint)(delegate* unmanaged[Cdecl]<void*, int*, void>)&D_drc_Shape_quiet;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_total(void* userData, int* a1d, nuint a1s, int* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Total(new global::System.ReadOnlySpan<int>((int*)a1d, Runtime.Count(a1d, a1s)));
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_total =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, int*, nuint, int*, void>)&D_drc_Shape_total;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_numbers(void* userData, int* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Numbers(new global::System.ReadOnlySpan<int>((int*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.numbers returned null for a std::vector");
+            }
+            fixed (int* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(int));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_numbers =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, int*, nuint, nint, void>)&D_drc_Shape_numbers;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_words(void* userData, Native.StringIn* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var c1 = new string[Runtime.Count(a1d, a1s)];
+            for (int i1 = 0; i1 < c1.Length; i1++)
+            {
+                c1[i1] = Runtime.TakeText((nint)a1d[i1].Data, a1d[i1].Size);
+            }
+            var value = target.Words(c1);
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.words returned null for a std::vector");
+            }
+            using var block = StringBlock.Make(value, "result");
+            Native.drc_vector_sink_set_strings(sink, block.Pointer, (nuint)value.Length);
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_words =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, Native.StringIn*, nuint, nint, void>)&D_drc_Shape_words;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_modes(void* userData, byte* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Modes(new global::System.ReadOnlySpan<global::Drc.Shape.Mode>((global::Drc.Shape.Mode*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.modes returned null for a std::vector");
+            }
+            fixed (global::Drc.Shape.Mode* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(byte));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_modes =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, nint, void>)&D_drc_Shape_modes;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_points(void* userData, Native.drc_Point* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var c1 = new global::Drc.Shape.Point[Runtime.Count(a1d, a1s)];
+            for (int i1 = 0; i1 < c1.Length; i1++)
+            {
+                c1[i1] = global::Drc.Shape.Point.FromNative(&a1d[i1]);
+            }
+            var value = target.Points(c1);
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.points returned null for a std::vector");
+            }
+            using var block = Block<Native.drc_Point>.Alloc(value.Length);
+            for (int i = 0; i < value.Length; i++)
+            {
+                value[i].ToNative(&block.Pointer[i]);
+            }
+            Native.drc_vector_sink_set(sink, block.Pointer, (nuint)value.Length, (nuint)sizeof(Native.drc_Point));
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_points =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, Native.drc_Point*, nuint, nint, void>)&D_drc_Shape_points;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_flags(void* userData, byte* a1d, nuint a1s, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Flags(new global::System.ReadOnlySpan<bool>((bool*)a1d, Runtime.Count(a1d, a1s)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.flags returned null for a std::vector");
+            }
+            fixed (bool* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(byte));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_flags =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, byte*, nuint, nint, void>)&D_drc_Shape_flags;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_triple(void* userData, double* a1, nint sink)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.Triple(new global::System.ReadOnlySpan<double>((double*)a1, Runtime.Count(a1, 3)));
+            if (value is null)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.triple returned null for a std::array");
+            }
+            if (value.Length != 3)
+            {
+                throw new global::System.InvalidOperationException("the override Shape.triple returned " + value.Length + " elements for a std::array of 3");
+            }
+            fixed (double* data = value)
+            {
+                Native.drc_vector_sink_set(sink, data, (nuint)value.Length, (nuint)sizeof(double));
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_triple =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, double*, nint, void>)&D_drc_Shape_triple;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_peek(void* userData, nint a1, int* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            using var lent = new Lent();
+            var value = target.Peek(global::Drc.Shape.Holder.LendToOverride(a1, true, lent)!);
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_peek =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, nint, int*, void>)&D_drc_Shape_peek;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_compare(void* userData, nint a1, double* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            using var lent = new Lent();
+            var value = target.Compare(global::Drc.Shape.Shape.LendToOverride(a1, true, lent)!);
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_compare =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, nint, double*, void>)&D_drc_Shape_compare;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_same(void* userData, nint a1, byte* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            using var lent = new Lent();
+            var value = target.Same(global::Drc.Shape.Shape.LendToOverride(a1, true, lent)!);
+            *result = (value ? (byte)1 : (byte)0);
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_same =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, nint, byte*, void>)&D_drc_Shape_same;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_grow(void* userData, nint a1, int* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            using var lent = new Lent();
+            var value = target.Grow(global::Drc.Shape.Beam.LendToOverride(a1, false, lent)!);
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_grow =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, nint, int*, void>)&D_drc_Shape_grow;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_adopt(void* userData, nint a1, int* result)
+    {
+        global::Drc.Shape.Beam? o1 = global::Drc.Shape.Beam.AdoptFromCpp(a1);
+        bool passed = false;
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            passed = true;
+            var value = target.Adopt(o1!);
+            *result = value;
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+        finally
+        {
+            if (!passed)
+            {
+                o1?.Dispose();
+            }
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_adopt =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, nint, int*, void>)&D_drc_Shape_adopt;
+
+    [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static void D_drc_Shape_make_beam(void* userData, int a1, nint* result)
+    {
+        DirectorBox? box = null;
+        try
+        {
+            box = (DirectorBox)CallbackBox.Of(userData);
+            if (box.Skip)
+            {
+                return;
+            }
+            if (box.Target is not global::Drc.Shape.Shape target)
+            {
+                throw new global::System.InvalidOperationException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            using var running = box.Enter();
+            var value = target.MakeBeam(a1);
+            if (value is null)
+            {
+                *result = 0;
+            }
+            else
+            {
+                *result = global::Drc.Shape.Beam.GiveToCpp(value, "Shape.make_beam");
+            }
+        }
+        catch (global::System.Exception error)
+        {
+            CallbackBox.Fail(box, error);
+        }
+    }
+
+    internal static nint Address_D_drc_Shape_make_beam =>
+        (nint)(delegate* unmanaged[Cdecl]<void*, int, nint*, void>)&D_drc_Shape_make_beam;
 
     [global::System.Runtime.InteropServices.UnmanagedCallersOnly(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static void D_drc_Shape_changed(void* userData, int a1)

@@ -21,7 +21,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
-from . import directors
+from . import callbacks, directors
 from .callbacks import has_callbacks
 from .lower import Names, lower_callable
 from .mapping import (
@@ -37,11 +37,16 @@ from .source import Source
 
 STRUCT_LAYOUT = f"[{INTEROP}.StructLayout({INTEROP}.LayoutKind.Sequential)]"
 
+_CLASS_MEMBERS = frozenset(
+    "Borrow CppType LendToOverride AdoptFromCpp GiveToCpp DirectorOverrides".split()
+)
+"""What a generated class declares itself: a class cannot have the name of one of its members."""
+
 _FILE_TYPES = frozenset(
     """
     Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
     BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks CallScope CallbackBox
-    Thunks DirectorBox
+    Thunks DirectorBox Lent
     """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""
@@ -99,6 +104,14 @@ def build_names(plan: ModulePlan) -> Names:
             if isinstance(item, ClassPlan):
                 name = pascal(item.model.name)
                 claim(name, item.model.qualified_name)
+                if name in _CLASS_MEMBERS:
+                    errors.append(
+                        Diagnostic(
+                            f"'{item.model.qualified_name}' gets the C# name '{name}', which a "
+                            "member that every generated class declares has",
+                            item.model.location,
+                        )
+                    )
                 claim(f"{name}Handle", f"the handle of '{item.model.qualified_name}'")
                 classes[item.c_type] = f"{prefix}.{name}"
                 handles[item.c_type] = f"{prefix}.{name}Handle"
@@ -147,6 +160,7 @@ def build_names(plan: ModulePlan) -> Names:
         bool(derivable),
         derivable,
         directors.guarded(plan, derivable),
+        directors.object_classes(derivable),
     )
 
 
@@ -212,6 +226,18 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         src.line(line)
     if names.directors:
         _declare(src, plan.string_sink_set, "void", "nint sink, byte* data, nuint size")
+        _declare(
+            src,
+            plan.vector_sink_set,
+            "void",
+            "nint sink, void* data, nuint count, nuint element_size",
+        )
+        _declare(
+            src,
+            plan.vector_sink_set_strings,
+            "void",
+            "nint sink, Native.StringIn* items, nuint count",
+        )
         for d in names.directors.values():
             director = d.cls.director
             assert director is not None
@@ -398,8 +424,9 @@ def _handle_class(src: Source, cls: ClassPlan, handle: str) -> None:
     src.line()
 
 
-def _borrow(src: Source, name: str, handle: str) -> None:
-    """``Borrow``: the wrapper of an object that C++ owns (it keeps its ``owners`` alive)."""
+def _borrow(src: Source, name: str, handle: str, *, lent: tuple[str, bool] | None = None) -> None:
+    """``Borrow``: the wrapper of an object that C++ owns (it keeps its ``owners`` alive). For a
+    class that an override takes or gives, also ``LendToOverride`` and ``AdoptFromCpp``."""
     src.line()
     src.open(
         f"internal static {name}? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)"
@@ -414,6 +441,73 @@ def _borrow(src: Source, name: str, handle: str) -> None:
     src.line("result.ReadOnly = readOnly;")
     src.line("result.Attach(owners);")
     src.line("return result;")
+    src.close()
+    if lent is not None:
+        _lent_helpers(src, name, handle, *lent)
+
+
+def _lent_helpers(src: Source, name: str, handle: str, view: str, exact: bool) -> None:
+    """What a class that an override takes or gives as an object has besides ``Borrow``."""
+    src.line()
+    src.line(
+        "/// <summary>The object that C++ lends to an override: the C# object that it is, if C# "
+        "owns one, else a wrapper that is closed when the override returns.</summary>"
+    )
+    src.open(f"internal static {name}? LendToOverride(nint pointer, bool readOnly, Lent lent)")
+    src.line("if (pointer == 0)")
+    src.open()
+    src.line("return null;")
+    src.close()
+    src.line(f"{name}? known = lent.Known<{name}>(pointer);")
+    src.line("if (known is not null)")
+    src.open()
+    src.line("return known;")
+    src.close()
+    src.line(f"{name}? borrowed = Borrow(pointer, null, readOnly);")
+    src.line("return borrowed is null ? null : lent.Borrowed(borrowed);")
+    src.close()
+    src.line()
+    src.line(
+        "/// <summary>The object that C++ gives to an override (a std::unique_ptr): "
+        "it is destroyed when it is closed or collected.</summary>"
+    )
+    src.open(f"internal static {name}? AdoptFromCpp(nint pointer)")
+    src.line("if (pointer == 0)")
+    src.open()
+    src.line("return null;")
+    src.close()
+    src.line(f"var handle = new {handle}();")
+    src.line("handle.Assign(pointer);")
+    src.line(f"return new {name}(handle);")
+    src.close()
+    src.line()
+    src.line(
+        "/// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, "
+        "as a call that takes the object gives it.</summary>"
+    )
+    src.open(f"internal static nint GiveToCpp({name} value, string what)")
+    if exact:
+        # C++ destroys the object through this class: only an object of exactly it.
+        src.line(f"Runtime.CheckExactResult(value, typeof({name}), what);")
+    src.line("Lease lease;")
+    src.line("try")
+    src.open()
+    src.line(f"lease = value.{view}(true, true);")
+    src.close()
+    src.line("catch (global::System.InvalidOperationException inner)")
+    src.open()
+    src.line(
+        "throw new global::System.InvalidOperationException("
+        '"the override " + what + " returned an object that cannot be given to C++: " '
+        "+ inner.Message, inner);"
+    )
+    src.close()
+    src.line("using (lease)")
+    src.open()
+    src.line("nint pointer = lease.Give();")
+    src.line("value.Surrender();")
+    src.line("return pointer;")
+    src.close()
     src.close()
 
 
@@ -479,7 +573,7 @@ def _constructors(
                 made = lower_callable(
                     director_ctor, names, plan, prelude=directors.vtable_prelude(names, d)
                 )
-                src.line(f"bool[]? {LOCAL_PREFIX}over = DirectorOverrides(GetType(), false);")
+                src.line(f"bool[]? {LOCAL_PREFIX}over = DirectorOverrides.Of(GetType(), false);")
                 src.open(f"if ({LOCAL_PREFIX}over is null)")
                 src.lines_of(item.body)
                 src.close()
@@ -530,7 +624,7 @@ def _protected_constructors(
         src.remarks(made.remarks)
         src.line(f'[BridgefexFunction("{director_ctor.function.name}")]')
         src.open(f"protected {name}({', '.join(made.parameters)}) : base(new {handle}())")
-        src.line(f"bool[] {LOCAL_PREFIX}over = DirectorOverrides(GetType(), true)!;")
+        src.line(f"bool[] {LOCAL_PREFIX}over = DirectorOverrides.Of(GetType(), true)!;")
         src.lines_of(made.body)
         src.close()
 
@@ -543,6 +637,9 @@ def _class(
     base = names.classes[cls.bases[0].c_type] if cls.bases else "BridgefexObject"
     _handle_class(src, cls, handle)
     src.doc(cls.model.qualified_name)
+    if cls.c_type in names.directors or cls.c_type in names.guarded:
+        # The constructors read the overrides of the class of the object by reflection.
+        src.line(directors.ANNOTATION.strip())
     src.open(f"public unsafe partial class {name} : {base}")
     taken: dict[str, str] = {}
     inherited = _inherited_names(cls, by_type)
@@ -554,7 +651,19 @@ def _class(
     src.line()
     src.line(f"internal override global::System.Type CppType => typeof({name});")
     _constructors(src, plan, cls, names, handle=handle, taken=taken, reserved=reserved)
-    _borrow(src, name, handle)
+    _borrow(
+        src,
+        name,
+        handle,
+        lent=(
+            (
+                f"Hold_{cls.c_type}" if cls.is_base else "Hold",
+                cls.is_base and not cls.model.virtual_destructor,
+            )
+            if cls.c_type in names.lent
+            else None
+        ),
+    )
     chain = _primary_chain(cls, by_type)
     _views(src, cls, chain)
     for nested in cls.enums:
@@ -690,7 +799,7 @@ def _director_members(
                 method,
                 entry,
                 names=names,
-                sink_set=plan.string_sink_set,
+                sinks=callbacks.sinks_of(plan),
             )
     for slot in directors.dropped(names, cls):
         if slot.name in taken:

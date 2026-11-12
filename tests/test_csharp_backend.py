@@ -500,7 +500,7 @@ def test_the_call_that_gives_callbacks_raises_their_exceptions(tmp_path: Path) -
     lines = [line.strip() for line in body.splitlines()]
     # The scope is the first statement, and the check is the one of the scope, after the call
     # (C++ owns the callbacks from the moment the C function returns).
-    assert lines[2] == "using var __scope = new CallScope();"
+    assert lines[2] == "using var __scope = CallScope.Begin();"
     call = next(i for i, line in enumerate(lines) if line.startswith("int __status = Native."))
     assert lines[call + 1] == "__scope.Returned();"
     assert lines[call + 2] == "__scope.Check(__status);"
@@ -586,7 +586,19 @@ def test_a_result_that_c_plus_plus_cannot_hold_is_checked_by_the_thunk(tmp_path:
 
 
 @pytest.mark.parametrize(
-    "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox"]
+    "name", ["Borrow", "CppType", "LendToOverride", "AdoptFromCpp", "DirectorOverrides"]
+)
+def test_a_class_cannot_have_the_name_of_a_member_that_every_class_declares(
+    tmp_path: Path, name: str
+) -> None:
+    code = f"class {name} {{ public: {name}(); }};"
+    message = error_of(tmp_path, code)
+    assert f"gets the C# name '{name}'" in message
+    assert "member that every generated class declares" in message
+
+
+@pytest.mark.parametrize(
+    "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox", "Lent"]
 )
 def test_a_class_cannot_hide_a_type_of_the_callback_runtime(tmp_path: Path, name: str) -> None:
     code = f"#include <functional>\nvoid f(std::function<void()> g);\nstruct {name} {{ int a; }};"
@@ -639,6 +651,25 @@ def generate_with_directors(
     return bridgefex.generate([header], options).files
 
 
+def test_the_bindings_are_marked_for_the_trimmer_and_native_aot(tmp_path: Path) -> None:
+    """The classes that C++ calls back are annotated, so that what is trimmed or compiled ahead of
+    time keeps the methods of the classes of the user (the bindings read them by reflection), and
+    the project has the analyzers of both on: the compiler checks what is annotated."""
+    files = generate_with_directors(
+        tmp_path, DIRECTOR_CODE + "\nclass Plain { public: int a(); };", ["mod_B", "mod_D"]
+    )
+    project = next(text for path, text in files.items() if path.endswith(".csproj"))
+    assert "<IsAotCompatible>true</IsAotCompatible>" in project
+    text = files["csharp/Mod/Api.cs"]
+    annotated = re.findall(
+        r"DynamicallyAccessedMembers\([^\n]*\)\]\n\s*public unsafe partial class (\w+)", text
+    )
+    assert annotated == ["B", "D"]
+    # The methods that read the types are in a class that is not annotated.
+    assert text.count("private static class DirectorOverrides") == 2
+    assert "DirectorOverrides.Of(GetType(), " in text
+
+
 def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
     text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
     # A virtual method is virtual in the class that declares it, and an override below it.
@@ -649,11 +680,10 @@ def test_a_class_with_a_director_can_be_derived_from(tmp_path: Path) -> None:
     # The constructors that only a class of the user can call (the class is abstract).
     assert "protected B()" in text
     assert "protected B(int start)" in text
-    # A method with a container is the class's own: C# cannot override it.
-    assert "public int Total(" in text
-    assert "virtual int Total" not in text
+    # A container is a span that C++ lends and an array that C++ copies.
+    assert "public virtual int Total(global::System.ReadOnlySpan<int> v)" in text
     # A pure virtual method has to be overridden when the object is made.
-    assert "DirectorOverrides(GetType(), true)" in text
+    assert "DirectorOverrides.Of(GetType(), true)" in text
 
 
 def test_a_class_with_a_director_checks_what_a_class_of_the_user_overrides(
@@ -661,7 +691,7 @@ def test_a_class_with_a_director_checks_what_a_class_of_the_user_overrides(
 ) -> None:
     files = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])
     text = files["csharp/Mod/Api.cs"]
-    assert 'DirectorBox.Overrides(t, typeof(global::Mod.Api.B), "G"' in text
+    assert 'DirectorBox.Overrides(type, typeof(global::Mod.Api.B), "G"' in text
     assert "must override the pure virtual method B.g" in text
     # The module has the runtime of the directors; one without them does not.
     assert "internal sealed class DirectorBox" in files["csharp/Mod/BridgefexCallbacks.cs"]
@@ -675,25 +705,27 @@ def test_every_call_of_a_module_with_directors_can_raise_the_exception_of_an_ove
 ) -> None:
     text = generate_with_directors(tmp_path, DIRECTOR_CODE, ["mod_B", "mod_D"])["csharp/Mod/Api.cs"]
     body = text.split("public int Call()")[1].split("\n    }")[0]
-    assert "using var __scope = new CallScope();" in body
+    assert "using var __scope = CallScope.Begin();" in body
     assert "__scope.Check(__status);" in body
 
 
-def test_a_class_whose_pure_virtual_method_has_a_type_that_c_sharp_cannot_override_is_plain(
+def test_a_class_whose_pure_virtual_method_has_containers_and_objects_can_be_derived_from(
     tmp_path: Path,
 ) -> None:
     code = """
+#include <memory>
 #include <vector>
+class O { public: O(); virtual ~O(); virtual int o() const; };
 class P { public: P(); virtual ~P(); virtual int n(const std::vector<int>& v) const = 0;
-          virtual int k() const; };
-class Q { public: Q(); virtual ~Q(); virtual int k() const; };
+          virtual std::unique_ptr<O> m(const O& o) const = 0; virtual int k() const; };
 """
-    text = generate_with_directors(tmp_path, code, ["mod_P", "mod_Q"])["csharp/Mod/Api.cs"]
-    # P cannot be derived from (it would have to implement n): its methods are plain.
-    assert "virtual int N" not in text
-    assert "public int K()" in text
-    # Q can.
-    assert "public virtual int K()" in text
+    text = generate_with_directors(tmp_path, code, ["mod_P", "mod_O"])["csharp/Mod/Api.cs"]
+    # P is abstract: a class of the user has to implement both.
+    assert "protected P()" in text
+    assert "public virtual int N(global::System.ReadOnlySpan<int> v)" in text
+    assert "public virtual global::Mod.Api.O? M(global::Mod.Api.O o)" in text
+    assert "must override the pure virtual method P.n" in text
+    assert "must override the pure virtual method P.m" in text
 
 
 DIRECTOR_COMPILES = {
@@ -730,6 +762,63 @@ DIRECTOR_COMPILES = {
         " virtual S s(S v, const S& w) const; virtual std::string t(const std::string& a,"
         " std::string_view b, const char* c) const; };",
         ["mod_B"],
+    ),
+    "containers of every kind of element in the signature": (
+        "#include <array>\n#include <vector>\n"
+        "enum class E : unsigned char { A, B };\nenum F { P, Q };\nstruct S { int x; };\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual std::vector<int> a(const std::vector<int>& v) const;"
+        " virtual std::vector<long> b(const std::vector<long>& v) const;"
+        " virtual std::vector<unsigned long> c(std::vector<unsigned long> v) const;"
+        " virtual std::vector<E> d(const std::vector<E>& v) const;"
+        " virtual std::vector<F> e(const std::vector<F>& v) const;"
+        " virtual std::vector<bool> f(const std::vector<bool>& v) const;"
+        " virtual std::vector<S> g(const std::vector<S>& v) const;"
+        " virtual std::vector<std::string> h(const std::vector<std::string>& v) const;"
+        " virtual std::array<int, 3> i(const std::array<int, 3>& v) const;"
+        " virtual std::array<S, 2> j(const std::array<S, 2>& v) const;"
+        " virtual std::array<F, 2> k(const std::array<F, 2>& v) const;"
+        " virtual int l(const std::vector<int>& a, const std::array<S, 2>& b, const char* c)"
+        " const; };",
+        ["mod_B"],
+    ),
+    "a pure virtual method with containers, which a class of the user has to override": (
+        "#include <array>\n#include <vector>\n"
+        "class B { public: B(); virtual ~B(); virtual std::vector<int> f(const std::vector<int>& v)"
+        " const = 0; protected: virtual std::array<int, 2> g(std::vector<std::string> w) const"
+        " = 0; };",
+        ["mod_B"],
+    ),
+    "containers whose parameters are named like the locals of the thunks": (
+        "#include <vector>\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual std::vector<int> f(const std::vector<int>& value, const std::vector<int>& block,"
+        " const std::vector<int>& data, const std::vector<int>& sink, const std::vector<int>& i,"
+        " const std::vector<int>& box, const std::vector<int>& target, const std::vector<int>& c1,"
+        " const std::vector<int>& a1d) const; };",
+        ["mod_B"],
+    ),
+    "objects of every form in the signature": (
+        "#include <memory>\n"
+        "class N { public: N(); virtual ~N(); };\n"
+        "class P { public: P(); ~P(); };\n"
+        "class Q : public P { public: Q(); };\n"
+        "class B { public: B(); virtual ~B();"
+        " virtual int a(const N& n) const; virtual int b(N& n) const;"
+        " virtual int c(const N* n) const; virtual int d(N* n) const;"
+        " virtual int e(std::unique_ptr<N> n) const;"
+        " virtual std::unique_ptr<N> f(int x) const;"
+        " virtual std::unique_ptr<P> g(int x) const;"
+        " virtual int h(std::unique_ptr<N> a, const N& b, std::unique_ptr<N> c) const; };",
+        ["mod_B"],
+    ),
+    "methods named like the helpers that objects get": (
+        "#include <memory>\n"
+        "class N { public: N(); virtual ~N(); virtual int lend_to_override() const;"
+        " virtual int adopt_from_cpp() const; };\n"
+        "class B { public: B(); virtual ~B(); virtual int a(const N& lent) const;"
+        " virtual std::unique_ptr<N> b(std::unique_ptr<N> o1, std::unique_ptr<N> passed) const; };",
+        ["mod_B", "mod_N"],
     ),
     "a method that is protected in the base and public in the derived class": (
         "class B { public: B(); virtual ~B(); protected: virtual int f() const; };\n"
@@ -809,17 +898,17 @@ def test_the_director_code_of_the_example_compiles(tmp_path: Path) -> None:
 
 # -- What it refuses ------------------------------------------------------------------------------
 
-WIDE = "std::function<void(" + ", ".join(["int"] * 17) + ")>"
+WIDE = "std::function<void(" + ", ".join(["int"] * 65) + ")>"
 
 
 @pytest.mark.parametrize(
     ("code", "std", "what"),
     [
-        (f"#include <functional>\nint f({WIDE} g);", "c++17", "a callback with 17 arguments"),
+        (f"#include <functional>\nint f({WIDE} g);", "c++17", "a callback with 65 arguments"),
         (
             f"#include <functional>\nclass K {{ public: K(); ~K(); void m({WIDE} g); }};",
             "c++17",
-            "a callback with 17 arguments",
+            "a callback with 65 arguments",
         ),
     ],
 )
@@ -829,9 +918,44 @@ def test_what_the_csharp_bindings_do_not_have_is_refused_clearly(
     message = error_of(tmp_path, code, std=std)
     assert "C#:" in message
     assert what in message
-    assert "no delegate with more than 16" in message
+    assert "delegates for up to 64" in message
     # The Python bindings of the same header are generated all the same.
     assert generate(tmp_path, code, languages=("python",), std=std)
+
+
+def test_a_callback_with_more_arguments_than_func_and_action_have_gets_a_delegate_of_the_bindings(
+    tmp_path: Path,
+) -> None:
+    wide = lambda count, result: (  # noqa: E731
+        f"std::function<{result}(" + ", ".join(["int"] * count) + ")>"
+    )
+    code = (
+        "#include <functional>\n"
+        f"void a({wide(16, 'void')} g);\n"
+        f"void b({wide(17, 'void')} g);\n"
+        f"int c({wide(20, 'int')} g);\n"
+        f"int d({wide(20, 'int')} g, int x);\n"
+    )
+    files = generate(tmp_path, code)
+    text = files["csharp/Mod/Api.cs"]
+    # 16 arguments are those of Action: the bindings declare delegates only above that.
+    sixteen = ", ".join(["int"] * 16)
+    assert f"global::System.Action<{sixteen}>" in text
+    assert "BridgefexCallbacks.Action17<" in text
+    assert text.count("BridgefexCallbacks.Func20<") >= 2
+    callbacks = files["csharp/Mod/BridgefexCallbacks.cs"]
+    assert callbacks.count("public delegate void Action17<in T1,") == 1
+    assert callbacks.count("public delegate TResult Func20<in T1,") == 1
+    assert "Action16<" not in callbacks
+    assert "out TResult>(T1 arg1," in callbacks
+
+
+@needs_dotnet
+def test_a_callback_of_the_most_arguments_gets_a_delegate_that_compiles(tmp_path: Path) -> None:
+    # 64 arguments is the most that the bindings have delegates for (65 is refused, see above).
+    wide = "std::function<int(" + ", ".join(["int"] * 64) + ")>"
+    files = generate(tmp_path, f"#include <functional>\nint f({wide} g);", verify=True)
+    assert "public delegate TResult Func64<in T1," in files["csharp/Mod/BridgefexCallbacks.cs"]
 
 
 def test_a_failure_of_the_csharp_backend_names_the_function(tmp_path: Path) -> None:
@@ -852,7 +976,7 @@ def test_a_refusal_says_which_declaration_and_where(tmp_path: Path, code: str) -
         generate(tmp_path, code)
     [diagnostic] = raised.value.diagnostics
     assert "C#:" in diagnostic.message
-    assert "17 arguments" in diagnostic.message
+    assert "65 arguments" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line >= 1
     assert str(raised.value).count("api.h") >= 1

@@ -1,0 +1,10 @@
+# A case for the C# bindings only (tests/test_csharp_roundtrip.py): the containers that C++ gives to an
+# override and takes from it (std::vector, std::array, std::span) in every kind of element: numbers,
+# C longs, enums with and without a fixed type, structs, bool and strings; empty containers, the
+# results that C# must refuse, text that is not UTF-8, and the memory of a result that fails.
+module = "dco"
+headers = ["dco.h"]
+std = "c++20"
+min_cxx = "c++20"
+annotations = ["annotations.toml"]
+languages = ["csharp"]

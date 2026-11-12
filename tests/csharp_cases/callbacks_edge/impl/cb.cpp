@@ -111,6 +111,25 @@ std::int32_t sixteen(std::function<std::int32_t(
     return f(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16);
 }
 
+void seventeen(std::function<void(std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                                  std::int32_t)> f)
+{
+    f(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17);
+}
+
+std::int32_t twenty(std::function<std::int32_t(
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t,
+                        std::int32_t, std::int32_t, double, const std::string&, bool)> f)
+{
+    return f(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 2.5, std::string("wide"),
+             true);
+}
+
 void bad_text(std::function<void(const std::string&)> f)
 {
     f(std::string("a\xff"

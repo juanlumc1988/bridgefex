@@ -266,7 +266,8 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_peek(const drc_Shape* self, const drc
 /* double drc::Shape::compare(const drc::Shape& other) const */
 DRC_NODISCARD DRC_API drc_status drc_Shape_compare(const drc_Shape* self, const drc_Shape* other, double* out_result);
 
-/* bool drc::Shape::same(const drc::Shape* other) const */
+/* bool drc::Shape::same(const drc::Shape* other) const
+ * other: may be NULL. */
 DRC_NODISCARD DRC_API drc_status drc_Shape_same(const drc_Shape* self, const drc_Shape* other, bool* out_result);
 
 /* int32_t drc::Shape::grow(drc::Beam& beam) const */

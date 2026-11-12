@@ -8,5 +8,6 @@
     <RootNamespace>Enm</RootNamespace>
     <AssemblyName>Enm.Bindings</AssemblyName>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 </Project>
