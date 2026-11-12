@@ -1,0 +1,151 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Plays the conformance scenarios against the Java bindings.
+
+The bindings are generated from the case and compiled together with the runner
+(``runner_jvm/Runner.java``, which plays the scenarios by reflection), and the runner is run
+with the library of the case. Scenarios are given as JSON: the JDK has no TOML reader, and each
+``new`` and ``call`` says the C function it wraps, so that the runner finds what to call
+without knowing how Java names things.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import math
+import os
+import subprocess
+from pathlib import Path
+
+import pytest
+
+import bridgefex
+from bridgefex.backends.jvm.check import java_runtime, javac
+from bridgefex.backends.jvm.naming import upper_snake
+from tests.conformance import scenarios
+from tests.support.cases import Case
+from tests.support.plans import plan_of
+
+RUNNER = Path(__file__).parent / "runner_jvm" / "Runner.java"
+
+ENV_REQUIRED = "BRIDGEFEX_REQUIRE_JAVA"
+"""Set by the CI: a missing JDK is then a failure of the tests that need it, not a skip."""
+
+ARGUMENTS = ("--enable-native-access=ALL-UNNAMED",)
+
+
+def available() -> bool:
+    return javac() is not None
+
+
+def skip_without_java() -> None:
+    """Skip the test if there is no JDK of Java 22 or later, or fail it if the environment
+    requires one."""
+    if available():
+        return
+    if os.environ.get(ENV_REQUIRED) == "1":
+        pytest.fail(f"a JDK 22 or later is required ({ENV_REQUIRED} is set) and there is none")
+    pytest.skip("needs a JDK of Java 22 or later")
+
+
+def build_program(case: Case, output: Path, program: Path, name: str) -> Path:
+    """``program`` (a Java file with ``main``) compiled with the bindings of ``case``: the
+    directory of the classes. Raises RuntimeError if it does not compile."""
+    work = output / f"jvm-{name}"
+    classes = work / "classes"
+    if classes.exists():
+        return classes
+    options = dataclasses.replace(case.options(("jvm",)), verify=False)
+    result = bridgefex.generate(case.headers, options)
+    generated = work / "generated"
+    bridgefex.write_files(result.files, generated)
+    sources = [str(generated / path) for path in result.files if path.endswith(".java")]
+    command = javac()
+    assert command is not None
+    classes.mkdir(parents=True)
+    completed = subprocess.run(
+        [
+            command,
+            "--release",
+            "22",
+            "-Xlint:all",
+            "-Werror",
+            "-encoding",
+            "UTF-8",
+            "-d",
+            str(classes),
+            *sources,
+            str(program),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"{name} does not compile:\n" + completed.stdout + completed.stderr)
+    return classes
+
+
+def execute(
+    case: Case, classes: Path, library: Path, main: str, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    """Run ``main`` of a compiled program with the library of ``case``."""
+    command = javac()
+    assert command is not None
+    return subprocess.run(
+        [java_runtime(command), *ARGUMENTS, "-cp", str(classes), main, *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, f"{case.module.upper()}_LIBRARY": str(library)},
+        timeout=600,
+    )
+
+
+def _json_safe(value: object) -> object:
+    """JSON has no NaN nor infinities: they become ``{ "float": "nan" }``."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return {"float": "nan" if math.isnan(value) else ("inf" if value > 0 else "-inf")}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    return value
+
+
+def _types(output: Path, name: str) -> list[str]:
+    """The classes of the bindings, by the files that were generated."""
+    generated = output / f"jvm-{name}" / "generated"
+    roots = sorted(generated.glob("jvm/*/src/main/java"))
+    result = []
+    for root in roots:
+        for path in sorted(root.rglob("*.java")):
+            result.append(".".join(path.relative_to(root).with_suffix("").parts))
+    return result
+
+
+def _map(case: Case, output: Path) -> dict[str, object]:
+    plan = plan_of(case)
+    enums: dict[str, str] = {}
+    members: dict[str, dict[str, str]] = {}
+    for key, enum in scenarios.enum_types(plan).items():
+        enums[key] = key
+        members[key] = {item.model_name: upper_snake(item.model_name) for item in enum.enumerators}
+    return {"types": _types(output, "Runner"), "enums": enums, "members": members, "structs": {}}
+
+
+def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:
+    """Play the scenarios of ``path`` against the Java bindings of ``case``."""
+    try:
+        classes = build_program(case, output, RUNNER, "Runner")
+    except RuntimeError as error:
+        return subprocess.CompletedProcess([], 3, "", str(error))
+    plan = plan_of(case)
+    data = {
+        "scenarios": scenarios.resolve(scenarios.load(path), plan),
+        "map": _map(case, output),
+    }
+    target = classes.parent / f"data-{path.parent.name}-{path.stem}.json"
+    target.write_text(json.dumps(_json_safe(data)), encoding="utf-8")
+    return execute(case, classes, library, "Runner", str(target))
