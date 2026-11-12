@@ -16,7 +16,7 @@ public final class Shape implements java.lang.Comparable<Shape> {
     /** Square. */
     public static final Shape SQUARE = new Shape("SQUARE", 4L);
 
-    private static final Shape[] BRIDGEFEX_VALUES = {CIRCLE, SQUARE};
+    private static final Shape[] bridgefexValues = {CIRCLE, SQUARE};
 
     private final java.lang.String name;
     private final long value;
@@ -31,7 +31,7 @@ public final class Shape implements java.lang.Comparable<Shape> {
      */
     public static Shape of(long value) {
         BridgefexRuntime.inRange(value, -32768L, 32767L, "int16_t");
-        for (Shape item : BRIDGEFEX_VALUES) {
+        for (Shape item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -43,7 +43,7 @@ public final class Shape implements java.lang.Comparable<Shape> {
      * The enumerators, in the order of their declaration.
      */
     public static Shape[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

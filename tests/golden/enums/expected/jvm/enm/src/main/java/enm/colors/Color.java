@@ -18,7 +18,7 @@ public final class Color implements java.lang.Comparable<Color> {
     /** Max. */
     public static final Color MAX = new Color("MAX", 255L);
 
-    private static final Color[] BRIDGEFEX_VALUES = {RED, GREEN, MAX};
+    private static final Color[] bridgefexValues = {RED, GREEN, MAX};
 
     private final java.lang.String name;
     private final long value;
@@ -33,7 +33,7 @@ public final class Color implements java.lang.Comparable<Color> {
      */
     public static Color of(long value) {
         BridgefexRuntime.inRange(value, 0L, 255L, "uint8_t");
-        for (Color item : BRIDGEFEX_VALUES) {
+        for (Color item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -45,7 +45,7 @@ public final class Color implements java.lang.Comparable<Color> {
      * The enumerators, in the order of their declaration.
      */
     public static Color[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

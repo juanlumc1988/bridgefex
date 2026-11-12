@@ -16,7 +16,7 @@ public final class Wide implements java.lang.Comparable<Wide> {
     /** Max. */
     public static final Wide MAX = new Wide("MAX", 2147483647L);
 
-    private static final Wide[] BRIDGEFEX_VALUES = {MIN, MAX};
+    private static final Wide[] bridgefexValues = {MIN, MAX};
 
     private final java.lang.String name;
     private final long value;
@@ -31,7 +31,7 @@ public final class Wide implements java.lang.Comparable<Wide> {
      */
     public static Wide of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int32_t");
-        for (Wide item : BRIDGEFEX_VALUES) {
+        for (Wide item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -43,7 +43,7 @@ public final class Wide implements java.lang.Comparable<Wide> {
      * The enumerators, in the order of their declaration.
      */
     public static Wide[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

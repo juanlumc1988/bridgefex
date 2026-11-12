@@ -14,7 +14,7 @@ public final class Small implements java.lang.Comparable<Small> {
     /** Top. */
     public static final Small TOP = new Small("TOP", 65535L);
 
-    private static final Small[] BRIDGEFEX_VALUES = {TOP};
+    private static final Small[] bridgefexValues = {TOP};
 
     private final java.lang.String name;
     private final long value;
@@ -29,7 +29,7 @@ public final class Small implements java.lang.Comparable<Small> {
      */
     public static Small of(long value) {
         BridgefexRuntime.inRange(value, 0L, 65535L, "unsigned short");
-        for (Small item : BRIDGEFEX_VALUES) {
+        for (Small item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -41,7 +41,7 @@ public final class Small implements java.lang.Comparable<Small> {
      * The enumerators, in the order of their declaration.
      */
     public static Small[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

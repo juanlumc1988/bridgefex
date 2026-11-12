@@ -22,7 +22,7 @@ public final class Names implements java.lang.Comparable<Names> {
     /** value. */
     public static final Names VALUE = new Names("VALUE", 4L);
 
-    private static final Names[] BRIDGEFEX_VALUES = {NONE, MRO, BIT_LENGTH, NAME, VALUE};
+    private static final Names[] bridgefexValues = {NONE, MRO, BIT_LENGTH, NAME, VALUE};
 
     private final java.lang.String name;
     private final long value;
@@ -37,7 +37,7 @@ public final class Names implements java.lang.Comparable<Names> {
      */
     public static Names of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-        for (Names item : BRIDGEFEX_VALUES) {
+        for (Names item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -49,7 +49,7 @@ public final class Names implements java.lang.Comparable<Names> {
      * The enumerators, in the order of their declaration.
      */
     public static Names[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

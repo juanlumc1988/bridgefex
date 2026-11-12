@@ -98,21 +98,23 @@ public final class BridgefexHandle implements Runnable {
 
     /** A call starts to use the object in order to give it: it must be the only one. */
     public LeaseResult tryClaim() {
-        while (true) {
-            int current = state.get();
-            if ((current & (DISPOSED | GIVEN)) != 0 || isInvalid()) {
-                return LeaseResult.CLOSED;
-            }
-            if ((current & (CLAIMED | LEASE_MASK)) != 0) {
-                return LeaseResult.BUSY;
-            }
-            synchronized (GATE) {
+        // The pins are checked in the same step as the claim: a pin that came in between would
+        // leave the object given to C++ (which destroys it) with another one pointing to it.
+        synchronized (GATE) {
+            while (true) {
+                int current = state.get();
+                if ((current & (DISPOSED | GIVEN)) != 0 || isInvalid()) {
+                    return LeaseResult.CLOSED;
+                }
+                if ((current & (CLAIMED | LEASE_MASK)) != 0) {
+                    return LeaseResult.BUSY;
+                }
                 if (pins != 0) {
                     return LeaseResult.PINNED;
                 }
-            }
-            if (state.compareAndSet(current, current | CLAIMED | 1)) {
-                return LeaseResult.OK;
+                if (state.compareAndSet(current, current | CLAIMED | 1)) {
+                    return LeaseResult.OK;
+                }
             }
         }
     }
@@ -174,11 +176,15 @@ public final class BridgefexHandle implements Runnable {
             }
         }
         if (destroy) {
-            destroyNow();
+            closeObject();
         }
     }
 
-    /** The collector found the object unreachable, so no call uses it. */
+    /**
+     * The collector found the wrapper unreachable: nobody can start a call on the object, but one
+     * may be running (the compiler may take a reference for dead after the call started), and it
+     * is not destroyed under it.
+     */
     @Override
     public void run() {
         synchronized (GATE) {
@@ -189,7 +195,7 @@ public final class BridgefexHandle implements Runnable {
                 return;
             }
         }
-        destroyNow();
+        closeObject();
     }
 
     private void destroyNow() {

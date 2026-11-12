@@ -16,7 +16,7 @@ public final class Plain implements java.lang.Comparable<Plain> {
     /** High. */
     public static final Plain HIGH = new Plain("HIGH", 9223372036854775807L);
 
-    private static final Plain[] BRIDGEFEX_VALUES = {LOW, HIGH};
+    private static final Plain[] bridgefexValues = {LOW, HIGH};
 
     private final java.lang.String name;
     private final long value;
@@ -30,7 +30,7 @@ public final class Plain implements java.lang.Comparable<Plain> {
      * The enumerator with this value, or an object for a value that no enumerator has (its name() is null). The value is that of long long.
      */
     public static Plain of(long value) {
-        for (Plain item : BRIDGEFEX_VALUES) {
+        for (Plain item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -42,7 +42,7 @@ public final class Plain implements java.lang.Comparable<Plain> {
      * The enumerators, in the order of their declaration.
      */
     public static Plain[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

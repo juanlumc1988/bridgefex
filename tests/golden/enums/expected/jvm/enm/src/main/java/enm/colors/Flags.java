@@ -18,7 +18,7 @@ public final class Flags implements java.lang.Comparable<Flags> {
     /** All. */
     public static final Flags ALL = new Flags("ALL", -1L);
 
-    private static final Flags[] BRIDGEFEX_VALUES = {NOTHING, BIT31, ALL};
+    private static final Flags[] bridgefexValues = {NOTHING, BIT31, ALL};
 
     private final java.lang.String name;
     private final long value;
@@ -34,7 +34,7 @@ public final class Flags implements java.lang.Comparable<Flags> {
      * A 64-bit unsigned value is given by its bits.
      */
     public static Flags of(@BridgefexUnsigned long value) {
-        for (Flags item : BRIDGEFEX_VALUES) {
+        for (Flags item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -46,7 +46,7 @@ public final class Flags implements java.lang.Comparable<Flags> {
      * The enumerators, in the order of their declaration.
      */
     public static Flags[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

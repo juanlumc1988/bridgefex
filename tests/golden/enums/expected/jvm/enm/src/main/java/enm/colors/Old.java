@@ -18,7 +18,7 @@ public final class Old implements java.lang.Comparable<Old> {
     /** Alias. */
     public static final Old ALIAS = new Old("ALIAS", 1L);
 
-    private static final Old[] BRIDGEFEX_VALUES = {CURRENT, LEGACY, ALIAS};
+    private static final Old[] bridgefexValues = {CURRENT, LEGACY, ALIAS};
 
     private final java.lang.String name;
     private final long value;
@@ -33,7 +33,7 @@ public final class Old implements java.lang.Comparable<Old> {
      */
     public static Old of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-        for (Old item : BRIDGEFEX_VALUES) {
+        for (Old item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -45,7 +45,7 @@ public final class Old implements java.lang.Comparable<Old> {
      * The enumerators, in the order of their declaration.
      */
     public static Old[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

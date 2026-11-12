@@ -25,7 +25,7 @@ public final class Tagged {
         /** On. */
         public static final Mode ON = new Mode("ON", 1L);
 
-        private static final Mode[] BRIDGEFEX_VALUES = {OFF, ON};
+        private static final Mode[] bridgefexValues = {OFF, ON};
 
         private final java.lang.String name;
         private final long value;
@@ -40,7 +40,7 @@ public final class Tagged {
          */
         public static Mode of(long value) {
             BridgefexRuntime.inRange(value, -128L, 127L, "int8_t");
-            for (Mode item : BRIDGEFEX_VALUES) {
+            for (Mode item : bridgefexValues) {
                 if (item.value == value) {
                     return item;
                 }
@@ -52,7 +52,7 @@ public final class Tagged {
          * The enumerators, in the order of their declaration.
          */
         public static Mode[] values() {
-            return BRIDGEFEX_VALUES.clone();
+            return bridgefexValues.clone();
         }
 
         /**

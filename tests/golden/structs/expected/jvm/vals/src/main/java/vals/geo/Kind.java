@@ -16,7 +16,7 @@ public final class Kind implements java.lang.Comparable<Kind> {
     /** Marked. */
     public static final Kind MARKED = new Kind("MARKED", 7L);
 
-    private static final Kind[] BRIDGEFEX_VALUES = {PLAIN, MARKED};
+    private static final Kind[] bridgefexValues = {PLAIN, MARKED};
 
     private final java.lang.String name;
     private final long value;
@@ -31,7 +31,7 @@ public final class Kind implements java.lang.Comparable<Kind> {
      */
     public static Kind of(long value) {
         BridgefexRuntime.inRange(value, 0L, 255L, "uint8_t");
-        for (Kind item : BRIDGEFEX_VALUES) {
+        for (Kind item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -43,7 +43,7 @@ public final class Kind implements java.lang.Comparable<Kind> {
      * The enumerators, in the order of their declaration.
      */
     public static Kind[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

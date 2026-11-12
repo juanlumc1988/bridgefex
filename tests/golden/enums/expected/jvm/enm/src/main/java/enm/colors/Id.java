@@ -12,7 +12,7 @@ import enm.BridgefexUnsigned;
  */
 public final class Id implements java.lang.Comparable<Id> {
 
-    private static final Id[] BRIDGEFEX_VALUES = {};
+    private static final Id[] bridgefexValues = {};
 
     private final java.lang.String name;
     private final long value;
@@ -27,7 +27,7 @@ public final class Id implements java.lang.Comparable<Id> {
      */
     public static Id of(long value) {
         BridgefexRuntime.inRange(value, 0L, 4294967295L, "uint32_t");
-        for (Id item : BRIDGEFEX_VALUES) {
+        for (Id item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -39,7 +39,7 @@ public final class Id implements java.lang.Comparable<Id> {
      * The enumerators, in the order of their declaration.
      */
     public static Id[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

@@ -73,7 +73,7 @@ public class Lamp extends BridgefexObject {
         /** Lit. */
         public static final State LIT = new State("LIT", 1L);
 
-        private static final State[] BRIDGEFEX_VALUES = {DARK, LIT};
+        private static final State[] bridgefexValues = {DARK, LIT};
 
         private final java.lang.String name;
         private final long value;
@@ -88,7 +88,7 @@ public class Lamp extends BridgefexObject {
          */
         public static State of(long value) {
             BridgefexRuntime.inRange(value, 0L, 255L, "uint8_t");
-            for (State item : BRIDGEFEX_VALUES) {
+            for (State item : bridgefexValues) {
                 if (item.value == value) {
                     return item;
                 }
@@ -100,7 +100,7 @@ public class Lamp extends BridgefexObject {
          * The enumerators, in the order of their declaration.
          */
         public static State[] values() {
-            return BRIDGEFEX_VALUES.clone();
+            return bridgefexValues.clone();
         }
 
         /**
@@ -149,7 +149,7 @@ public class Lamp extends BridgefexObject {
         /** Bright. */
         public static final Level BRIGHT = new Level("BRIGHT", 3L);
 
-        private static final Level[] BRIDGEFEX_VALUES = {DIM, BRIGHT};
+        private static final Level[] bridgefexValues = {DIM, BRIGHT};
 
         private final java.lang.String name;
         private final long value;
@@ -164,7 +164,7 @@ public class Lamp extends BridgefexObject {
          */
         public static Level of(long value) {
             BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-            for (Level item : BRIDGEFEX_VALUES) {
+            for (Level item : bridgefexValues) {
                 if (item.value == value) {
                     return item;
                 }
@@ -176,7 +176,7 @@ public class Lamp extends BridgefexObject {
          * The enumerators, in the order of their declaration.
          */
         public static Level[] values() {
-            return BRIDGEFEX_VALUES.clone();
+            return bridgefexValues.clone();
         }
 
         /**

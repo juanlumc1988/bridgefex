@@ -16,7 +16,7 @@ public final class Signed implements java.lang.Comparable<Signed> {
     /** Last. */
     public static final Signed LAST = new Signed("LAST", 2L);
 
-    private static final Signed[] BRIDGEFEX_VALUES = {FIRST, LAST};
+    private static final Signed[] bridgefexValues = {FIRST, LAST};
 
     private final java.lang.String name;
     private final long value;
@@ -31,7 +31,7 @@ public final class Signed implements java.lang.Comparable<Signed> {
      */
     public static Signed of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-        for (Signed item : BRIDGEFEX_VALUES) {
+        for (Signed item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -43,7 +43,7 @@ public final class Signed implements java.lang.Comparable<Signed> {
      * The enumerators, in the order of their declaration.
      */
     public static Signed[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

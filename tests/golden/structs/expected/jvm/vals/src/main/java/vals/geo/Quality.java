@@ -18,7 +18,7 @@ public final class Quality implements java.lang.Comparable<Quality> {
     /** Best. */
     public static final Quality BEST = new Quality("BEST", 2L);
 
-    private static final Quality[] BRIDGEFEX_VALUES = {BAD, GOOD, BEST};
+    private static final Quality[] bridgefexValues = {BAD, GOOD, BEST};
 
     private final java.lang.String name;
     private final long value;
@@ -33,7 +33,7 @@ public final class Quality implements java.lang.Comparable<Quality> {
      */
     public static Quality of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-        for (Quality item : BRIDGEFEX_VALUES) {
+        for (Quality item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -45,7 +45,7 @@ public final class Quality implements java.lang.Comparable<Quality> {
      * The enumerators, in the order of their declaration.
      */
     public static Quality[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**

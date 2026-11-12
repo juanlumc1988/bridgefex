@@ -12,11 +12,14 @@ import static checks.Checks.collect;
 import static checks.Checks.eventually;
 import static checks.Checks.expect;
 
+import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import life.BridgefexException;
+import life.BridgefexHandle;
 import life.life.Functions;
 import life.life.Holder;
 import life.life.M;
@@ -47,7 +50,135 @@ class Check {
         }
     }
 
+    // A handle over a destroyer that counts, without a C++ object: the state that the calls, the
+    // user and the collector share, alone.
+    static BridgefexHandle counting(AtomicInteger destroyed, boolean owns) {
+        BridgefexHandle handle = new BridgefexHandle(pointer -> destroyed.incrementAndGet(), owns);
+        handle.assign(MemorySegment.ofAddress(0x1000));
+        return handle;
+    }
+
+    static void theHandle() throws Exception {
+        // The collector (run) does not destroy an object under a call: the compiler may take the
+        // reference of a wrapper for dead once the call has started.
+        AtomicInteger destroyed = new AtomicInteger();
+        BridgefexHandle handle = counting(destroyed, true);
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.OK, "a call starts");
+        handle.run();
+        check(destroyed.get() == 0, "not destroyed under a call, by the collector");
+        handle.releaseLease();
+        check(destroyed.get() == 1, "destroyed when the call ends");
+        handle.run();
+        handle.closeObject();
+        check(destroyed.get() == 1, "once");
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.CLOSED, "closed");
+
+        // Closing does the same, and a lease that is not the last one does not destroy.
+        destroyed.set(0);
+        handle = counting(destroyed, true);
+        handle.tryLease();
+        handle.tryLease();
+        handle.closeObject();
+        handle.releaseLease();
+        check(destroyed.get() == 0, "one call is still running");
+        handle.releaseLease();
+        check(destroyed.get() == 1, "the last one destroys");
+
+        // A claim is for one call alone, and a lease cannot start under it.
+        destroyed.set(0);
+        handle = counting(destroyed, true);
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.OK, "lease");
+        check(handle.tryClaim() == BridgefexHandle.LeaseResult.BUSY, "no claim under a call");
+        handle.releaseLease();
+        check(handle.tryClaim() == BridgefexHandle.LeaseResult.OK, "claim");
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.BUSY, "no call under a claim");
+        check(handle.tryClaim() == BridgefexHandle.LeaseResult.BUSY, "one claim");
+        handle.releaseLease(); // the claim that gave nothing ends with its call
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.OK, "the claim ended");
+        handle.releaseLease();
+
+        // An object that was given is C++'s: neither the collector nor close destroy it.
+        check(handle.tryClaim() == BridgefexHandle.LeaseResult.OK, "claim to give");
+        handle.giveUp();
+        handle.releaseLease();
+        handle.run();
+        handle.closeObject();
+        check(destroyed.get() == 0, "given objects are not destroyed by Java");
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.CLOSED, "and it is closed");
+
+        // An object that C++ owns is never destroyed by Java.
+        BridgefexHandle borrowed = counting(destroyed, false);
+        borrowed.run();
+        borrowed.closeObject();
+        check(destroyed.get() == 0, "borrowed");
+
+        // Threads that call, claim, close and collect: destroyed once, and never under a call.
+        for (int round = 0; round < 300; round++) {
+            AtomicInteger count = new AtomicInteger();
+            AtomicInteger running = new AtomicInteger();
+            AtomicInteger under = new AtomicInteger();
+            BridgefexHandle shared = new BridgefexHandle(pointer -> {
+                count.incrementAndGet();
+                if (running.get() != 0) {
+                    under.incrementAndGet();
+                }
+            }, true);
+            shared.assign(MemorySegment.ofAddress(0x2000));
+            CyclicBarrier barrier = new CyclicBarrier(6);
+            List<Thread> threads = new ArrayList<>();
+            for (int number = 0; number < 6; number++) {
+                int role = number;
+                threads.add(new Thread(() -> {
+                    try {
+                        barrier.await();
+                        for (int turn = 0; turn < 20; turn++) {
+                            switch (role % 3) {
+                                case 0 -> {
+                                    if (shared.tryLease() == BridgefexHandle.LeaseResult.OK) {
+                                        running.incrementAndGet();
+                                        Thread.onSpinWait();
+                                        running.decrementAndGet();
+                                        shared.releaseLease();
+                                    }
+                                }
+                                case 1 -> {
+                                    if (shared.tryClaim() == BridgefexHandle.LeaseResult.OK) {
+                                        running.incrementAndGet();
+                                        if (ThreadLocalRandom.current().nextBoolean()) {
+                                            shared.giveUp();
+                                        }
+                                        running.decrementAndGet();
+                                        shared.releaseLease();
+                                    }
+                                }
+                                default -> {
+                                    if (role == 2 && turn == 10) {
+                                        shared.closeObject();
+                                    } else {
+                                        shared.run();
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception failure) {
+                        throw new AssertionError(failure);
+                    }
+                }));
+            }
+            for (Thread thread : threads) {
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            check(count.get() <= 1, "destroyed at most once, round " + round);
+            check(under.get() == 0, "destroyed under a call, round " + round);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
+        theHandle();
+
         // 1. An object that another thread is using is not given to C++ (which would destroy it under that call).
         {
             Res res = new Res(5);

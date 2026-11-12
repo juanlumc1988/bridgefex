@@ -18,7 +18,7 @@ public final class Mode implements java.lang.Comparable<Mode> {
     /** Auto. */
     public static final Mode AUTO = new Mode("AUTO", 5L);
 
-    private static final Mode[] BRIDGEFEX_VALUES = {OFF, ON, AUTO};
+    private static final Mode[] bridgefexValues = {OFF, ON, AUTO};
 
     private final java.lang.String name;
     private final long value;
@@ -33,7 +33,7 @@ public final class Mode implements java.lang.Comparable<Mode> {
      */
     public static Mode of(long value) {
         BridgefexRuntime.inRange(value, -2147483648L, 2147483647L, "int");
-        for (Mode item : BRIDGEFEX_VALUES) {
+        for (Mode item : bridgefexValues) {
             if (item.value == value) {
                 return item;
             }
@@ -45,7 +45,7 @@ public final class Mode implements java.lang.Comparable<Mode> {
      * The enumerators, in the order of their declaration.
      */
     public static Mode[] values() {
-        return BRIDGEFEX_VALUES.clone();
+        return bridgefexValues.clone();
     }
 
     /**
