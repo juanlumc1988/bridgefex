@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from bridgefex.backends import registry
-from tests.conformance import runner_csharp, scenarios
+from tests.conformance import runner_csharp, runner_jvm, scenarios
 from tests.support.build import build
 from tests.support.cases import GOLDEN_DIR, Case, all_cases, load_case
 from tests.support.plans import plan_of
@@ -61,6 +61,7 @@ def run_python(
 RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProcess[str]]] = {
     "python": run_python,
     "csharp": runner_csharp.run,
+    "jvm": runner_jvm.run,
 }
 
 # What each backend can already play: the cases whose scenarios use only what it supports.
@@ -69,6 +70,7 @@ SUPPORTED: dict[str, frozenset[str] | None] = {
     "csharp": frozenset(
         {"scalars", "strings", "enums", "structs", "demo", "inherit", "containers", "spans"}
     ),
+    "jvm": frozenset({"scalars", "enums", "structs", "strings", "demo", "inherit"}),
 }
 
 
@@ -79,10 +81,12 @@ def supports(language: str, case: Case) -> bool:
 
 @pytest.fixture(autouse=True)
 def _dotnet(request: pytest.FixtureRequest) -> None:
-    """The C# runner needs the .NET SDK."""
+    """The C# runner needs the .NET SDK, and the Java one a JDK of Java 22 or later."""
     callspec = getattr(request.node, "callspec", None)
     if callspec is not None and callspec.params.get("language") == "csharp":
         request.getfixturevalue("dotnet")
+    if callspec is not None and callspec.params.get("language") == "jvm":
+        runner_jvm.skip_without_java()
 
 
 def test_every_backend_has_a_runner() -> None:

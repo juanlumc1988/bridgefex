@@ -18,8 +18,8 @@ from bridgefex.plan import build_plan
 
 
 def test_every_backend_is_registered_by_its_language() -> None:
-    assert [backend.name for backend in BACKENDS] == ["python", "csharp"]
-    assert tuple(registry()) == bridgefex.LANGUAGES == ("python", "csharp")
+    assert [backend.name for backend in BACKENDS] == ["python", "csharp", "jvm"]
+    assert tuple(registry()) == bridgefex.LANGUAGES == ("python", "csharp", "jvm")
     assert bridgefex.DEFAULT_LANGUAGES == ("python",)
 
 

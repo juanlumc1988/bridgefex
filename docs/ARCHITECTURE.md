@@ -220,6 +220,29 @@ warning. What a
 backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`
 that says so, instead of a half-working class.
 
+The JVM backend (`backends/jvm`, Java 22 with the foreign function API; a JNI flavor is planned for Android and
+32-bit ARM) has the same parts. `mapping.py` maps `Ffi` to the layouts and the `MethodHandle` types of the downcalls
+(`BridgefexNative` has a static method for each function of the C API over a handle in a nested class of its own,
+which is initialised on the first call of the function, after the library was loaded: a failed load can be retried,
+a function that the library lacks fails alone, and no class initialiser nears the 64 KB that Java limits it to; an
+unsigned argument of 8 or 16 bits goes as a 32-bit integer, which the callee may rely on being extended), and the scalars to Java types
+(no unsigned: a widening and a range check up to 32 bits, `@BridgefexUnsigned long` for 64 bits and `size_t`; the
+canonical layouts for C `long` and `size_t`, which have the width of the platform). `lower.py` lowers a `CallablePlan` to a method:
+a confined `Arena` for the memory of the call (zeroed, closed when the call ends), a `try`
+resource for the lease of each object, and the claim, the retains and the free of what C++ allocated for the result as
+in C#. `classes.py` writes a class (a first base is the superclass, the others are `as<Base>()` views and copies of
+their methods; Java cannot hide a method, so what C++ hides is refused), `enums.py` an enum as a final class with
+a constant per enumerator (a flag or a strong integer type has values that no enumerator has), `structs.py` a value
+struct (its layout is the natural one capped at 8, as the `#pragma pack` of the C mirror), `check.py` compiles with
+`javac --release 22 -Xlint:all -Werror` when a JDK is there. A garbage collector does not order cleaning either, so
+`BridgefexHandle` has a state of its own (the lease count of the calls that use the object, the closed, claimed and given
+bits, and the pins of the C++ objects that point to it): the `Cleaner` destroys an object only when nothing points to
+it and no call uses it, a pin defers it until the C++ object that points to it was destroyed (the collector that
+finds a wrapper under a call defers it too: the call may still make a C++ object point to it), what a destruction
+releases is released by a queue of the thread, not by recursion, and a claim to give an object to C++ needs it for
+the call alone. What a wrapper needs from the generated class is public (the handle constructor
+is `protected`, with a static `wrap`, so that `new X(null)` is not ambiguous) but documented as not API.
+
 ## The conformance suite
 
 The behavior that every language must share (what a call returns, which failures
@@ -264,8 +287,9 @@ generated project and plays the scenarios by reflection from a JSON file (it has
 parser): `scenarios.resolve` gives each `new` and `call` the C function it wraps, which the
 bindings name in the attribute `[BridgefexFunction]` of the member, so that the runner needs
 none of the rules by which C# names things; the Python harness also gives it the C# names of
-the enums and structs. A language whose toolchain is not installed skips its runner, unless the
-environment requires it (`BRIDGEFEX_REQUIRE_DOTNET`, set by the CI). Behavior that is not shared (how a class that is
+the enums and structs. The Java one is the same: `Runner.java` is compiled with the generated sources and plays the
+scenarios by reflection from a JSON file, finding each member by the `@BridgefexFunction` that names its C function. A language whose toolchain is not installed skips its runner, unless the
+environment requires it (`BRIDGEFEX_REQUIRE_DOTNET` and `BRIDGEFEX_REQUIRE_JAVA`, set by the CI). Behavior that is not shared (how a class that is
 not instantiable fails to be, a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
 `check_<language>` program of the case. Callbacks and ownership annotations are not
 in the scenarios yet.
@@ -274,12 +298,12 @@ in the scenarios yet.
 
 - `tests/test_plan.py` checks the plan and, through the Python backend's view of
   it, the Python lowering; `tests/test_backends.py` the registry and the checks;
-  `tests/test_csharp_backend.py` what the C# backend writes, names and refuses.
+  `tests/test_csharp_backend.py` what the C# backend writes, names and refuses; `tests/test_jvm_backend.py` the same for Java.
 - `tests/test_architecture.py` the layering described above; `tests/test_conformance.py`
   the conformance suite.
 - `tests/golden/<case>/` holds, per case, the input headers, the C++ implementation
   and the expected generated files; `test_golden.py` compares them byte by byte
   and `test_roundtrip.py` builds the library and runs `check_c.c` and
   `check_python.py` against it; `test_csharp_roundtrip.py` does the same with
-  `check_csharp.cs`, built with the generated project like a user's program.
+  `check_csharp.cs`, built with the generated project like a user's program, and `test_jvm_roundtrip.py` with `check_jvm.java` (with the helpers of `tests/support/jvm/Checks.java`). Cases of the bindings alone, with no C program, are in `tests/binding_cases/`.
   A case lists the bindings that its `expected/` has (`languages` in `case.toml`).

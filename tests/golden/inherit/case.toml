@@ -1,4 +1,4 @@
 module = "inh"
 headers = ["shape.h", "shapes.h", "widget.h"]
 std = "c++17"
-languages = ["python", "csharp"]
+languages = ["python", "csharp", "jvm"]

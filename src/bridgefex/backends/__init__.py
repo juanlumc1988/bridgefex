@@ -10,12 +10,12 @@ renders it first.
 from __future__ import annotations
 
 from ..plan import Reservations
-from . import csharp, python
+from . import csharp, jvm, python
 from .base import Backend
 
 __all__ = ["BACKENDS", "DEFAULT_LANGUAGES", "Backend", "registry", "reservations"]
 
-BACKENDS: tuple[Backend, ...] = (python.BACKEND, csharp.BACKEND)
+BACKENDS: tuple[Backend, ...] = (python.BACKEND, csharp.BACKEND, jvm.BACKEND)
 """Every backend, in the order their files are generated."""
 
 

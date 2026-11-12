@@ -2,4 +2,4 @@
 module = "vals"
 headers = ["geo.h", "route.h"]
 std = "c++17"
-languages = ["python", "csharp"]
+languages = ["python", "csharp", "jvm"]

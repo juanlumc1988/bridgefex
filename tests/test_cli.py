@@ -48,6 +48,24 @@ def test_lang_can_be_repeated_and_repeated_languages_are_generated_once(tmp_path
     assert {path.split("/")[0] for path in read_tree(tmp_path)} == {"c", "python", "csharp"}
 
 
+@pytest.mark.parametrize("name", ["java", "Kotlin", "jvm"])
+def test_java_and_kotlin_are_the_jvm_bindings(tmp_path: Path, name: str) -> None:
+    arguments = ["--lang", name, "--no-verify"]
+    assert main(["-m", "demo", "-o", str(tmp_path), *arguments, str(COUNTER)]) == 0
+    assert {path.split("/")[0] for path in read_tree(tmp_path)} == {"c", "jvm"}
+
+
+def test_the_help_names_the_languages_and_what_the_module_names(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    text = " ".join(capsys.readouterr().out.split())
+    assert "Python package, the C# namespace and the Java package" in text
+    assert "the Java sources with javac" in text
+    assert "ctypes" not in text
+
+
 def test_lang_none_cannot_be_combined_with_a_language(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
