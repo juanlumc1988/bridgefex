@@ -3,36 +3,63 @@ package txt;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * The memory of one call, which is freed (reused) when the call ends: a stack of direct buffers
- * per thread, so that a call does not allocate. The memory is zeroed. It belongs to the thread
- * that made the arena, and the arenas of a thread end in the opposite order that they were made.
- * For the generated code.
+ * The memory of one call, which is freed (reused) when the call ends: a block of direct memory that
+ * a thread takes from a pool while it is in a call, so that a call does not allocate. The memory is
+ * zeroed. It belongs to the thread that made the arena, and the arenas of a thread end in the
+ * opposite order that they were made. For the generated code.
  */
 public final class BridgefexArena implements AutoCloseable {
     private static final int SLAB = 16 * 1024;
+    private static final int POOLED_MOST = 64;
 
     private static final class Slab {
         final ByteBuffer buffer = ByteBuffer.allocateDirect(SLAB).order(ByteOrder.nativeOrder());
         final long address = BridgefexNative.addressOf(buffer);
         int top;
+        /** The arena of this slab that was opened last and is still open. */
+        BridgefexArena innermost;
     }
 
-    private static final ThreadLocal<Slab> SLABS = new ThreadLocal<Slab>();
+    // A slab is the memory of the outermost arena of a thread, and only while it is open: a thread
+    // that is not in a call has none (a thread that is for a moment, such as a virtual one, does not
+    // keep one, and a thread of a pool does not keep a class of the bindings alive).
+    private static final ConcurrentLinkedQueue<Slab> POOL = new ConcurrentLinkedQueue<Slab>();
+    private static final AtomicInteger POOLED = new AtomicInteger();
+    private static final ThreadLocal<Slab> CURRENT = new ThreadLocal<Slab>();
 
+    private final Thread thread = Thread.currentThread();
     private final Slab slab;
+    private final boolean owner;
     private final int mark;
+    private final BridgefexArena outer;
     private boolean closed;
+    // The buffers of the requests that do not fit the slab. The generated code passes the address of
+    // a segment to the native method, not the segment: with nothing else to refer to a buffer, the
+    // collector could free it while C++ reads it. The arena is reachable until it is closed.
+    private List<ByteBuffer> owned;
 
     private BridgefexArena() {
-        Slab found = SLABS.get();
-        if (found == null) {
-            found = new Slab();
-            SLABS.set(found);
+        Slab found = CURRENT.get();
+        owner = found == null;
+        if (owner) {
+            found = POOL.poll();
+            if (found == null) {
+                found = new Slab();
+            } else {
+                POOLED.decrementAndGet();
+            }
+            CURRENT.set(found);
         }
         slab = found;
         mark = found.top;
+        outer = found.innermost;
+        found.innermost = this;
     }
 
     static BridgefexArena open() {
@@ -65,8 +92,12 @@ public final class BridgefexArena implements AutoCloseable {
             zero(slab.buffer, offset, (int) size);
             return new BridgefexSegment(slab.buffer, offset, slab.address + offset, size);
         }
-        // Too big for the slab: a buffer of its own, which the collector frees.
+        // Too big for the slab: a buffer of its own, which lives as long as the arena.
         ByteBuffer own = ByteBuffer.allocateDirect((int) size + 8).order(ByteOrder.nativeOrder());
+        if (owned == null) {
+            owned = new ArrayList<ByteBuffer>();
+        }
+        owned.add(own);
         long base = BridgefexNative.addressOf(own);
         int shift = (int) (((base + alignment - 1) / alignment * alignment) - base);
         return new BridgefexSegment(own, shift, base + shift, size);
@@ -80,9 +111,25 @@ public final class BridgefexArena implements AutoCloseable {
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
-            slab.top = mark;
+        if (closed) {
+            return;
+        }
+        if (Thread.currentThread() != thread) {
+            throw new IllegalStateException("an arena is closed by the thread that opened it");
+        }
+        if (slab.innermost != this) {
+            throw new IllegalStateException("the arenas of a thread are closed in the opposite order that they were opened");
+        }
+        closed = true;
+        owned = null;
+        slab.top = mark;
+        slab.innermost = outer;
+        if (owner) {
+            CURRENT.remove();
+            if (POOLED.get() < POOLED_MOST) {
+                POOLED.incrementAndGet();
+                POOL.offer(slab);
+            }
         }
     }
 }

@@ -47,14 +47,15 @@ public final class BridgefexSegment {
         if (buffer == null) {
             throw new IllegalStateException("this is an address: its memory cannot be read here");
         }
-        if (offset < 0 || offset + length > size) {
+        // Not offset + length > size: that overflows for an offset near the biggest long.
+        if (offset < 0 || length > size || offset > size - length) {
             throw new IndexOutOfBoundsException("offset " + offset + " of " + size + " bytes");
         }
         return base + (int) offset;
     }
 
     public BridgefexSegment asSlice(long offset, long length) {
-        if (buffer == null || offset < 0 || length < 0 || offset + length > size) {
+        if (buffer == null || offset < 0 || length < 0 || length > size || offset > size - length) {
             throw new IndexOutOfBoundsException("slice " + offset + ".." + (offset + length) + " of " + size);
         }
         return new BridgefexSegment(buffer, base + (int) offset, address + offset, length);

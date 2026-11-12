@@ -92,7 +92,7 @@ def generated_macros(module: str) -> frozenset[str]:
     suffixes = """
         API C_API_BUILD C_API_STATIC C_API_AFTER_GLIBC NODISCARD OK ERROR_EXCEPTION
         ERROR_UNKNOWN_EXCEPTION ERROR_NULL_ARGUMENT ERROR_OUT_OF_MEMORY ERROR_INVALID_ARGUMENT
-        RUNTIME_H RUNTIME_INTERNAL_HPP TYPES_H
+        RUNTIME_H RUNTIME_INTERNAL_HPP TYPES_H JNI_NO_ONLOAD
     """.split()
     return frozenset(f"{prefix}_{suffix}" for suffix in suffixes)
 

@@ -228,8 +228,12 @@ uses with the same names and signatures: the jni one has a mini FFM over direct 
 `BridgefexArena`, `BridgefexLayout`, `BridgefexStruct`: `get`/`set` by layout, `allocate`, `asSlice`, `view`), which is
 what the lowering of containers, structs and results needs too. `jni.py` writes `BridgefexNative` (a public method
 with the signature of the FFM one, over a private `native` method that takes the pointers as `long`) and the glue,
-which registers its natives in `JNI_OnLoad` and calls the C API with explicit casts; the sizes of the platform are taken
-from Java by the layouts and checked against the library when it loads. The runtime of the objects (handle, lease,
+which registers its natives (`bridgefex_<module>_jni_register`, called by `JNI_OnLoad` unless the library has one of its
+own) and calls the C API with explicit casts; the sizes and the alignments of 64-bit values of the platform are taken
+from Java by the layouts and checked against the library when it loads. The memory of a call is the slab of its
+outermost arena, taken from a pool (a thread that is not in a call keeps none, so a class loader can be collected and
+virtual threads do not allocate one each), and the buffers of the requests that do not fit it are kept by the arena
+until it is closed (the address that the native method takes does not keep a buffer alive). The runtime of the objects (handle, lease,
 keep, object) is one set of templates for both flavors (Java 8 syntax; `Cleaner` or a `PhantomReference` queue).
 The FFM output did not change when the flavor was introduced: the goldens say so.
 

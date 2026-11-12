@@ -212,6 +212,7 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
     struct_plans: dict[str, StructPlan] = {}
     destroyers: dict[str, str] = {}
     errors: list[Diagnostic] = []
+    reserved = RUNTIME_TYPES | frozenset(flavor.root_types)
     for header in plan.headers:
         package = header_package(plan, header)
         taken: dict[str, str] = {"functions": "the functions of the header"}
@@ -222,7 +223,7 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
             taken: dict[str, str] = taken,
             header: HeaderPlan = header,
         ) -> None:
-            if name in RUNTIME_TYPES:
+            if name in reserved:
                 errors.append(
                     Diagnostic(
                         f"'{what}' gets the Java name '{name}', which the runtime of the "
@@ -248,7 +249,9 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
                 claim(name, item.model.qualified_name)
                 classes[item.c_type] = f"{package}.{name}"
                 destroyers[item.c_type] = item.destroy.name
-                errors.extend(_nested_problems(name, item.model.qualified_name, item.enums))
+                errors.extend(
+                    _nested_problems(name, item.model.qualified_name, item.enums, reserved)
+                )
                 for nested in item.enums:
                     enums[nested.c_type] = f"{package}.{name}.{pascal(nested.model.name)}"
                     enum_plans[nested.model.usr] = nested
@@ -262,7 +265,9 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
                 claim(name, item.model.qualified_name)
                 structs[item.c_type] = f"{package}.{name}"
                 struct_plans[item.model.usr] = item
-                errors.extend(_nested_problems(name, item.model.qualified_name, item.enums))
+                errors.extend(
+                    _nested_problems(name, item.model.qualified_name, item.enums, reserved)
+                )
                 for nested in item.enums:
                     enums[nested.c_type] = f"{package}.{name}.{pascal(nested.model.name)}"
                     enum_plans[nested.model.usr] = nested
@@ -271,7 +276,9 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
     return Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers, flavor)
 
 
-def _nested_problems(outer: str, what: str, nested_enums: Iterable[EnumPlan]) -> list[Diagnostic]:
+def _nested_problems(
+    outer: str, what: str, nested_enums: Iterable[EnumPlan], reserved: frozenset[str]
+) -> list[Diagnostic]:
     """The enums inside a class or a struct are classes of its file: they cannot have the name of
     the runtime (which the class uses), nor the name of what contains them, and two of them cannot
     be told apart by their class files on a system that ignores case."""
@@ -281,7 +288,7 @@ def _nested_problems(outer: str, what: str, nested_enums: Iterable[EnumPlan]) ->
         inner = pascal(nested.model.name)
         where = nested.model.qualified_name
         location = nested.model.location
-        if inner in RUNTIME_TYPES:
+        if inner in reserved:
             problems.append(
                 Diagnostic(
                     f"'{where}' gets the Java name '{inner}', which the runtime of the "

@@ -610,7 +610,9 @@ def add_binding_options(parser: argparse.ArgumentParser) -> None:
         "--jni-glue",
         action="store_true",
         help="also compile the glue of the JNI bindings of the case with the compiler of the "
-        "target (the JDK of $JAVA_HOME or /usr/lib/jvm gives jni.h, or --jdk-include)",
+        "target (the JDK of $JAVA_HOME or /usr/lib/jvm gives jni.h, or --jdk-include): it is "
+        "checked, not linked into the libraries that are packaged (those are the C layer; the "
+        "glue is built into the library of the user, see the README)",
     )
     parser.add_argument("--jdk-include", type=Path, help="the include directory of a JDK (jni.h)")
 
@@ -683,6 +685,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("--csharp-trim needs --csharp-check")
     if args.csharp_runtime and shutil.which("dotnet") is None:
         raise SystemExit("--csharp-runtime needs the .NET SDK (dotnet)")
+    # A missing JDK is known before the libraries are built, not after.
+    jni_include = jdk_include(args.jdk_include) if args.jni_glue else None
     # The cases that are only checked first: nothing is packaged if one fails.
     for name in args.check_case:
         built(name)
@@ -691,8 +695,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     main_build = built(args.case)
     if args.csharp_runtime:
         main_build.compile_csharp(args.csharp_runtime, clang_args)
-    if args.jni_glue:
-        main_build.compile_jni_glue(clang_args, jdk_include(args.jdk_include))
+    if jni_include is not None:
+        main_build.compile_jni_glue(clang_args, jni_include)
     archive = package(main_build, args.target, args.output.resolve(), first_line([cxx]))
     print(f"{archive} ({archive.stat().st_size} bytes)")
     return 0

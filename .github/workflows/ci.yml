@@ -146,7 +146,7 @@ jobs:
         env:
           CC: gcc-14
           CXX: g++-14
-        run: python -m pytest -ra tests/test_jvm_backend.py tests/test_jni_backend.py tests/test_jvm_roundtrip.py tests/test_conformance.py -k "jvm or jni or java"
+        run: python -m pytest -ra tests/test_jvm_backend.py tests/test_jni_backend.py tests/test_jni_layouts.py tests/test_jvm_roundtrip.py tests/test_conformance.py -k "jvm or jni or java"
 
   # The JNI bindings are Java 8: their checks run on the JDKs that 32-bit ARM, embedded Linux and
   # Android have (8, 11 and 17), compiled for Java 8 by a newer JDK. The conformance scenarios run

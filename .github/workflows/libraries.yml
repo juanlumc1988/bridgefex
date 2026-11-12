@@ -8,8 +8,8 @@ name: Libraries
 #
 # A tag v* makes a release with the libraries, and the README links to the files of the
 # latest one (their names do not change). A push to main, a pull request that changes this
-# workflow or the script, and a manual run build and run the libraries and keep them as
-# artifacts of the run only.
+# workflow, the script or the glue of the JNI bindings, and a manual run build and run the
+# libraries and keep them as artifacts of the run only.
 
 on:
   push:
@@ -19,6 +19,9 @@ on:
     paths:
       - .github/workflows/libraries.yml
       - scripts/build_libraries.py
+      # The glue of the JNI bindings is compiled for every target here.
+      - src/bridgefex/backends/jvm/jni.py
+      - src/bridgefex/backends/jvm/templates/jni/glue.cpp.j2
   workflow_dispatch:
 
 permissions:

@@ -37,6 +37,9 @@ CASES = [
     if case.check_jvm.exists()
 ]
 
+TWO_LOADERS = Path(__file__).parent / "support" / "jvm" / "TwoLoaders.java"
+REDEPLOY = Path(__file__).parent / "support" / "jvm" / "Redeploy.java"
+
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
 Built = tuple[Case, Path, Path]
@@ -107,6 +110,7 @@ def _run(
     properties: tuple[str, ...] = (),
     environment: dict[str, str] | None = None,
     main: str = "Check",
+    cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a program without the variable that gives the library, unless ``environment`` does."""
     command = runner_jvm.javac()
@@ -130,6 +134,7 @@ def _run(
         check=False,
         env=variables,
         timeout=600,
+        cwd=cwd,
     )
 
 
@@ -241,6 +246,198 @@ def test_a_bare_name_is_searched_by_the_system(
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="the search path of the loader and the names are those of Linux"
+)
+def test_a_bare_name_with_a_version_is_searched_in_the_library_path(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """``libdemo.so.1`` (a soname with a version, as the system keeps libraries) is found by its
+    name where the system looks for libraries (``LD_LIBRARY_PATH``, which Java adds to its
+    ``java.library.path``): ``System.loadLibrary`` cannot name a version, the FFM flavor opens it
+    with the loader of the system."""
+    case, library, _output, classes = demo
+    folder = tmp_path / "versions"
+    folder.mkdir()
+    shutil.copy(library, folder / f"{library.name}.1")
+    completed = _run(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library.name}.1",),
+        environment={"LD_LIBRARY_PATH": str(folder)},
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="the search path of the loader and the names are those of Linux"
+)
+def test_a_bare_name_is_not_a_directory_of_the_working_directory(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """``-Ddemo.library=libdemo.so`` is a name to search even when the working directory has a
+    directory with that name: it is not the library."""
+    case, library, _output, classes = demo
+    folder = tmp_path / "search"
+    folder.mkdir()
+    shutil.copy(library, folder / library.name)
+    work = tmp_path / "work"
+    (work / library.name).mkdir(parents=True)
+    completed = _run(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library.name}",),
+        environment={"LD_LIBRARY_PATH": str(folder)},
+        cwd=work,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+@pytest.mark.parametrize("how", ["property", "library-path"])
+def test_a_second_class_loader_is_told_that_the_library_is_loaded_already(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path, language: str, how: str
+) -> None:
+    """A native library can be loaded by one class loader only (JNI): the second one gets the
+    error of the JDK, and the message says it, and does not blame the search path. The other flavor
+    has no such limit."""
+    if language != "jni":
+        pytest.skip("a restriction of JNI")
+    case, library, output, _classes = demo
+    program = runner_jvm.build_program(case, output, TWO_LOADERS, "TwoLoaders", language="jni")
+    runtime = f"{case.module}.BridgefexRuntime"
+    folder = tmp_path / "libraries"
+    folder.mkdir()
+    shutil.copy(library, folder / library.name)
+    properties = (
+        (f"-D{case.module}.library={library}",)
+        if how == "property"
+        else (f"-Djava.library.path={folder}",)
+    )
+    completed = _run(case, program, runtime, properties=properties, main="TwoLoaders")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "two loaders OK" in completed.stdout
+
+
+@pytest.mark.parametrize(
+    "properties",
+    [("-Dsun.arch.data.model=32",), ("-Dos.name=Windows 10",)],
+    ids=["32-bit", "windows"],
+)
+def test_a_library_that_is_not_built_for_the_platform_is_refused(
+    demo: tuple[Case, Path, Path, Path], language: str, properties: tuple[str, ...]
+) -> None:
+    """The layouts of the JNI bindings come from what Java says about the platform, and the
+    library says its sizes when it is loaded: a difference (a 32-bit JVM over a 64-bit library, a
+    ``long`` of 32 bits over one of 64) is an error that says both, not a corrupted struct."""
+    if language != "jni":
+        pytest.skip("the layouts of the FFM flavor are those of the linker of the JDK")
+    case, library, _output, classes = demo
+    completed = _run(case, classes, properties=(f"-D{case.module}.library={library}", *properties))
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0
+    assert "IllegalStateException" in output
+    assert "is not built for it" in output
+
+
+def test_a_platform_without_the_data_model_is_taken_from_the_architecture(
+    demo: tuple[Case, Path, Path, Path], language: str
+) -> None:
+    """Where the JVM does not say its data model, the architecture does (Android, other JVMs)."""
+    if language != "jni":
+        pytest.skip("only the JNI bindings take their layouts from the properties")
+    case, library, _output, classes = demo
+    completed = _run(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library}", "-Dsun.arch.data.model=unknown"),
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+def test_a_library_without_the_glue_says_so(
+    demo: tuple[Case, Path, Path, Path],
+    toolchain: Toolchain,
+    tmp_path: Path,
+    language: str,
+) -> None:
+    """The likeliest mistake with the JNI bindings: a library with the C layer and not the glue.
+    The error says what to build, not the name of a native method."""
+    if language != "jni":
+        pytest.skip("only the JNI bindings need the glue")
+    case, _library, _output, classes = demo
+    library, _ = build(case, toolchain, tmp_path, glue=False)
+    completed = _run(case, classes, properties=(f"-D{case.module}.library={library}",))
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0
+    assert "UnsatisfiedLinkError" in output
+    assert "has no JNI glue" in output
+    assert f"{case.module}_jni.cpp" in output
+
+
+_OWN_ON_LOAD = """\
+#include <jni.h>
+
+// A library that has its JNI_OnLoad for other things, and registers the bindings from it.
+extern "C" JNIEXPORT jint bridgefex_%(module)s_jni_register(JNIEnv* env);
+
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void*) {
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        return JNI_ERR;
+    }
+    return bridgefex_%(module)s_jni_register(env) == JNI_OK ? JNI_VERSION_1_6 : JNI_ERR;
+}
+"""
+
+
+def test_a_library_with_its_own_jni_on_load_registers_the_glue_from_it(
+    demo: tuple[Case, Path, Path, Path], toolchain: Toolchain, tmp_path: Path, language: str
+) -> None:
+    """The glue defines JNI_OnLoad unless it is built with <MODULE>_JNI_NO_ONLOAD: a library that
+    has its own (Android libraries do, or two modules in one library) calls the registration of
+    the glue from it, and the bindings work."""
+    if language != "jni":
+        pytest.skip("only the JNI bindings have the glue")
+    case, _library, _output, classes = demo
+    own = tmp_path / "own_on_load.cpp"
+    own.write_text(_OWN_ON_LOAD % {"module": case.module}, encoding="utf-8")
+    library, _ = build(
+        case,
+        toolchain,
+        tmp_path,
+        (f"-D{case.module.upper()}_JNI_NO_ONLOAD",),
+        glue=True,
+        extra_sources=(own,),
+    )
+    completed = _run(case, classes, properties=(f"-D{case.module}.library={library}",))
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+def test_a_redeploy_finds_the_class_loader_collected_and_the_library_free(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """The class loader of the bindings can be collected: the thread that destroys the objects
+    that nobody closed ends when it has nothing to wait for, and a thread that is not in a call
+    keeps nothing of the bindings. A redeploy of an application (an application server) loads
+    the bindings, and the library, in a new class loader."""
+    case = next(case for case in CASES if case.name == "arena")
+    library, output = build(case, toolchain, tmp_path)
+    program = runner_jvm.build_program(case, output, REDEPLOY, "Redeploy", language="jni")
+    completed = _run(
+        case,
+        program,
+        f"{case.module}.{case.module}.Box",
+        properties=(f"-D{case.module}.library={library}",),
+        main="Redeploy",
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "redeploy OK" in completed.stdout
 
 
 def test_a_library_that_is_refused_says_why(

@@ -9,13 +9,18 @@ import java.util.Set;
 
 /**
  * Runs an action when an object has been collected, on a thread of its own (the {@code Cleaner} of
- * Java 9, for the Java that has no such class, Android among them). For the generated code.
+ * Java 9, for the Java that has no such class, Android among them). The thread runs while there are
+ * objects to wait for, and ends when there are none, so that it does not keep the class loader of the
+ * bindings alive for ever (a redeploy needs the loader to be collected). For the generated code.
  */
 final class BridgefexCleaner {
     private static final BridgefexCleaner INSTANCE = new BridgefexCleaner();
+    private static final long IDLE_MILLISECONDS = 1000;
 
     private final ReferenceQueue<Object> queue = new ReferenceQueue<Object>();
-    private final Set<Cell> cells = Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<Cell, Boolean>()));
+    // The cells that wait for their object, and the thread that waits for them: guarded by this.
+    private final Set<Cell> cells = Collections.newSetFromMap(new IdentityHashMap<Cell, Boolean>());
+    private Thread thread;
 
     private static final class Cell extends PhantomReference<Object> {
         private final Runnable action;
@@ -27,14 +32,6 @@ final class BridgefexCleaner {
     }
 
     private BridgefexCleaner() {
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                clean();
-            }
-        }, "bridgefex-cleaner");
-        thread.setDaemon(true);
-        thread.start();
     }
 
     static BridgefexCleaner create() {
@@ -43,22 +40,48 @@ final class BridgefexCleaner {
 
     /** {@code action} runs once, after {@code referent} became unreachable. It must not refer to it. */
     void register(Object referent, Runnable action) {
-        cells.add(new Cell(referent, queue, action));
+        synchronized (this) {
+            cells.add(new Cell(referent, queue, action));
+            if (thread == null) {
+                thread = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        clean();
+                    }
+                }, "bridgefex-cleaner");
+                thread.setDaemon(true);
+                // Not the class loader of the application that happened to make the first object.
+                thread.setContextClassLoader(null);
+                thread.start();
+            }
+        }
     }
 
     private void clean() {
-        while (true) {
-            Cell cell;
-            try {
-                cell = (Cell) queue.remove();
-            } catch (InterruptedException error) {
-                return;
+        try {
+            while (true) {
+                Cell cell = (Cell) queue.remove(IDLE_MILLISECONDS);
+                if (cell == null) {
+                    synchronized (this) {
+                        if (cells.isEmpty()) {
+                            thread = null;
+                            return;
+                        }
+                    }
+                    continue;
+                }
+                synchronized (this) {
+                    cells.remove(cell);
+                }
+                try {
+                    cell.action.run();
+                } catch (Throwable ignored) {
+                    // The collector must not stop for an action that failed.
+                }
             }
-            cells.remove(cell);
-            try {
-                cell.action.run();
-            } catch (Throwable ignored) {
-                // The collector must not stop for an action that failed.
+        } catch (InterruptedException error) {
+            synchronized (this) {
+                thread = null;
             }
         }
     }

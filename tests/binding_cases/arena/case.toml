@@ -1,0 +1,7 @@
+# A case for the JNI bindings only (tests/test_jvm_roundtrip.py): the memory of a call that is too
+# big for the slab of its thread, and the sizes that the layouts of the platform are checked with.
+# Found by an adversarial review.
+module = "arena"
+headers = ["arena.h"]
+std = "c++17"
+languages = ["jni"]

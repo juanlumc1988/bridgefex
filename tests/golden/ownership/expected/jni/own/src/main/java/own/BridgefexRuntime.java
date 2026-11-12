@@ -34,14 +34,17 @@ public final class BridgefexRuntime {
     private static final boolean POINTER_IS_64 = pointerBits() == 64;
     private static final boolean LONG_IS_64 = POINTER_IS_64 && !isWindows();
     private static final boolean SIZE_IS_64 = POINTER_IS_64;
+    // A 64-bit integer or float is aligned to 4 bytes in a struct of the i386 System V ABI (Linux,
+    // Android and the BSDs on x86 with 32 bits); everywhere else, to 8.
+    private static final long ALIGN_64 = !POINTER_IS_64 && isX86() && !isWindows() ? 4 : 8;
 
     public static final BridgefexLayout.OfBoolean C_BOOL = new BridgefexLayout.OfBoolean(null);
     public static final BridgefexLayout.OfByte C_BYTE = new BridgefexLayout.OfByte(null);
     public static final BridgefexLayout.OfShort C_SHORT = new BridgefexLayout.OfShort(null);
     public static final BridgefexLayout.OfInt C_INT = new BridgefexLayout.OfInt(null);
-    public static final BridgefexLayout.OfLong C_LONG_LONG = new BridgefexLayout.OfLong(null);
+    public static final BridgefexLayout.OfLong C_LONG_LONG = new BridgefexLayout.OfLong(ALIGN_64, null);
     public static final BridgefexLayout.OfFloat C_FLOAT = new BridgefexLayout.OfFloat(null);
-    public static final BridgefexLayout.OfDouble C_DOUBLE = new BridgefexLayout.OfDouble(null);
+    public static final BridgefexLayout.OfDouble C_DOUBLE = new BridgefexLayout.OfDouble(ALIGN_64, null);
     public static final BridgefexLayout.OfAddress ADDRESS = new BridgefexLayout.OfAddress(POINTER_IS_64 ? 8 : 4, null);
     /** The C {@code long}: 32 bits where the platform says so. */
     public static final BridgefexLayout C_LONG = new BridgefexLayout.OfPlatform(LONG_IS_64 ? 8 : 4, null);
@@ -61,6 +64,11 @@ public final class BridgefexRuntime {
         }
         String arch = System.getProperty("os.arch", "").toLowerCase(java.util.Locale.ROOT);
         return arch.contains("64") || arch.contains("s390x") ? 64 : 32;
+    }
+
+    private static boolean isX86() {
+        String arch = System.getProperty("os.arch", "").toLowerCase(java.util.Locale.ROOT);
+        return arch.equals("x86") || arch.matches("i[3-6]86");
     }
 
     private static boolean isWindows() {
@@ -102,32 +110,56 @@ public final class BridgefexRuntime {
         if (given != null && !given.isEmpty()) {
             try {
                 File file = new File(given);
-                if (file.getParent() == null && !file.exists()) {
-                    // A bare name ({@code libdemo.so}, or {@code demo}) is searched by the system, as the
-                    // other languages do: in java.library.path, and where Android keeps the libraries.
-                    System.loadLibrary(stem(given));
+                if (file.getParent() == null && !file.isFile()) {
+                    loadNamed(given);
                 } else {
                     System.load(file.getAbsolutePath());
                 }
             } catch (UnsatisfiedLinkError error) {
-                UnsatisfiedLinkError failure = new UnsatisfiedLinkError("cannot load the library '" + given
-                    + "' (the property " + PROPERTY + " or the environment variable " + VARIABLE + "): "
-                    + error.getMessage());
-                failure.initCause(error);
-                throw failure;
+                throw loadFailure(given, "cannot load the library '" + given + "' (the property " + PROPERTY
+                    + " or the environment variable " + VARIABLE + "): " + error.getMessage(), error);
             }
             return;
         }
         try {
             System.loadLibrary(LIBRARY);
         } catch (UnsatisfiedLinkError error) {
-            UnsatisfiedLinkError failure = new UnsatisfiedLinkError("cannot find the library '"
+            throw loadFailure(System.mapLibraryName(LIBRARY), "cannot find the library '"
                 + System.mapLibraryName(LIBRARY) + "' of the module '" + LIBRARY + "': put it on java.library.path "
                 + "(or where the system looks for libraries), or set the property " + PROPERTY
-                + " or the environment variable " + VARIABLE + " to its path");
-            failure.initCause(error);
-            throw failure;
+                + " or the environment variable " + VARIABLE + " to its path", error);
         }
+    }
+
+    /** A bare name ({@code libdemo.so}, {@code libdemo.so.1} or {@code demo}) is searched by the system, as
+     * the other flavor does: the file of that name in {@code java.library.path} (where the system keeps the
+     * libraries, with the versions that {@code System.loadLibrary} cannot name), then as the name of a
+     * library, which is also where Android keeps them. */
+    private static void loadNamed(String name) {
+        for (String directory : System.getProperty("java.library.path", "").split(File.pathSeparator)) {
+            if (!directory.isEmpty()) {
+                File file = new File(directory, name);
+                if (file.isFile()) {
+                    System.load(file.getAbsolutePath());
+                    return;
+                }
+            }
+        }
+        System.loadLibrary(stem(name));
+    }
+
+    /** The error of a library that cannot be loaded. A library can be loaded by one class loader only:
+     * the second one gets that from the JDK, which is not a failure to find it. */
+    private static UnsatisfiedLinkError loadFailure(String library, String message, UnsatisfiedLinkError error) {
+        String said = error.getMessage();
+        if (said != null && said.contains("already loaded in another classloader")) {
+            message = "the library '" + library + "' is already loaded by another class loader of this JVM: a "
+                + "native library, and so these bindings, can be used from one class loader only (load the "
+                + "bindings and the library where all the applications share them)";
+        }
+        UnsatisfiedLinkError failure = new UnsatisfiedLinkError(message);
+        failure.initCause(error);
+        return failure;
     }
 
     /** The name that {@code System.loadLibrary} wants for the file name of a library
@@ -144,7 +176,17 @@ public final class BridgefexRuntime {
     }
 
     private static void verify() {
-        String actual = readCString(BridgefexNative.own_api_fingerprint(), true);
+        String actual;
+        try {
+            actual = readCString(BridgefexNative.own_api_fingerprint(), true);
+        } catch (UnsatisfiedLinkError error) {
+            // The likeliest mistake: the library has the C layer and not the glue that binds it to Java.
+            UnsatisfiedLinkError failure = new UnsatisfiedLinkError("the library has no JNI glue (it does not register "
+                + "the native methods of these bindings): build jni/own/native/own_jni.cpp "
+                + "into it, together with the C layer");
+            failure.initCause(error);
+            throw failure;
+        }
         if (!actual.equals(FINGERPRINT)) {
             throw new IllegalStateException("the library does not match these bindings (it has the C API '" + actual
                 + "', the bindings expect '" + FINGERPRINT + "'): rebuild it from the same bridgefex output");
@@ -153,10 +195,14 @@ public final class BridgefexRuntime {
         long pointer = sizes & 0xFF;
         long longSize = (sizes >> 8) & 0xFF;
         long sizeT = (sizes >> 16) & 0xFF;
-        if (pointer != ADDRESS.byteSize() || longSize != C_LONG.byteSize() || sizeT != C_SIZE.byteSize()) {
+        long doubleAlign = (sizes >> 24) & 0xFF;
+        long longLongAlign = (sizes >> 32) & 0xFF;
+        if (pointer != ADDRESS.byteSize() || longSize != C_LONG.byteSize() || sizeT != C_SIZE.byteSize()
+                || doubleAlign != ALIGN_64 || longLongAlign != ALIGN_64) {
             throw new IllegalStateException("the library has pointers of " + pointer + " bytes, long of " + longSize
-                + " and size_t of " + sizeT + ", and these bindings took " + ADDRESS.byteSize() + ", "
-                + C_LONG.byteSize() + " and " + C_SIZE.byteSize() + " from the platform ("
+                + ", size_t of " + sizeT + " and 64-bit members aligned to " + doubleAlign + " (double) and "
+                + longLongAlign + " (long long), and these bindings took " + ADDRESS.byteSize() + ", "
+                + C_LONG.byteSize() + ", " + C_SIZE.byteSize() + " and " + ALIGN_64 + " from the platform ("
                 + System.getProperty("os.name") + ", " + System.getProperty("os.arch") + "): it is not built for it");
         }
     }
@@ -326,6 +372,9 @@ public final class BridgefexRuntime {
         }
         if (size > Integer.MAX_VALUE - 8) {
             throw new IllegalStateException("C++ gave " + size + " bytes, more than a Java array holds");
+        }
+        if (data.address() == 0L) {
+            throw new IllegalStateException("C++ gave a NULL pointer for " + size + " bytes");
         }
         return BridgefexNative.copyOut(data.address(), (int) size);
     }

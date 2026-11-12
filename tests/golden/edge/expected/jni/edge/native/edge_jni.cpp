@@ -2,6 +2,16 @@
 //
 // The JNI glue of the Java bindings: build it into the same library as the C layer, with the
 // include directories of the JDK (jni.h and the one of its platform) and of the C layer.
+//
+// It defines JNI_OnLoad, which registers the native methods of the bindings. A library that has a
+// JNI_OnLoad of its own (or the glue of another module) defines EDGE_JNI_NO_ONLOAD when it
+// builds this file, and calls bridgefex_edge_jni_register(env) from its own.
+
+// The C layer is in this library, not imported from another one.
+#ifndef EDGE_C_API_BUILD
+#define EDGE_C_API_BUILD
+#endif
+
 #include <jni.h>
 
 #include <stddef.h>
@@ -114,16 +124,32 @@ jint JNICALL glue_edge_Registry_liveCount(JNIEnv* env, jclass cls, jlong a0)
 
 // What the runtime of the bindings needs: the address of a direct buffer, the length of a C string,
 // a copy of memory of C++, and the sizes that the layouts of the bindings were made with.
+void throw_new(JNIEnv* env, const char* type, const char* message)
+{
+    jclass cls = env->FindClass(type);
+    if (cls != nullptr) {
+        env->ThrowNew(cls, message);
+    }
+}
+
 jlong JNICALL glue_addressOf(JNIEnv* env, jclass cls, jobject buffer)
 {
     (void) cls;
-    return static_cast<jlong>(reinterpret_cast<uintptr_t>(env->GetDirectBufferAddress(buffer)));
+    void* address = buffer == nullptr ? nullptr : env->GetDirectBufferAddress(buffer);
+    if (address == nullptr) {
+        throw_new(env, "java/lang/IllegalArgumentException", "not a direct buffer");
+        return 0;
+    }
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(address));
 }
 
 jint JNICALL glue_length(JNIEnv* env, jclass cls, jlong address)
 {
-    (void) env;
     (void) cls;
+    if (address == 0) {
+        throw_new(env, "java/lang/NullPointerException", "the address of the text is NULL");
+        return 0;
+    }
     const size_t length = strlen(reinterpret_cast<const char*>(static_cast<uintptr_t>(address)));
     const size_t most = 0x7FFFFFF0u;
     return static_cast<jint>(length > most ? most : length);
@@ -132,31 +158,46 @@ jint JNICALL glue_length(JNIEnv* env, jclass cls, jlong address)
 jbyteArray JNICALL glue_copyOut(JNIEnv* env, jclass cls, jlong address, jint size)
 {
     (void) cls;
+    if (address == 0 && size > 0) {
+        throw_new(env, "java/lang/NullPointerException", "the address of the memory to copy is NULL");
+        return nullptr;
+    }
     jbyteArray result = env->NewByteArray(size);
-    if (result != nullptr) {
+    if (result != nullptr && size > 0) {
         const jbyte* data = reinterpret_cast<const jbyte*>(static_cast<uintptr_t>(address));
         env->SetByteArrayRegion(result, 0, size, data);
     }
     return result;
 }
 
+// Where a struct of C puts a 64-bit value: the alignment that it has as a member, which is not that of
+// the value alone on every platform (a double and a long long are aligned to 4 in a struct on i386).
+struct DoubleMember {
+    char first;
+    double value;
+};
+
+struct LongLongMember {
+    char first;
+    long long value;
+};
+
 jlong JNICALL glue_sizes(JNIEnv* env, jclass cls)
 {
     (void) env;
     (void) cls;
     return static_cast<jlong>(sizeof(void*)) | (static_cast<jlong>(sizeof(long)) << 8)
-        | (static_cast<jlong>(sizeof(size_t)) << 16);
+        | (static_cast<jlong>(sizeof(size_t)) << 16)
+        | (static_cast<jlong>(offsetof(DoubleMember, value)) << 24)
+        | (static_cast<jlong>(offsetof(LongLongMember, value)) << 32);
 }
 
 }  // namespace
 
-extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+// Registers the native methods of the bindings in the class loader of the calling class. JNI_OK, or
+// JNI_ERR with the exception of the JVM pending.
+extern "C" JNIEXPORT jint bridgefex_edge_jni_register(JNIEnv* env)
 {
-    (void) reserved;
-    JNIEnv* env = nullptr;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK || env == nullptr) {
-        return JNI_ERR;
-    }
     jclass native_class = env->FindClass("edge/BridgefexNative");
     if (native_class == nullptr) {
         return JNI_ERR;
@@ -190,5 +231,17 @@ extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
             env->ExceptionClear();
         }
     }
-    return JNI_VERSION_1_6;
+    return JNI_OK;
 }
+
+#ifndef EDGE_JNI_NO_ONLOAD
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+{
+    (void) reserved;
+    JNIEnv* env = nullptr;
+    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK || env == nullptr) {
+        return JNI_ERR;
+    }
+    return bridgefex_edge_jni_register(env) == JNI_OK ? JNI_VERSION_1_6 : JNI_ERR;
+}
+#endif

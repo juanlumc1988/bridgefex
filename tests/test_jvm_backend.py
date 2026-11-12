@@ -865,6 +865,38 @@ def test_a_container_that_is_not_null_and_has_the_length_of_its_type(
 
 
 @pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_messages_of_a_container_name_the_java_parameter(tmp_path: Path, language: str) -> None:
+    """The C name of a parameter (``my_values``) is not the one that the Java code has
+    (``myValues``): the message of an error names the one that the caller wrote."""
+    code = (
+        "#include <array>\n#include <cstdint>\n"
+        "int total(const std::array<std::uint8_t, 2>& my_values);"
+    )
+    functions = generate(tmp_path, code, languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert "argument 'myValues' must have 2 elements" in functions
+    assert '"myValues[" + ' in functions
+    assert "argument 'my_values'" not in functions
+    assert '"my_values[' not in functions
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+@pytest.mark.parametrize("length", ["2147483640ULL", "3000000000ULL"])
+def test_a_std_array_longer_than_a_java_array_is_refused(
+    tmp_path: Path, language: str, length: str
+) -> None:
+    """The array of Java and its length (a literal) are an int: javac refused the code."""
+    code = (
+        "#include <array>\n#include <cstdint>\n"
+        f"std::array<std::uint8_t, {length}> big(const std::array<std::uint8_t, {length}>& v);"
+    )
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code, languages=(language,))
+    assert "more than a Java array holds" in raised.value.diagnostics[0].message
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
 def test_the_containers_compile(tmp_path: Path, java: None, language: str) -> None:
     assert generate(tmp_path, CONTAINERS, languages=(language,), verify=True)
 

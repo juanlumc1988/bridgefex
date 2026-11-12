@@ -81,15 +81,15 @@ public abstract class BridgefexLayout {
         }
     }
 
-    /** An integer of 64 bits. */
+    /** An integer of 64 bits, which a struct aligns as the platform says (4 or 8 bytes). */
     public static final class OfLong extends BridgefexLayout {
-        OfLong(String name) {
-            super(8, 8, name);
+        OfLong(long alignment, String name) {
+            super(8, alignment, name);
         }
 
         @Override
         public BridgefexLayout withName(String newName) {
-            return new OfLong(newName);
+            return new OfLong(byteAlignment(), newName);
         }
     }
 
@@ -105,15 +105,15 @@ public abstract class BridgefexLayout {
         }
     }
 
-    /** A float of 64 bits. */
+    /** A float of 64 bits, which a struct aligns as the platform says (4 or 8 bytes). */
     public static final class OfDouble extends BridgefexLayout {
-        OfDouble(String name) {
-            super(8, 8, name);
+        OfDouble(long alignment, String name) {
+            super(8, alignment, name);
         }
 
         @Override
         public BridgefexLayout withName(String newName) {
-            return new OfDouble(newName);
+            return new OfDouble(byteAlignment(), newName);
         }
     }
 

@@ -65,6 +65,12 @@ def runtimes() -> dict[str, Path]:
 RUNTIMES = runtimes()
 
 
+def _on(names: list[str]) -> list[object]:
+    """The runtimes to parametrize over: without any, a skipped test (an empty set of parameters is
+    an error of the collection, which would stop a run that has no old JDK at all)."""
+    return names or [pytest.param("none", marks=pytest.mark.skip(reason="no older JDK"))]
+
+
 def _require() -> None:
     runner_jvm.skip_without_java()
 
@@ -86,7 +92,7 @@ def test_there_is_an_older_java_or_it_is_not_asked_for() -> None:
         assert "java8" in RUNTIMES, "a Java 8 is required and there is none"
 
 
-@pytest.mark.parametrize("runtime", sorted(RUNTIMES))
+@pytest.mark.parametrize("runtime", _on(sorted(RUNTIMES)))
 def test_the_checks_of_the_bindings_run_on_an_older_java(
     built: tuple[Case, Path, Path], runtime: str
 ) -> None:
@@ -107,7 +113,7 @@ def test_the_checks_of_the_bindings_run_on_an_older_java(
     assert "round trip OK" in completed.stdout
 
 
-@pytest.mark.parametrize("runtime", [name for name in sorted(RUNTIMES) if int(name[4:]) >= 17])
+@pytest.mark.parametrize("runtime", _on([name for name in sorted(RUNTIMES) if int(name[4:]) >= 17]))
 def test_the_scenarios_run_on_an_older_java_that_can_run_the_runner(
     built: tuple[Case, Path, Path], runtime: str
 ) -> None:

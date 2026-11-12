@@ -68,11 +68,14 @@ def _function(function: CFunction) -> _Function:
         returns = "int" if status else native_java(function.ffi_restype, JNI.segment)
     except Unsupported as error:
         raise Unsupported(f"'{function.description}': {error}") from error
-    slots = sum(2 if type_ in ("long", "double") else 1 for type_, _, _ in params)
+    # What counts is the native method, where a pointer is a long.
+    slots = sum(
+        2 if _java_native_type(type_) in ("long", "double") else 1 for type_, _, _ in params
+    )
     if slots > 255:
         raise Unsupported(
             f"'{function.description}' has too many parameters for Java (its C function takes "
-            f"{slots} slots of the 255 that a method has: a std::string takes 3)"
+            f"{slots} slots of the 255 that a method has: a std::string takes 4)"
         )
     return _Function(function.name, returns, params, function.ffi_restype.kind in _POINTERS)
 
@@ -170,6 +173,8 @@ def glue_parts(plan: ModulePlan) -> dict[str, object]:
         "headers": list(plan.public_headers),
         "functions": ["\n".join(_glue_function(function)) for function in functions],
         "methods": methods,
+        "module": plan.name,
+        "macro": plan.macro_prefix,
     }
 
 

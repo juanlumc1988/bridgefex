@@ -21,6 +21,8 @@ if TYPE_CHECKING:
 
 L = LOCAL_PREFIX
 R = "BridgefexRuntime"
+MAX_ARRAY = 2**31 - 9
+"""The most elements that the literal of a Java array of a std::array can have."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,8 +126,17 @@ def _write(
     ]
 
 
+def _checked_length(type_: ContainerType) -> None:
+    """A std::array has a Java array of its length, whose literal has to be an int."""
+    if type_.kind is ContainerKind.ARRAY and (type_.length or 0) > MAX_ARRAY:
+        raise Unsupported(
+            f"a std::array of {type_.length} elements, more than a Java array holds ({MAX_ARRAY})"
+        )
+
+
 def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, name: str) -> None:
     """The statements that make the memory (and the size) that a container goes to C++ as."""
+    _checked_length(type_)
     element = element_of(spec.element, lw.names)
     arena = lw.arena_resource()
     lw.lowering.parameters.append(f"{element.annotation}{element.public}[] {name}")
@@ -136,7 +147,7 @@ def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, na
                 f"if ({name}.length != {type_.length})",
                 "{",
                 "    throw new java.lang.IllegalArgumentException("
-                f"\"argument '{spec.name}' must have {type_.length} elements, got \" "
+                f"\"argument '{name}' must have {type_.length} elements, got \" "
                 f"+ {name}.length);",
                 "}",
             ]
@@ -151,7 +162,7 @@ def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, na
     index = f"{L}i"
     lw.statements.append(f"for (int {index} = 0; {index} < {name}.length; {index}++)")
     lw.statements.append("{")
-    where = f'"{spec.name}[" + {index} + "]"'
+    where = f'"{name}[" + {index} + "]"'
     at = (block, f"{index} * {element.size}")
     for line in _write(lw, element, at, f"{name}[{index}]", where):
         lw.statements.append(f"    {line}")
@@ -162,6 +173,7 @@ def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, na
 def result(lw: _Lowerer, spec: ResultSpec, type_: ContainerType) -> list[str]:
     """The statements that declare what C++ writes; returns the ones that run after the call has
     succeeded (and sets the ones that run whatever happens)."""
+    _checked_length(type_)
     element = element_of(spec.element, lw.names)
     arena = lw.arena_resource()
     lw.lowering.returns = f"{element.public}[]"

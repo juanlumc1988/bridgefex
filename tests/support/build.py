@@ -42,12 +42,14 @@ def build(
     extra_flags: Sequence[str] = (),
     *,
     glue: bool | None = None,
+    extra_sources: Sequence[Path] = (),
 ) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir).
 
     A case that asks for the JNI bindings (and a machine with a JDK that has ``jni.h``) has the
     glue of those in the library too, as the bindings need it: the other languages do not mind.
     ``glue=False`` builds the C layer alone (what its exports are checked on).
+    ``extra_sources`` are built into the library too (a ``JNI_OnLoad`` of its own).
     """
     if glue is None:
         glue = "jni" in case.languages
@@ -58,7 +60,7 @@ def build(
     )
     bridgefex.write_files(result.files, output)
     library = directory / toolchain.shared_library_name(case.module)
-    sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources)
+    sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources) + list(extra_sources)
     include_dirs = [output / "c", case.input_dir]
     if glue:
         sources += sorted((output / "jni").glob("*/native/*.cpp"))

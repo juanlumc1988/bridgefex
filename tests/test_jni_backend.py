@@ -16,10 +16,13 @@ from pathlib import Path
 import pytest
 
 import bridgefex
+from bridgefex.backends.jvm import flavor as flavors
+from bridgefex.backends.jvm.check import check
 from bridgefex.errors import GenerationError
 from tests.conformance import runner_jvm
 from tests.support.build import jni_includes
 from tests.support.cases import GOLDEN_DIR, load_case
+from tests.support.plans import plan_of
 from tests.test_jvm_backend import (
     COMPILES,
     HIDING,
@@ -165,11 +168,26 @@ def test_the_glue_includes_the_headers_of_the_c_layer_and_calls_its_functions(
     assert "static_cast<uintptr_t>" in glue
 
 
-def test_a_function_whose_parameters_do_not_fit_a_method_is_refused(tmp_path: Path) -> None:
-    parameters = ", ".join(f"const std::string& s{n}" for n in range(90))
+@pytest.mark.parametrize("count", [64, 70, 90])
+def test_a_function_whose_parameters_do_not_fit_a_method_is_refused(
+    tmp_path: Path, count: int
+) -> None:
+    """A native method takes a pointer as a long (two slots of the 255 that a method has) and a
+    std::string is a pointer and a size: four. Counted by the parameters of the wrapper (one
+    each), 64 strings looked like a method that fits and javac refused the code."""
+    parameters = ", ".join(f"const std::string& s{n}" for n in range(count))
     with pytest.raises(GenerationError) as raised:
         files_of(tmp_path, f"int many({parameters});")
     assert "too many parameters" in raised.value.diagnostics[0].message
+    assert "a std::string takes 4" in raised.value.diagnostics[0].message
+
+
+def test_the_most_parameters_that_a_native_method_can_take_compile(
+    tmp_path: Path, java: None
+) -> None:
+    parameters = ", ".join(f"const std::string& s{n}" for n in range(63))
+    files = generate(tmp_path, f"int many({parameters});", languages=LANGUAGES, verify=True)
+    assert f"{JNI}/BridgefexNative.java" in files
 
 
 def test_the_glue_is_the_same_whatever_the_other_languages(tmp_path: Path) -> None:
@@ -258,3 +276,56 @@ def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
         check=False,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize("name", ["BridgefexSegment", "BridgefexArena", "BridgefexStruct"])
+@pytest.mark.parametrize(
+    "code",
+    [
+        "struct {name} {{ int x; }};",
+        "enum class {name} {{ A, B }};",
+        "class {name} {{ public: {name}(); ~{name}(); }};",
+        "struct Holder {{ enum class {name} {{ A, B }}; int x; }};",
+    ],
+    ids=["struct", "enum", "class", "nested enum"],
+)
+def test_a_class_cannot_take_the_name_of_a_class_that_the_generated_code_imports(
+    tmp_path: Path, name: str, code: str
+) -> None:
+    """The generated code of every header imports the classes of the memory (no ``var`` in Java 8):
+    a class of a header with one of their names is a file that does not compile. (Over the foreign
+    function API those classes do not exist, and the name is free.)"""
+    declaration = code.format(name=name)
+    with pytest.raises(GenerationError) as raised:
+        files_of(tmp_path, declaration)
+    assert "which the runtime of the bindings uses" in raised.value.diagnostics[0].message
+    generate(tmp_path, declaration, languages=("jvm",))
+
+
+@pytest.mark.parametrize(
+    ("flavor", "release"), [(flavors.JNI, "8"), (flavors.FFM, "22")], ids=["jni", "ffm"]
+)
+def test_the_generated_java_is_compiled_for_the_release_of_its_flavor(
+    tmp_path: Path, java: None, flavor: flavors.Flavor, release: str
+) -> None:
+    """A class of Java 9 in a JNI file is an error of the check (it is compiled with
+    ``--release 8``, which is what the bindings run on), not a file that fails on the Java that the
+    user has."""
+    plan = plan_of(load_case(GOLDEN_DIR / "demo"))
+    directory = flavor.directory
+    files = generate(tmp_path, SMALL, languages=(directory,))
+    runtime = f"{directory}/mod/src/main/java/mod/BridgefexRuntime.java"
+    nine = "java.util.List<String> nine = java.util.List.of();"
+    marker = "public static final String LIBRARY"
+    assert marker in files[runtime]
+    problems = check(
+        plan,
+        {**files, runtime: files[runtime].replace(marker, f"static {nine}\n    {marker}", 1)},
+        tmp_path / "check",
+        flavor,
+    )
+    if release == "8":
+        assert problems, "a Java 9 API passed the check of the JNI bindings"
+        assert "does not compile" in problems[0].message
+    else:
+        assert problems == []
