@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ...errors import Diagnostic, GenerationError
@@ -11,7 +12,7 @@ from ...model import Method
 from ...plan import CallableKind, CallablePlan, ClassPlan, ClassView, HeaderPlan, ModulePlan
 from .enums import enum_class
 from .lower import Lowering, Names, lower_callable, method_name
-from .mapping import SEGMENT
+from .mapping import SEGMENT, Unsupported
 from .module import header_package
 from .naming import RESERVED_MEMBERS, pascal
 from .source import Source, escape_doc
@@ -91,6 +92,9 @@ class _Class:
 
         self._inherited: dict[tuple[str, tuple[str, ...]], _Member] | None = None
 
+        self.refusals: list[Diagnostic] = []
+        """What the Java bindings cannot do in this class, all of it (not only the first)."""
+
     # -- what the classes above have -----------------------------------------------------------
 
     def inherited(self) -> dict[tuple[str, tuple[str, ...]], _Member]:
@@ -103,7 +107,10 @@ class _Class:
                     *self._copies(above),
                     *((m, above) for m in above.members),
                 ]:
-                    lowered = lower_callable(member, self.names, self.plan, declaring=declaring)
+                    try:
+                        lowered = lower_callable(member, self.names, self.plan, declaring=declaring)
+                    except Unsupported:
+                        continue  # it is refused with the class that declares it
                     key = (
                         method_name(member.name + member.suffix, RESERVED_MEMBERS),
                         _signature(lowered.parameters),
@@ -172,7 +179,8 @@ class _Class:
                     f"{', '.join(_signature(lowered.parameters))})', which '{above.owner}' has "
                     "too: Java cannot hide a method (a method can only replace one that C++ "
                     "overrides, a virtual method with the same parameters that gives the same "
-                    "result, or a static one)",
+                    "result, or a static one): rename one of them in C++, or generate the other "
+                    "languages without 'jvm'",
                     member.location,
                 )
             ]
@@ -227,12 +235,24 @@ class _Class:
             src.line()
             enum_class(src, nested, nested=True)
         for member in cls.members:
-            self.member(src, member)
+            self.attempt(self.member, src, member)
         for view in cls.views:
             if view.c_type in {above.c_type for above in self.chain} or view.c_type == cls.c_type:
                 continue
-            self.secondary_base(src, view)
+            self.attempt(self.secondary_base, src, view)
         src.close()
+        if self.refusals:
+            raise GenerationError(self.refusals)
+
+    def attempt(self, action: Callable[..., None], *arguments: object) -> None:
+        """Does ``action``; what the bindings cannot do is noted, and the rest of the class is
+        still written, so that every problem of a class is reported at once."""
+        try:
+            action(*arguments)
+        except Unsupported as error:
+            self.refusals.append(Diagnostic(f"Java: {error}", error.location))
+        except GenerationError as error:
+            self.refusals.extend(error.diagnostics)
 
     # -- construction -----------------------------------------------------------------------
 
@@ -241,9 +261,12 @@ class _Class:
         and a ``const char*`` are both a ``String``) are static methods, ``create`` and the suffix
         of the C API, as in the other languages."""
         cls, name, names, plan = self.cls, self.name, self.names, self.plan
-        lowered = [
-            (ctor, lower_callable(ctor, names, plan, declaring=cls)) for ctor in cls.constructors
-        ]
+        lowered: list[tuple[CallablePlan, Lowering]] = []
+        for ctor in cls.constructors:
+            try:
+                lowered.append((ctor, lower_callable(ctor, names, plan, declaring=cls)))
+            except Unsupported as error:
+                self.refusals.append(Diagnostic(f"Java: {error}", error.location))
         count = Counter(_signature(item.parameters) for _, item in lowered)
         for ctor, item in lowered:
             src.line()
@@ -414,6 +437,14 @@ def class_source(
     by_type: dict[str, ClassPlan],
 ) -> str:
     """The file of a class: its own Java class, in the package of the header."""
+    if cls.director is not None:
+        # The annotations file asks for a director: a subclass written in Java would not be
+        # called from C++, which is what it is for.
+        raise Unsupported(
+            f"the class '{cls.model.qualified_name}' asks for a director in the annotations "
+            "file, and overriding its virtual methods from Java is not supported in Java yet",
+            cls.model.location,
+        )
     src = Source()
     src.line(f'// Generated by bridgefex from "{header.stem}.h". Do not edit.')
     src.line(f"package {header_package(plan, header)};")

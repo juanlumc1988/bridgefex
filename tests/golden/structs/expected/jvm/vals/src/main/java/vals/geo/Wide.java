@@ -107,6 +107,6 @@ public final class Wide {
 
     @java.lang.Override
     public java.lang.String toString() {
-        return "Wide{" + "f=" + f + ", " + "big=" + big + ", " + "size=" + size + ", " + "l=" + l + ", " + "c=" + c + ", " + "bytes=" + java.util.Arrays.toString(bytes) + "}";
+        return "Wide{" + "f=" + f + ", " + "big=" + big + ", " + "size=" + java.lang.Long.toUnsignedString(size) + ", " + "l=" + l + ", " + "c=" + c + ", " + "bytes=" + java.util.Arrays.toString(bytes) + "}";
     }
 }

@@ -11,18 +11,28 @@ from pathlib import Path
 from . import __version__, api, generator, libclang
 from .errors import BridgefexError
 
+_LANGUAGE_NAMES = {"java": "jvm", "kotlin": "jvm", "c#": "csharp"}
+"""What people call the languages: Java and Kotlin are the ``jvm`` bindings."""
+
+
+def _language(value: str) -> str:
+    return _LANGUAGE_NAMES.get(value.lower(), value)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bridgefex",
-        description="Generate a pure C API, and Python ctypes bindings, from C++ headers.",
+        description="Generate a pure C API from C++ headers, and bindings for other languages.",
     )
     parser.add_argument("headers", nargs="+", type=Path, metavar="HEADER", help="C++ headers")
     parser.add_argument(
         "-m",
         "--module",
         required=True,
-        help="module name: prefix of the runtime C symbols and name of the Python package",
+        help=(
+            "module name: prefix of the runtime C symbols, and name of the Python package, "
+            "the C# namespace and the Java package"
+        ),
     )
     parser.add_argument(
         "-o",
@@ -35,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lang",
         action="append",
+        type=_language,
         choices=(*generator.LANGUAGES, "none"),
         metavar="LANG",
         help=(
@@ -98,7 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-verify",
         dest="verify",
         action="store_false",
-        help="do not compile the generated C layer with libclang before writing it",
+        help=(
+            "do not compile the generated code before writing it (the C layer with libclang, "
+            "the C# project with dotnet, the Java sources with javac)"
+        ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser

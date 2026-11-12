@@ -105,6 +105,10 @@ std::int32_t consume(std::unique_ptr<Res> res)
     return res->id();
 }
 
+Shelf::Shelf() = default;
+Shelf::~Shelf() = default;
+Holder& Shelf::slot() { return slot_; }
+
 Q::Q() : q_(1) {}
 Q::~Q() = default;
 std::int32_t Q::q() const { return q_; }

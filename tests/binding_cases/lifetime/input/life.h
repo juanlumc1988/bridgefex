@@ -43,6 +43,18 @@ private:
 
 std::int32_t consume(std::unique_ptr<Res> res);
 
+// A holder that is part of the shelf, which a call gives by reference: it keeps what it is given
+// with the shelf.
+class Shelf {
+public:
+    Shelf();
+    ~Shelf();
+    Holder& slot();
+
+private:
+    Holder slot_;
+};
+
 // Several bases, to give and to read the object as one that is not at its address.
 class Q {
 public:

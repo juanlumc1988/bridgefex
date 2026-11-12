@@ -297,7 +297,10 @@ public final class BridgefexRuntime {
 
     /** A member that is an array has the length of its type. */
     public static void length(Object array, int length, String name) {
-        if (array == null || java.lang.reflect.Array.getLength(array) != length) {
+        if (array == null) {
+            throw new NullPointerException(name + " is null");
+        }
+        if (java.lang.reflect.Array.getLength(array) != length) {
             throw new IllegalArgumentException(name + " must have " + length + " elements");
         }
     }

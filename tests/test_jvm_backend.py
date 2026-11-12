@@ -594,14 +594,57 @@ def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_a
 ) -> None:
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, code)
-    [diagnostic] = raised.value.diagnostics
+    [diagnostic, advice] = raised.value.diagnostics
     assert diagnostic.message.startswith("Java:")
     assert "not supported in Java yet" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line >= 1
     assert "api.h" in str(raised.value)
+    # What to do about it.
+    assert "leave 'jvm' out" in advice.message
     # The Python bindings of the same header are generated all the same.
     assert generate(tmp_path, code, languages=("python",))
+
+
+def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path: Path) -> None:
+    code = (
+        "#include <vector>\n#include <functional>\n"
+        "int a(const std::vector<int>& v);\n"
+        "int b(std::function<int(int)> g);\n"
+        "class K { public: K(); ~K(); void m(const std::vector<int>& v); void n(); "
+        "void o(std::function<void()> f); };\n"
+    )
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code)
+    refused = [d for d in raised.value.diagnostics if d.location is not None]
+    lines = sorted(d.location.line for d in refused if d.location is not None)
+    base = PRELUDE.count("\n")
+    assert lines == [base + 3, base + 4, base + 5, base + 5]  # a, b, K::m and K::o
+    assert len(raised.value.diagnostics) == 5  # and what to do
+
+
+def test_a_class_that_asks_for_a_director_is_refused(tmp_path: Path) -> None:
+    """Without a director C++ would never call what a subclass in Java overrides."""
+    annotations = tmp_path / "directors.toml"
+    annotations.write_text('directors = ["mod_Widget"]\n', encoding="utf-8")
+    header = tmp_path / "api.h"
+    header.write_text(
+        PRELUDE + "class Widget { public: Widget(); virtual ~Widget(); virtual int draw(); };\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options(
+        "mod", std="c++17", languages=("jvm",), verify=False, annotations=(annotations,)
+    )
+    with pytest.raises(GenerationError) as raised:
+        bridgefex.generate([header], options)
+    message = str(raised.value)
+    assert "'Widget' asks for a director" in message
+    assert "api.h" in message
+    # The other languages have it.
+    python = bridgefex.Options(
+        "mod", std="c++17", languages=("python",), verify=False, annotations=(annotations,)
+    )
+    assert bridgefex.generate([header], python).files
 
 
 # -- The check with the compiler of Java -----------------------------------------------------------
@@ -676,7 +719,7 @@ def test_an_enum_with_too_many_enumerators_is_refused_where_it_is_declared(
     code = "enum class Big { " + ", ".join(f"E{n}" for n in range(2001)) + " };"
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, code)
-    [diagnostic] = raised.value.diagnostics
+    diagnostic = raised.value.diagnostics[0]
     assert "'Big' has 2001 enumerators" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line == PRELUDE.count("\n") + 1
@@ -718,7 +761,7 @@ def test_a_function_with_too_many_parameters_is_refused_where_it_is_declared(
     parameters = ", ".join(f"const std::string& s{n}" for n in range(90))
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, f"int many({parameters});")
-    [diagnostic] = raised.value.diagnostics
+    diagnostic = raised.value.diagnostics[0]
     assert "too many parameters" in diagnostic.message
     assert "many" in diagnostic.message
 

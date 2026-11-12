@@ -126,6 +126,21 @@ def test_the_property_gives_the_library(demo: tuple[Case, Path, Path, Path]) -> 
     assert "round trip OK" in completed.stdout
 
 
+def test_the_property_comes_before_the_environment_variable(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """The property that was given on purpose wins over the variable of the environment."""
+    case, library, _output, classes = demo
+    completed = _run(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library}",),
+        environment={f"{case.module.upper()}_LIBRARY": str(tmp_path / "nothing.so")},
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
 def test_the_library_path_of_java_is_searched(
     demo: tuple[Case, Path, Path, Path], tmp_path: Path
 ) -> None:

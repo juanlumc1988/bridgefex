@@ -19,7 +19,7 @@ from ...plan import (
 from .enums import enum_class
 from .lower import Names, lower_callable, method_name
 from .mapping import SEGMENT, Unsupported, native_java, native_layout
-from .naming import RESERVED_MEMBERS, RUNTIME_TYPES, file_problem, package_word, pascal
+from .naming import OBJECT_MEMBERS, RUNTIME_TYPES, file_problem, package_word, pascal
 from .source import Source
 from .structs import struct_class
 
@@ -161,7 +161,8 @@ def functions_source(
     src.line("private Functions() {")
     src.line("}")
     taken: dict[str, str] = {}
-    reserved = RESERVED_MEMBERS | {"Functions"}
+    reserved = OBJECT_MEMBERS | {"Functions"}
+    refusals: list[Diagnostic] = []
     for item in functions:
         call = item.callable
         name = method_name(call.name + call.suffix, reserved)
@@ -176,7 +177,11 @@ def functions_source(
                 ]
             )
         taken[name] = call.function.description
-        lowered = lower_callable(call, names, plan)
+        try:
+            lowered = lower_callable(call, names, plan)
+        except Unsupported as error:
+            refusals.append(Diagnostic(f"Java: {error}", error.location))
+            continue
         src.line()
         src.doc(call.function.description, *lowered.remarks)
         src.line(f'@BridgefexFunction("{call.function.name}")')
@@ -184,6 +189,8 @@ def functions_source(
         src.open(f"public static {lowered.returns} {name}({', '.join(lowered.parameters)})")
         src.lines_of(lowered.body)
         src.close()
+    if refusals:
+        raise GenerationError(refusals)
     src.close()
     return src.text()
 

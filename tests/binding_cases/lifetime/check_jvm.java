@@ -25,8 +25,10 @@ import life.life.Holder;
 import life.life.M;
 import life.life.N;
 import life.life.P;
+import life.life.Q;
 import life.life.R;
 import life.life.Res;
+import life.life.Shelf;
 
 class Check {
     // An object is in a call of another thread for a while.
@@ -299,8 +301,48 @@ class Check {
         check(Holder.badDestructions() == 0, "and in order");
     }
 
+
+    // Mutations of the runtime that the checks of the other cases did not catch.
+    static void whatTheRuntimeKeeps() throws Exception {
+        // A holder that points to a part of itself does not keep itself alive: it is collected when
+        // it is forgotten, without having been closed.
+        for (int i = 0; i < 50; i++) {
+            Holder holder = new Holder();
+            holder.set(holder.inner());
+        }
+        eventually(() -> Holder.live() == 0 && Res.live() == 0, "a holder that points to itself is collected");
+
+        // What a borrowed holder keeps is kept with the object that owns the holder, not for ever:
+        // the shelf is closed and the object that its slot kept is destroyed with it.
+        Shelf shelf = new Shelf();
+        Holder slot = shelf.slot();
+        slot.set(new Res(21));
+        collect();
+        check(Res.live() == 2, "the slot keeps the object it was given (and the shelf has its own)");
+        shelf.close();
+        eventually(() -> Res.live() == 0 && Holder.live() == 0, "closing the shelf releases what its slot kept");
+
+        // A call that is refused (a borrowed object cannot be given) holds nothing: the owner is
+        // destroyed when it is closed, not when some call that never ended is over.
+        Holder owner = new Holder();
+        Res borrowed = owner.inner();
+        expect(IllegalStateException.class, () -> Functions.consume(borrowed), "borrowed");
+        owner.close();
+        check(Holder.live() == 0, "the refused call kept no lease on the owner");
+
+        // A part of an object that was closed is not given either.
+        N whole = new N();
+        R part = whole.asR();
+        whole.close();
+        try (Q q = new Q()) {
+            expect(IllegalStateException.class, () -> Functions.takeBoth(q, part), "closed");
+            check(!q.isClosed(), "and nothing was given");
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         theHandle();
+        whatTheRuntimeKeeps();
         aPinInTheCallThatTheCollectorFound();
         aChainIsReleasedWithoutRecursion();
         aChainOfObjectsIsCollected();

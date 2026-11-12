@@ -28,11 +28,18 @@ RUNTIME_TYPES = frozenset(
     """.split()
 )
 
-# What every object has: a method of the bindings cannot take these names (``Object`` has them,
-# and so does every generated class).
-RESERVED_MEMBERS = frozenset(
+# What every Java object has: a method cannot take these names (a static method of ``Functions``
+# would clash with them too).
+OBJECT_MEMBERS = frozenset(
     """
     equals hashCode toString getClass notify notifyAll wait clone finalize
+    """.split()
+)
+
+# What every wrapped class has besides (the helpers of the generated code, which the classes
+# inherit from ``BridgefexObject`` or write): a method of a class cannot take these names.
+RESERVED_MEMBERS = OBJECT_MEMBERS | frozenset(
+    """
     close isClosed isReadOnly hold retain attach surrender keepOf borrow borrowed
     setOrigin retainForever checkExact collectOwning cppType wrap
     """.split()
@@ -156,8 +163,11 @@ def locals_of(count: int) -> frozenset[str]:
 def module_problem(name: str) -> str | None:
     """Why the Java package cannot be named for the module ``name``, or None."""
     word = package_word(name)
-    if word in {"java", "javax", "jdk", "sun", "com", "org"}:
-        return f"the Java package '{word}' would clash with the platform"
+    if word in {"java", "javax", "jdk", "sun"}:
+        return f"the Java package '{word}' belongs to the platform"
+    if word in {"com", "org"}:
+        # A header named ``xml`` would be ``org.xml``, which the JDK has (and ``com.sun``...).
+        return f"the Java packages that start with '{word}' include those of the platform"
     if word == "handle":
         # The classes of the bindings have a field of that name, which would hide the package in
         # the names that the generated code writes in full.

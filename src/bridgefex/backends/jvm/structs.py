@@ -225,6 +225,20 @@ def _constructors(src: Source, name: str, members: list[_Member]) -> None:
         src.close()
 
 
+def _shown(member: _Member) -> str:
+    """The text of a member in ``toString``: a 64-bit unsigned one (a ``long`` with the bits)
+    is shown as the unsigned number it is."""
+    unsigned = bool(member.annotation)
+    if member.length is not None:
+        if unsigned:
+            return (
+                f"java.util.Arrays.stream({member.name}).mapToObj(java.lang.Long::toUnsignedString)"
+                '.collect(java.util.stream.Collectors.joining(", ", "[", "]"))'
+            )
+        return f"java.util.Arrays.toString({member.name})"
+    return f"java.lang.Long.toUnsignedString({member.name})" if unsigned else member.name
+
+
 def _layout_member(member: _Member) -> str:
     layout = member.layout
     if member.length is not None:
@@ -314,10 +328,6 @@ def _object_methods(src: Source, name: str, members: list[_Member]) -> None:
     src.line()
     src.line("@java.lang.Override")
     src.open("public java.lang.String toString()")
-    parts = ' + ", " + '.join(
-        f'"{m.name}=" + '
-        + (f"java.util.Arrays.toString({m.name})" if m.length is not None else m.name)
-        for m in members
-    )
+    parts = ' + ", " + '.join(f'"{m.name}=" + {_shown(m)}' for m in members)
     src.line(f'return "{name}{{" + {parts if parts else chr(34) + chr(34)} + "}}";')
     src.close()
