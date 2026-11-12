@@ -578,12 +578,9 @@ def test_a_header_named_like_a_type_of_java_compiles(tmp_path: Path, java: None,
 # -- What the Java bindings do not have yet -------------------------------------------------------
 
 UNSUPPORTED = {
-    "a vector": "#include <vector>\nint f(const std::vector<int>& v);",
-    "a vector result": "#include <vector>\nstd::vector<int> f();",
     "a callback": "#include <functional>\nint f(std::function<int(int)> g);",
-    "an array": "#include <array>\nint f(const std::array<int, 3>& v);",
-    "a method with a vector": (
-        "#include <vector>\nclass K { public: K(); ~K(); void m(const std::vector<int>& v); };"
+    "a method with a callback": (
+        "#include <functional>\nclass K { public: K(); ~K(); void m(std::function<void()> f); };"
     ),
 }
 
@@ -608,10 +605,10 @@ def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_a
 
 def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path: Path) -> None:
     code = (
-        "#include <vector>\n#include <functional>\n"
-        "int a(const std::vector<int>& v);\n"
+        "#include <functional>\n"
+        "int a(std::function<int(int)> g);\n"
         "int b(std::function<int(int)> g);\n"
-        "class K { public: K(); ~K(); void m(const std::vector<int>& v); void n(); "
+        "class K { public: K(); ~K(); void m(std::function<void()> f); void n(); "
         "void o(std::function<void()> f); };\n"
     )
     with pytest.raises(GenerationError) as raised:
@@ -619,7 +616,7 @@ def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path:
     refused = [d for d in raised.value.diagnostics if d.location is not None]
     lines = sorted(d.location.line for d in refused if d.location is not None)
     base = PRELUDE.count("\n")
-    assert lines == [base + 3, base + 4, base + 5, base + 5]  # a, b, K::m and K::o
+    assert lines == [base + 2, base + 3, base + 4, base + 4]  # a, b, K::m and K::o
     assert len(raised.value.diagnostics) == 5  # and what to do
 
 
@@ -809,3 +806,73 @@ def test_two_enums_inside_a_class_that_get_the_same_name_are_refused(tmp_path: P
     message = error_of(tmp_path, code)
     assert "'K::foo_bar'" in message
     assert "'K::FooBar'" in message
+
+
+# -- Containers -----------------------------------------------------------------------------------
+
+CONTAINERS = """
+#include <array>
+#include <vector>
+enum class Color : std::uint8_t { Red, Green };
+struct Point { double x; double y; };
+std::vector<int> ints(const std::vector<int>& v);
+std::vector<std::uint8_t> bytes(const std::vector<std::uint8_t>& v);
+std::vector<std::uint64_t> wide(const std::vector<std::uint64_t>& v);
+std::vector<bool> flags(const std::vector<bool>& v);
+std::vector<std::string> words(const std::vector<std::string>& v);
+std::vector<Color> colors(const std::vector<Color>& v);
+std::vector<Point> points(const std::vector<Point>& v);
+std::array<float, 4> four(const std::array<float, 4>& v);
+class Bag { public: Bag(const std::vector<std::string>& items); ~Bag();
+            std::vector<int> counts() const; void add(const std::vector<int>& c); };
+"""
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_container_is_an_array_of_the_java_type_of_its_elements(
+    tmp_path: Path, language: str
+) -> None:
+    files = generate(tmp_path, CONTAINERS, languages=(language,))
+    functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
+    for signature in (
+        "public static int[] ints(int[] v)",
+        "public static short[] bytes(short[] v)",
+        "public static boolean[] flags(boolean[] v)",
+        "public static java.lang.String[] words(java.lang.String[] v)",
+        "public static mod.api.Color[] colors(mod.api.Color[] v)",
+        "public static mod.api.Point[] points(mod.api.Point[] v)",
+        "public static float[] four(float[] v)",
+        "@BridgefexUnsigned\n    public static long[] wide(@BridgefexUnsigned long[] v)",
+    ):
+        assert signature in functions
+    bag = files[f"{language}/mod/src/main/java/mod/api/Bag.java"]
+    assert "public Bag(java.lang.String[] items)" in bag
+    assert "public int[] counts()" in bag
+    assert "public void add(int[] c)" in bag
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_container_that_is_not_null_and_has_the_length_of_its_type(
+    tmp_path: Path, language: str
+) -> None:
+    functions = generate(tmp_path, CONTAINERS, languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert 'BridgefexRuntime.nonNull(v, "v");' in functions
+    assert "must have 4 elements, got " in functions
+    # What C++ allocated for the result is freed whatever happens.
+    assert "mod_free(" in functions
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_containers_compile(tmp_path: Path, java: None, language: str) -> None:
+    assert generate(tmp_path, CONTAINERS, languages=(language,), verify=True)
+
+
+def test_a_container_of_something_else_is_refused(tmp_path: Path) -> None:
+    code = (
+        "#include <vector>\nclass K { public: K(); ~K(); };\n"
+        "std::vector<K*> pointers();\nstd::vector<std::vector<int>> rows();"
+    )
+    with pytest.raises((GenerationError, ConfigurationError)):
+        generate(tmp_path, code)

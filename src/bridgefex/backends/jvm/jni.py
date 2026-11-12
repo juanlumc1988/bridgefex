@@ -78,7 +78,8 @@ def _function(function: CFunction) -> _Function:
 
 
 def _c_type(param: CParam) -> str:
-    return param.c_type
+    """The type to cast the address to: a parameter that C declares as an array is a pointer."""
+    return f"{param.c_type}*" if param.length is not None else param.c_type
 
 
 def _functions(plan: ModulePlan) -> list[_Function]:

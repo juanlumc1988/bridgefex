@@ -7,7 +7,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ...model import ClassForm, ClassRef, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    ClassForm,
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import (
     CallableKind,
     CallablePlan,
@@ -19,6 +27,7 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
+from . import containers
 from .flavor import FFM, Flavor
 from .mapping import STRING, Unsupported, scalar
 from .naming import LOCAL_PREFIX, camel, identifier, parameter
@@ -309,6 +318,8 @@ class _Lowerer:
             self.struct_param(spec, position, name)
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
+        elif isinstance(type_, ContainerType):
+            containers.param(self, spec, type_, position, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
@@ -432,6 +443,8 @@ class _Lowerer:
             return self.struct_result(spec)
         if isinstance(type_, ClassRef):
             return self.object_result(spec, type_)
+        if isinstance(type_, ContainerType):
+            return containers.result(self, spec, type_)
         raise Unsupported(f"the result of type '{type_.cpp_spelling}' is not supported in Java yet")
 
     def scalar_result(self, type_: ScalarType) -> list[str]:

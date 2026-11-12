@@ -72,8 +72,12 @@ SUPPORTED: dict[str, frozenset[str] | None] = {
     "csharp": frozenset(
         {"scalars", "strings", "enums", "structs", "demo", "inherit", "containers", "spans"}
     ),
-    "jvm": frozenset({"scalars", "enums", "structs", "strings", "demo", "inherit"}),
-    "jni": frozenset({"scalars", "enums", "structs", "strings", "demo", "inherit"}),
+    "jvm": frozenset(
+        {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
+    ),
+    "jni": frozenset(
+        {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
+    ),
 }
 
 

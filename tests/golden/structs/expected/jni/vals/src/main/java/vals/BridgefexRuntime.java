@@ -48,6 +48,9 @@ public final class BridgefexRuntime {
     /** The C {@code size_t}. */
     public static final BridgefexLayout C_SIZE = new BridgefexLayout.OfPlatform(SIZE_IS_64 ? 8 : 4, null);
 
+    /** The size of a string of the C layer: {@code {const char* data; size_t size;}}. */
+    public static final long STRING_SIZE = ADDRESS.byteSize() + C_SIZE.byteSize();
+
     private static int pointerBits() {
         String model = System.getProperty("sun.arch.data.model");
         if ("32".equals(model)) {
@@ -301,6 +304,19 @@ public final class BridgefexRuntime {
             return "";
         }
         return strictDecode(takeBytes(data, size), "the text of C++");
+    }
+
+    /** The number of elements that C++ gave, as the length of an array. */
+    public static int count(long size) {
+        if (size < 0 || size > Integer.MAX_VALUE - 8) {
+            throw new IllegalStateException("C++ gave " + Long.toUnsignedString(size) + " elements, more than a Java array holds");
+        }
+        return (int) size;
+    }
+
+    /** The memory that C++ gave, to be read: {@code size} bytes at {@code data}, copied. */
+    public static BridgefexSegment view(BridgefexSegment data, long size) {
+        return BridgefexSegment.of(takeBytes(data, size));
     }
 
     /** The bytes that C++ gave (a result that the annotations want as bytes, not text). */

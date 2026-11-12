@@ -24,6 +24,12 @@ public final class BridgefexSegment {
         this.size = size;
     }
 
+    /** Memory of Java that holds these bytes (a copy of memory of C++, to be read). */
+    static BridgefexSegment of(byte[] bytes) {
+        ByteBuffer buffer = ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.nativeOrder());
+        return new BridgefexSegment(buffer, 0, 0L, bytes.length);
+    }
+
     /** The address of an object of C++ (or of the memory of a call). */
     public static BridgefexSegment ofAddress(long address) {
         return new BridgefexSegment(null, 0, address, 0L);
