@@ -14,7 +14,7 @@ import enm.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Lamp extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -44,8 +44,8 @@ public class Lamp extends BridgefexObject {
         try (var __arena = BridgefexRuntime.arena()) {
             BridgefexRuntime.nonNull(color, "color");
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
-            int __status = BridgefexNative.colors_Lamp_create(__result, BridgefexRuntime.u8("color", (short) color.value()));
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            int __status = BridgefexNative.colors_Lamp_create(__result, BridgefexRuntime.argU8("color", (short) color.value()));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }
@@ -247,7 +247,7 @@ public class Lamp extends BridgefexObject {
             BridgefexRuntime.nonNull(state, "state");
             BridgefexRuntime.nonNull(level, "level");
             BridgefexRuntime.checkEnum(level.value(), 0, 3, "level");
-            BridgefexRuntime.check(BridgefexNative.colors_Lamp_set(__self.pointer(), BridgefexRuntime.u8("state", (short) state.value()), (int) level.value()));
+            BridgefexRuntime.check(BridgefexNative.colors_Lamp_set(__self.pointer(), BridgefexRuntime.argU8("state", (short) state.value()), (int) level.value()));
         }
     }
 

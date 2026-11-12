@@ -14,7 +14,7 @@ import inh.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Named extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.

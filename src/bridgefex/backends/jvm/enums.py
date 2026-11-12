@@ -5,9 +5,13 @@ from __future__ import annotations
 
 from ...errors import Diagnostic, GenerationError
 from ...plan import EnumPlan
-from .mapping import RANGES, scalar
+from .mapping import RANGES, Unsupported, scalar
 from .naming import pascal, upper_snake
 from .source import Source, escape_doc
+
+MAX_ENUMERATORS = 2000
+"""A class initialiser of Java is at most 64 KB: the enumerators of an enum (a constant and a place
+in the table of its values each) take about 25 bytes each, which is 2600 of them."""
 
 
 def _literal(value: int, unsigned_64: bool) -> str:
@@ -24,6 +28,13 @@ def enum_class(src: Source, enum: EnumPlan, *, nested: bool) -> None:
     underlying = enum.model.underlying.c_name
     info = scalar(underlying)
     constants = _constants(enum)
+    if len(constants) > MAX_ENUMERATORS:
+        raise Unsupported(
+            f"the enum '{enum.model.qualified_name}' has {len(constants)} enumerators, and the "
+            f"Java bindings take {MAX_ENUMERATORS} at most (a class of Java cannot initialise more "
+            "constants)",
+            enum.model.location,
+        )
     unsigned_64 = info.unsigned
     src.doc(
         enum.comment,

@@ -23,291 +23,336 @@ public final class BridgefexNative {
     public static java.lang.foreign.MemorySegment enm_last_error() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.enm_last_error.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle0.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle0 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "enm_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment enm_api_fingerprint() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.enm_api_fingerprint.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle1.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle1 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "enm_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static void enm_free(java.lang.foreign.MemorySegment p_memory) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.enm_free.invokeExact(p_memory);
+            Handle2.HANDLE.invokeExact(p_memory);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle2 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "enm_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_mix(byte p_a, byte p_b, java.lang.foreign.MemorySegment p_out_result) {
+    public static int colors_mix(int p_a, int p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_mix.invokeExact(p_a, p_b, p_out_result);
+            return (int) Handle3.HANDLE.invokeExact(p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle3 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_mix", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_toggle(int p_m, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_toggle.invokeExact(p_m, p_out_result);
+            return (int) Handle4.HANDLE.invokeExact(p_m, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle4 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_toggle", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_negate(int p_s, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_negate.invokeExact(p_s, p_out_result);
+            return (int) Handle5.HANDLE.invokeExact(p_s, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle5 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_negate", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_flip(long p_f, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_flip.invokeExact(p_f, p_out_result);
+            return (int) Handle6.HANDLE.invokeExact(p_f, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle6 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_flip", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, long.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_plain(long p_p, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_plain.invokeExact(p_p, p_out_result);
+            return (int) Handle7.HANDLE.invokeExact(p_p, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle7 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_plain", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, long.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_wide(int p_w, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_wide.invokeExact(p_w, p_out_result);
+            return (int) Handle8.HANDLE.invokeExact(p_w, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle8 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_wide", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_small(short p_s, java.lang.foreign.MemorySegment p_out_result) {
+    public static int colors_small(int p_s, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_small.invokeExact(p_s, p_out_result);
+            return (int) Handle9.HANDLE.invokeExact(p_s, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_small", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_pick(int p_n, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_pick.invokeExact(p_n, p_out_result);
+            return (int) Handle10.HANDLE.invokeExact(p_n, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_pick", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_next(int p_id, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_next.invokeExact(p_id, p_out_result);
+            return (int) Handle11.HANDLE.invokeExact(p_id, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_next", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_current(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_current.invokeExact(p_out_result);
+            return (int) Handle12.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_current", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_default_shape(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_default_shape.invokeExact(p_out_result);
+            return (int) Handle13.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_default_shape", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_f_colors_Color(byte p_c, java.lang.foreign.MemorySegment p_out_result) {
+    public static int colors_f_colors_Color(int p_c, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_f_colors_Color.invokeExact(p_c, p_out_result);
+            return (int) Handle14.HANDLE.invokeExact(p_c, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle14 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_f_colors_Color", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_f_int(int p_i, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_f_int.invokeExact(p_i, p_out_result);
+            return (int) Handle15.HANDLE.invokeExact(p_i, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle15 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_f_int", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_Lamp_create(java.lang.foreign.MemorySegment p_out_self, byte p_color) {
+    public static int colors_Lamp_create(java.lang.foreign.MemorySegment p_out_self, int p_color) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_Lamp_create.invokeExact(p_out_self, p_color);
+            return (int) Handle16.HANDLE.invokeExact(p_out_self, p_color);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle16 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static void colors_Lamp_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.colors_Lamp_destroy.invokeExact(p_self);
+            Handle17.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle17 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_Lamp_color(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_Lamp_color.invokeExact(p_self, p_out_result);
+            return (int) Handle18.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle18 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_color", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_Lamp_state(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_Lamp_state.invokeExact(p_self, p_out_result);
+            return (int) Handle19.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle19 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_state", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_Lamp_set(java.lang.foreign.MemorySegment p_self, byte p_state, int p_level) {
+    public static int colors_Lamp_set(java.lang.foreign.MemorySegment p_self, int p_state, int p_level) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_Lamp_set.invokeExact(p_self, p_state, p_level);
+            return (int) Handle20.HANDLE.invokeExact(p_self, p_state, p_level);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle20 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_set", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class));
     }
 
     public static int colors_Lamp_level(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_Lamp_level.invokeExact(p_self, p_out_result);
+            return (int) Handle21.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle21 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_Lamp_level", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int colors_color_of(short p_shape, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_color_of.invokeExact(p_shape, p_out_result);
+            return (int) Handle22.HANDLE.invokeExact(p_shape, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
+    private static final class Handle22 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_color_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_SHORT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, short.class, java.lang.foreign.MemorySegment.class));
+    }
 
-    public static int colors_shape_of(byte p_color, java.lang.foreign.MemorySegment p_out_result) {
+    public static int colors_shape_of(int p_color, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.colors_shape_of.invokeExact(p_color, p_out_result);
+            return (int) Handle23.HANDLE.invokeExact(p_color, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
-
-    private static final class Handles {
-        static final MethodHandle enm_last_error = BridgefexRuntime.bind(
-            "enm_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle enm_api_fingerprint = BridgefexRuntime.bind(
-            "enm_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle enm_free = BridgefexRuntime.bind(
-            "enm_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_mix = BridgefexRuntime.bind(
-            "colors_mix", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_BYTE, BridgefexRuntime.C_BYTE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, byte.class, byte.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_toggle = BridgefexRuntime.bind(
-            "colors_toggle", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_negate = BridgefexRuntime.bind(
-            "colors_negate", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_flip = BridgefexRuntime.bind(
-            "colors_flip", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, long.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_plain = BridgefexRuntime.bind(
-            "colors_plain", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, long.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_wide = BridgefexRuntime.bind(
-            "colors_wide", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_small = BridgefexRuntime.bind(
-            "colors_small", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_SHORT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, short.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_pick = BridgefexRuntime.bind(
-            "colors_pick", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_next = BridgefexRuntime.bind(
-            "colors_next", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_current = BridgefexRuntime.bind(
-            "colors_current", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_default_shape = BridgefexRuntime.bind(
-            "colors_default_shape", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_f_colors_Color = BridgefexRuntime.bind(
-            "colors_f_colors_Color", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_BYTE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, byte.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_f_int = BridgefexRuntime.bind(
-            "colors_f_int", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_Lamp_create = BridgefexRuntime.bind(
-            "colors_Lamp_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BYTE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, byte.class));
-        static final MethodHandle colors_Lamp_destroy = BridgefexRuntime.bind(
-            "colors_Lamp_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_Lamp_color = BridgefexRuntime.bind(
-            "colors_Lamp_color", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_Lamp_state = BridgefexRuntime.bind(
-            "colors_Lamp_state", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_Lamp_set = BridgefexRuntime.bind(
-            "colors_Lamp_set", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BYTE, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, byte.class, int.class));
-        static final MethodHandle colors_Lamp_level = BridgefexRuntime.bind(
-            "colors_Lamp_level", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_color_of = BridgefexRuntime.bind(
-            "colors_color_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_SHORT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, short.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle colors_shape_of = BridgefexRuntime.bind(
-            "colors_shape_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_BYTE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, byte.class, java.lang.foreign.MemorySegment.class));
+    private static final class Handle23 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "colors_shape_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 }

@@ -38,7 +38,7 @@ class Scalar:
     """The type that the API shows."""
 
     native: str
-    """The type that the downcall handle takes (what its layout carries)."""
+    """The type of the value of the C type, as the memory carries it."""
 
     layout: str
     """The layout of the C type, an expression of the runtime."""
@@ -57,6 +57,14 @@ class Scalar:
     unsigned: bool = False
     """A 64-bit unsigned integer, carried by a ``long``."""
 
+    call_native: str = ""
+    """The type of a parameter of a downcall, when it is not ``native``: an unsigned integer of 8 or
+    16 bits goes as a 32-bit one (the callee may rely on the caller extending it as an unsigned
+    value, and the layout of one byte or two is extended as a signed one)."""
+
+    call_layout: str = ""
+    """The layout of that parameter."""
+
     @property
     def annotation(self) -> str:
         return "@BridgefexUnsigned " if self.unsigned else ""
@@ -72,15 +80,20 @@ def _plain(java: str, layout: str, getter: str) -> Scalar:
     )
 
 
-def _widened(public: str, narrow: str, layout: str, convert: str, widen: str) -> Scalar:
-    """An unsigned integer that Java holds in a bigger signed type."""
+def _widened(
+    public: str, narrow: str, layout: str, convert: str, widen: str, *, argument: str = ""
+) -> Scalar:
+    """An unsigned integer that Java holds in a bigger signed type. Of 8 or 16 bits, it goes to a
+    downcall as a 32-bit integer, converted by ``argument``."""
     return Scalar(
         public,
         narrow,
         f"{R}.{layout}",
-        to_native=f"{R}.{convert}({{name}}, {{}})",
+        to_native=f"{R}.{argument or convert}({{name}}, {{}})",
         read=f"{R}.{widen}({{seg}}.get({R}.{layout}, {{off}}))",
         write=f"{{seg}}.set({R}.{layout}, {{off}}, {R}.{convert}({{name}}, {{}}));",
+        call_native="int" if argument else "",
+        call_layout=f"{R}.C_INT" if argument else "",
     )
 
 
@@ -129,9 +142,9 @@ _BOOL = Scalar(
 SCALARS: dict[str, Scalar] = {
     "bool": _BOOL,
     "signed char": _plain("byte", "C_BYTE", "get"),
-    "unsigned char": _widened("short", "byte", "C_BYTE", "u8", "fromU8"),
+    "unsigned char": _widened("short", "byte", "C_BYTE", "u8", "fromU8", argument="argU8"),
     "short": _plain("short", "C_SHORT", "get"),
-    "unsigned short": _widened("int", "short", "C_SHORT", "u16", "fromU16"),
+    "unsigned short": _widened("int", "short", "C_SHORT", "u16", "fromU16", argument="argU16"),
     "int": _plain("int", "C_INT", "get"),
     "unsigned int": _widened("long", "int", "C_INT", "u32", "fromU32"),
     "long": _C_LONG,
@@ -144,8 +157,8 @@ SCALARS: dict[str, Scalar] = {
     "int16_t": _plain("short", "C_SHORT", "get"),
     "int32_t": _plain("int", "C_INT", "get"),
     "int64_t": _plain("long", "C_LONG_LONG", "get"),
-    "uint8_t": _widened("short", "byte", "C_BYTE", "u8", "fromU8"),
-    "uint16_t": _widened("int", "short", "C_SHORT", "u16", "fromU16"),
+    "uint8_t": _widened("short", "byte", "C_BYTE", "u8", "fromU8", argument="argU8"),
+    "uint16_t": _widened("int", "short", "C_SHORT", "u16", "fromU16", argument="argU16"),
     "uint32_t": _widened("long", "int", "C_INT", "u32", "fromU32"),
     "uint64_t": _U64,
     "size_t": _SIZE,
@@ -162,7 +175,8 @@ def native_layout(ffi: Ffi) -> str:
     if kind is FfiKind.STATUS:
         return f"{R}.C_INT"
     if kind is FfiKind.SCALAR:
-        return scalar(ffi.name).layout
+        info = scalar(ffi.name)
+        return info.call_layout or info.layout
     if kind in (
         FfiKind.HANDLE,
         FfiKind.VOID_POINTER,
@@ -183,7 +197,8 @@ def native_java(ffi: Ffi) -> str:
     if kind is FfiKind.STATUS:
         return "int"
     if kind is FfiKind.SCALAR:
-        return scalar(ffi.name).native
+        info = scalar(ffi.name)
+        return info.call_native or info.native
     if kind in (
         FfiKind.HANDLE,
         FfiKind.VOID_POINTER,

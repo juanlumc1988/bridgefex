@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from ...errors import Diagnostic, GenerationError
 from ...plan import (
     CFunction,
@@ -17,11 +19,12 @@ from ...plan import (
 from .enums import enum_class
 from .lower import Names, lower_callable, method_name
 from .mapping import SEGMENT, Unsupported, native_java, native_layout
-from .naming import RESERVED_MEMBERS, RUNTIME_TYPES, package_word, pascal
+from .naming import RESERVED_MEMBERS, RUNTIME_TYPES, file_problem, package_word, pascal
 from .source import Source
 from .structs import struct_class
 
 JAVA_LANG = "java.lang"
+MAX_SLOTS = 255
 
 
 def header_package(plan: ModulePlan, header: HeaderPlan) -> str:
@@ -37,8 +40,10 @@ layout))."""
 
 def native_source(plan: ModulePlan, names: Names) -> str:
     """``BridgefexNative``: a static method for each function of the C API, over a downcall
-    handle. The handles are in a class of their own, which is initialised (and so bound to the
-    library) only after the library was loaded: a failure to load it can be tried again."""
+    handle. Each handle is in a class of its own, which is initialised (and so bound to the
+    library) on the first call of its function, after the library was loaded: a failure to load the
+    library can be tried again, a function that the library lacks fails alone, and the class
+    initialisers stay small (the Java class file limits the size of one to 64 KB)."""
     declarations: list[_Declaration] = [
         (plan.last_error, SEGMENT, []),
         (plan.api_fingerprint_function, SEGMENT, []),
@@ -67,27 +72,26 @@ def native_source(plan: ModulePlan, names: Names) -> str:
     src.open(f"static {SEGMENT} lastError()")
     src.line(f"return {plan.last_error}();")
     src.close()
-    handles = Source()
-    for declaration in declarations:
+    for number, declaration in enumerate(declarations):
         src.line()
-        _method(src, declaration)
-        _handle(handles, declaration)
-    src.line()
-    src.open("private static final class Handles")
-    src.lines_of(handles.lines)
-    src.close()
+        _method(src, declaration, number)
+        _handle(src, declaration, number)
     src.close()
     return src.text()
 
 
-def _method(src: Source, declaration: _Declaration) -> None:
+def _holder(number: int) -> str:
+    return f"Handle{number}"
+
+
+def _method(src: Source, declaration: _Declaration, number: int) -> None:
     name, returns, params = declaration
     parameters = ", ".join(f"{type_} {pname}" for type_, pname, _ in params)
     arguments = ", ".join(pname for _, pname, _ in params)
     src.open(f"public static {returns} {name}({parameters})")
     src.open("try")
     src.line("BridgefexRuntime.ensureLoaded();")
-    call = f"Handles.{name}.invokeExact({arguments})"
+    call = f"{_holder(number)}.HANDLE.invokeExact({arguments})"
     src.line(f"return ({returns}) {call};" if returns != "void" else f"{call};")
     src.close()
     src.open("catch (Throwable error)")
@@ -96,7 +100,7 @@ def _method(src: Source, declaration: _Declaration) -> None:
     src.close()
 
 
-def _handle(src: Source, declaration: _Declaration) -> None:
+def _handle(src: Source, declaration: _Declaration, number: int) -> None:
     name, returns, params = declaration
     layouts = [layout for _, _, layout in params]
     classes = [f"{type_}.class" for type_, _, _ in params]
@@ -106,8 +110,10 @@ def _handle(src: Source, declaration: _Declaration) -> None:
         result = "BridgefexRuntime.ADDRESS" if returns == SEGMENT else "BridgefexRuntime.C_INT"
         descriptor = f"FunctionDescriptor.of({', '.join([result, *layouts])})"
     method_type = f"MethodType.methodType({', '.join([f'{returns}.class', *classes])})"
-    src.line(f"static final MethodHandle {name} = BridgefexRuntime.bind(")
+    src.open(f"private static final class {_holder(number)}")
+    src.line("static final MethodHandle HANDLE = BridgefexRuntime.bind(")
     src.line(f'    "{name}", {descriptor}, {method_type});')
+    src.close()
 
 
 def _declaration(function: CFunction) -> _Declaration:
@@ -120,6 +126,13 @@ def _declaration(function: CFunction) -> _Declaration:
         returns = "int" if status else native_java(function.ffi_restype)
     except Unsupported as error:
         raise Unsupported(f"'{function.description}': {error}") from error
+    # A method of a Java class has at most 255 slots of parameters (a long and a double take two).
+    slots = sum(2 if type_ in ("long", "double") else 1 for type_, _, _ in params)
+    if slots > MAX_SLOTS:
+        raise Unsupported(
+            f"'{function.description}' has too many parameters for Java (its C function takes "
+            f"{slots} slots of the {MAX_SLOTS} that a method has: a std::string takes 3)"
+        )
     return function.name, returns, params
 
 
@@ -205,12 +218,16 @@ def build_names(plan: ModulePlan) -> Names:
                         "bindings uses"
                     )
                 )
+            problem = file_problem(name, "class")
+            if problem:
+                errors.append(Diagnostic(f"'{what}' gets the Java name '{name}': {problem}"))
             other = taken.setdefault(name.casefold(), what)
             if other != what:
                 errors.append(
                     Diagnostic(
-                        f"'{what}' and '{other}' get the Java name '{name}' in "
-                        f"{header.stem}.h (files that differ only by case are one on some systems)"
+                        f"'{what}' and '{other}' get Java class names that are the same or "
+                        f"differ only by case ('{name}') in {header.stem}.h: each is a file, and "
+                        "files that differ only by case are one on some systems"
                     )
                 )
 
@@ -220,6 +237,7 @@ def build_names(plan: ModulePlan) -> Names:
                 claim(name, item.model.qualified_name)
                 classes[item.c_type] = f"{package}.{name}"
                 destroyers[item.c_type] = item.destroy.name
+                errors.extend(_nested_problems(name, item.model.qualified_name, item.enums))
                 for nested in item.enums:
                     enums[nested.c_type] = f"{package}.{name}.{pascal(nested.model.name)}"
                     enum_plans[nested.model.usr] = nested
@@ -233,12 +251,51 @@ def build_names(plan: ModulePlan) -> Names:
                 claim(name, item.model.qualified_name)
                 structs[item.c_type] = f"{package}.{name}"
                 struct_plans[item.model.usr] = item
+                errors.extend(_nested_problems(name, item.model.qualified_name, item.enums))
                 for nested in item.enums:
                     enums[nested.c_type] = f"{package}.{name}.{pascal(nested.model.name)}"
                     enum_plans[nested.model.usr] = nested
     if errors:
         raise GenerationError(errors)
     return Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers)
+
+
+def _nested_problems(outer: str, what: str, nested_enums: Iterable[EnumPlan]) -> list[Diagnostic]:
+    """The enums inside a class or a struct are classes of its file: they cannot have the name of
+    the runtime (which the class uses), nor the name of what contains them, and two of them cannot
+    be told apart by their class files on a system that ignores case."""
+    problems: list[Diagnostic] = []
+    siblings: dict[str, str] = {}
+    for nested in nested_enums:
+        inner = pascal(nested.model.name)
+        where = nested.model.qualified_name
+        location = nested.model.location
+        if inner in RUNTIME_TYPES:
+            problems.append(
+                Diagnostic(
+                    f"'{where}' gets the Java name '{inner}', which the runtime of the "
+                    "bindings uses",
+                    location,
+                )
+            )
+        if inner == outer:
+            problems.append(
+                Diagnostic(
+                    f"'{where}' gets the Java name '{inner}', which '{what}' that contains it has: "
+                    "a Java class cannot contain one of its own name",
+                    location,
+                )
+            )
+        other = siblings.setdefault(inner.casefold(), where)
+        if other != where:
+            problems.append(
+                Diagnostic(
+                    f"'{where}' and '{other}' get the Java name '{inner}' in '{what}' (class files "
+                    "that differ only by case are one on some systems)",
+                    location,
+                )
+            )
+    return problems
 
 
 # One file for each class, enum and struct of a header -----------------------------------------

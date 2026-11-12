@@ -9,6 +9,7 @@ conformance suite.
 from __future__ import annotations
 
 import importlib
+import re
 from pathlib import Path
 
 import pytest
@@ -246,6 +247,30 @@ def test_integers_that_java_has_no_unsigned_type_for_are_widened_or_annotated(
     assert "@BridgefexUnsigned" not in text.split("public static long f")[1]
 
 
+def test_unsigned_integers_of_8_and_16_bits_go_to_a_downcall_as_32_bit_integers(
+    tmp_path: Path,
+) -> None:
+    """A callee may rely on the caller having extended an unsigned argument (clang does): the
+    layout of one byte or two would be extended as a signed one (200 would be -56)."""
+    files = generate(tmp_path, "void f(std::uint8_t a, std::uint16_t b, std::uint32_t c, short d);")
+    native = files[f"{JAVA}/BridgefexNative.java"]
+    assert (
+        "FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, "
+        "BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_SHORT)" in native
+    )
+    assert "int p_a, int p_b, int p_c, short p_d" in native
+    functions = files[f"{JAVA}/api/Functions.java"]
+    assert 'BridgefexRuntime.argU8("a", a)' in functions
+    assert 'BridgefexRuntime.argU16("b", b)' in functions
+    # The members of a struct are in memory: they keep the layout of their width.
+    struct = generate(tmp_path, "struct S { std::uint8_t a; std::uint16_t b; };")[
+        f"{JAVA}/api/S.java"
+    ]
+    assert "BridgefexRuntime.C_BYTE" in struct
+    assert "BridgefexRuntime.C_SHORT" in struct
+    assert "argU8" not in struct
+
+
 def test_the_handle_constructor_is_not_public_so_that_null_is_not_ambiguous(
     tmp_path: Path,
 ) -> None:
@@ -306,6 +331,24 @@ HIDING = {
         "class A { public: A(); ~A(); int n(); };\n"
         "class B : public A { public: B(); static int n(); };"
     ),
+    # C++ calls A::f through an A: Java would run B.f.
+    "a virtual method over one that is not virtual": (
+        "class A { public: A(); ~A(); int f(); };\n"
+        "class B : public A { public: B(); virtual ~B(); virtual int f(); };"
+    ),
+    # A std::string and a const char* are one String in Java, two overloads in C++.
+    "an overload that Java cannot tell from the virtual method": (
+        "class A { public: A(); virtual ~A(); virtual int f(const std::string& s); };\n"
+        "class B : public A { public: B(); virtual int f(const char* s); };"
+    ),
+    "a long and a long long": (
+        "class A { public: A(); virtual ~A(); virtual int f(long x); };\n"
+        "class B : public A { public: B(); virtual int f(long long x); };"
+    ),
+    "a const method over one that is not": (
+        "class A { public: A(); virtual ~A(); virtual int f(); };\n"
+        "class B : public A { public: B(); virtual int f() const; };"
+    ),
 }
 
 
@@ -352,6 +395,35 @@ OVERRIDES = {
         "class C : public A, public B { public: C(); int f(int x); };"
     ),
 }
+
+
+SECOND_BASE = (
+    "class X { public: X(); virtual ~X(); {x}; };\n"
+    "class A { public: A(); virtual ~A(); };\n"
+    "class B : public A, public X { public: B(); };\n"
+    "class C : public B { public: C(); {c}; };"
+)
+
+
+def test_a_method_that_hides_one_that_a_class_has_of_its_second_base_is_refused(
+    tmp_path: Path,
+) -> None:
+    """B has the methods of X (it is not its first base): C::f does not override X::f, and in
+    Java it would replace the copy that B has, so that a call through B runs it."""
+    code = SECOND_BASE.replace("{x}", "int f()").replace("{c}", "int f()")
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code)
+    [diagnostic] = raised.value.diagnostics
+    assert "Java cannot hide a method" in diagnostic.message
+    assert "'X' has too" in diagnostic.message
+    assert generate(tmp_path, code, languages=("python",))
+
+
+def test_a_method_that_overrides_one_of_a_second_base_is_accepted(
+    tmp_path: Path, java: None
+) -> None:
+    code = SECOND_BASE.replace("{x}", "virtual int f()").replace("{c}", "int f() override")
+    assert generate(tmp_path, code, verify=True)
 
 
 @pytest.mark.parametrize("code", OVERRIDES.values(), ids=OVERRIDES.keys())
@@ -417,7 +489,58 @@ class C { public: C(); explicit C(int a); explicit C(long a); explicit C(const s
   explicit C(const char* s); ~C(); int get(int) const; int get(long) const; };
 """,
     "a module without classes": "int twice(int x);",
+    # The constructor assigns the handle that the base class has: the parameter hides the field.
+    "a constructor with a parameter named handle": """
+class N { public: N(); ~N(); };
+class K { public: explicit K(int handle); explicit K(N* handle); ~K(); };
+""",
+    "parameters that get the same Java name": """
+int f(int x, int x_);
+int g(int foo_bar, int fooBar);
+int h(int Name, int name);
+int i(int java, int java_);
+int j(int mod, int mod_);
+int k(int, int arg1, int);
+class K { public: K(int x, int x_); ~K(); int m(int Name, int name); };
+""",
+    "members of a struct that differ only by case": """
+struct S { int fooBar; int foobar; int FOOBAR; };
+S make(S s);
+""",
+    "members of a struct named like the variables of its methods": """
+struct S { int that; int other; double that_; };
+struct T { S that[2]; int other; };
+T make(T t);
+""",
+    "types named like the annotations of java.lang": """
+struct SuppressWarnings { int x; };
+enum class Deprecated { A, B };
+class FunctionalInterface { public: FunctionalInterface(); ~FunctionalInterface(); };
+class K { public: K(); ~K(); SuppressWarnings get() const; };
+""",
+    "a class with several bases, in a module named lease": """
+class A { public: A(); virtual ~A(); int a(); };
+class B { public: B(); virtual ~B(); int b(); };
+class C : public A, public B { public: C(); A& first(); B& second(); };
+""",
 }
+
+
+@pytest.mark.parametrize("module", ["lease", "view", "owners", "origin", "error"])
+def test_a_module_named_like_a_local_of_the_generated_code_compiles(
+    tmp_path: Path, java: None, module: str
+) -> None:
+    code = (
+        "class A { public: A(); virtual ~A(); int a(); };\n"
+        "class B { public: B(); virtual ~B(); int b(); };\n"
+        "class C : public A, public B { public: C(); A& first(); B& second(); };\n"
+        "class D { public: D(); ~D(); C& make(); };"
+    )
+    assert generate(tmp_path, code, module=module, verify=True)
+
+
+def test_a_module_named_like_the_field_of_the_classes_is_refused(tmp_path: Path) -> None:
+    assert "'handle'" in error_of(tmp_path, SMALL, module="handle")
 
 
 @pytest.mark.parametrize("code", COMPILES.values(), ids=COMPILES.keys())
@@ -524,3 +647,122 @@ def test_without_a_jdk_the_code_is_not_checked(
     files[f"{JAVA}/api/Counter.java"] += "\nthis is not Java\n"
     monkeypatch.setattr(jvm_check, "javac", lambda: None)
     assert jvm_check.check(_plan(), files, tmp_path / "scratch") == []
+
+
+# -- Limits of the Java class file and of the file system -----------------------------------------
+
+
+def test_a_library_with_many_functions_compiles(tmp_path: Path, java: None) -> None:
+    """The handles are not initialised by one class initialiser, which Java limits to 64 KB: 1000
+    functions with three parameters did not compile."""
+    code = "\n".join(f"int f{n}(int a, double b, const std::string& c);" for n in range(1200))
+    files = generate(tmp_path, code, verify=True)
+    native = files[f"{JAVA}/BridgefexNative.java"]
+    assert "static final class Handles" not in native
+    assert native.count("BridgefexRuntime.bind(") == 1200 + 3
+
+
+def test_a_function_binds_when_it_is_first_called(tmp_path: Path) -> None:
+    """A function that the library lacks fails alone, and the others work."""
+    native = generate(tmp_path, SMALL)[f"{JAVA}/BridgefexNative.java"]
+    assert re.search(r"private static final class Handle\d+ ", native)
+    assert "class Handles" not in native
+    assert "BridgefexRuntime.ensureLoaded();" in native
+
+
+def test_an_enum_with_too_many_enumerators_is_refused_where_it_is_declared(
+    tmp_path: Path,
+) -> None:
+    code = "enum class Big { " + ", ".join(f"E{n}" for n in range(2001)) + " };"
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code)
+    [diagnostic] = raised.value.diagnostics
+    assert "'Big' has 2001 enumerators" in diagnostic.message
+    assert diagnostic.location is not None
+    assert diagnostic.location.line == PRELUDE.count("\n") + 1
+    assert generate(tmp_path, code, languages=("python",))
+
+
+def test_an_enum_with_many_enumerators_compiles(tmp_path: Path, java: None) -> None:
+    code = "enum class Big { " + ", ".join(f"E{n}" for n in range(2000)) + " };\nBig same(Big b);"
+    assert generate(tmp_path, code, verify=True)
+
+
+def test_a_struct_with_many_members_and_a_long_array_of_structs_compiles(
+    tmp_path: Path, java: None
+) -> None:
+    """The constructor with a parameter for each member would have more than the 255 slots that a
+    method has, and an initialiser with an element for each place of a long array is too big."""
+    members = "\n".join(f"int m{n};" for n in range(300))
+    code = (
+        "struct Item { int a; };\n"
+        f"struct Wide {{ {members} }};\n"
+        "struct Long { Item items[6000]; };\n"
+        "Wide same(Wide w);\nLong again(Long l);"
+    )
+    files = generate(tmp_path, code, verify=True)
+    wide = files[f"{JAVA}/api/Wide.java"]
+    assert "public Wide()" in wide
+    assert "public Wide(int m0" not in wide  # too many parameters for the constructor of all
+    assert (
+        "public Wide(int m0"
+        in generate(tmp_path, "struct Wide { int m0; int m1; };", verify=False)[
+            f"{JAVA}/api/Wide.java"
+        ]
+    )
+
+
+def test_a_function_with_too_many_parameters_is_refused_where_it_is_declared(
+    tmp_path: Path,
+) -> None:
+    parameters = ", ".join(f"const std::string& s{n}" for n in range(90))
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, f"int many({parameters});")
+    [diagnostic] = raised.value.diagnostics
+    assert "too many parameters" in diagnostic.message
+    assert "many" in diagnostic.message
+
+
+def test_a_very_long_name_is_refused_not_a_crash(tmp_path: Path) -> None:
+    long_name = "L" * 300
+    message = error_of(tmp_path, f"class {long_name} {{ public: {long_name}(); ~{long_name}(); }};")
+    assert "longer than 100 characters" in message
+
+
+@pytest.mark.parametrize("name", ["Aux", "con", "NUL", "Com1", "lpt9"])
+def test_a_class_named_like_a_file_of_windows_is_refused(tmp_path: Path, name: str) -> None:
+    message = error_of(tmp_path, f"struct {name} {{ int x; }};")
+    assert "Windows" in message
+
+
+def test_a_header_named_like_a_file_of_windows_is_refused(tmp_path: Path) -> None:
+    assert "Windows" in error_of(tmp_path, SMALL, name="aux.h")
+
+
+# -- Names inside a class -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["BridgefexHandle", "BridgefexObject", "BridgefexRuntime"])
+def test_an_enum_inside_a_class_cannot_hide_a_type_of_the_runtime(
+    tmp_path: Path, name: str
+) -> None:
+    code = f"class K {{ public: enum class {name} {{ A }}; K(); ~K(); }};"
+    message = error_of(tmp_path, code)
+    assert f"'K::{name}'" in message
+    assert "runtime" in message
+    inside_a_struct = f"struct S {{ enum class {name} {{ A }}; int x; }};"
+    assert "runtime" in error_of(tmp_path, inside_a_struct)
+
+
+def test_an_enum_inside_a_class_cannot_have_the_name_of_the_class(tmp_path: Path) -> None:
+    code = "class foo_bar { public: enum class FooBar { A }; foo_bar(); ~foo_bar(); };"
+    message = error_of(tmp_path, code)
+    assert "'foo_bar::FooBar'" in message
+    assert "own name" in message
+
+
+def test_two_enums_inside_a_class_that_get_the_same_name_are_refused(tmp_path: Path) -> None:
+    code = "class K { public: enum class foo_bar { A }; enum class FooBar { B }; K(); ~K(); };"
+    message = error_of(tmp_path, code)
+    assert "'K::foo_bar'" in message
+    assert "'K::FooBar'" in message

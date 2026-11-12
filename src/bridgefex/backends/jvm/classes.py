@@ -28,6 +28,19 @@ def _signature(parameters: list[str]) -> tuple[str, ...]:
     return tuple(parameter.rsplit(" ", 1)[0] for parameter in parameters)
 
 
+def _cpp_signature(member: CallablePlan) -> tuple[object, ...] | None:
+    """What C++ tells overloads apart by: the types of the parameters (a ``std::string`` and a
+    ``const char*`` are one ``String`` in Java, a ``long`` and a ``long long`` one ``long``), and
+    whether the method is ``const``. A virtual method overrides one of the base with the same."""
+    source = member.source
+    if not isinstance(source, Method):
+        return None
+    return (
+        tuple((parameter.type, parameter.by_reference) for parameter in source.parameters),
+        source.is_const,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _Member:
     """A method of a class as Java sees it: what a method of a class below it can override."""
@@ -37,6 +50,9 @@ class _Member:
     returns: str
     owner: str
     """The C++ class that declares it, for the messages."""
+
+    cpp: tuple[object, ...] | None = None
+    """Its signature in C++ (see ``_cpp_signature``)."""
 
 
 def primary_chain(cls: ClassPlan, by_type: dict[str, ClassPlan]) -> list[ClassPlan]:
@@ -78,11 +94,16 @@ class _Class:
     # -- what the classes above have -----------------------------------------------------------
 
     def inherited(self) -> dict[tuple[str, tuple[str, ...]], _Member]:
+        """The methods of the classes above, as Java sees them: those they declare, and those that
+        they have of their other bases (the copies)."""
         if self._inherited is None:
             found: dict[tuple[str, tuple[str, ...]], _Member] = {}
             for above in reversed(self.chain):
-                for member in above.members:
-                    lowered = lower_callable(member, self.names, self.plan, declaring=above)
+                for member, declaring in [
+                    *self._copies(above),
+                    *((m, above) for m in above.members),
+                ]:
+                    lowered = lower_callable(member, self.names, self.plan, declaring=declaring)
                     key = (
                         method_name(member.name + member.suffix, RESERVED_MEMBERS),
                         _signature(lowered.parameters),
@@ -91,10 +112,30 @@ class _Class:
                         member.kind is CallableKind.STATIC,
                         _virtual(member),
                         lowered.returns,
-                        above.model.qualified_name,
+                        declaring.model.qualified_name,
+                        _cpp_signature(member),
                     )
             self._inherited = found
         return self._inherited
+
+    def _copies(self, cls: ClassPlan) -> list[tuple[CallablePlan, ClassPlan]]:
+        """The methods that ``cls`` has of its bases that are not its first (the ones that
+        ``secondary_base`` writes): a name that the class declares, or that an earlier base has,
+        is not copied."""
+        names = {method_name(m.name + m.suffix, RESERVED_MEMBERS) for m in cls.members}
+        chain = {above.c_type for above in primary_chain(cls, self.by_type)}
+        copies: list[tuple[CallablePlan, ClassPlan]] = []
+        for view in cls.views:
+            if view.c_type in chain or view.c_type == cls.c_type:
+                continue
+            base = self.by_type[view.c_type]
+            for member in base.members:
+                name = method_name(member.name + member.suffix, RESERVED_MEMBERS)
+                if member.kind is CallableKind.STATIC or name in names:
+                    continue
+                names.add(name)
+                copies.append((member, base))
+        return copies
 
     def check_hiding(
         self, member: CallablePlan, name: str, lowered: Lowering, *, copied: bool = False
@@ -107,13 +148,21 @@ class _Class:
         above = self.inherited().get(key)
         if above is None:
             return True
-        static = member.kind is CallableKind.STATIC
-        virtual = _virtual(member)
-        same_kind = static == above.static and (static or virtual)
         if copied:
             # The class has the methods of its other bases too, but C++ would not let it call
             # a name that two of its bases have: the conversion to the base has it.
             return False
+        static = member.kind is CallableKind.STATIC
+        # A static method hides the static one above, as in C++. A method replaces the one above
+        # only if C++ overrides it: both virtual, with the same parameters. Anything else that has
+        # the Java signature of one above would make a call through the base class run this one.
+        same_kind = (static and above.static) or (
+            not static
+            and not above.static
+            and _virtual(member)
+            and above.virtual
+            and _cpp_signature(member) == above.cpp
+        )
         if same_kind and self._returns_ok(lowered.returns, above.returns):
             return True
         raise GenerationError(
@@ -121,8 +170,9 @@ class _Class:
                 Diagnostic(
                     f"'{member.function.description}' gets the Java method '{name}("
                     f"{', '.join(_signature(lowered.parameters))})', which '{above.owner}' has "
-                    "too: Java cannot hide a method (a method can only replace one of the same "
-                    "kind that gives the same result: a virtual method or a static one)",
+                    "too: Java cannot hide a method (a method can only replace one that C++ "
+                    "overrides, a virtual method with the same parameters that gives the same "
+                    "result, or a static one)",
                     member.location,
                 )
             ]
@@ -153,7 +203,7 @@ class _Class:
         )
         # The constructors use the object (to keep what C++ keeps), and subclasses are the code
         # of the user.
-        src.line('@SuppressWarnings("this-escape")')
+        src.line('@java.lang.SuppressWarnings("this-escape")')
         src.open(f"public class {name} extends {base}")
         src.doc("For the generated code: the handle of a C++ object that already exists.")
         # Not public: a call with null would be ambiguous with the constructors of the class.
@@ -260,17 +310,18 @@ class _Class:
                 src.close()
 
     def upcast(self, src: Source, view: ClassView, pointer: str) -> None:
-        src.line("var lease = hold(mutable, give);")
+        # The locals have the prefix of the generated ones: a module can be named ``lease``.
+        src.line("var __lease = hold(mutable, give);")
         src.open("try")
         src.line(
-            f"{pointer} view = mutable ? BridgefexNative.{view.upcast.name}(lease.pointer())"
-            f" : BridgefexNative.{view.const_upcast.name}(lease.pointer());"
+            f"{pointer} __view = mutable ? BridgefexNative.{view.upcast.name}(__lease.pointer())"
+            f" : BridgefexNative.{view.const_upcast.name}(__lease.pointer());"
         )
-        src.line("return lease.as(view);")
+        src.line("return __lease.as(__view);")
         src.close()
-        src.open("catch (java.lang.Throwable error)")
-        src.line("lease.close();")
-        src.line("throw error;")
+        src.open("catch (java.lang.Throwable __error)")
+        src.line("__lease.close();")
+        src.line("throw __error;")
         src.close()
 
     def secondary_base(self, src: Source, view: ClassView) -> None:
@@ -293,13 +344,13 @@ class _Class:
             "valid while this object is, and closing it does not destroy this one."
         )
         src.open(f"public {base_type} {accessor}()")
-        src.open("try (var lease = hold(false, false))")
+        src.open("try (var __lease = hold(false, false))")
         src.line(
-            f"var view = {base_type}.borrow(BridgefexNative.{view.const_upcast.name}"
-            "(lease.pointer()), new BridgefexObject[] {this}, isReadOnly());"
+            f"var __view = {base_type}.borrow(BridgefexNative.{view.const_upcast.name}"
+            "(__lease.pointer()), new BridgefexObject[] {this}, isReadOnly());"
         )
-        src.line("view.setOrigin(this);")
-        src.line("return view;")
+        src.line("__view.setOrigin(this);")
+        src.line("return __view;")
         src.close()
         src.close()
         for member in base.members:
@@ -342,6 +393,7 @@ class _Class:
             _virtual(member),
             lowered.returns,
             cls.model.qualified_name,
+            _cpp_signature(member),
         )
         self.taken.setdefault(name, member.function.description)
         src.line()

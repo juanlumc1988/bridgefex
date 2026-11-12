@@ -36,7 +36,7 @@ public final class Functions {
         try (var __arena = BridgefexRuntime.arena()) {
             BridgefexRuntime.nonNull(color, "color");
             var __result = __arena.allocate(BridgefexRuntime.C_SHORT);
-            BridgefexRuntime.check(BridgefexNative.colors_shape_of(BridgefexRuntime.u8("color", (short) color.value()), __result));
+            BridgefexRuntime.check(BridgefexNative.colors_shape_of(BridgefexRuntime.argU8("color", (short) color.value()), __result));
             return enm.shapes.Shape.of(__result.get(BridgefexRuntime.C_SHORT, 0));
         }
     }

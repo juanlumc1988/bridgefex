@@ -176,8 +176,134 @@ class Check {
         }
     }
 
+
+    // What a review found: the collector finds the wrapper of an object while a call that uses it
+    // runs, and the call makes a C++ object point to it (a pin) before it ends. The object must not
+    // be destroyed when the call ends: that C++ object points to it.
+    static void aPinInTheCallThatTheCollectorFound() {
+        AtomicInteger destroyed = new AtomicInteger();
+        BridgefexHandle handle = counting(destroyed, true);
+        check(handle.tryLease() == BridgefexHandle.LeaseResult.OK, "a call starts");
+        handle.run();
+        handle.pin();
+        handle.releaseLease();
+        check(destroyed.get() == 0, "pinned by the call: not destroyed when it ends");
+        handle.unpin();
+        check(destroyed.get() == 1, "destroyed when nothing points to it");
+
+        // Without a call: deferred until the pin is gone.
+        destroyed.set(0);
+        handle = counting(destroyed, true);
+        handle.pin();
+        handle.run();
+        check(destroyed.get() == 0, "pinned: deferred");
+        handle.unpin();
+        check(destroyed.get() == 1, "destroyed by the last unpin");
+        handle.unpin(); // nothing is destroyed twice
+        handle.run();
+        check(destroyed.get() == 1, "once");
+
+        // Two pins, and a call: the last one that goes destroys.
+        destroyed.set(0);
+        handle = counting(destroyed, true);
+        handle.tryLease();
+        handle.pin();
+        handle.pin();
+        handle.run();
+        handle.releaseLease();
+        handle.unpin();
+        check(destroyed.get() == 0, "one still points to it");
+        handle.unpin();
+        check(destroyed.get() == 1, "the last one released it");
+
+        // An object that the user closed while a call ran, and that the collector found too, is
+        // destroyed once, and is not left among those that wait.
+        destroyed.set(0);
+        handle = counting(destroyed, true);
+        handle.tryLease();
+        handle.closeObject();
+        handle.run();
+        handle.releaseLease();
+        check(destroyed.get() == 1, "closed and found: once");
+    }
+
+    // What a review found: objects that point to one another in a long chain were released by
+    // recursion, which overflowed the stack and left the rest of the chain alive for ever. Each
+    // destructor here releases the next object, as the C++ object that points to it does.
+    static void aChainIsReleasedWithoutRecursion() throws Exception {
+        int length = 100_000;
+        AtomicInteger destroyed = new AtomicInteger();
+        BridgefexHandle[] chain = new BridgefexHandle[length];
+        for (int i = length - 1; i >= 0; i--) {
+            BridgefexHandle next = i == length - 1 ? null : chain[i + 1];
+            chain[i] = new BridgefexHandle(pointer -> {
+                destroyed.incrementAndGet();
+                if (next != null) {
+                    next.unpin();
+                }
+            }, true);
+            chain[i].assign(MemorySegment.ofAddress(0x3000L + i));
+            if (next != null) {
+                next.pin();
+            }
+        }
+        for (int i = 1; i < length; i++) {
+            chain[i].run(); // found by the collector: pinned, so it waits
+        }
+        check(destroyed.get() == 0, "all of them wait for the head");
+        Throwable[] failure = new Throwable[1];
+        // A small stack: a recursion of this depth could not fit in any.
+        Thread thread = new Thread(null, () -> {
+            try {
+                chain[0].closeObject();
+            } catch (Throwable error) {
+                failure[0] = error;
+            }
+        }, "chain", 256 * 1024);
+        thread.start();
+        thread.join();
+        check(failure[0] == null, "closing the head of a long chain: " + failure[0]);
+        check(destroyed.get() == length, "the whole chain was destroyed: " + destroyed.get());
+
+        // The same from the collector's side: the head is found last.
+        destroyed.set(0);
+        BridgefexHandle tail = counting(destroyed, true);
+        BridgefexHandle middle = new BridgefexHandle(pointer -> {
+            destroyed.incrementAndGet();
+            tail.unpin();
+        }, true);
+        middle.assign(MemorySegment.ofAddress(0x5000));
+        tail.pin();
+        tail.run();
+        check(destroyed.get() == 0, "the tail waits for the one that points to it");
+        middle.run();
+        check(destroyed.get() == 2, "and both are destroyed when that one is found");
+    }
+
+    // The same with C++ objects: a chain of holders, each pointing to a part of the next.
+    static void aChainOfObjectsIsCollected() {
+        int length = 20_000;
+        Holder[] all = new Holder[length];
+        for (int i = 0; i < length; i++) {
+            all[i] = new Holder();
+        }
+        for (int i = 0; i < length - 1; i++) {
+            all[i].set(all[i + 1].inner());
+        }
+        Holder head = all[0];
+        all = null;
+        collect();
+        collect(); // the collector found all but the head, which waits for it
+        head.close();
+        eventually(() -> Holder.live() == 0 && Res.live() == 0, "a long chain was released by closing its head");
+        check(Holder.badDestructions() == 0, "and in order");
+    }
+
     public static void main(String[] args) throws Exception {
         theHandle();
+        aPinInTheCallThatTheCollectorFound();
+        aChainIsReleasedWithoutRecursion();
+        aChainOfObjectsIsCollected();
 
         // 1. An object that another thread is using is not given to C++ (which would destroy it under that call).
         {

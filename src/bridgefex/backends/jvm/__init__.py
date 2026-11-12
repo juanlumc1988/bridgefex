@@ -14,7 +14,7 @@ from .check import check
 from .classes import class_source
 from .mapping import Unsupported
 from .module import build_names, functions_source, header_package, native_source, type_source
-from .naming import locals_of, module_problem, package_word, pascal
+from .naming import file_problem, locals_of, module_problem, package_word, pascal
 
 _TEMPLATES = Path(__file__).parent / "templates"
 
@@ -29,6 +29,9 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     seen: dict[str, str] = {}
     for header in plan.headers:
         word = package_word(header.stem)
+        problem = file_problem(word, "package")
+        if problem:
+            reasons.append(f"Java: cannot name the package of '{header.stem}.h': {problem}")
         other = seen.setdefault(word, header.stem)
         if other != header.stem:
             reasons.append(

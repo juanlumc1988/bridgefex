@@ -14,7 +14,7 @@ import scalars.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Accumulator extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -44,7 +44,7 @@ public class Accumulator extends BridgefexObject {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.scalars_Accumulator_create(__result);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }

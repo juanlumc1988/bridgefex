@@ -72,11 +72,11 @@ public final class Leg {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Leg that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Leg __that)) {
             return false;
         }
-        return from.equals(that.from) && to.equals(that.to) && kind.equals(that.kind);
+        return from.equals(__that.from) && to.equals(__that.to) && kind.equals(__that.kind);
     }
 
     @java.lang.Override

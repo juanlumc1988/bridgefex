@@ -14,7 +14,7 @@ import own.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Peek extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -46,7 +46,7 @@ public class Peek extends BridgefexObject {
             var __h1 = __t1.pointer();
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.own_Peek_create(__result, __h1);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }

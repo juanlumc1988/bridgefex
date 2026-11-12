@@ -14,6 +14,8 @@ from .mapping import Unsupported, scalar
 from .naming import PARAMETER_RESERVED, RESERVED_MEMBERS, camel, identifier, pascal
 from .source import Source
 
+MAX_SLOTS = 255
+
 
 @dataclass(frozen=True, slots=True)
 class _Member:
@@ -45,11 +47,15 @@ class _Member:
     fresh: str
     """The value of a field that is not set (a struct, an enum: it must not be null)."""
 
+    offset: str = ""
+    """The constant of the offset of the member in the layout."""
+
     annotation: str = ""
 
 
-def _members(struct: StructPlan, names: Names) -> list[_Member]:
-    # A field hides the package that a qualified name of the generated code starts with.
+def _taken(struct: StructPlan, names: Names) -> set[str]:
+    """What a field cannot be named: it hides a package that a qualified name of the generated code
+    starts with, and the members and the nested types of the class."""
     taken = {
         pascal(struct.model.name),
         *RESERVED_MEMBERS,
@@ -57,7 +63,22 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
         names.root,
         *PARAMETER_RESERVED,
     }
-    taken |= {pascal(nested.model.name) for nested in struct.enums}
+    return taken | {pascal(nested.model.name) for nested in struct.enums}
+
+
+def _offset(field: str, offsets: set[str]) -> str:
+    """The constant of the offset of a field: two that differ only by case (``fooBar`` and
+    ``foobar``) are told apart."""
+    offset = f"OFFSET_{field.upper()}"
+    while offset in offsets:
+        offset += "_"
+    offsets.add(offset)
+    return offset
+
+
+def _members(struct: StructPlan, names: Names) -> list[_Member]:
+    taken = _taken(struct, names)
+    offsets: set[str] = set()
     result: list[_Member] = []
     for field_plan in struct.fields:
         model = field_plan.model
@@ -65,6 +86,7 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
         while field in taken:
             field += "_"
         taken.add(field)
+        offset = _offset(field, offsets)
         type_ = model.type
         quoted = f'"{field}"'
         annotation = ""
@@ -120,6 +142,7 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
                 read=read,
                 size=size,
                 fresh=fresh,
+                offset=offset,
                 annotation=annotation,
             )
         )
@@ -155,25 +178,10 @@ def struct_class(src: Source, struct: StructPlan, names: Names, *, nested: bool 
         )
     for member in members:
         src.line(
-            f"private static final long OFFSET_{member.name.upper()} = "
+            f"private static final long {member.offset} = "
             f'BridgefexRuntime.offset(LAYOUT, "{member.native_name}");'
         )
-    src.line()
-    src.doc("A value with every member zero (see defaults() for the values that C++ gives).")
-    src.open(f"public {name}()")
-    for member in members:
-        if member.length is not None:
-            src.line(f"{member.name} = {_new_array(member)};")
-        elif member.fresh not in ("0", "false"):
-            src.line(f"{member.name} = {member.fresh};")
-    src.close()
-    if members:
-        src.line()
-        parameters = ", ".join(f"{m.annotation}{m.java} {m.name}" for m in members)
-        src.open(f"public {name}({parameters})")
-        for member in members:
-            src.line(f"this.{member.name} = {member.name};")
-        src.close()
+    _constructors(src, name, members)
     src.line()
     src.doc("A value with the members that C++ gives a default-constructed object.")
     src.open(f"public static {name} defaults()")
@@ -191,11 +199,30 @@ def struct_class(src: Source, struct: StructPlan, names: Names, *, nested: bool 
     src.close()
 
 
-def _new_array(member: _Member) -> str:
-    if member.fresh in ("0", "false"):
-        return f"new {member.element}[{member.length}]"
-    items = ", ".join([member.fresh] * (member.length or 0))
-    return f"new {member.element}[] {{{items}}}"
+def _constructors(src: Source, name: str, members: list[_Member]) -> None:
+    src.line()
+    src.doc("A value with every member zero (see defaults() for the values that C++ gives).")
+    src.open(f"public {name}()")
+    for member in members:
+        if member.length is not None:
+            src.line(f"{member.name} = new {member.element}[{member.length}];")
+            if member.fresh not in ("0", "false"):
+                # An element that is not zero (a struct, an enum) is made for each place: not
+                # an initialiser, which a Java method cannot hold for thousands of them.
+                src.open(f"for (int __i = 0; __i < {member.length}; __i++)")
+                src.line(f"{member.name}[__i] = {member.fresh};")
+                src.close()
+        elif member.fresh not in ("0", "false"):
+            src.line(f"{member.name} = {member.fresh};")
+    src.close()
+    slots = sum(2 if m.length is None and m.java in ("long", "double") else 1 for m in members)
+    if members and slots <= MAX_SLOTS:
+        src.line()
+        parameters = ", ".join(f"{m.annotation}{m.java} {m.name}" for m in members)
+        src.open(f"public {name}({parameters})")
+        for member in members:
+            src.line(f"this.{member.name} = {member.name};")
+        src.close()
 
 
 def _layout_member(member: _Member) -> str:
@@ -210,7 +237,7 @@ def _write(src: Source, members: list[_Member]) -> None:
     src.open("public void write(java.lang.foreign.MemorySegment __seg)")
     src.line("__seg.fill((byte) 0);")
     for member in members:
-        offset = f"OFFSET_{member.name.upper()}"
+        offset = member.offset
         if member.length is None:
             src.line(
                 member.write.replace("{value}", member.name)
@@ -234,7 +261,7 @@ def _read(src: Source, name: str, members: list[_Member]) -> None:
     src.open(f"public static {name} read(java.lang.foreign.MemorySegment __seg)")
     src.line(f"{name} __result = new {name}();")
     for member in members:
-        offset = f"OFFSET_{member.name.upper()}"
+        offset = member.offset
         if member.length is None:
             src.line(
                 f"__result.{member.name} = "
@@ -258,22 +285,22 @@ def _read(src: Source, name: str, members: list[_Member]) -> None:
 def _object_methods(src: Source, name: str, members: list[_Member]) -> None:
     src.line()
     src.line("@java.lang.Override")
-    src.open("public boolean equals(java.lang.Object other)")
-    src.open(f"if (!(other instanceof {name} that))")
+    src.open("public boolean equals(java.lang.Object __other)")
+    src.open(f"if (!(__other instanceof {name} __that))")
     src.line("return false;")
     src.close()
     terms = []
     for member in members:
         field = member.name
         if member.length is not None:
-            terms.append(f"java.util.Arrays.equals({field}, that.{field})")
+            terms.append(f"java.util.Arrays.equals({field}, __that.{field})")
         elif member.java in ("float", "double"):
             wrapper = "java.lang.Float" if member.java == "float" else "java.lang.Double"
-            terms.append(f"{wrapper}.compare({field}, that.{field}) == 0")
+            terms.append(f"{wrapper}.compare({field}, __that.{field}) == 0")
         elif member.java in ("boolean", "byte", "short", "int", "long"):
-            terms.append(f"{field} == that.{field}")
+            terms.append(f"{field} == __that.{field}")
         else:
-            terms.append(f"{field}.equals(that.{field})")
+            terms.append(f"{field}.equals(__that.{field})")
     src.line(f"return {' && '.join(terms) if terms else 'true'};")
     src.close()
     src.line()

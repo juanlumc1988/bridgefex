@@ -14,7 +14,7 @@ import inh.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Square extends inh.shape.Shape {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -44,7 +44,7 @@ public class Square extends inh.shape.Shape {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.inh_Square_create(__result, side);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }
@@ -63,27 +63,27 @@ public class Square extends inh.shape.Shape {
 
     @java.lang.Override
     public BridgefexLease hold_inh_Shape(boolean mutable, boolean give) {
-        var lease = hold(mutable, give);
+        var __lease = hold(mutable, give);
         try {
-            java.lang.foreign.MemorySegment view = mutable ? BridgefexNative.inh_Square_as_inh_Shape(lease.pointer()) : BridgefexNative.inh_Square_as_inh_Shape_const(lease.pointer());
-            return lease.as(view);
+            java.lang.foreign.MemorySegment __view = mutable ? BridgefexNative.inh_Square_as_inh_Shape(__lease.pointer()) : BridgefexNative.inh_Square_as_inh_Shape_const(__lease.pointer());
+            return __lease.as(__view);
         }
-        catch (java.lang.Throwable error) {
-            lease.close();
-            throw error;
+        catch (java.lang.Throwable __error) {
+            __lease.close();
+            throw __error;
         }
     }
 
     @java.lang.Override
     public BridgefexLease hold_inh_Named(boolean mutable, boolean give) {
-        var lease = hold(mutable, give);
+        var __lease = hold(mutable, give);
         try {
-            java.lang.foreign.MemorySegment view = mutable ? BridgefexNative.inh_Square_as_inh_Named(lease.pointer()) : BridgefexNative.inh_Square_as_inh_Named_const(lease.pointer());
-            return lease.as(view);
+            java.lang.foreign.MemorySegment __view = mutable ? BridgefexNative.inh_Square_as_inh_Named(__lease.pointer()) : BridgefexNative.inh_Square_as_inh_Named_const(__lease.pointer());
+            return __lease.as(__view);
         }
-        catch (java.lang.Throwable error) {
-            lease.close();
-            throw error;
+        catch (java.lang.Throwable __error) {
+            __lease.close();
+            throw __error;
         }
     }
 

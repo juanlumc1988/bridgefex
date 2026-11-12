@@ -46,7 +46,7 @@ public final class Functions {
     public static short echoUchar(short value) {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.C_BYTE);
-            BridgefexRuntime.check(BridgefexNative.scalars_echo_uchar(BridgefexRuntime.u8("value", value), __result));
+            BridgefexRuntime.check(BridgefexNative.scalars_echo_uchar(BridgefexRuntime.argU8("value", value), __result));
             return BridgefexRuntime.fromU8(__result.get(BridgefexRuntime.C_BYTE, 0));
         }
     }
@@ -70,7 +70,7 @@ public final class Functions {
     public static int echoUshort(int value) {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.C_SHORT);
-            BridgefexRuntime.check(BridgefexNative.scalars_echo_ushort(BridgefexRuntime.u16("value", value), __result));
+            BridgefexRuntime.check(BridgefexNative.scalars_echo_ushort(BridgefexRuntime.argU16("value", value), __result));
             return BridgefexRuntime.fromU16(__result.get(BridgefexRuntime.C_SHORT, 0));
         }
     }
@@ -228,7 +228,7 @@ public final class Functions {
     public static short echoUint8(short value) {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.C_BYTE);
-            BridgefexRuntime.check(BridgefexNative.scalars_echo_uint8(BridgefexRuntime.u8("value", value), __result));
+            BridgefexRuntime.check(BridgefexNative.scalars_echo_uint8(BridgefexRuntime.argU8("value", value), __result));
             return BridgefexRuntime.fromU8(__result.get(BridgefexRuntime.C_BYTE, 0));
         }
     }
@@ -240,7 +240,7 @@ public final class Functions {
     public static int echoUint16(int value) {
         try (var __arena = BridgefexRuntime.arena()) {
             var __result = __arena.allocate(BridgefexRuntime.C_SHORT);
-            BridgefexRuntime.check(BridgefexNative.scalars_echo_uint16(BridgefexRuntime.u16("value", value), __result));
+            BridgefexRuntime.check(BridgefexNative.scalars_echo_uint16(BridgefexRuntime.argU16("value", value), __result));
             return BridgefexRuntime.fromU16(__result.get(BridgefexRuntime.C_SHORT, 0));
         }
     }

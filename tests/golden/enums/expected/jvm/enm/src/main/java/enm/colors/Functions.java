@@ -24,7 +24,7 @@ public final class Functions {
             BridgefexRuntime.nonNull(a, "a");
             BridgefexRuntime.nonNull(b, "b");
             var __result = __arena.allocate(BridgefexRuntime.C_BYTE);
-            BridgefexRuntime.check(BridgefexNative.colors_mix(BridgefexRuntime.u8("a", (short) a.value()), BridgefexRuntime.u8("b", (short) b.value()), __result));
+            BridgefexRuntime.check(BridgefexNative.colors_mix(BridgefexRuntime.argU8("a", (short) a.value()), BridgefexRuntime.argU8("b", (short) b.value()), __result));
             return enm.colors.Color.of(BridgefexRuntime.fromU8(__result.get(BridgefexRuntime.C_BYTE, 0)));
         }
     }
@@ -104,7 +104,7 @@ public final class Functions {
         try (var __arena = BridgefexRuntime.arena()) {
             BridgefexRuntime.nonNull(s, "s");
             var __result = __arena.allocate(BridgefexRuntime.C_SHORT);
-            BridgefexRuntime.check(BridgefexNative.colors_small(BridgefexRuntime.u16("s", (int) s.value()), __result));
+            BridgefexRuntime.check(BridgefexNative.colors_small(BridgefexRuntime.argU16("s", (int) s.value()), __result));
             return enm.colors.Small.of(BridgefexRuntime.fromU16(__result.get(BridgefexRuntime.C_SHORT, 0)));
         }
     }
@@ -167,7 +167,7 @@ public final class Functions {
         try (var __arena = BridgefexRuntime.arena()) {
             BridgefexRuntime.nonNull(c, "c");
             var __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.colors_f_colors_Color(BridgefexRuntime.u8("c", (short) c.value()), __result));
+            BridgefexRuntime.check(BridgefexNative.colors_f_colors_Color(BridgefexRuntime.argU8("c", (short) c.value()), __result));
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }

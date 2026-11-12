@@ -140,11 +140,11 @@ public final class Tagged {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Tagged that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Tagged __that)) {
             return false;
         }
-        return mode.equals(that.mode) && value == that.value;
+        return mode.equals(__that.mode) && value == __that.value;
     }
 
     @java.lang.Override

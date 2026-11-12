@@ -14,7 +14,7 @@ import txt.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Person extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -46,7 +46,7 @@ public class Person extends BridgefexObject {
             var __p1 = BridgefexRuntime.bytes(__arena, __b1);
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.text_Person_create_string(__result, __p1, (long) __b1.length);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }
@@ -61,7 +61,7 @@ public class Person extends BridgefexObject {
             var __p1 = BridgefexRuntime.bytes(__arena, BridgefexRuntime.utf8z(name, "name"));
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.text_Person_create_cstr_int(__result, __p1, age);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }

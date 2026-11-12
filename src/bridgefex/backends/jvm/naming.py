@@ -42,6 +42,23 @@ RESERVED_MEMBERS = frozenset(
 # package that they name in full (a variable hides a package).
 PARAMETER_RESERVED = frozenset({"java", "javax", "jdk", "this", *RUNTIME_TYPES})
 
+MAX_NAME = 100
+"""The longest name of a class, a package or the module: each is a file or a folder, and the
+file system has its limit (255 bytes on most; Java names the file of a nested class after the one
+that contains it)."""
+
+WINDOWS_FILES = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        *(f"com{n}" for n in range(1, 10)),
+        *(f"lpt{n}" for n in range(1, 10)),
+    }
+)
+"""The names that Windows does not allow for a file or a folder, whatever the extension."""
+
 _WORDS = re.compile(r"[A-Za-z0-9]+")
 
 
@@ -141,6 +158,19 @@ def module_problem(name: str) -> str | None:
     word = package_word(name)
     if word in {"java", "javax", "jdk", "sun", "com", "org"}:
         return f"the Java package '{word}' would clash with the platform"
+    if word == "handle":
+        # The classes of the bindings have a field of that name, which would hide the package in
+        # the names that the generated code writes in full.
+        return f"the Java package '{word}' would be hidden by a field of the generated classes"
+    return file_problem(word, "package")
+
+
+def file_problem(word: str, what: str) -> str | None:
+    """Why a class or a package cannot be a file or a folder, or None."""
+    if len(word) > MAX_NAME:
+        return f"the {what} name '{word[:20]}...' is longer than {MAX_NAME} characters"
+    if word.casefold() in WINDOWS_FILES:
+        return f"the {what} name '{word}' is a name that Windows does not allow for a file"
     return None
 
 

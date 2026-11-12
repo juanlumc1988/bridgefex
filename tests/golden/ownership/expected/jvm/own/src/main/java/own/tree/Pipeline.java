@@ -14,7 +14,7 @@ import own.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Pipeline extends BridgefexObject {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -48,7 +48,7 @@ public class Pipeline extends BridgefexObject {
             __t1.give();
             first.surrender();
             int __status = BridgefexNative.own_Pipeline_create_own_Item_unique(__result, __h1);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }
@@ -66,7 +66,7 @@ public class Pipeline extends BridgefexObject {
             __t1.give();
             first.surrender();
             int __status = BridgefexNative.own_Pipeline_create_own_Item_unique_int32(__result, __h1, minimum);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
         }
     }

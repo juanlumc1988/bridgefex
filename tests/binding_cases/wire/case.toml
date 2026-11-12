@@ -1,0 +1,6 @@
+# A case for the Java bindings only (tests/test_jvm_roundtrip.py): the numbers that cross as the
+# bits that C++ gave, and an error whose message is not UTF-8. Found by adversarial reviews.
+module = "wire"
+headers = ["wire.h"]
+std = "c++17"
+languages = ["jvm"]

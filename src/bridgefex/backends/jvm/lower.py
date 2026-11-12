@@ -136,6 +136,22 @@ class _Lowerer:
         self.created: str | None = None
         """The object that a factory returns."""
 
+        self.parameter_names = self._parameter_names()
+        """The Java name of each parameter, by position: all different."""
+
+    def _parameter_names(self) -> list[str]:
+        """The names of the parameters: two C++ names that give the same Java one (``x`` and
+        ``x_``, ``fooBar`` and ``foo_bar``) are told apart by a trailing ``_``."""
+        taken = {self.names.root}
+        result: list[str] = []
+        for spec in self.plan.params:
+            name = parameter(spec.name)
+            while name in taken:
+                name += "_"
+            taken.add(name)
+            result.append(name)
+        return result
+
     def arena_resource(self) -> str:
         """The memory of the call, made when something needs it."""
         if not self.arena:
@@ -216,8 +232,8 @@ class _Lowerer:
         not as ``this`` nor as another argument."""
         plan = self.plan
         objects = [
-            (parameter(spec.name), "nullable" in spec.words, "transfer" in spec.words)
-            for spec in plan.params
+            (self.parameter_names[position], "nullable" in spec.words, "transfer" in spec.words)
+            for position, spec in enumerate(plan.params)
             if isinstance(spec.type, ClassRef)
         ]
         for index, (name, nullable, given) in enumerate(objects):
@@ -254,9 +270,7 @@ class _Lowerer:
 
     def param(self, spec: ParamSpec, position: int) -> None:
         type_ = spec.type
-        name = parameter(spec.name)
-        if name == self.names.root:
-            name += "_"
+        name = self.parameter_names[position - 1]
         if "retain" in spec.words:
             self.retained.append(name)
         if (
@@ -456,7 +470,7 @@ class _Lowerer:
         assign = f"{L}result.get({R}.ADDRESS, 0)"
         if self.factory is None:
             # The handle of the object exists already (the constructor of the base made it).
-            self.after_call = [f"handle.assign({assign});"]
+            self.after_call = [f"this.handle.assign({assign});"]
             return [f"retain({name});" for name in self.retained]
         # A static method: the object exists before the call, so that its destruction is
         # guaranteed from the moment the C function writes the pointer.

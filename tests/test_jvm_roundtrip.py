@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -189,6 +190,89 @@ def test_a_failure_to_load_the_library_is_not_for_ever(
     completed = _run(case, classes, str(library), main="Retry")
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "retry OK" in completed.stdout
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="the search path of the loader is that of Linux"
+)
+def test_a_bare_name_is_searched_by_the_system(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """The property can be a bare name (``libdemo.so``), which the loader of the system searches,
+    as the other languages do."""
+    case, library, _output, classes = demo
+    folder = tmp_path / "search"
+    folder.mkdir()
+    shutil.copy(library, folder / library.name)
+    completed = _run(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library.name}",),
+        environment={"LD_LIBRARY_PATH": str(folder)},
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+def test_a_library_that_is_refused_says_why(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """A file that is not a library: the message has what the system said, and the cause is the
+    error of the JDK."""
+    case, _library, _output, classes = demo
+    notes = tmp_path / "notes.txt"
+    notes.write_text("this is not a library", encoding="utf-8")
+    completed = _run(case, classes, environment={"DEMO_LIBRARY": str(notes)})
+    output = completed.stdout + completed.stderr
+    assert completed.returncode != 0
+    assert "UnsatisfiedLinkError" in output
+    assert "notes.txt" in output
+    assert "Caused by" in output
+
+
+def test_a_function_that_the_library_lacks_fails_alone(
+    demo: tuple[Case, Path, Path, Path], tmp_path: Path
+) -> None:
+    """Each function is bound when it is first called: one that the library does not have fails
+    with the name of the function, and the rest of the library works."""
+    case, library, output, _classes = demo
+    program = tmp_path / "Lacks.java"
+    program.write_text(
+        "class Lacks {\n"
+        "    public static void main(String[] args) {\n"
+        "        try {\n"
+        "            demo.counter.Functions.multiplyInt32Int32(1, 2);\n"
+        '            throw new AssertionError("no error");\n'
+        "        } catch (UnsatisfiedLinkError expected) {\n"
+        '            if (!expected.getMessage().contains("demo_does_not_exist")) {\n'
+        "                throw new AssertionError(expected);\n"
+        "            }\n"
+        "        }\n"
+        "        try (var counter = new demo.counter.Counter(5)) {\n"
+        "            if (counter.value() != 5) {\n"
+        '                throw new AssertionError("wrong");\n'
+        "            }\n"
+        "        }\n"
+        '        System.out.println("lacks OK");\n'
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+
+    def lacking(files: dict[str, str]) -> dict[str, str]:
+        return {
+            path: content.replace('"demo_multiply_int32_int32"', '"demo_does_not_exist"')
+            if path.endswith("BridgefexNative.java")
+            else content
+            for path, content in files.items()
+        }
+
+    classes = runner_jvm.build_program(case, output, program, "Lacks", edit=lacking)
+    completed = _run(
+        case, classes, str(library), main="Lacks", environment={"DEMO_LIBRARY": str(library)}
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "lacks OK" in completed.stdout
 
 
 def test_a_stale_library_is_refused(demo: tuple[Case, Path, Path, Path], tmp_path: Path) -> None:

@@ -62,8 +62,24 @@ public final class BridgefexKeep {
             releasing = new ArrayList<>(pinned);
             pinned.clear();
         }
+        Throwable failure = null;
         for (BridgefexHandle handle : releasing) {
-            handle.unpin();
+            try {
+                handle.unpin();
+            } catch (Throwable error) {
+                // The others are released all the same.
+                if (failure == null) {
+                    failure = error;
+                } else {
+                    failure.addSuppressed(error);
+                }
+            }
+        }
+        if (failure instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        if (failure instanceof Error fatal) {
+            throw fatal;
         }
     }
 }

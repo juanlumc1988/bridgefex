@@ -14,7 +14,7 @@ import inh.BridgefexUnsigned;
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
  */
-@SuppressWarnings("this-escape")
+@java.lang.SuppressWarnings("this-escape")
 public class Observer extends inh.widget.Tagged {
     /**
      * For the generated code: the handle of a C++ object that already exists.
@@ -46,7 +46,7 @@ public class Observer extends inh.widget.Tagged {
             var __h1 = __t1.pointer();
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.inh_Observer_create(__result, __h1);
-            handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
             BridgefexRuntime.check(__status);
             retain(watched);
         }
@@ -66,14 +66,14 @@ public class Observer extends inh.widget.Tagged {
 
     @java.lang.Override
     public BridgefexLease hold_inh_Tagged(boolean mutable, boolean give) {
-        var lease = hold(mutable, give);
+        var __lease = hold(mutable, give);
         try {
-            java.lang.foreign.MemorySegment view = mutable ? BridgefexNative.inh_Observer_as_inh_Tagged(lease.pointer()) : BridgefexNative.inh_Observer_as_inh_Tagged_const(lease.pointer());
-            return lease.as(view);
+            java.lang.foreign.MemorySegment __view = mutable ? BridgefexNative.inh_Observer_as_inh_Tagged(__lease.pointer()) : BridgefexNative.inh_Observer_as_inh_Tagged_const(__lease.pointer());
+            return __lease.as(__view);
         }
-        catch (java.lang.Throwable error) {
-            lease.close();
-            throw error;
+        catch (java.lang.Throwable __error) {
+            __lease.close();
+            throw __error;
         }
     }
 
@@ -93,14 +93,14 @@ public class Observer extends inh.widget.Tagged {
      * For the generated code: a hold on the object, as one of its other base classes.
      */
     public BridgefexLease hold_inh_Labeled(boolean mutable, boolean give) {
-        var lease = hold(mutable, give);
+        var __lease = hold(mutable, give);
         try {
-            java.lang.foreign.MemorySegment view = mutable ? BridgefexNative.inh_Observer_as_inh_Labeled(lease.pointer()) : BridgefexNative.inh_Observer_as_inh_Labeled_const(lease.pointer());
-            return lease.as(view);
+            java.lang.foreign.MemorySegment __view = mutable ? BridgefexNative.inh_Observer_as_inh_Labeled(__lease.pointer()) : BridgefexNative.inh_Observer_as_inh_Labeled_const(__lease.pointer());
+            return __lease.as(__view);
         }
-        catch (java.lang.Throwable error) {
-            lease.close();
-            throw error;
+        catch (java.lang.Throwable __error) {
+            __lease.close();
+            throw __error;
         }
     }
 
@@ -108,10 +108,10 @@ public class Observer extends inh.widget.Tagged {
      * This object as a inh::Labeled, which belongs to it: it is valid while this object is, and closing it does not destroy this one.
      */
     public inh.widget.Labeled asLabeled() {
-        try (var lease = hold(false, false)) {
-            var view = inh.widget.Labeled.borrow(BridgefexNative.inh_Observer_as_inh_Labeled_const(lease.pointer()), new BridgefexObject[] {this}, isReadOnly());
-            view.setOrigin(this);
-            return view;
+        try (var __lease = hold(false, false)) {
+            var __view = inh.widget.Labeled.borrow(BridgefexNative.inh_Observer_as_inh_Labeled_const(__lease.pointer()), new BridgefexObject[] {this}, isReadOnly());
+            __view.setOrigin(this);
+            return __view;
         }
     }
 

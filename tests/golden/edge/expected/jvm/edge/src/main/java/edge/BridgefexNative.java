@@ -23,171 +23,196 @@ public final class BridgefexNative {
     public static java.lang.foreign.MemorySegment edge_last_error() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.edge_last_error.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle0.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle0 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment edge_api_fingerprint() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.edge_api_fingerprint.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle1.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle1 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static void edge_free(java.lang.foreign.MemorySegment p_memory) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.edge_free.invokeExact(p_memory);
+            Handle2.HANDLE.invokeExact(p_memory);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle2 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_add(int p_arg1, int p_arg2, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_add.invokeExact(p_arg1, p_arg2, p_out_result);
+            return (int) Handle3.HANDLE.invokeExact(p_arg1, p_arg2, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle3 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_add", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_combine(int p_int32_t_, long p_size_t_, int p_EDGE_OK_, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_combine.invokeExact(p_int32_t_, p_size_t_, p_EDGE_OK_, p_out_result);
+            return (int) Handle4.HANDLE.invokeExact(p_int32_t_, p_size_t_, p_EDGE_OK_, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle4 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_combine", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_SIZE, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, long.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_getattr(int p_value, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_getattr.invokeExact(p_value, p_out_result);
+            return (int) Handle5.HANDLE.invokeExact(p_value, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle5 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_getattr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_threading(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_threading.invokeExact(p_out_result);
+            return (int) Handle6.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle6 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_threading", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_Registry_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_create.invokeExact(p_out_self);
+            return (int) Handle7.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle7 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void edge_Registry_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.edge_Registry_destroy.invokeExact(p_self);
+            Handle8.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle8 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_Registry_classmethod(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_classmethod.invokeExact(p_self, p_out_result);
+            return (int) Handle9.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_classmethod", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_Registry_staticmethod(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_staticmethod.invokeExact(p_self, p_out_result);
+            return (int) Handle10.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_staticmethod", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_Registry_throwOnDestroy(java.lang.foreign.MemorySegment p_self, boolean p_enabled) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_throwOnDestroy.invokeExact(p_self, p_enabled);
+            return (int) Handle11.HANDLE.invokeExact(p_self, p_enabled);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_throwOnDestroy", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BOOL), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, boolean.class));
     }
 
     public static int edge_Registry_fail(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_fail.invokeExact(p_self);
+            return (int) Handle12.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "edge_Registry_fail", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int edge_Registry_liveCount(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.edge_Registry_liveCount.invokeExact(p_out_result);
+            return (int) Handle13.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
-
-    private static final class Handles {
-        static final MethodHandle edge_last_error = BridgefexRuntime.bind(
-            "edge_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_api_fingerprint = BridgefexRuntime.bind(
-            "edge_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_free = BridgefexRuntime.bind(
-            "edge_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_add = BridgefexRuntime.bind(
-            "edge_add", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_combine = BridgefexRuntime.bind(
-            "edge_combine", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_SIZE, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, long.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_getattr = BridgefexRuntime.bind(
-            "edge_getattr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_threading = BridgefexRuntime.bind(
-            "edge_threading", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_create = BridgefexRuntime.bind(
-            "edge_Registry_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_destroy = BridgefexRuntime.bind(
-            "edge_Registry_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_classmethod = BridgefexRuntime.bind(
-            "edge_Registry_classmethod", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_staticmethod = BridgefexRuntime.bind(
-            "edge_Registry_staticmethod", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_throwOnDestroy = BridgefexRuntime.bind(
-            "edge_Registry_throwOnDestroy", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BOOL), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, boolean.class));
-        static final MethodHandle edge_Registry_fail = BridgefexRuntime.bind(
-            "edge_Registry_fail", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle edge_Registry_liveCount = BridgefexRuntime.bind(
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "edge_Registry_liveCount", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 }

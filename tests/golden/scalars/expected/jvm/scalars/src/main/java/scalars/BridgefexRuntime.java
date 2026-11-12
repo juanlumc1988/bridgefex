@@ -45,7 +45,7 @@ public final class BridgefexRuntime {
     /** The environment variable that gives the path of the library. */
     public static final String VARIABLE = "SCALARS_LIBRARY";
 
-    private static final Linker LINKER = Linker.nativeLinker();
+    private static final Linker LINKER = linker();
 
     public static final ValueLayout.OfBoolean C_BOOL = ValueLayout.JAVA_BOOLEAN;
     public static final ValueLayout.OfByte C_BYTE = ValueLayout.JAVA_BYTE;
@@ -65,6 +65,16 @@ public final class BridgefexRuntime {
 
     private static volatile boolean loaded;
     private static SymbolLookup lookup;
+
+    private static Linker linker() {
+        try {
+            return Linker.nativeLinker();
+        } catch (UnsupportedOperationException error) {
+            throw new UnsupportedOperationException("this JDK has no native linker for this platform ("
+                + System.getProperty("os.name") + ", " + System.getProperty("os.arch")
+                + "): the Java bindings call C through the foreign function API", error);
+        }
+    }
 
     // -- the library -------------------------------------------------------------------------
 
@@ -93,15 +103,29 @@ public final class BridgefexRuntime {
         }
         Arena forever = Arena.global();
         if (given != null && !given.isEmpty()) {
+            RuntimeException cause;
             try {
                 return SymbolLookup.libraryLookup(Path.of(given), forever);
             } catch (RuntimeException error) {
-                throw new UnsatisfiedLinkError("cannot load the library '" + given + "' (the property " + PROPERTY
-                    + " or the environment variable " + VARIABLE + "): " + error.getMessage());
+                cause = error;
             }
+            if (given.indexOf('/') < 0 && given.indexOf('\\') < 0) {
+                try {
+                    // A bare name is searched by the system, as the other languages do.
+                    return SymbolLookup.libraryLookup(given, forever);
+                } catch (RuntimeException error) {
+                    cause.addSuppressed(error);
+                }
+            }
+            UnsatisfiedLinkError failure = new UnsatisfiedLinkError("cannot load the library '" + given
+                + "' (the property " + PROPERTY + " or the environment variable " + VARIABLE + "): "
+                + cause.getMessage());
+            failure.initCause(cause);
+            throw failure;
         }
         String file = System.mapLibraryName(LIBRARY);
         String path = System.getProperty("java.library.path", "");
+        RuntimeException refused = null;
         for (String directory : path.split(java.io.File.pathSeparator)) {
             if (directory.isEmpty()) {
                 continue;
@@ -112,15 +136,22 @@ public final class BridgefexRuntime {
                     return SymbolLookup.libraryLookup(candidate, forever);
                 } catch (RuntimeException error) {
                     // Another one may do.
+                    if (refused == null) {
+                        refused = error;
+                    }
                 }
             }
         }
         try {
             return SymbolLookup.libraryLookup(file, forever);
         } catch (RuntimeException error) {
-            throw new UnsatisfiedLinkError("cannot find the library '" + file + "' of the module '" + LIBRARY
-                + "': put it on java.library.path or the library search path of the system, or set the property "
-                + PROPERTY + " or the environment variable " + VARIABLE + " to its path");
+            String why = refused == null ? "" : " (the one on java.library.path was refused: " + refused.getMessage() + ")";
+            UnsatisfiedLinkError failure = new UnsatisfiedLinkError("cannot find the library '" + file
+                + "' of the module '" + LIBRARY + "'" + why + ": put it on java.library.path or the library "
+                + "search path of the system, or set the property " + PROPERTY + " or the environment variable "
+                + VARIABLE + " to its path");
+            failure.initCause(refused == null ? error : refused);
+            throw failure;
         }
     }
 
@@ -164,7 +195,8 @@ public final class BridgefexRuntime {
         try {
             MemorySegment text = BridgefexNative.lastError();
             if (text.address() != 0L) {
-                message = readCString(text);
+                // Whatever C++ wrote is shown: the text of an error is not worth losing for its encoding.
+                message = readCString(text, false);
             }
         } catch (RuntimeException error) {
             message = "(the message of the error could not be read: " + error + ")";
@@ -192,12 +224,17 @@ public final class BridgefexRuntime {
 
     /** A text that C++ gave as a C string. */
     private static String readCString(MemorySegment text) {
+        return readCString(text, true);
+    }
+
+    private static String readCString(MemorySegment text, boolean strict) {
         MemorySegment all = text.reinterpret(Long.MAX_VALUE);
         long length = 0;
         while (all.get(ValueLayout.JAVA_BYTE, length) != 0) {
             length++;
         }
-        return strictDecode(all.asSlice(0, length).toArray(ValueLayout.JAVA_BYTE), "the text of C++");
+        byte[] bytes = all.asSlice(0, length).toArray(ValueLayout.JAVA_BYTE);
+        return strict ? strictDecode(bytes, "the text of C++") : new String(bytes, StandardCharsets.UTF_8);
     }
 
     // -- structs -----------------------------------------------------------------------------
@@ -358,6 +395,24 @@ public final class BridgefexRuntime {
         return (int) value;
     }
 
+    /** An unsigned 8-bit argument of a downcall, which goes as a 32-bit integer: the callee may rely
+     * on the caller to have extended it as an unsigned value (clang does), and a layout of one byte
+     * is extended as a signed one. */
+    public static int argU8(String name, short value) {
+        if (value < 0 || value > 0xFF) {
+            throw range(name, value, "an unsigned 8-bit integer (0..255)");
+        }
+        return value;
+    }
+
+    /** An unsigned 16-bit argument of a downcall: see {@link #argU8}. */
+    public static int argU16(String name, int value) {
+        if (value < 0 || value > 0xFFFF) {
+            throw range(name, value, "an unsigned 16-bit integer (0..65535)");
+        }
+        return value;
+    }
+
     public static short fromU8(byte value) {
         return (short) Byte.toUnsignedInt(value);
     }
@@ -386,9 +441,10 @@ public final class BridgefexRuntime {
         return value;
     }
 
-    /** A size: it cannot be negative (a size of 2^63 or more is no size). */
+    /** A size: its bits (on 64 bits, {@code -1L} is 2^64-1, {@code std::string::npos}, as it comes
+     * back from C++); on a platform with 32 bits, a value that does not fit them is refused. */
     public static long toSize(String name, long value) {
-        if (value < 0 || !SIZE_IS_64 && value > 0xFFFFFFFFL) {
+        if (!SIZE_IS_64 && (value < 0 || value > 0xFFFFFFFFL)) {
             throw range(name, value, "a size_t of this platform");
         }
         return value;

@@ -2,6 +2,7 @@
 package edge;
 
 import java.lang.foreign.MemorySegment;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
@@ -17,9 +18,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * <li>closing destroys the object, always, when no call uses it;</li>
  * <li>giving the object to C++ needs it for the call alone: no other call uses it, nobody else is
  * giving it, and no C++ object points to it (a <i>pin</i>);</li>
- * <li>the collector destroys the object only when no C++ object points to it any more (a pin defers
- * it): the order in which unreachable objects are cleaned is not defined, and a destructor may use
- * what it points to.</li>
+ * <li>the collector destroys the object only when no call uses it and no C++ object points to it any
+ * more (a pin defers it): the order in which unreachable objects are cleaned is not defined, and a
+ * destructor may use what it points to.</li>
  * </ul>
  * An object that belongs to C++ (a reference or a pointer that a function gave) is not destroyed by
  * any of them.
@@ -43,9 +44,14 @@ public final class BridgefexHandle implements Runnable {
         OK, CLOSED, BUSY, PINNED
     }
 
+    /** The handles that this thread has to close once the one that it is closing is destroyed: what a
+     * chain of objects that point to one another releases is not released by recursion. */
+    private static final ThreadLocal<ArrayDeque<BridgefexHandle>> DRAINING = new ThreadLocal<>();
+
     private final AtomicInteger state = new AtomicInteger();
     private int pins;
-    private boolean deferred;
+    /** The collector found the wrapper unreachable, and the object is still in use or pointed to. */
+    private volatile boolean deferred;
     private final AtomicBoolean destroyed = new AtomicBoolean();
     private final boolean owns;
     private final Destroyer destroyer;
@@ -128,8 +134,13 @@ public final class BridgefexHandle implements Runnable {
                 next &= ~CLAIMED; // a claim that did not give the object ends with the call
             }
             if (state.compareAndSet(current, next)) {
-                if ((next & DISPOSED) != 0 && (next & (LEASE_MASK | GIVEN)) == 0) {
-                    destroyNow();
+                if ((next & LEASE_MASK) == 0) {
+                    if ((next & (DISPOSED | GIVEN)) == DISPOSED) {
+                        destroyNow();
+                    }
+                    if (deferred) {
+                        settle(); // the collector found the wrapper while the call was running
+                    }
                 }
                 return;
             }
@@ -158,44 +169,82 @@ public final class BridgefexHandle implements Runnable {
         }
     }
 
-    /** The C++ object of another handle points to this one. */
-    void pin() {
+    /** The C++ object of another handle points to this one. For the generated code. */
+    public void pin() {
         synchronized (GATE) {
             pins++;
         }
     }
 
-    void unpin() {
-        boolean destroy;
+    /** The C++ object that pointed to this one is gone. For the generated code. */
+    public void unpin() {
         synchronized (GATE) {
             pins--;
-            destroy = pins == 0 && deferred;
-            if (destroy) {
-                deferred = false;
-                DEFERRED.remove(this);
-            }
         }
-        if (destroy) {
-            closeObject();
-        }
+        settle();
     }
 
     /**
-     * The collector found the wrapper unreachable: nobody can start a call on the object, but one
-     * may be running (the compiler may take a reference for dead after the call started), and it
-     * is not destroyed under it.
+     * The collector found the wrapper unreachable: nobody can start a call on the object, but one may
+     * be running (the compiler may take a reference for dead after the call started, and the call may
+     * still make a C++ object point to this one), and it is not destroyed under it nor while a C++
+     * object points to it. It is closed when the last of them is gone.
      */
     @Override
     public void run() {
         synchronized (GATE) {
-            if (pins > 0) {
-                // The C++ objects that point to this one are destroyed first (they are unreachable too).
-                deferred = true;
-                DEFERRED.add(this);
-                return;
+            deferred = true; // before the leases are read: releaseLease reads it after it lowers them
+            DEFERRED.add(this);
+        }
+        settle();
+    }
+
+    /** Closes a handle that the collector found, once nothing uses it nor points to it. */
+    private void settle() {
+        boolean ready;
+        synchronized (GATE) {
+            ready = deferred && pins == 0 && (state.get() & LEASE_MASK) == 0;
+            if (ready) {
+                deferred = false;
+                DEFERRED.remove(this);
             }
         }
-        closeObject();
+        if (ready) {
+            closeInTurn();
+        }
+    }
+
+    /** Closes this handle: now, unless this thread is already destroying one (then, after it). */
+    private void closeInTurn() {
+        ArrayDeque<BridgefexHandle> queue = DRAINING.get();
+        if (queue != null) {
+            queue.add(this);
+            return;
+        }
+        queue = new ArrayDeque<>();
+        DRAINING.set(queue);
+        Throwable failure = null;
+        try {
+            for (BridgefexHandle next = this; next != null; next = queue.poll()) {
+                try {
+                    next.closeObject();
+                } catch (Throwable error) {
+                    if (failure == null) {
+                        failure = error;
+                    } else {
+                        failure.addSuppressed(error);
+                    }
+                }
+            }
+        } finally {
+            DRAINING.remove();
+        }
+        if (failure instanceof RuntimeException runtime) {
+            throw runtime;
+        }
+        if (failure instanceof Error fatal) {
+            throw fatal;
+        }
     }
 
     private void destroyNow() {

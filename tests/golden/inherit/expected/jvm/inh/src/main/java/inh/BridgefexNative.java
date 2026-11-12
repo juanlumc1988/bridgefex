@@ -23,1131 +23,1316 @@ public final class BridgefexNative {
     public static java.lang.foreign.MemorySegment inh_last_error() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_last_error.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle0.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle0 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_api_fingerprint() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_api_fingerprint.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle1.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle1 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_free(java.lang.foreign.MemorySegment p_memory) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_free.invokeExact(p_memory);
+            Handle2.HANDLE.invokeExact(p_memory);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle2 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Named_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Named_destroy.invokeExact(p_self);
+            Handle3.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle3 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Named_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Named_name(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Named_name.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle4.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle4 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Named_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Named_greeting(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Named_greeting.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle5.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle5 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Named_greeting", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Shape_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Shape_destroy.invokeExact(p_self);
+            Handle6.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle6 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Shape_as_inh_Named(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Shape_as_inh_Named.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle7.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle7 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Shape_as_inh_Named_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Shape_as_inh_Named_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle8.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle8 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shape_area(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shape_area.invokeExact(p_self, p_out_result);
+            return (int) Handle9.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shape_sides(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shape_sides.invokeExact(p_self, p_out_result);
+            return (int) Handle10.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shape_describe(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shape_describe.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle11.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_describe", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shape_scale(java.lang.foreign.MemorySegment p_self, int p_factor, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shape_scale.invokeExact(p_self, p_factor, p_out_result);
+            return (int) Handle12.HANDLE.invokeExact(p_self, p_factor, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shape_scaled(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shape_scaled.invokeExact(p_self, p_out_result);
+            return (int) Handle13.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shape_scaled", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Circle_create(java.lang.foreign.MemorySegment p_out_self, double p_radius) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Circle_create.invokeExact(p_out_self, p_radius);
+            return (int) Handle14.HANDLE.invokeExact(p_out_self, p_radius);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle14 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
     }
 
     public static void inh_Circle_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Circle_destroy.invokeExact(p_self);
+            Handle15.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle15 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Circle_as_inh_Shape(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Circle_as_inh_Shape.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle16.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle16 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Circle_as_inh_Shape_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Circle_as_inh_Shape_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle17.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle17 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Circle_as_inh_Named(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Circle_as_inh_Named.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle18.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle18 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Circle_as_inh_Named_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Circle_as_inh_Named_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle19.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle19 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Circle_name(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Circle_name.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle20.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle20 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Circle_area(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Circle_area.invokeExact(p_self, p_out_result);
+            return (int) Handle21.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle21 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Circle_radius(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Circle_radius.invokeExact(p_self, p_out_result);
+            return (int) Handle22.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle22 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_radius", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Circle_scale(java.lang.foreign.MemorySegment p_self, double p_factor, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Circle_scale.invokeExact(p_self, p_factor, p_out_result);
+            return (int) Handle23.HANDLE.invokeExact(p_self, p_factor, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle23 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Circle_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Square_create(java.lang.foreign.MemorySegment p_out_self, double p_side) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Square_create.invokeExact(p_out_self, p_side);
+            return (int) Handle24.HANDLE.invokeExact(p_out_self, p_side);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle24 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
     }
 
     public static void inh_Square_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Square_destroy.invokeExact(p_self);
+            Handle25.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle25 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Square_as_inh_Shape(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Square_as_inh_Shape.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle26.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle26 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Square_as_inh_Shape_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Square_as_inh_Shape_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle27.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle27 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Square_as_inh_Named(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Square_as_inh_Named.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle28.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle28 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Square_as_inh_Named_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Square_as_inh_Named_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle29.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle29 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Square_name(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Square_name.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle30.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle30 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Square_area(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Square_area.invokeExact(p_self, p_out_result);
+            return (int) Handle31.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle31 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Square_sides(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Square_sides.invokeExact(p_self, p_out_result);
+            return (int) Handle32.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle32 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Square_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Ring_create(java.lang.foreign.MemorySegment p_out_self, double p_outer, double p_inner) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Ring_create.invokeExact(p_out_self, p_outer, p_inner);
+            return (int) Handle33.HANDLE.invokeExact(p_out_self, p_outer, p_inner);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle33 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class));
     }
 
     public static void inh_Ring_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Ring_destroy.invokeExact(p_self);
+            Handle34.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle34 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Circle(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Circle.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle35.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle35 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Circle", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Circle_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Circle_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle36.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle36 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Circle_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Shape(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Shape.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle37.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle37 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Shape_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Shape_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle38.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle38 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Named(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Named.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle39.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle39 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Ring_as_inh_Named_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Ring_as_inh_Named_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle40.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle40 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Ring_name(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Ring_name.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle41.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle41 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Ring_area(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Ring_area.invokeExact(p_self, p_out_result);
+            return (int) Handle42.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle42 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Ring_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_make_shape(int p_kind, double p_size, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_make_shape.invokeExact(p_kind, p_size, p_out_result);
+            return (int) Handle43.HANDLE.invokeExact(p_kind, p_size, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle43 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_make_shape", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, double.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_total_area(java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_total_area.invokeExact(p_first, p_second, p_out_result);
+            return (int) Handle44.HANDLE.invokeExact(p_first, p_second, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle44 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_total_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_grow(java.lang.foreign.MemorySegment p_shape, int p_factor, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_grow.invokeExact(p_shape, p_factor, p_out_result);
+            return (int) Handle45.HANDLE.invokeExact(p_shape, p_factor, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle45 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_describe_first(java.lang.foreign.MemorySegment p_shape, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_describe_first.invokeExact(p_shape, p_out_result, p_out_result_size);
+            return (int) Handle46.HANDLE.invokeExact(p_shape, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle46 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_describe_first", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_call_name(java.lang.foreign.MemorySegment p_named, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_call_name.invokeExact(p_named, p_out_result, p_out_result_size);
+            return (int) Handle47.HANDLE.invokeExact(p_named, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle47 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_call_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_largest(java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_largest.invokeExact(p_first, p_second, p_out_result);
+            return (int) Handle48.HANDLE.invokeExact(p_first, p_second, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle48 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_largest", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_consume(java.lang.foreign.MemorySegment p_shape, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_consume.invokeExact(p_shape, p_out_result);
+            return (int) Handle49.HANDLE.invokeExact(p_shape, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle49 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_consume", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_shapes_alive(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_shapes_alive.invokeExact(p_out_result);
+            return (int) Handle50.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle50 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_shapes_alive", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Counter_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Counter_create.invokeExact(p_out_self);
+            return (int) Handle51.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle51 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Counter_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Counter_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Counter_destroy.invokeExact(p_self);
+            Handle52.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle52 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Counter_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Counter_next(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Counter_next.invokeExact(p_self, p_out_result);
+            return (int) Handle53.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle53 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Counter_next", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Counter_count(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Counter_count.invokeExact(p_self, p_out_result);
+            return (int) Handle54.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle54 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Counter_count", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Labeled_create_void(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Labeled_create_void.invokeExact(p_out_self);
+            return (int) Handle55.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle55 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Labeled_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Labeled_create_string(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_label, long p_label_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Labeled_create_string.invokeExact(p_out_self, p_label, p_label_size);
+            return (int) Handle56.HANDLE.invokeExact(p_out_self, p_label, p_label_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle56 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Labeled_create_string", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
     }
 
     public static void inh_Labeled_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Labeled_destroy.invokeExact(p_self);
+            Handle57.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle57 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Labeled_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Labeled_label(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Labeled_label.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle58.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle58 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Labeled_label", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Labeled_setLabel(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_label, long p_label_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Labeled_setLabel.invokeExact(p_self, p_label, p_label_size);
+            return (int) Handle59.HANDLE.invokeExact(p_self, p_label, p_label_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle59 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Labeled_setLabel", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
     }
 
     public static int inh_Widget_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Widget_create.invokeExact(p_out_self);
+            return (int) Handle60.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle60 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Widget_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Widget_destroy.invokeExact(p_self);
+            Handle61.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle61 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Widget_as_inh_Counter(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Widget_as_inh_Counter.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle62.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle62 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_as_inh_Counter", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Widget_as_inh_Counter_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Widget_as_inh_Counter_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle63.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle63 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_as_inh_Counter_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Widget_as_inh_Labeled(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Widget_as_inh_Labeled.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle64.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle64 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_as_inh_Labeled", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Widget_as_inh_Labeled_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Widget_as_inh_Labeled_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle65.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle65 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_as_inh_Labeled_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Widget_label(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Widget_label.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle66.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle66 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_label", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Widget_both(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Widget_both.invokeExact(p_self, p_out_result);
+            return (int) Handle67.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle67 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Widget_both", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_bump(java.lang.foreign.MemorySegment p_counter, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_bump.invokeExact(p_counter, p_out_result);
+            return (int) Handle68.HANDLE.invokeExact(p_counter, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle68 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_bump", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_peek(java.lang.foreign.MemorySegment p_counter, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_peek.invokeExact(p_counter, p_out_result);
+            return (int) Handle69.HANDLE.invokeExact(p_counter, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle69 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_name_of(java.lang.foreign.MemorySegment p_labeled, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_name_of.invokeExact(p_labeled, p_out_result, p_out_result_size);
+            return (int) Handle70.HANDLE.invokeExact(p_labeled, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle70 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_name_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Tagged_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Tagged_create.invokeExact(p_out_self);
+            return (int) Handle71.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle71 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Tagged_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Tagged_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Tagged_destroy.invokeExact(p_self);
+            Handle72.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle72 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Tagged_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Tagged_tag(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Tagged_tag.invokeExact(p_self, p_out_result);
+            return (int) Handle73.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle73 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Tagged_tag", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Observer_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_watched) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Observer_create.invokeExact(p_out_self, p_watched);
+            return (int) Handle74.HANDLE.invokeExact(p_out_self, p_watched);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle74 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Observer_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Observer_destroy.invokeExact(p_self);
+            Handle75.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle75 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Observer_as_inh_Tagged(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Observer_as_inh_Tagged.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle76.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle76 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_as_inh_Tagged", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Observer_as_inh_Tagged_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Observer_as_inh_Tagged_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle77.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle77 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_as_inh_Tagged_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Observer_as_inh_Labeled(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Observer_as_inh_Labeled.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle78.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle78 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_as_inh_Labeled", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_Observer_as_inh_Labeled_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_Observer_as_inh_Labeled_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle79.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle79 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_as_inh_Labeled_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Observer_watched(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Observer_watched.invokeExact(p_self, p_out_result);
+            return (int) Handle80.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle80 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Observer_watched", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shelf_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shelf_create.invokeExact(p_out_self);
+            return (int) Handle81.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle81 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shelf_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Shelf_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Shelf_destroy.invokeExact(p_self);
+            Handle82.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle82 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shelf_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shelf_put(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_item) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shelf_put.invokeExact(p_self, p_item);
+            return (int) Handle83.HANDLE.invokeExact(p_self, p_item);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle83 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shelf_put", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Shelf_pop(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Shelf_pop.invokeExact(p_self, p_out_result);
+            return (int) Handle84.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle84 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Shelf_pop", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Plain_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Plain_create.invokeExact(p_out_self);
+            return (int) Handle85.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle85 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Plain_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_Plain_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_Plain_destroy.invokeExact(p_self);
+            Handle86.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle86 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Plain_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_Plain_value(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_Plain_value.invokeExact(p_self, p_out_result);
+            return (int) Handle87.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle87 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_Plain_value", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_PlainDerived_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_PlainDerived_create.invokeExact(p_out_self);
+            return (int) Handle88.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle88 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_PlainDerived_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void inh_PlainDerived_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.inh_PlainDerived_destroy.invokeExact(p_self);
+            Handle89.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle89 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_PlainDerived_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_PlainDerived_as_inh_Plain(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_PlainDerived_as_inh_Plain.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle90.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle90 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_PlainDerived_as_inh_Plain", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment inh_PlainDerived_as_inh_Plain_const(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.inh_PlainDerived_as_inh_Plain_const.invokeExact(p_self);
+            return (java.lang.foreign.MemorySegment) Handle91.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle91 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_PlainDerived_as_inh_Plain_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_PlainDerived_extra(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_PlainDerived_extra.invokeExact(p_self, p_out_result);
+            return (int) Handle92.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle92 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "inh_PlainDerived_extra", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int inh_take_plain(java.lang.foreign.MemorySegment p_plain, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.inh_take_plain.invokeExact(p_plain, p_out_result);
+            return (int) Handle93.HANDLE.invokeExact(p_plain, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
-
-    private static final class Handles {
-        static final MethodHandle inh_last_error = BridgefexRuntime.bind(
-            "inh_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_api_fingerprint = BridgefexRuntime.bind(
-            "inh_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_free = BridgefexRuntime.bind(
-            "inh_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Named_destroy = BridgefexRuntime.bind(
-            "inh_Named_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Named_name = BridgefexRuntime.bind(
-            "inh_Named_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Named_greeting = BridgefexRuntime.bind(
-            "inh_Named_greeting", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_destroy = BridgefexRuntime.bind(
-            "inh_Shape_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_as_inh_Named = BridgefexRuntime.bind(
-            "inh_Shape_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_as_inh_Named_const = BridgefexRuntime.bind(
-            "inh_Shape_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_area = BridgefexRuntime.bind(
-            "inh_Shape_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_sides = BridgefexRuntime.bind(
-            "inh_Shape_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_describe = BridgefexRuntime.bind(
-            "inh_Shape_describe", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_scale = BridgefexRuntime.bind(
-            "inh_Shape_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shape_scaled = BridgefexRuntime.bind(
-            "inh_Shape_scaled", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_create = BridgefexRuntime.bind(
-            "inh_Circle_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
-        static final MethodHandle inh_Circle_destroy = BridgefexRuntime.bind(
-            "inh_Circle_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_as_inh_Shape = BridgefexRuntime.bind(
-            "inh_Circle_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_as_inh_Shape_const = BridgefexRuntime.bind(
-            "inh_Circle_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_as_inh_Named = BridgefexRuntime.bind(
-            "inh_Circle_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_as_inh_Named_const = BridgefexRuntime.bind(
-            "inh_Circle_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_name = BridgefexRuntime.bind(
-            "inh_Circle_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_area = BridgefexRuntime.bind(
-            "inh_Circle_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_radius = BridgefexRuntime.bind(
-            "inh_Circle_radius", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Circle_scale = BridgefexRuntime.bind(
-            "inh_Circle_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_create = BridgefexRuntime.bind(
-            "inh_Square_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
-        static final MethodHandle inh_Square_destroy = BridgefexRuntime.bind(
-            "inh_Square_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_as_inh_Shape = BridgefexRuntime.bind(
-            "inh_Square_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_as_inh_Shape_const = BridgefexRuntime.bind(
-            "inh_Square_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_as_inh_Named = BridgefexRuntime.bind(
-            "inh_Square_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_as_inh_Named_const = BridgefexRuntime.bind(
-            "inh_Square_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_name = BridgefexRuntime.bind(
-            "inh_Square_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_area = BridgefexRuntime.bind(
-            "inh_Square_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Square_sides = BridgefexRuntime.bind(
-            "inh_Square_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_create = BridgefexRuntime.bind(
-            "inh_Ring_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class));
-        static final MethodHandle inh_Ring_destroy = BridgefexRuntime.bind(
-            "inh_Ring_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Circle = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Circle", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Circle_const = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Circle_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Shape = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Shape", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Shape_const = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Shape_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Named = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Named", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_as_inh_Named_const = BridgefexRuntime.bind(
-            "inh_Ring_as_inh_Named_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_name = BridgefexRuntime.bind(
-            "inh_Ring_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Ring_area = BridgefexRuntime.bind(
-            "inh_Ring_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_make_shape = BridgefexRuntime.bind(
-            "inh_make_shape", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, int.class, double.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_total_area = BridgefexRuntime.bind(
-            "inh_total_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_grow = BridgefexRuntime.bind(
-            "inh_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_describe_first = BridgefexRuntime.bind(
-            "inh_describe_first", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_call_name = BridgefexRuntime.bind(
-            "inh_call_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_largest = BridgefexRuntime.bind(
-            "inh_largest", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_consume = BridgefexRuntime.bind(
-            "inh_consume", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_shapes_alive = BridgefexRuntime.bind(
-            "inh_shapes_alive", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Counter_create = BridgefexRuntime.bind(
-            "inh_Counter_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Counter_destroy = BridgefexRuntime.bind(
-            "inh_Counter_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Counter_next = BridgefexRuntime.bind(
-            "inh_Counter_next", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Counter_count = BridgefexRuntime.bind(
-            "inh_Counter_count", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Labeled_create_void = BridgefexRuntime.bind(
-            "inh_Labeled_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Labeled_create_string = BridgefexRuntime.bind(
-            "inh_Labeled_create_string", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
-        static final MethodHandle inh_Labeled_destroy = BridgefexRuntime.bind(
-            "inh_Labeled_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Labeled_label = BridgefexRuntime.bind(
-            "inh_Labeled_label", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Labeled_setLabel = BridgefexRuntime.bind(
-            "inh_Labeled_setLabel", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
-        static final MethodHandle inh_Widget_create = BridgefexRuntime.bind(
-            "inh_Widget_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_destroy = BridgefexRuntime.bind(
-            "inh_Widget_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_as_inh_Counter = BridgefexRuntime.bind(
-            "inh_Widget_as_inh_Counter", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_as_inh_Counter_const = BridgefexRuntime.bind(
-            "inh_Widget_as_inh_Counter_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_as_inh_Labeled = BridgefexRuntime.bind(
-            "inh_Widget_as_inh_Labeled", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_as_inh_Labeled_const = BridgefexRuntime.bind(
-            "inh_Widget_as_inh_Labeled_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_label = BridgefexRuntime.bind(
-            "inh_Widget_label", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Widget_both = BridgefexRuntime.bind(
-            "inh_Widget_both", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_bump = BridgefexRuntime.bind(
-            "inh_bump", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_peek = BridgefexRuntime.bind(
-            "inh_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_name_of = BridgefexRuntime.bind(
-            "inh_name_of", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Tagged_create = BridgefexRuntime.bind(
-            "inh_Tagged_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Tagged_destroy = BridgefexRuntime.bind(
-            "inh_Tagged_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Tagged_tag = BridgefexRuntime.bind(
-            "inh_Tagged_tag", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_create = BridgefexRuntime.bind(
-            "inh_Observer_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_destroy = BridgefexRuntime.bind(
-            "inh_Observer_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_as_inh_Tagged = BridgefexRuntime.bind(
-            "inh_Observer_as_inh_Tagged", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_as_inh_Tagged_const = BridgefexRuntime.bind(
-            "inh_Observer_as_inh_Tagged_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_as_inh_Labeled = BridgefexRuntime.bind(
-            "inh_Observer_as_inh_Labeled", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_as_inh_Labeled_const = BridgefexRuntime.bind(
-            "inh_Observer_as_inh_Labeled_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Observer_watched = BridgefexRuntime.bind(
-            "inh_Observer_watched", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shelf_create = BridgefexRuntime.bind(
-            "inh_Shelf_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shelf_destroy = BridgefexRuntime.bind(
-            "inh_Shelf_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shelf_put = BridgefexRuntime.bind(
-            "inh_Shelf_put", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Shelf_pop = BridgefexRuntime.bind(
-            "inh_Shelf_pop", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Plain_create = BridgefexRuntime.bind(
-            "inh_Plain_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Plain_destroy = BridgefexRuntime.bind(
-            "inh_Plain_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_Plain_value = BridgefexRuntime.bind(
-            "inh_Plain_value", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_PlainDerived_create = BridgefexRuntime.bind(
-            "inh_PlainDerived_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_PlainDerived_destroy = BridgefexRuntime.bind(
-            "inh_PlainDerived_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_PlainDerived_as_inh_Plain = BridgefexRuntime.bind(
-            "inh_PlainDerived_as_inh_Plain", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_PlainDerived_as_inh_Plain_const = BridgefexRuntime.bind(
-            "inh_PlainDerived_as_inh_Plain_const", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_PlainDerived_extra = BridgefexRuntime.bind(
-            "inh_PlainDerived_extra", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle inh_take_plain = BridgefexRuntime.bind(
+    private static final class Handle93 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "inh_take_plain", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 }

@@ -23,963 +23,1120 @@ public final class BridgefexNative {
     public static java.lang.foreign.MemorySegment own_last_error() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.own_last_error.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle0.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle0 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment own_api_fingerprint() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.own_api_fingerprint.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle1.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle1 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_free(java.lang.foreign.MemorySegment p_memory) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_free.invokeExact(p_memory);
+            Handle2.HANDLE.invokeExact(p_memory);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle2 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Node_create(java.lang.foreign.MemorySegment p_out_self, int p_value) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_create.invokeExact(p_out_self, p_value);
+            return (int) Handle3.HANDLE.invokeExact(p_out_self, p_value);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle3 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static void own_Node_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Node_destroy.invokeExact(p_self);
+            Handle4.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle4 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Node_value(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_value.invokeExact(p_self, p_out_result);
+            return (int) Handle5.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle5 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_value", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Node_setValue(java.lang.foreign.MemorySegment p_self, int p_value) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_setValue.invokeExact(p_self, p_value);
+            return (int) Handle6.HANDLE.invokeExact(p_self, p_value);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle6 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_setValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static int own_Node_live(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_live.invokeExact(p_out_result);
+            return (int) Handle7.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle7 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_live", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Node_me(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_me.invokeExact(p_self, p_out_result);
+            return (int) Handle8.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle8 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_me", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Node_cme(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Node_cme.invokeExact(p_self, p_out_result);
+            return (int) Handle9.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Node_cme", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Item_create(java.lang.foreign.MemorySegment p_out_self, int p_id) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Item_create.invokeExact(p_out_self, p_id);
+            return (int) Handle10.HANDLE.invokeExact(p_out_self, p_id);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Item_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static void own_Item_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Item_destroy.invokeExact(p_self);
+            Handle11.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Item_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Item_id(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Item_id.invokeExact(p_self, p_out_result);
+            return (int) Handle12.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Item_id", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Item_live(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Item_live.invokeExact(p_out_result);
+            return (int) Handle13.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Item_live", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_create.invokeExact(p_out_self);
+            return (int) Handle14.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle14 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_Tree_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Tree_destroy.invokeExact(p_self);
+            Handle15.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle15 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_sum(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_a, java.lang.foreign.MemorySegment p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_sum.invokeExact(p_self, p_a, p_b, p_out_result);
+            return (int) Handle16.HANDLE.invokeExact(p_self, p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle16 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_sum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_bump(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_bump.invokeExact(p_self, p_node);
+            return (int) Handle17.HANDLE.invokeExact(p_self, p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle17 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_bump", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_read(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_read.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle18.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle18 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_read", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_write(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, int p_value) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_write.invokeExact(p_self, p_node, p_value);
+            return (int) Handle19.HANDLE.invokeExact(p_self, p_node, p_value);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle19 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_write", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static int own_Tree_addCopy(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_addCopy.invokeExact(p_self, p_node);
+            return (int) Handle20.HANDLE.invokeExact(p_self, p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle20 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_addCopy", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_copies(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_copies.invokeExact(p_self, p_out_result);
+            return (int) Handle21.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle21 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_copies", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_adopt(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_item) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_adopt.invokeExact(p_self, p_item);
+            return (int) Handle22.HANDLE.invokeExact(p_self, p_item);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle22 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_adoptBoth(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_first, int p_tag, java.lang.foreign.MemorySegment p_second) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_adoptBoth.invokeExact(p_self, p_first, p_tag, p_second);
+            return (int) Handle23.HANDLE.invokeExact(p_self, p_first, p_tag, p_second);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle23 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_adoptBoth", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_slowAdopt(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_item, int p_milliseconds) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_slowAdopt.invokeExact(p_self, p_item, p_milliseconds);
+            return (int) Handle24.HANDLE.invokeExact(p_self, p_item, p_milliseconds);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle24 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_slowAdopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static int own_Tree_first(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_first.invokeExact(p_self, p_out_result);
+            return (int) Handle25.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle25 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_first", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_items(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_items.invokeExact(p_self, p_out_result);
+            return (int) Handle26.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle26 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_items", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_itemSum(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_itemSum.invokeExact(p_self, p_out_result);
+            return (int) Handle27.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle27 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_itemSum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_find(java.lang.foreign.MemorySegment p_self, int p_value, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_find.invokeExact(p_self, p_value, p_out_result);
+            return (int) Handle28.HANDLE.invokeExact(p_self, p_value, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle28 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_find", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_cfind(java.lang.foreign.MemorySegment p_self, int p_value, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_cfind.invokeExact(p_self, p_value, p_out_result);
+            return (int) Handle29.HANDLE.invokeExact(p_self, p_value, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle29 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_cfind", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_detach(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_detach.invokeExact(p_self, p_out_result);
+            return (int) Handle30.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle30 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_detach", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_adoptRaw(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_item) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_adoptRaw.invokeExact(p_self, p_item);
+            return (int) Handle31.HANDLE.invokeExact(p_self, p_item);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle31 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_adoptRaw", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_valueOf(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_valueOf.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle32.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle32 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_valueOf", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_both(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_both.invokeExact(p_self, p_first, p_second, p_out_result);
+            return (int) Handle33.HANDLE.invokeExact(p_self, p_first, p_second, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle33 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_both", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_setCursor(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_setCursor.invokeExact(p_self, p_node);
+            return (int) Handle34.HANDLE.invokeExact(p_self, p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle34 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_setCursor", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_cursorValue(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_cursorValue.invokeExact(p_self, p_out_result);
+            return (int) Handle35.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle35 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_cursorValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_setSharedCursor(java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_setSharedCursor.invokeExact(p_node);
+            return (int) Handle36.HANDLE.invokeExact(p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle36 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_setSharedCursor", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_sharedCursorValue(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_sharedCursorValue.invokeExact(p_out_result);
+            return (int) Handle37.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle37 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_sharedCursorValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_labelLength(java.lang.foreign.MemorySegment p_label, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_labelLength.invokeExact(p_label, p_out_result);
+            return (int) Handle38.HANDLE.invokeExact(p_label, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle38 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_labelLength", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_signature(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_signature.invokeExact(p_self, p_out_result, p_out_result_size);
+            return (int) Handle39.HANDLE.invokeExact(p_self, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle39 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_signature", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_weight_own_Node(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_weight_own_Node.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle40.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle40 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_weight_own_Node", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_weight_own_Node_ref(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_weight_own_Node_ref.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle41.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle41 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_weight_own_Node_ref", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_weight_own_Node_cptr(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_weight_own_Node_cptr.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle42.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle42 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_weight_own_Node_cptr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_weight_own_Node_ptr(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_weight_own_Node_ptr.invokeExact(p_self, p_node, p_out_result);
+            return (int) Handle43.HANDLE.invokeExact(p_self, p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle43 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_weight_own_Node_ptr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_twice(java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_twice.invokeExact(p_node, p_out_result);
+            return (int) Handle44.HANDLE.invokeExact(p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle44 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_twice", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_makeNode(java.lang.foreign.MemorySegment p_self, int p_value, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_makeNode.invokeExact(p_self, p_value, p_out_result);
+            return (int) Handle45.HANDLE.invokeExact(p_self, p_value, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle45 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_makeNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_makeChecked(java.lang.foreign.MemorySegment p_self, int p_value, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_makeChecked.invokeExact(p_self, p_value, p_out_result);
+            return (int) Handle46.HANDLE.invokeExact(p_self, p_value, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle46 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_makeChecked", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_makeItem(java.lang.foreign.MemorySegment p_self, int p_id, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_makeItem.invokeExact(p_self, p_id, p_out_result);
+            return (int) Handle47.HANDLE.invokeExact(p_self, p_id, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle47 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_makeItem", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_makeUnique(java.lang.foreign.MemorySegment p_self, int p_id, boolean p_make, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_makeUnique.invokeExact(p_self, p_id, p_make, p_out_result);
+            return (int) Handle48.HANDLE.invokeExact(p_self, p_id, p_make, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle48 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_makeUnique", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_BOOL, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, boolean.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_root(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_root.invokeExact(p_self, p_out_result);
+            return (int) Handle49.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle49 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_root", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_croot(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_croot.invokeExact(p_self, p_out_result);
+            return (int) Handle50.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle50 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_croot", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_global(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_global.invokeExact(p_out_result);
+            return (int) Handle51.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle51 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_global", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_slowMake(java.lang.foreign.MemorySegment p_self, int p_id, int p_milliseconds, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_slowMake.invokeExact(p_self, p_id, p_milliseconds, p_out_result);
+            return (int) Handle52.HANDLE.invokeExact(p_self, p_id, p_milliseconds, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle52 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_slowMake", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Tree_slowNode(java.lang.foreign.MemorySegment p_self, int p_value, int p_milliseconds, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Tree_slowNode.invokeExact(p_self, p_value, p_milliseconds, p_out_result);
+            return (int) Handle53.HANDLE.invokeExact(p_self, p_value, p_milliseconds, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle53 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Tree_slowNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Driver_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Driver_create.invokeExact(p_out_self, p_node);
+            return (int) Handle54.HANDLE.invokeExact(p_out_self, p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle54 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Driver_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_Driver_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Driver_destroy.invokeExact(p_self);
+            Handle55.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle55 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Driver_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Driver_read(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Driver_read.invokeExact(p_self, p_out_result);
+            return (int) Handle56.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle56 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Driver_read", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Pair_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Pair_create.invokeExact(p_out_self, p_first, p_second);
+            return (int) Handle57.HANDLE.invokeExact(p_out_self, p_first, p_second);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle57 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pair_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_Pair_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Pair_destroy.invokeExact(p_self);
+            Handle58.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle58 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pair_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Pair_sum(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Pair_sum.invokeExact(p_self, p_out_result);
+            return (int) Handle59.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle59 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pair_sum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_twin(java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_twin.invokeExact(p_node, p_out_result);
+            return (int) Handle60.HANDLE.invokeExact(p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle60 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_twin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_pick(java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second, boolean p_useSecond, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_pick.invokeExact(p_first, p_second, p_useSecond, p_out_result);
+            return (int) Handle61.HANDLE.invokeExact(p_first, p_second, p_useSecond, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle61 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_pick", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BOOL, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, boolean.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_same(java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_same.invokeExact(p_node, p_out_result);
+            return (int) Handle62.HANDLE.invokeExact(p_node, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle62 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_pickFirst(java.lang.foreign.MemorySegment p_first, java.lang.foreign.MemorySegment p_second, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_pickFirst.invokeExact(p_first, p_second, p_out_result);
+            return (int) Handle63.HANDLE.invokeExact(p_first, p_second, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle63 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_pickFirst", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Pipeline_create_own_Item_unique(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_first) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Pipeline_create_own_Item_unique.invokeExact(p_out_self, p_first);
+            return (int) Handle64.HANDLE.invokeExact(p_out_self, p_first);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle64 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pipeline_create_own_Item_unique", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Pipeline_create_own_Item_unique_int32(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_first, int p_minimum) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Pipeline_create_own_Item_unique_int32.invokeExact(p_out_self, p_first, p_minimum);
+            return (int) Handle65.HANDLE.invokeExact(p_out_self, p_first, p_minimum);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle65 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pipeline_create_own_Item_unique_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
     public static void own_Pipeline_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Pipeline_destroy.invokeExact(p_self);
+            Handle66.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle66 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pipeline_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Pipeline_firstId(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Pipeline_firstId.invokeExact(p_self, p_out_result);
+            return (int) Handle67.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle67 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Pipeline_firstId", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_consume(java.lang.foreign.MemorySegment p_item, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_consume.invokeExact(p_item, p_out_result);
+            return (int) Handle68.HANDLE.invokeExact(p_item, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle68 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_consume", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Box_create(java.lang.foreign.MemorySegment p_out_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Box_create.invokeExact(p_out_self);
+            return (int) Handle69.HANDLE.invokeExact(p_out_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle69 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Box_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_Box_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Box_destroy.invokeExact(p_self);
+            Handle70.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle70 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Box_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Box_put(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_tree) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Box_put.invokeExact(p_self, p_tree);
+            return (int) Handle71.HANDLE.invokeExact(p_self, p_tree);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle71 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Box_put", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Box_pop(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Box_pop.invokeExact(p_self, p_out_result);
+            return (int) Handle72.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle72 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Box_pop", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Peek_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Peek_create.invokeExact(p_out_self, p_node);
+            return (int) Handle73.HANDLE.invokeExact(p_out_self, p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle73 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Peek_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void own_Peek_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.own_Peek_destroy.invokeExact(p_self);
+            Handle74.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle74 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Peek_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_Peek_seen(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_Peek_seen.invokeExact(p_self, p_out_result);
+            return (int) Handle75.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle75 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_Peek_seen", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_setGlobalNode(java.lang.foreign.MemorySegment p_node) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_setGlobalNode.invokeExact(p_node);
+            return (int) Handle76.HANDLE.invokeExact(p_node);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle76 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_setGlobalNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_globalNodeValue(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_globalNodeValue.invokeExact(p_out_result);
+            return (int) Handle77.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle77 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_globalNodeValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_total(java.lang.foreign.MemorySegment p_node, java.lang.foreign.MemorySegment p_item, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_total.invokeExact(p_node, p_item, p_out_result);
+            return (int) Handle78.HANDLE.invokeExact(p_node, p_item, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle78 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "own_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int own_idOf(java.lang.foreign.MemorySegment p_item, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.own_idOf.invokeExact(p_item, p_out_result);
+            return (int) Handle79.HANDLE.invokeExact(p_item, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
-
-    private static final class Handles {
-        static final MethodHandle own_last_error = BridgefexRuntime.bind(
-            "own_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_api_fingerprint = BridgefexRuntime.bind(
-            "own_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_free = BridgefexRuntime.bind(
-            "own_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Node_create = BridgefexRuntime.bind(
-            "own_Node_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Node_destroy = BridgefexRuntime.bind(
-            "own_Node_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Node_value = BridgefexRuntime.bind(
-            "own_Node_value", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Node_setValue = BridgefexRuntime.bind(
-            "own_Node_setValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Node_live = BridgefexRuntime.bind(
-            "own_Node_live", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Node_me = BridgefexRuntime.bind(
-            "own_Node_me", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Node_cme = BridgefexRuntime.bind(
-            "own_Node_cme", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Item_create = BridgefexRuntime.bind(
-            "own_Item_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Item_destroy = BridgefexRuntime.bind(
-            "own_Item_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Item_id = BridgefexRuntime.bind(
-            "own_Item_id", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Item_live = BridgefexRuntime.bind(
-            "own_Item_live", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_create = BridgefexRuntime.bind(
-            "own_Tree_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_destroy = BridgefexRuntime.bind(
-            "own_Tree_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_sum = BridgefexRuntime.bind(
-            "own_Tree_sum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_bump = BridgefexRuntime.bind(
-            "own_Tree_bump", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_read = BridgefexRuntime.bind(
-            "own_Tree_read", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_write = BridgefexRuntime.bind(
-            "own_Tree_write", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Tree_addCopy = BridgefexRuntime.bind(
-            "own_Tree_addCopy", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_copies = BridgefexRuntime.bind(
-            "own_Tree_copies", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_adopt = BridgefexRuntime.bind(
-            "own_Tree_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_adoptBoth = BridgefexRuntime.bind(
-            "own_Tree_adoptBoth", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_slowAdopt = BridgefexRuntime.bind(
-            "own_Tree_slowAdopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Tree_first = BridgefexRuntime.bind(
-            "own_Tree_first", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_items = BridgefexRuntime.bind(
-            "own_Tree_items", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_itemSum = BridgefexRuntime.bind(
-            "own_Tree_itemSum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_find = BridgefexRuntime.bind(
-            "own_Tree_find", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_cfind = BridgefexRuntime.bind(
-            "own_Tree_cfind", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_detach = BridgefexRuntime.bind(
-            "own_Tree_detach", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_adoptRaw = BridgefexRuntime.bind(
-            "own_Tree_adoptRaw", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_valueOf = BridgefexRuntime.bind(
-            "own_Tree_valueOf", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_both = BridgefexRuntime.bind(
-            "own_Tree_both", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_setCursor = BridgefexRuntime.bind(
-            "own_Tree_setCursor", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_cursorValue = BridgefexRuntime.bind(
-            "own_Tree_cursorValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_setSharedCursor = BridgefexRuntime.bind(
-            "own_Tree_setSharedCursor", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_sharedCursorValue = BridgefexRuntime.bind(
-            "own_Tree_sharedCursorValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_labelLength = BridgefexRuntime.bind(
-            "own_Tree_labelLength", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_signature = BridgefexRuntime.bind(
-            "own_Tree_signature", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_weight_own_Node = BridgefexRuntime.bind(
-            "own_Tree_weight_own_Node", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_weight_own_Node_ref = BridgefexRuntime.bind(
-            "own_Tree_weight_own_Node_ref", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_weight_own_Node_cptr = BridgefexRuntime.bind(
-            "own_Tree_weight_own_Node_cptr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_weight_own_Node_ptr = BridgefexRuntime.bind(
-            "own_Tree_weight_own_Node_ptr", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_twice = BridgefexRuntime.bind(
-            "own_Tree_twice", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_makeNode = BridgefexRuntime.bind(
-            "own_Tree_makeNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_makeChecked = BridgefexRuntime.bind(
-            "own_Tree_makeChecked", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_makeItem = BridgefexRuntime.bind(
-            "own_Tree_makeItem", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_makeUnique = BridgefexRuntime.bind(
-            "own_Tree_makeUnique", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_BOOL, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, boolean.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_root = BridgefexRuntime.bind(
-            "own_Tree_root", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_croot = BridgefexRuntime.bind(
-            "own_Tree_croot", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_global = BridgefexRuntime.bind(
-            "own_Tree_global", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_slowMake = BridgefexRuntime.bind(
-            "own_Tree_slowMake", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Tree_slowNode = BridgefexRuntime.bind(
-            "own_Tree_slowNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Driver_create = BridgefexRuntime.bind(
-            "own_Driver_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Driver_destroy = BridgefexRuntime.bind(
-            "own_Driver_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Driver_read = BridgefexRuntime.bind(
-            "own_Driver_read", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pair_create = BridgefexRuntime.bind(
-            "own_Pair_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pair_destroy = BridgefexRuntime.bind(
-            "own_Pair_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pair_sum = BridgefexRuntime.bind(
-            "own_Pair_sum", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_twin = BridgefexRuntime.bind(
-            "own_twin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_pick = BridgefexRuntime.bind(
-            "own_pick", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BOOL, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, boolean.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_same = BridgefexRuntime.bind(
-            "own_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_pickFirst = BridgefexRuntime.bind(
-            "own_pickFirst", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pipeline_create_own_Item_unique = BridgefexRuntime.bind(
-            "own_Pipeline_create_own_Item_unique", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pipeline_create_own_Item_unique_int32 = BridgefexRuntime.bind(
-            "own_Pipeline_create_own_Item_unique_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
-        static final MethodHandle own_Pipeline_destroy = BridgefexRuntime.bind(
-            "own_Pipeline_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Pipeline_firstId = BridgefexRuntime.bind(
-            "own_Pipeline_firstId", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_consume = BridgefexRuntime.bind(
-            "own_consume", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Box_create = BridgefexRuntime.bind(
-            "own_Box_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Box_destroy = BridgefexRuntime.bind(
-            "own_Box_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Box_put = BridgefexRuntime.bind(
-            "own_Box_put", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Box_pop = BridgefexRuntime.bind(
-            "own_Box_pop", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Peek_create = BridgefexRuntime.bind(
-            "own_Peek_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Peek_destroy = BridgefexRuntime.bind(
-            "own_Peek_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_Peek_seen = BridgefexRuntime.bind(
-            "own_Peek_seen", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_setGlobalNode = BridgefexRuntime.bind(
-            "own_setGlobalNode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_globalNodeValue = BridgefexRuntime.bind(
-            "own_globalNodeValue", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_total = BridgefexRuntime.bind(
-            "own_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle own_idOf = BridgefexRuntime.bind(
+    private static final class Handle79 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "own_idOf", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 }

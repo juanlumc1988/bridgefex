@@ -70,11 +70,11 @@ public final class Config {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Config that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Config __that)) {
             return false;
         }
-        return baud == that.baud && parity == that.parity && kind.equals(that.kind);
+        return baud == __that.baud && parity == __that.parity && kind.equals(__that.kind);
     }
 
     @java.lang.Override

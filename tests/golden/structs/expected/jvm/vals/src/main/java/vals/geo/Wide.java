@@ -93,11 +93,11 @@ public final class Wide {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Wide that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Wide __that)) {
             return false;
         }
-        return java.lang.Float.compare(f, that.f) == 0 && big == that.big && size == that.size && l == that.l && c == that.c && java.util.Arrays.equals(bytes, that.bytes);
+        return java.lang.Float.compare(f, __that.f) == 0 && big == __that.big && size == __that.size && l == __that.l && c == __that.c && java.util.Arrays.equals(bytes, __that.bytes);
     }
 
     @java.lang.Override

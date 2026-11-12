@@ -63,11 +63,11 @@ public final class Point {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Point that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Point __that)) {
             return false;
         }
-        return java.lang.Double.compare(x, that.x) == 0 && java.lang.Double.compare(y, that.y) == 0;
+        return java.lang.Double.compare(x, __that.x) == 0 && java.lang.Double.compare(y, __that.y) == 0;
     }
 
     @java.lang.Override

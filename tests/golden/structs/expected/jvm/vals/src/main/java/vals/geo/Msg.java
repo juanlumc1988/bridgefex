@@ -39,7 +39,10 @@ public final class Msg {
     public Msg() {
         where = new vals.geo.Point();
         samples = new short[3];
-        path = new vals.geo.Point[] {new vals.geo.Point(), new vals.geo.Point()};
+        path = new vals.geo.Point[2];
+        for (int __i = 0; __i < 2; __i++) {
+            path[__i] = new vals.geo.Point();
+        }
         quality = vals.geo.Quality.of(0L);
     }
 
@@ -101,11 +104,11 @@ public final class Msg {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Msg that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Msg __that)) {
             return false;
         }
-        return tag == that.tag && where.equals(that.where) && java.util.Arrays.equals(samples, that.samples) && ok == that.ok && java.util.Arrays.equals(path, that.path) && quality.equals(that.quality);
+        return tag == __that.tag && where.equals(__that.where) && java.util.Arrays.equals(samples, __that.samples) && ok == __that.ok && java.util.Arrays.equals(path, __that.path) && quality.equals(__that.quality);
     }
 
     @java.lang.Override

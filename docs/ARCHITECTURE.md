@@ -222,8 +222,10 @@ that says so, instead of a half-working class.
 
 The JVM backend (`backends/jvm`, Java 22 with the foreign function API; a JNI flavor is planned for Android and
 32-bit ARM) has the same parts. `mapping.py` maps `Ffi` to the layouts and the `MethodHandle` types of the downcalls
-(`BridgefexNative` has a static method over a handle for each function of the C API, in a nested class that is
-initialised only after the library was loaded, so that a failed load can be retried), and the scalars to Java types
+(`BridgefexNative` has a static method for each function of the C API over a handle in a nested class of its own,
+which is initialised on the first call of the function, after the library was loaded: a failed load can be retried,
+a function that the library lacks fails alone, and no class initialiser nears the 64 KB that Java limits it to; an
+unsigned argument of 8 or 16 bits goes as a 32-bit integer, which the callee may rely on being extended), and the scalars to Java types
 (no unsigned: a widening and a range check up to 32 bits, `@BridgefexUnsigned long` for 64 bits and `size_t`; the
 canonical layouts for C `long` and `size_t`, which have the width of the platform). `lower.py` lowers a `CallablePlan` to a method:
 a confined `Arena` for the memory of the call (zeroed, closed when the call ends), a `try`
@@ -235,8 +237,10 @@ struct (its layout is the natural one capped at 8, as the `#pragma pack` of the 
 `javac --release 22 -Xlint:all -Werror` when a JDK is there. A garbage collector does not order cleaning either, so
 `BridgefexHandle` has a state of its own (the lease count of the calls that use the object, the closed, claimed and given
 bits, and the pins of the C++ objects that point to it): the `Cleaner` destroys an object only when nothing points to
-it, a pin defers it until the C++ object that points to it was destroyed, and a claim to give an object to C++
-needs it for the call alone. What a wrapper needs from the generated class is public (the handle constructor
+it and no call uses it, a pin defers it until the C++ object that points to it was destroyed (the collector that
+finds a wrapper under a call defers it too: the call may still make a C++ object point to it), what a destruction
+releases is released by a queue of the thread, not by recursion, and a claim to give an object to C++ needs it for
+the call alone. What a wrapper needs from the generated class is public (the handle constructor
 is `protected`, with a static `wrap`, so that `new X(null)` is not ambiguous) but documented as not API.
 
 ## The conformance suite

@@ -69,11 +69,11 @@ public final class Names {
     }
 
     @java.lang.Override
-    public boolean equals(java.lang.Object other) {
-        if (!(other instanceof Names that)) {
+    public boolean equals(java.lang.Object __other) {
+        if (!(__other instanceof Names __that)) {
             return false;
         }
-        return from == that.from && restrict == that.restrict && errno == that.errno;
+        return from == __that.from && restrict == __that.restrict && errno == __that.errno;
     }
 
     @java.lang.Override

@@ -23,339 +23,392 @@ public final class BridgefexNative {
     public static java.lang.foreign.MemorySegment vals_last_error() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.vals_last_error.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle0.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle0 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "vals_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static java.lang.foreign.MemorySegment vals_api_fingerprint() {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handles.vals_api_fingerprint.invokeExact();
+            return (java.lang.foreign.MemorySegment) Handle1.HANDLE.invokeExact();
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle1 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "vals_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
     }
 
     public static void vals_free(java.lang.foreign.MemorySegment p_memory) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.vals_free.invokeExact(p_memory);
+            Handle2.HANDLE.invokeExact(p_memory);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle2 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "vals_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Point_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Point_init.invokeExact(p_out_result);
+            return (int) Handle3.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle3 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Point_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Config_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Config_init.invokeExact(p_out_result);
+            return (int) Handle4.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle4 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Config_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Msg_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Msg_init.invokeExact(p_out_result);
+            return (int) Handle5.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle5 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Msg_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Wide_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Wide_init.invokeExact(p_out_result);
+            return (int) Handle6.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle6 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Wide_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Names_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Names_init.invokeExact(p_out_result);
+            return (int) Handle7.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle7 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Names_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Tagged_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Tagged_init.invokeExact(p_out_result);
+            return (int) Handle8.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle8 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Tagged_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_mid(java.lang.foreign.MemorySegment p_a, java.lang.foreign.MemorySegment p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_mid.invokeExact(p_a, p_b, p_out_result);
+            return (int) Handle9.HANDLE.invokeExact(p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_mid", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_echo(java.lang.foreign.MemorySegment p_m, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_echo.invokeExact(p_m, p_out_result);
+            return (int) Handle10.HANDLE.invokeExact(p_m, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_echo", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_shift(java.lang.foreign.MemorySegment p_m, short p_delta, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_shift.invokeExact(p_m, p_delta, p_out_result);
+            return (int) Handle11.HANDLE.invokeExact(p_m, p_delta, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_shift", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SHORT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, short.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_configure(java.lang.foreign.MemorySegment p_c, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_configure.invokeExact(p_c, p_out_result);
+            return (int) Handle12.HANDLE.invokeExact(p_c, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_configure", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_widen(java.lang.foreign.MemorySegment p_w, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_widen.invokeExact(p_w, p_out_result);
+            return (int) Handle13.HANDLE.invokeExact(p_w, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_widen", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_rename(java.lang.foreign.MemorySegment p_n, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_rename.invokeExact(p_n, p_out_result);
+            return (int) Handle14.HANDLE.invokeExact(p_n, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle14 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_rename", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_toggle(java.lang.foreign.MemorySegment p_t, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_toggle.invokeExact(p_t, p_out_result);
+            return (int) Handle15.HANDLE.invokeExact(p_t, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle15 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_toggle", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_scale(java.lang.foreign.MemorySegment p_p, double p_factor, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_scale.invokeExact(p_p, p_factor, p_out_result);
+            return (int) Handle16.HANDLE.invokeExact(p_p, p_factor, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle16 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_area_geo_Point(java.lang.foreign.MemorySegment p_a, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_area_geo_Point.invokeExact(p_a, p_out_result);
+            return (int) Handle17.HANDLE.invokeExact(p_a, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle17 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_area_geo_Point", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_area_geo_Wide(java.lang.foreign.MemorySegment p_w, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_area_geo_Wide.invokeExact(p_w, p_out_result);
+            return (int) Handle18.HANDLE.invokeExact(p_w, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle18 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_area_geo_Wide", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Path_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_start) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Path_create.invokeExact(p_out_self, p_start);
+            return (int) Handle19.HANDLE.invokeExact(p_out_self, p_start);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle19 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Path_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static void geo_Path_destroy(java.lang.foreign.MemorySegment p_self) {
         try {
             BridgefexRuntime.ensureLoaded();
-            Handles.geo_Path_destroy.invokeExact(p_self);
+            Handle20.HANDLE.invokeExact(p_self);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle20 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Path_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Path_add(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_p) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Path_add.invokeExact(p_self, p_p);
+            return (int) Handle21.HANDLE.invokeExact(p_self, p_p);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle21 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Path_add", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Path_last(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Path_last.invokeExact(p_self, p_out_result);
+            return (int) Handle22.HANDLE.invokeExact(p_self, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle22 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Path_last", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int geo_Path_origin(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.geo_Path_origin.invokeExact(p_out_result);
+            return (int) Handle23.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle23 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "geo_Path_origin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int route_Leg_init(java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.route_Leg_init.invokeExact(p_out_result);
+            return (int) Handle24.HANDLE.invokeExact(p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle24 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "route_Leg_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int route_length(java.lang.foreign.MemorySegment p_leg, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.route_length.invokeExact(p_leg, p_out_result);
+            return (int) Handle25.HANDLE.invokeExact(p_leg, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle25 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "route_length", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int route_reverse(java.lang.foreign.MemorySegment p_leg, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.route_reverse.invokeExact(p_leg, p_out_result);
+            return (int) Handle26.HANDLE.invokeExact(p_leg, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
+    }
+    private static final class Handle26 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "route_reverse", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
     public static int route_start(java.lang.foreign.MemorySegment p_leg, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handles.route_start.invokeExact(p_leg, p_out_result);
+            return (int) Handle27.HANDLE.invokeExact(p_leg, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
-
-    private static final class Handles {
-        static final MethodHandle vals_last_error = BridgefexRuntime.bind(
-            "vals_last_error", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle vals_api_fingerprint = BridgefexRuntime.bind(
-            "vals_api_fingerprint", FunctionDescriptor.of(BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class));
-        static final MethodHandle vals_free = BridgefexRuntime.bind(
-            "vals_free", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Point_init = BridgefexRuntime.bind(
-            "geo_Point_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Config_init = BridgefexRuntime.bind(
-            "geo_Config_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Msg_init = BridgefexRuntime.bind(
-            "geo_Msg_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Wide_init = BridgefexRuntime.bind(
-            "geo_Wide_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Names_init = BridgefexRuntime.bind(
-            "geo_Names_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Tagged_init = BridgefexRuntime.bind(
-            "geo_Tagged_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_mid = BridgefexRuntime.bind(
-            "geo_mid", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_echo = BridgefexRuntime.bind(
-            "geo_echo", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_shift = BridgefexRuntime.bind(
-            "geo_shift", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SHORT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, short.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_configure = BridgefexRuntime.bind(
-            "geo_configure", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_widen = BridgefexRuntime.bind(
-            "geo_widen", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_rename = BridgefexRuntime.bind(
-            "geo_rename", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_toggle = BridgefexRuntime.bind(
-            "geo_toggle", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_scale = BridgefexRuntime.bind(
-            "geo_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_area_geo_Point = BridgefexRuntime.bind(
-            "geo_area_geo_Point", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_area_geo_Wide = BridgefexRuntime.bind(
-            "geo_area_geo_Wide", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Path_create = BridgefexRuntime.bind(
-            "geo_Path_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Path_destroy = BridgefexRuntime.bind(
-            "geo_Path_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Path_add = BridgefexRuntime.bind(
-            "geo_Path_add", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Path_last = BridgefexRuntime.bind(
-            "geo_Path_last", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle geo_Path_origin = BridgefexRuntime.bind(
-            "geo_Path_origin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle route_Leg_init = BridgefexRuntime.bind(
-            "route_Leg_init", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle route_length = BridgefexRuntime.bind(
-            "route_length", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle route_reverse = BridgefexRuntime.bind(
-            "route_reverse", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
-        static final MethodHandle route_start = BridgefexRuntime.bind(
+    private static final class Handle27 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "route_start", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 }
