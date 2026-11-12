@@ -15,6 +15,7 @@ import json
 import math
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,8 @@ from tests.support.cases import Case
 from tests.support.plans import plan_of
 
 RUNNER = Path(__file__).parent / "runner_jvm" / "Runner.java"
+SUPPORT = Path(__file__).parent.parent / "support" / "jvm" / "Checks.java"
+"""What the check programs share: assertions and the garbage collector."""
 
 ENV_REQUIRED = "BRIDGEFEX_REQUIRE_JAVA"
 """Set by the CI: a missing JDK is then a failure of the tests that need it, not a skip."""
@@ -49,9 +52,18 @@ def skip_without_java() -> None:
     pytest.skip("needs a JDK of Java 22 or later")
 
 
-def build_program(case: Case, output: Path, program: Path, name: str) -> Path:
-    """``program`` (a Java file with ``main``) compiled with the bindings of ``case``: the
-    directory of the classes. Raises RuntimeError if it does not compile."""
+def build_program(
+    case: Case,
+    output: Path,
+    program: Path,
+    name: str,
+    *,
+    support: tuple[Path, ...] = (),
+    edit: Callable[[dict[str, str]], dict[str, str]] | None = None,
+) -> Path:
+    """``program`` (a Java file with ``main``) compiled with the bindings of ``case`` and the
+    files of ``support`` (``edit`` may change the generated files first): the directory of the
+    classes. Raises RuntimeError if it does not compile."""
     work = output / f"jvm-{name}"
     classes = work / "classes"
     if classes.exists():
@@ -59,8 +71,9 @@ def build_program(case: Case, output: Path, program: Path, name: str) -> Path:
     options = dataclasses.replace(case.options(("jvm",)), verify=False)
     result = bridgefex.generate(case.headers, options)
     generated = work / "generated"
-    bridgefex.write_files(result.files, generated)
-    sources = [str(generated / path) for path in result.files if path.endswith(".java")]
+    files = edit(dict(result.files)) if edit else result.files
+    bridgefex.write_files(files, generated)
+    sources = [str(generated / path) for path in files if path.endswith(".java")]
     command = javac()
     assert command is not None
     classes.mkdir(parents=True)
@@ -76,6 +89,7 @@ def build_program(case: Case, output: Path, program: Path, name: str) -> Path:
             "-d",
             str(classes),
             *sources,
+            *(str(path) for path in support),
             str(program),
         ],
         capture_output=True,

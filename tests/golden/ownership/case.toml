@@ -3,4 +3,4 @@ module = "own"
 headers = ["node.h", "tree.h"]
 std = "c++17"
 annotations = ["annotations.toml"]
-languages = ["python", "csharp"]
+languages = ["python", "csharp", "jvm"]

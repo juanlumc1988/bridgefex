@@ -462,7 +462,7 @@ class _Lowerer:
         # guaranteed from the moment the C function writes the pointer.
         assert self.declaring is not None
         self.statements.append(f"var {L}h = {self.names.destroyer(self.declaring.c_type)};")
-        self.statements.append(f"var {L}new = new {self.factory}({L}h);")
+        self.statements.append(f"var {L}new = {self.factory}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({assign});"]
         self.lowering.returns = self.factory
         return [*(f"{L}new.retain({name});" for name in self.retained), f"return {L}new;"]
@@ -497,7 +497,7 @@ class _Lowerer:
         # The object exists before the call, so that its destruction is guaranteed from the
         # moment the C function writes the pointer.
         self.statements.append(f"var {L}h = {self.names.destroyer(info.c_type)};")
-        self.statements.append(f"var {L}new = new {class_name}({L}h);")
+        self.statements.append(f"var {L}new = {class_name}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({pointer});"]
         if nullable:
             return [f"return {L}h.isInvalid() ? null : {L}new;"]

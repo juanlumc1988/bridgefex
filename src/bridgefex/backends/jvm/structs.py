@@ -11,7 +11,7 @@ from ...plan import StructPlan
 from .enums import enum_class
 from .lower import Names
 from .mapping import Unsupported, scalar
-from .naming import RESERVED_MEMBERS, camel, identifier, pascal
+from .naming import PARAMETER_RESERVED, RESERVED_MEMBERS, camel, identifier, pascal
 from .source import Source
 
 
@@ -49,7 +49,14 @@ class _Member:
 
 
 def _members(struct: StructPlan, names: Names) -> list[_Member]:
-    taken = {pascal(struct.model.name), *RESERVED_MEMBERS, "LAYOUT"}
+    # A field hides the package that a qualified name of the generated code starts with.
+    taken = {
+        pascal(struct.model.name),
+        *RESERVED_MEMBERS,
+        "LAYOUT",
+        names.root,
+        *PARAMETER_RESERVED,
+    }
     taken |= {pascal(nested.model.name) for nested in struct.enums}
     result: list[_Member] = []
     for field_plan in struct.fields:

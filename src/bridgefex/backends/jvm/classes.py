@@ -121,8 +121,8 @@ class _Class:
                 Diagnostic(
                     f"'{member.function.description}' gets the Java method '{name}("
                     f"{', '.join(_signature(lowered.parameters))})', which '{above.owner}' has "
-                    "too: Java cannot hide a method (only override a virtual one with the same "
-                    "result)",
+                    "too: Java cannot hide a method (a method can only replace one of the same "
+                    "kind that gives the same result: a virtual method or a static one)",
                     member.location,
                 )
             ]
@@ -156,8 +156,14 @@ class _Class:
         src.line('@SuppressWarnings("this-escape")')
         src.open(f"public class {name} extends {base}")
         src.doc("For the generated code: the handle of a C++ object that already exists.")
-        src.open(f"public {name}(BridgefexHandle handle)")
+        # Not public: a call with null would be ambiguous with the constructors of the class.
+        src.open(f"protected {name}(BridgefexHandle handle)")
         src.line("super(handle);")
+        src.close()
+        src.line()
+        src.doc("For the generated code: the wrapper of an object that the handle owns or borrows.")
+        src.open(f"public static {name} wrap(BridgefexHandle handle)")
+        src.line(f"return new {name}(handle);")
         src.close()
         src.line()
         src.line(OVERRIDE)
@@ -228,7 +234,7 @@ class _Class:
             f"{names.destroyers[cls.c_type]}, false);"
         )
         src.line("handle.assign(pointer);")
-        src.line(f"return BridgefexObject.borrowed(new {name}(handle), owners, readOnly);")
+        src.line("return BridgefexObject.borrowed(wrap(handle), owners, readOnly);")
         src.close()
 
     # -- the views of the bases -------------------------------------------------------------

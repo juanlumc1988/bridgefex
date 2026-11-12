@@ -21,7 +21,7 @@ Without ``--cc`` and ``--cxx`` it uses ``$CC`` and ``$CXX``, else ``gcc`` and ``
 ``--csharp-runtime linux-arm`` also generates the C# bindings of the case, with the same
 parsing options, and compiles them with ``dotnet build`` for that runtime identifier. They are
 compiled; the C# check of a case (``tests/golden/<case>/check_csharp.cs``, or the one of a case of
-the C# bindings alone, ``tests/csharp_cases/<case>``) is also published for
+the C# bindings alone, ``tests/binding_cases/<case>``) is also published for
 that runtime, self-contained, and run by ``--runner`` when ``--csharp-check <case>`` asks for it
 (.NET under QEMU takes a few seconds for each case, with the options in ``CSHARP_ENVIRONMENT``).
 """
@@ -46,7 +46,7 @@ import bridgefex
 
 ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "tests" / "golden"
-CSHARP_CASES = ROOT / "tests" / "csharp_cases"
+CSHARP_CASES = ROOT / "tests" / "binding_cases"
 """The cases of the C# bindings alone: they have no C program, only a C# check."""
 
 

@@ -34,7 +34,7 @@ RESERVED_MEMBERS = frozenset(
     """
     equals hashCode toString getClass notify notifyAll wait clone finalize
     close isClosed isReadOnly hold retain attach surrender keepOf borrow borrowed
-    setOrigin retainForever checkExact collectOwning cppType
+    setOrigin retainForever checkExact collectOwning cppType wrap
     """.split()
 )
 
@@ -141,14 +141,6 @@ def module_problem(name: str) -> str | None:
     word = package_word(name)
     if word in {"java", "javax", "jdk", "sun", "com", "org"}:
         return f"the Java package '{word}' would clash with the platform"
-    return None
-
-
-def header_problem(stem: str) -> str | None:
-    """Why a header called ``stem`` cannot have a Java package, or None."""
-    word = pascal(stem)
-    if word in RUNTIME_TYPES:
-        return f"its Java package would not clash, but the class '{word}' is of the runtime"
     return None
 
 

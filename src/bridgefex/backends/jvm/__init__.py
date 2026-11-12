@@ -14,7 +14,7 @@ from .check import check
 from .classes import class_source
 from .mapping import Unsupported
 from .module import build_names, functions_source, header_package, native_source, type_source
-from .naming import header_problem, locals_of, module_problem, package_word, pascal
+from .naming import locals_of, module_problem, package_word, pascal
 
 _TEMPLATES = Path(__file__).parent / "templates"
 
@@ -26,10 +26,6 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     problem = module_problem(plan.name)
     if problem:
         reasons.append(f"Java: cannot name the module '{plan.name}': {problem}")
-    for header in plan.headers:
-        problem = header_problem(header.stem)
-        if problem:
-            reasons.append(f"Java: cannot use header name '{header.stem}': {problem}")
     seen: dict[str, str] = {}
     for header in plan.headers:
         word = package_word(header.stem)

@@ -163,7 +163,7 @@ public final class BridgefexRuntime {
         String message = "";
         try {
             MemorySegment text = BridgefexNative.lastError();
-            if (!MemorySegment.NULL.equals(text)) {
+            if (text.address() != 0L) {
                 message = readCString(text);
             }
         } catch (RuntimeException error) {

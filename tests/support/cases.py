@@ -8,6 +8,7 @@ Each case has:
   impl/            optional C++ implementation, for the round-trip tests
   check_python.py  optional Python program run against the built library
   check_csharp.cs  optional C# program (top-level statements) run against the built library
+  check_jvm.java   optional Java program (class Check) run against the built library
   check_c.c        optional C program linked against the built library
   scenarios.toml   optional, what every backend must do the same (tests/conformance)
   annotations.toml optional, if case.toml lists it: who owns what (see bridgefex.annotations)
@@ -60,6 +61,10 @@ class Case:
     @property
     def check_csharp(self) -> Path:
         return self.directory / "check_csharp.cs"
+
+    @property
+    def check_jvm(self) -> Path:
+        return self.directory / "check_jvm.java"
 
     @property
     def check_c(self) -> Path:

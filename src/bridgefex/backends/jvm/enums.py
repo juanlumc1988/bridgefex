@@ -38,7 +38,7 @@ def enum_class(src: Source, enum: EnumPlan, *, nested: bool) -> None:
         src.line(f'public static final {name} {constant} = new {name}("{constant}", {literal});')
     src.line()
     values = ", ".join(constant for constant, _, _ in constants)
-    src.line(f"private static final {name}[] BRIDGEFEX_VALUES = {{{values}}};")
+    src.line(f"private static final {name}[] bridgefexValues = {{{values}}};")
     src.line()
     src.line("private final java.lang.String name;")
     src.line("private final long value;")
@@ -84,7 +84,7 @@ def _factory(src: Source, name: str, underlying: str, unsigned_64: bool) -> None
     src.open(f"public static {name} of({info.annotation}long value)")
     if bounds is not None:
         src.line(f'BridgefexRuntime.inRange(value, {bounds[0]}L, {bounds[1]}L, "{underlying}");')
-    src.open(f"for ({name} item : BRIDGEFEX_VALUES)")
+    src.open(f"for ({name} item : bridgefexValues)")
     src.open("if (item.value == value)")
     src.line("return item;")
     src.close()
@@ -97,7 +97,7 @@ def _factory(src: Source, name: str, underlying: str, unsigned_64: bool) -> None
 def _accessors(src: Source, name: str, unsigned_64: bool) -> None:
     src.doc("The enumerators, in the order of their declaration.")
     src.open(f"public static {name}[] values()")
-    src.line("return BRIDGEFEX_VALUES.clone();")
+    src.line("return bridgefexValues.clone();")
     src.close()
     src.line()
     src.doc("The value in the underlying type.")

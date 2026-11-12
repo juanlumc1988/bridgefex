@@ -22,8 +22,8 @@ from tests.support.build import build
 from tests.support.cases import Case, all_cases, load_case
 from tests.support.toolchain import Toolchain
 
-# The golden cases that have a check, and the cases of the C# bindings alone (tests/csharp_cases).
-EXTRA_DIR = Path(__file__).parent / "csharp_cases"
+# The golden cases that have a check, and the cases of the C# bindings alone (tests/binding_cases).
+EXTRA_DIR = Path(__file__).parent / "binding_cases"
 CASES = [
     case
     for case in [
