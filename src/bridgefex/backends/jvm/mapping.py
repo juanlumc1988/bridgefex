@@ -194,3 +194,22 @@ def native_java(ffi: Ffi) -> str:
     ):
         return SEGMENT
     raise Unsupported(f"the C type of kind '{kind.value}' is not supported in Java yet")
+
+
+RANGES: dict[str, tuple[int, int] | None] = {
+    "bool": (0, 1),
+    "signed char": (-128, 127),
+    "unsigned char": (0, 255),
+    "short": (-32768, 32767),
+    "unsigned short": (0, 65535),
+    "int": (-(2**31), 2**31 - 1),
+    "unsigned int": (0, 2**32 - 1),
+    "int8_t": (-128, 127),
+    "uint8_t": (0, 255),
+    "int16_t": (-32768, 32767),
+    "uint16_t": (0, 65535),
+    "int32_t": (-(2**31), 2**31 - 1),
+    "uint32_t": (0, 2**32 - 1),
+}
+"""The values of the underlying types of an enum that a Java ``long`` can range-check (the 64-bit
+types and those of the size of the platform have no range to check here)."""

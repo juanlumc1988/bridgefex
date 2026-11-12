@@ -21,6 +21,7 @@ import pytest
 
 import bridgefex
 from bridgefex.backends.jvm.check import java_runtime, javac
+from bridgefex.backends.jvm.module import build_names
 from bridgefex.backends.jvm.naming import upper_snake
 from tests.conformance import scenarios
 from tests.support.cases import Case
@@ -125,14 +126,31 @@ def _types(output: Path, name: str) -> list[str]:
     return result
 
 
+def _binary(name: str, nested: int) -> str:
+    """The name that ``Class.forName`` wants: a nested class is separated by ``$``."""
+    if nested == 0:
+        return name
+    head, _, last = name.rpartition(".")
+    return f"{head}${last}"
+
+
 def _map(case: Case, output: Path) -> dict[str, object]:
     plan = plan_of(case)
+    names = build_names(plan)
     enums: dict[str, str] = {}
     members: dict[str, dict[str, str]] = {}
     for key, enum in scenarios.enum_types(plan).items():
-        enums[key] = key
+        enums[key] = _binary(names.enums[enum.c_type], key.count(".") - 1)
         members[key] = {item.model_name: upper_snake(item.model_name) for item in enum.enumerators}
-    return {"types": _types(output, "Runner"), "enums": enums, "members": members, "structs": {}}
+    structs = {
+        key: names.structs[struct.c_type] for key, struct in scenarios.struct_types(plan).items()
+    }
+    return {
+        "types": _types(output, "Runner"),
+        "enums": enums,
+        "members": members,
+        "structs": structs,
+    }
 
 
 def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:

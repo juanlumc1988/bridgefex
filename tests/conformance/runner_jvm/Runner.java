@@ -316,9 +316,25 @@ public final class Runner {
         private Class<?> typeNamed(String name) {
             Class<?> found = types.get(name);
             if (found == null) {
-                throw new Failure("the bindings have no type " + name);
+                try {
+                    found = Class.forName(name);
+                } catch (ClassNotFoundException error) {
+                    throw new Failure("the bindings have no type " + name);
+                }
+                types.put(name, found);
             }
             return found;
+        }
+
+        /** The constant of an enum class that has the C++ name of an enumerator. */
+        private Object constant(String enumName, String cppMember) {
+            Class<?> enumType = typeNamed((String) section("enums").get(enumName));
+            String member = (String) Json.object(section("members").get(enumName)).get(cppMember);
+            try {
+                return enumType.getField(member).get(null);
+            } catch (ReflectiveOperationException error) {
+                throw new Failure("the enum " + enumName + " has no member " + member);
+            }
         }
 
         private Map<String, Object> section(String name) {
@@ -388,6 +404,15 @@ public final class Runner {
             return value;
         }
 
+        private static boolean hasOf(Class<?> type) {
+            try {
+                type.getMethod("of", long.class);
+                return true;
+            } catch (NoSuchMethodException error) {
+                return false;
+            }
+        }
+
         private Object number(Object value, Class<?> type, boolean unsigned) {
             if (type == double.class || type == float.class) {
                 double number = value instanceof Double d ? d : ((BigInteger) value).doubleValue();
@@ -406,8 +431,8 @@ public final class Runner {
         }
 
         private Object fromBig(BigInteger integer, Class<?> type, boolean unsigned) {
-            if (type.isEnum()) {
-                throw new Failure("an integer for the enum " + type.getSimpleName());
+            if (type.getName().indexOf('$') >= 0 || type.getMethods().length > 0 && hasOf(type)) {
+                throw new Failure("an integer for the class " + type.getSimpleName());
             }
             BigInteger low;
             BigInteger high;
@@ -456,15 +481,7 @@ public final class Runner {
                 return variables.get((String) value.get("ref"));
             }
             if (value.containsKey("enum")) {
-                String enumName = (String) value.get("enum");
-                Class<?> enumType = typeNamed((String) section("enums").get(enumName));
-                String member = (String) Json.object(section("members").get(enumName)).get((String) value.get("member"));
-                for (Object constant : enumType.getEnumConstants()) {
-                    if (((Enum<?>) constant).name().equals(member)) {
-                        return constant;
-                    }
-                }
-                throw new Failure("the enum " + enumName + " has no member " + member);
+                return constant((String) value.get("enum"), (String) value.get("member"));
             }
             if (value.containsKey("struct")) {
                 Class<?> structType = typeNamed((String) section("structs").get((String) value.get("struct")));
@@ -588,10 +605,9 @@ public final class Runner {
                 }
                 if (table.containsKey("enum")) {
                     String enumName = (String) table.get("enum");
-                    Class<?> enumType = typeNamed((String) section("enums").get(enumName));
-                    String member = (String) Json.object(section("members").get(enumName)).get((String) table.get("member"));
-                    return actual != null && actual.getClass() == enumType && ((Enum<?>) actual).name().equals(member) ? null
-                        : where + ": " + show(actual) + ", not " + enumName + "." + member;
+                    Object wanted = constant(enumName, (String) table.get("member"));
+                    return wanted.equals(actual) && actual.getClass() == wanted.getClass() ? null
+                        : where + ": " + show(actual) + ", not " + enumName + "." + table.get("member");
                 }
             }
             throw new Failure("cannot compare with " + expected);

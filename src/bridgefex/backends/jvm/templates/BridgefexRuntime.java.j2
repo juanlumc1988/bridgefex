@@ -5,7 +5,9 @@ import java.lang.foreign.AddressLayout;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.StructLayout;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
@@ -17,6 +19,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The runtime of the bindings: it finds the library of the C API, checks that it is the one these
@@ -194,6 +198,71 @@ public final class BridgefexRuntime {
             length++;
         }
         return strictDecode(all.asSlice(0, length).toArray(ValueLayout.JAVA_BYTE), "the text of C++");
+    }
+
+    // -- structs -----------------------------------------------------------------------------
+
+    /** The layout of a struct of the C layer: its members at their natural alignment (at most 8:
+     * the C layer declares its structs so), with the padding. */
+    public static StructLayout struct(MemoryLayout... members) {
+        List<MemoryLayout> all = new ArrayList<>();
+        long offset = 0;
+        long alignment = 1;
+        for (MemoryLayout member : members) {
+            long wanted = Math.min(member.byteAlignment(), 8);
+            alignment = Math.max(alignment, wanted);
+            long padding = (wanted - offset % wanted) % wanted;
+            if (padding != 0) {
+                all.add(MemoryLayout.paddingLayout(padding));
+                offset += padding;
+            }
+            all.add(member);
+            offset += member.byteSize();
+        }
+        long tail = (alignment - offset % alignment) % alignment;
+        if (tail != 0) {
+            all.add(MemoryLayout.paddingLayout(tail));
+        }
+        return MemoryLayout.structLayout(all.toArray(new MemoryLayout[0]));
+    }
+
+    /** The layout of an array member of a struct. */
+    public static MemoryLayout array(long count, MemoryLayout element) {
+        return MemoryLayout.sequenceLayout(count, element);
+    }
+
+    /** The offset of a member of a struct. */
+    public static long offset(StructLayout layout, String member) {
+        return layout.byteOffset(MemoryLayout.PathElement.groupElement(member));
+    }
+
+    /** An enumerator of an enum without a fixed type must be one of the values that the type holds. */
+    public static void checkEnum(long value, long low, long high, String name) {
+        if (value < low || value > high) {
+            throw new IllegalArgumentException(name + ": " + value + " is not a value of the enum (" + low + ".." + high + ")");
+        }
+    }
+
+    /** An enum value must fit the underlying type of the enum. */
+    public static long inRange(long value, long low, long high, String type) {
+        if (value < low || value > high) {
+            throw new IllegalArgumentException(value + " does not fit " + type);
+        }
+        return value;
+    }
+
+    public static <T> T nonNull(T value, String name) {
+        if (value == null) {
+            throw new NullPointerException(name + " is null");
+        }
+        return value;
+    }
+
+    /** A member that is an array has the length of its type. */
+    public static void length(Object array, int length, String name) {
+        if (array == null || java.lang.reflect.Array.getLength(array) != length) {
+            throw new IllegalArgumentException(name + " must have " + length + " elements");
+        }
     }
 
     // -- strings -----------------------------------------------------------------------------
