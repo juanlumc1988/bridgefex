@@ -7,10 +7,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from ...errors import Diagnostic, GenerationError
-from ...plan import EnumPlan, FunctionPlan, ModulePlan, Reservations, StructPlan
+from ...plan import ClassPlan, EnumPlan, FunctionPlan, ModulePlan, Reservations, StructPlan
 from ...rendering import Renderer
 from ..base import Backend
 from .check import check
+from .classes import class_source
 from .mapping import Unsupported
 from .module import build_names, functions_source, header_package, native_source, type_source
 from .naming import header_problem, locals_of, module_problem, package_word, pascal
@@ -59,14 +60,29 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "BridgefexException",
         "BridgefexFunction",
         "BridgefexUnsigned",
+        "BridgefexHandle",
+        "BridgefexLease",
+        "BridgefexKeep",
+        "BridgefexObject",
     ):
         renderer.put(f"{java}/{name}.java", f"{name}.java.j2", **context)
+    by_type = {
+        item.c_type: item
+        for header in plan.headers
+        for item in header.items
+        if isinstance(item, ClassPlan)
+    }
     try:
         files[f"{java}/BridgefexNative.java"] = native_source(plan, names)
         for header in plan.headers:
-            package_dir = header_package(plan, header).replace(".", "/")
+            package = header_package(plan, header)
+            package_dir = package.replace(".", "/")
             for item in header.items:
-                if isinstance(item, EnumPlan | StructPlan):
+                if isinstance(item, ClassPlan):
+                    cls = pascal(item.model.name)
+                    path = f"{base}/src/main/java/{package_dir}/{cls}.java"
+                    files[path] = class_source(plan, header, item, names, by_type)
+                elif isinstance(item, EnumPlan | StructPlan):
                     cls = pascal(item.model.name)
                     path = f"{base}/src/main/java/{package_dir}/{cls}.java"
                     files[path] = type_source(plan, header, item, names)

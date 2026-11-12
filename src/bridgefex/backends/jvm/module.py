@@ -135,7 +135,9 @@ def functions_source(
     src.line()
     for imported in (
         "BridgefexFunction",
+        "BridgefexHandle",
         "BridgefexNative",
+        "BridgefexObject",
         "BridgefexRuntime",
         "BridgefexUnsigned",
     ):
@@ -184,6 +186,7 @@ def build_names(plan: ModulePlan) -> Names:
     classes: dict[str, str] = {}
     enum_plans: dict[str, EnumPlan] = {}
     struct_plans: dict[str, StructPlan] = {}
+    destroyers: dict[str, str] = {}
     errors: list[Diagnostic] = []
     for header in plan.headers:
         package = header_package(plan, header)
@@ -216,6 +219,7 @@ def build_names(plan: ModulePlan) -> Names:
                 name = pascal(item.model.name)
                 claim(name, item.model.qualified_name)
                 classes[item.c_type] = f"{package}.{name}"
+                destroyers[item.c_type] = item.destroy.name
                 for nested in item.enums:
                     enums[nested.c_type] = f"{package}.{name}.{pascal(nested.model.name)}"
                     enum_plans[nested.model.usr] = nested
@@ -234,7 +238,7 @@ def build_names(plan: ModulePlan) -> Names:
                     enum_plans[nested.model.usr] = nested
     if errors:
         raise GenerationError(errors)
-    return Names(root, enums, structs, classes, enum_plans, struct_plans)
+    return Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers)
 
 
 # One file for each class, enum and struct of a header -----------------------------------------

@@ -33,7 +33,8 @@ RUNTIME_TYPES = frozenset(
 RESERVED_MEMBERS = frozenset(
     """
     equals hashCode toString getClass notify notifyAll wait clone finalize
-    close isClosed hold retain attach surrender keepOf borrow
+    close isClosed isReadOnly hold retain attach surrender keepOf borrow borrowed
+    setOrigin retainForever checkExact collectOwning cppType
     """.split()
 )
 
