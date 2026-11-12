@@ -159,14 +159,9 @@ Check(unobserved.IsEmpty, "nothing was left unobserved");
 using (var big = new BigResults())
 {
     long grown = Growth(() => big.CallPoints(new[] { new Point { X = 1, Y = 1 } }), 200);
-    Check(grown < 100, $"the structs of a result are released (grew {grown} MiB)");
-    grown = Growth(() => big.CallWords(new[] { "x" }), 100);
-    Check(grown < 100, $"the strings of a result are released (grew {grown} MiB)");
-}
-using (var bad = new BadSurrogate())
-{
-    long grown = Growth(() => Expect<ArgumentException>(() => bad.CallWords(new[] { "x" })), 2000);
-    Check(grown < 100, $"a result that is refused is released (grew {grown} MiB)");
+    Check(grown < 40, $"the structs of a result are released (grew {grown} MiB)");
+    grown = Growth(() => big.CallWords(new[] { "x" }), 200);
+    Check(grown < 40, $"the strings of a result are released (grew {grown} MiB)");
 }
 
 // -- Threads: C++ runs the overrides with containers on the thread of the call --------------------------

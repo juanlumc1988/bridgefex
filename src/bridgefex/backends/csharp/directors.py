@@ -8,7 +8,8 @@ through a thunk (a static method with the C signature of the vtable member) that
 object by the ``user_data`` of the vtable; ``base.Method()`` calls the implementation of the C++
 class through the director. The classes that can be derived from are those whose chain of bases
 is single and has a director each, and whose virtual methods that are pure have types that the
-C# side supports: scalars, enums, strings and value structs."""
+C# side supports (every type that the plan supports: scalars, enums, strings, value structs,
+containers and objects)."""
 
 from __future__ import annotations
 

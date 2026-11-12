@@ -586,6 +586,18 @@ def test_a_result_that_c_plus_plus_cannot_hold_is_checked_by_the_thunk(tmp_path:
 
 
 @pytest.mark.parametrize(
+    "name", ["Borrow", "CppType", "LendToOverride", "AdoptFromCpp", "DirectorOverrides"]
+)
+def test_a_class_cannot_have_the_name_of_a_member_that_every_class_declares(
+    tmp_path: Path, name: str
+) -> None:
+    code = f"class {name} {{ public: {name}(); }};"
+    message = error_of(tmp_path, code)
+    assert f"gets the C# name '{name}'" in message
+    assert "member that every generated class declares" in message
+
+
+@pytest.mark.parametrize(
     "name", ["Thunks", "CallScope", "CallbackBox", "BridgefexCallbacks", "DirectorBox", "Lent"]
 )
 def test_a_class_cannot_hide_a_type_of_the_callback_runtime(tmp_path: Path, name: str) -> None:
@@ -936,6 +948,14 @@ def test_a_callback_with_more_arguments_than_func_and_action_have_gets_a_delegat
     assert callbacks.count("public delegate TResult Func20<in T1,") == 1
     assert "Action16<" not in callbacks
     assert "out TResult>(T1 arg1," in callbacks
+
+
+@needs_dotnet
+def test_a_callback_of_the_most_arguments_gets_a_delegate_that_compiles(tmp_path: Path) -> None:
+    # 64 arguments is the most that the bindings have delegates for (65 is refused, see above).
+    wide = "std::function<int(" + ", ".join(["int"] * 64) + ")>"
+    files = generate(tmp_path, f"#include <functional>\nint f({wide} g);", verify=True)
+    assert "public delegate TResult Func64<in T1," in files["csharp/Mod/BridgefexCallbacks.cs"]
 
 
 def test_a_failure_of_the_csharp_backend_names_the_function(tmp_path: Path) -> None:

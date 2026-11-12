@@ -206,6 +206,26 @@ public unsafe partial class Beam : BridgefexObject
         return new Beam(handle);
     }
 
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Beam value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
+    }
+
     /// <summary>
     /// int32_t drc::Beam::length() const
     /// </summary>
@@ -468,6 +488,26 @@ public unsafe partial class Shape : BridgefexObject
         var handle = new ShapeHandle();
         handle.Assign(pointer);
         return new Shape(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Shape value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold_drc_Shape(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
     }
 
     internal virtual Lease Hold_drc_Shape(bool mutable, bool give = false) => Hold(mutable, give);
@@ -3223,6 +3263,26 @@ public unsafe partial class Holder : BridgefexObject
         var handle = new HolderHandle();
         handle.Assign(pointer);
         return new Holder(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Holder value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
     }
 
     /// <summary>

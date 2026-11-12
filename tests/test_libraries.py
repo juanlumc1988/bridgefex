@@ -149,9 +149,13 @@ def test_the_csharp_bindings_are_compiled_for_a_runtime(
 
 
 @pytest.mark.usefixtures("dotnet")
-@pytest.mark.parametrize("trim", [False, True], ids=["whole", "trimmed"])
+@pytest.mark.parametrize(
+    ("case", "trim"),
+    [("containers", False), ("containers", True), ("callbacks_edge", True)],
+    ids=["whole", "trimmed", "of-the-csharp-bindings-alone"],
+)
 def test_the_csharp_check_of_a_case_is_published_and_run(
-    toolchain: Toolchain, tmp_path: Path, trim: bool
+    toolchain: Toolchain, tmp_path: Path, case: str, trim: bool
 ) -> None:
     """What the armhf job does with ``--csharp-check`` (there under QEMU, trimmed): the check of
     the case is published self-contained for the runtime and run against the library of the
@@ -175,12 +179,14 @@ def test_the_csharp_check_of_a_case_is_published_and_run(
         "--csharp-runtime",
         runtime,
         "--csharp-check",
-        "containers",
+        case,
         *(["--csharp-trim"] if trim else []),
     ]
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "containers: C# round trip OK" in completed.stdout
+    assert "C# round trip OK" in completed.stdout
+    project = (tmp_path / "work" / case / "csharp-program" / "Check.csproj").read_text()
+    assert ("<PublishTrimmed>true</PublishTrimmed>" in project) == trim
 
 
 def test_a_csharp_check_needs_a_runtime(toolchain: Toolchain, tmp_path: Path) -> None:

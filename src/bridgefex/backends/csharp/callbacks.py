@@ -413,22 +413,20 @@ def _director_thunk(
 
 def _object_result(part: CallbackPart, names: Names, what: str) -> list[str]:
     """The statements that give C++ the object that an override returned (a ``std::unique_ptr``):
-    C# gives it up, as a call that takes the object does."""
+    C# gives it up, as a call that takes the object gives it (``GiveToCpp`` of the class)."""
     info = part.cls
     assert info is not None
     cls = names.cls(info)
-    hold = f"Hold_{info.c_type}" if info.is_base else "Hold"
-    lines = ["if (value is null)", "{", "    *result = 0;", "}", "else", "{"]
-    if info.is_base and not info.model.virtual_destructor:
-        # C++ destroys the object through this class: only an object of exactly it.
-        lines.append(f'    Runtime.CheckExact(value, typeof({cls}), "{what}");')
-    lines += [
-        f"    using var lease = value.{hold}(true, true);",
-        "    *result = lease.Give();",
-        "    value.Surrender();",
+    return [
+        "if (value is null)",
+        "{",
+        "    *result = 0;",
+        "}",
+        "else",
+        "{",
+        f'    *result = {cls}.GiveToCpp(value, "{what}");',
         "}",
     ]
-    return lines
 
 
 def _container_result(

@@ -9,6 +9,7 @@ the same scenarios in every language; these ones check what is particular of C#.
 
 from __future__ import annotations
 
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -360,19 +361,26 @@ REDUCED = (
 )
 
 
-@pytest.mark.parametrize("mode", ["trim", "aot"])
-@pytest.mark.parametrize("name", REDUCED)
-def test_the_check_runs_when_published_trimmed_or_ahead_of_time(
-    name: str,
-    mode: str,
+@pytest.fixture(scope="module", params=REDUCED)
+def reduced(
+    request: pytest.FixtureRequest,
     toolchain: Toolchain,
     tmp_path_factory: pytest.TempPathFactory,
-) -> None:
+) -> Built:
+    """The library of a case, built once for the two ways of reducing the program."""
+    name: str = request.param
     case = next(case for case in CASES if case.name == name)
-    directory = tmp_path_factory.mktemp(f"csharp_{mode}_{name}")
+    directory = tmp_path_factory.mktemp(f"csharp_reduced_{name}")
     library, output = build(case, toolchain, directory)
+    return case, library, output
+
+
+@pytest.mark.parametrize("mode", ["trim", "aot"])
+def test_the_check_runs_when_published_trimmed_or_ahead_of_time(reduced: Built, mode: str) -> None:
+    if mode == "aot" and platform.system() != "Linux":
+        pytest.skip("native AOT is tested on Linux only")
+    case, library, output = reduced
     executable = runner_csharp.publish_program(case, output, case.check_csharp, "Check", mode)
-    assert executable is not None
     completed = runner_csharp.execute_native(case, executable, library)
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout

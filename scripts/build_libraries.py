@@ -20,7 +20,8 @@ Without ``--cc`` and ``--cxx`` it uses ``$CC`` and ``$CXX``, else ``gcc`` and ``
 
 ``--csharp-runtime linux-arm`` also generates the C# bindings of the case, with the same
 parsing options, and compiles them with ``dotnet build`` for that runtime identifier. They are
-compiled; the C# check of a case (``tests/golden/<case>/check_csharp.cs``) is also published for
+compiled; the C# check of a case (``tests/golden/<case>/check_csharp.cs``, or the one of a case of
+the C# bindings alone, ``tests/csharp_cases/<case>``) is also published for
 that runtime, self-contained, and run by ``--runner`` when ``--csharp-check <case>`` asks for it
 (.NET under QEMU takes a few seconds for each case, with the options in ``CSHARP_ENVIRONMENT``).
 """
@@ -45,6 +46,8 @@ import bridgefex
 
 ROOT = Path(__file__).resolve().parent.parent
 GOLDEN = ROOT / "tests" / "golden"
+CSHARP_CASES = ROOT / "tests" / "csharp_cases"
+"""The cases of the C# bindings alone: they have no C program, only a C# check."""
 
 
 @dataclass(frozen=True)
@@ -55,8 +58,9 @@ class Case:
     std: str
     input_dir: Path
     implementation: tuple[Path, ...]
-    check: Path
-    """The C program that uses the library and exits with 0 if it works."""
+    check: Path | None
+    """The C program that uses the library and exits with 0 if it works (a case of the C#
+    bindings alone has none)."""
 
     annotations: tuple[Path, ...] = ()
     """The annotation files of the case (the classes that ask for a director...)."""
@@ -66,7 +70,10 @@ class Case:
 
 
 def load_case(name: str) -> Case:
-    directory = GOLDEN / name
+    directory = next(
+        (root / name for root in (GOLDEN, CSHARP_CASES) if (root / name / "case.toml").exists()),
+        GOLDEN / name,
+    )
     with (directory / "case.toml").open("rb") as file:
         config = tomllib.load(file)
     case = Case(
@@ -76,13 +83,13 @@ def load_case(name: str) -> Case:
         std=config.get("std", "c++17"),
         input_dir=directory / "input",
         implementation=tuple(sorted((directory / "impl").glob("*.cpp"))),
-        check=directory / "check_c.c",
+        check=(directory / "check_c.c") if (directory / "check_c.c").exists() else None,
         annotations=tuple(directory / item for item in config.get("annotations", ())),
         check_csharp=(directory / "check_csharp.cs")
         if (directory / "check_csharp.cs").exists()
         else None,
     )
-    if not case.check.exists() or not case.implementation:
+    if not case.implementation or (case.check is None and case.check_csharp is None):
         raise SystemExit(f"the case '{name}' cannot be built as a library on its own")
     return case
 
@@ -314,6 +321,13 @@ class Build:
 
     def _includes(self) -> list[str]:
         return [f"-I{self.include}", f"-I{self.case.input_dir}"]
+
+    def check_c_program(self) -> None:
+        """The C program of the case, linked with the shared and the static library (a case
+        of the C# bindings alone has none)."""
+        if self.case.check is not None:
+            self.check(static=False)
+            self.check(static=True)
 
     def build_shared(self) -> None:
         if self.msvc:
@@ -580,8 +594,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             build.generate(clang_args)
             build.build_shared()
             build.build_static()
-            build.check(static=False)
-            build.check(static=True)
+            build.check_c_program()
             done[name] = build
         return done[name]
 

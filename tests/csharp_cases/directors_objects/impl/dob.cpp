@@ -48,6 +48,17 @@ std::unique_ptr<Plain> Visitor::make_plain(std::int32_t value) const
     return std::unique_ptr<Plain>(new Plain(value));
 }
 
+std::unique_ptr<Node> Visitor::pass(const Node& node) const
+{
+    return std::unique_ptr<Node>(new Node(node.value()));
+}
+
+std::int32_t Visitor::touch_pointer(Node* node) const
+{
+    node->set(node->value() + 10);
+    return node->value();
+}
+
 std::int32_t Visitor::both(std::unique_ptr<Node> a, const Node& b, std::unique_ptr<Node> c) const
 {
     return (a ? a->value() : 0) + b.value() * 10 + (c ? c->value() : 0) * 100;
@@ -63,6 +74,9 @@ std::int32_t Visitor::call_pointer(const Node* node) const { return pointer(node
 std::int32_t Visitor::call_take(std::unique_ptr<Node> node) const { return take(std::move(node)); }
 std::unique_ptr<Node> Visitor::call_make(std::int32_t value) const { return make(value); }
 std::unique_ptr<Plain> Visitor::call_make_plain(std::int32_t value) const { return make_plain(value); }
+
+std::unique_ptr<Node> Visitor::call_pass(const Node& node) const { return pass(node); }
+std::int32_t Visitor::call_touch_pointer(Node* node) const { return touch_pointer(node); }
 
 std::int32_t Visitor::call_both(std::unique_ptr<Node> a, const Node& b, std::unique_ptr<Node> c) const
 {
@@ -97,5 +111,10 @@ void Keeper::put(std::unique_ptr<Visitor> visitor) { visitor_ = std::move(visito
 std::unique_ptr<Visitor> Keeper::release() { return std::move(visitor_); }
 bool Keeper::ask_same() const { return visitor_ && visitor_->same(visitor_.get()); }
 std::int32_t Keeper::ask_seen(const Node& node) const { return visitor_ ? visitor_->seen(node) : -1; }
+
+std::int32_t run(const std::function<std::int32_t(std::int32_t)>& f, const std::string& label)
+{
+    return f(static_cast<std::int32_t>(label.size()));
+}
 
 }  // namespace dob

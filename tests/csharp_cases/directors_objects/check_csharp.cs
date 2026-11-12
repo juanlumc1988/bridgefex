@@ -5,8 +5,10 @@
 // it with DOB_LIBRARY pointing at the built library.
 
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Dob;
 using Derived = Dob.Dob.Derived;
+using F = Dob.Dob.Functions;
 using Keeper = Dob.Dob.Keeper;
 using Node = Dob.Dob.Node;
 using Plain = Dob.Dob.Plain;
@@ -69,9 +71,12 @@ using (var node = new Node(5))
 using (var visitor = new ConstMutator())
 using (var node = new Node(5))
 {
-    // A const reference is read-only: the wrapper refuses what would change the object.
+    // A const reference or pointer is read-only: the wrapper refuses what would change the object.
     Expect<InvalidOperationException>(() => visitor.CallSeen(node), "read-only");
+    Expect<InvalidOperationException>(() => visitor.CallPointer(node), "read-only");
     Check(node.CallValue() == 5, "the object was not changed");
+    // A pointer that is not const can be changed.
+    Check(visitor.CallTouchPointer(node) == 105 && node.CallValue() == 105, "a pointer that is not const");
 }
 
 // -- A C# object that C++ lends is the object itself --------------------------------------------------------
@@ -172,8 +177,19 @@ Check(Alive() == 0, "destroyed");
 using (var visitor = new Maker { Reuse = true })
 {
     using var first = visitor.CallMake(1)!;
-    Expect<ObjectDisposedException>(() => visitor.CallMake(2));
+    var error = Expect<InvalidOperationException>(() => visitor.CallMake(2), "the override Visitor.make returned an object that cannot be given to C++");
+    Check(error.InnerException is ObjectDisposedException, "because the object is closed");
 }
+// The object that the override was lent is not its to give: C++ owns it, or another call uses it.
+using (var visitor = new Passing())
+using (var plain = new Node(1))
+using (var mine = new MyNode(2))
+{
+    Expect<InvalidOperationException>(() => visitor.CallPass(plain), "the override Visitor.pass returned an object that cannot be given to C++");
+    Expect<InvalidOperationException>(() => visitor.CallPass(mine), "cannot be transferred");
+    Check(!plain.IsClosed && !mine.IsClosed && Alive() == 2, "nothing was given, nothing was destroyed");
+}
+Check(Alive() == 0, "the nodes are destroyed once");
 Check(Alive() == 0, "nothing is left");
 
 // C++ destroys through Plain, which has no virtual destructor: only exactly a Plain.
@@ -182,8 +198,62 @@ using (var visitor = new PlainMaker())
     using var made = visitor.CallMakePlain(6)!;
     Check(made.Value() == 6, "a Plain");
     visitor.Derived = true;
-    Expect<ArgumentException>(() => visitor.CallMakePlain(7), "has no virtual destructor");
+    Expect<InvalidOperationException>(() => visitor.CallMakePlain(7), "the override Visitor.make_plain returned Derived");
+    Expect<InvalidOperationException>(() => visitor.CallMakePlain(7), "has no virtual destructor");
 }
+
+// An object that the override made and nobody else references: C++ owns it, and it is not collected.
+using (var visitor = new Fleeting())
+{
+    using var made = visitor.CallMake(4)!;
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    Check(made.CallValue() == 4004, "the object of the user that C++ owns is not collected: " + made.CallValue());
+}
+Check(Alive() == 0, "destroyed");
+
+// -- The C++ object of a director is forgotten when C++ destroys it ----------------------------------------------
+// The table that finds the object of the user by the address of its C++ object roots what it holds: if an
+// entry were left, nothing that was given to C++ would ever be collected.
+
+[MethodImpl(MethodImplOptions.NoInlining)]
+static WeakReference[] GiveAndTakeBack()
+{
+    var weak = new List<WeakReference>();
+    using var maker = new Maker { Mine = true };
+    for (int turn = 0; turn < 20; turn++)
+    {
+        using (var made = maker.CallMake(turn)!)
+        {
+            Check(made.CallValue() == 4000 + turn, "an object of the user that C++ owns");
+            weak.Add(new WeakReference(maker.Given));
+            maker.Given = null;
+        }
+    }
+    return weak.ToArray();
+}
+
+WeakReference[] given = GiveAndTakeBack();
+GC.Collect();
+GC.WaitForPendingFinalizers();
+GC.Collect();
+Check(given.All(reference => !reference.IsAlive), "the objects that C++ destroyed are collected");
+Check(Alive() == 0, "and destroyed");
+
+// -- A call whose scope was used before: it keeps nothing of that call -------------------------------------------
+// The scope of a call that gives no callback is used again by the next call of the thread. One that gives a
+// callback and fails before C++ runs must drop the callback, as if it were the first call.
+
+Check(F.Run(size => size + 1, "ab") == 3, "a call with a callback");
+for (int turn = 0; turn < 5; turn++)
+{
+    Alive();  // calls that give no callback: their scope is the one the next call gets
+}
+int registered = BridgefexCallbacks.Registered;
+Expect<ArgumentException>(() => F.Run(size => size, "\ud800"), "Unicode");
+Check(BridgefexCallbacks.Registered == registered, "a callback that no C function got is dropped");
+Check(F.Run(size => size + 1, "abc") == 4, "and the next call is fine");
 
 // -- The override that is called on a thread of C++ gets the lent object too ---------------------------------
 
@@ -252,6 +322,28 @@ class ConstMutator : Visitor
         node.Set(0);
         return 0;
     }
+
+    public override int Pointer(Node? node)
+    {
+        node!.Set(0);
+        return 0;
+    }
+
+    public override int TouchPointer(Node node)
+    {
+        node.Set(node.CallValue() + 100);
+        return node.CallValue();
+    }
+}
+
+class Passing : Visitor
+{
+    public override Node? Pass(Node node) => node;
+}
+
+class Fleeting : Visitor
+{
+    public override Node? Make(int value) => new Heavy(value);
 }
 
 class MyNode : Node

@@ -129,11 +129,22 @@ Check(
 
 // -- More arguments than the delegates of .NET have ---------------------------------------------------
 
+// Each argument has its own weight, so that two arguments that swap places are noticed.
+static int Weighted(params int[] values)
+{
+    int sum = 0;
+    for (int i = 0; i < values.Length; i++)
+    {
+        sum += values[i] * (i + 1);
+    }
+    return sum;
+}
+
 {
     int total = 0;
     F.Seventeen((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =>
-        total = a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17);
-    Check(total == 153, "17 arguments, without a result: " + total);
+        total = Weighted(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17));
+    Check(total == 1785, "17 arguments, without a result: " + total);
     Expect<FormatException>(
         () => F.Seventeen((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17) =>
             throw new FormatException("wide")),
@@ -141,8 +152,8 @@ Check(
 }
 Check(
     F.Twenty((a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, d, s, b) =>
-        a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17
-        + (d == 2.5 ? 1000 : 0) + (s == "wide" ? 100 : 0) + (b ? 10 : 0)) == 153 + 1110,
+        Weighted(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17)
+        + (d == 2.5 ? 1000 : 0) + (s == "wide" ? 100 : 0) + (b ? 10 : 0)) == 1785 + 1110,
     "20 arguments of several kinds, with a result");
 Expect<BridgefexException>(() => F.Twenty(null!), "bad_function_call");
 NoCallbacks("after the callbacks of 17 and 20 arguments");

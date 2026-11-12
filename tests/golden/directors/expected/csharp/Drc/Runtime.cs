@@ -306,4 +306,17 @@ internal static unsafe partial class Runtime
                 + cppType.Name + " and which has no virtual destructor", name);
         }
     }
+
+    /// <summary>The same check for the object that an override gives to C++.</summary>
+    internal static void CheckExactResult(BridgefexObject value, global::System.Type cppType, string what)
+    {
+        BridgefexObject whole = value.Origin ?? value;
+        if (whole.CppType != cppType)
+        {
+            throw new global::System.InvalidOperationException(
+                "the override " + what + " returned " + whole.GetType().Name + ", which cannot be given as "
+                + cppType.Name + ": the C++ code destroys it through " + cppType.Name
+                + ", which has no virtual destructor");
+        }
+    }
 }

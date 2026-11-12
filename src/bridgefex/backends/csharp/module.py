@@ -37,6 +37,11 @@ from .source import Source
 
 STRUCT_LAYOUT = f"[{INTEROP}.StructLayout({INTEROP}.LayoutKind.Sequential)]"
 
+_CLASS_MEMBERS = frozenset(
+    "Borrow CppType LendToOverride AdoptFromCpp GiveToCpp DirectorOverrides".split()
+)
+"""What a generated class declares itself: a class cannot have the name of one of its members."""
+
 _FILE_TYPES = frozenset(
     """
     Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
@@ -99,6 +104,14 @@ def build_names(plan: ModulePlan) -> Names:
             if isinstance(item, ClassPlan):
                 name = pascal(item.model.name)
                 claim(name, item.model.qualified_name)
+                if name in _CLASS_MEMBERS:
+                    errors.append(
+                        Diagnostic(
+                            f"'{item.model.qualified_name}' gets the C# name '{name}', which a "
+                            "member that every generated class declares has",
+                            item.model.location,
+                        )
+                    )
                 claim(f"{name}Handle", f"the handle of '{item.model.qualified_name}'")
                 classes[item.c_type] = f"{prefix}.{name}"
                 handles[item.c_type] = f"{prefix}.{name}Handle"
@@ -411,7 +424,7 @@ def _handle_class(src: Source, cls: ClassPlan, handle: str) -> None:
     src.line()
 
 
-def _borrow(src: Source, name: str, handle: str, *, lent: bool = False) -> None:
+def _borrow(src: Source, name: str, handle: str, *, lent: tuple[str, bool] | None = None) -> None:
     """``Borrow``: the wrapper of an object that C++ owns (it keeps its ``owners`` alive). For a
     class that an override takes or gives, also ``LendToOverride`` and ``AdoptFromCpp``."""
     src.line()
@@ -429,8 +442,12 @@ def _borrow(src: Source, name: str, handle: str, *, lent: bool = False) -> None:
     src.line("result.Attach(owners);")
     src.line("return result;")
     src.close()
-    if not lent:
-        return
+    if lent is not None:
+        _lent_helpers(src, name, handle, *lent)
+
+
+def _lent_helpers(src: Source, name: str, handle: str, view: str, exact: bool) -> None:
+    """What a class that an override takes or gives as an object has besides ``Borrow``."""
     src.line()
     src.line(
         "/// <summary>The object that C++ lends to an override: the C# object that it is, if C# "
@@ -462,6 +479,35 @@ def _borrow(src: Source, name: str, handle: str, *, lent: bool = False) -> None:
     src.line(f"var handle = new {handle}();")
     src.line("handle.Assign(pointer);")
     src.line(f"return new {name}(handle);")
+    src.close()
+    src.line()
+    src.line(
+        "/// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, "
+        "as a call that takes the object gives it.</summary>"
+    )
+    src.open(f"internal static nint GiveToCpp({name} value, string what)")
+    if exact:
+        # C++ destroys the object through this class: only an object of exactly it.
+        src.line(f"Runtime.CheckExactResult(value, typeof({name}), what);")
+    src.line("Lease lease;")
+    src.line("try")
+    src.open()
+    src.line(f"lease = value.{view}(true, true);")
+    src.close()
+    src.line("catch (global::System.InvalidOperationException inner)")
+    src.open()
+    src.line(
+        "throw new global::System.InvalidOperationException("
+        '"the override " + what + " returned an object that cannot be given to C++: " '
+        "+ inner.Message, inner);"
+    )
+    src.close()
+    src.line("using (lease)")
+    src.open()
+    src.line("nint pointer = lease.Give();")
+    src.line("value.Surrender();")
+    src.line("return pointer;")
+    src.close()
     src.close()
 
 
@@ -605,7 +651,19 @@ def _class(
     src.line()
     src.line(f"internal override global::System.Type CppType => typeof({name});")
     _constructors(src, plan, cls, names, handle=handle, taken=taken, reserved=reserved)
-    _borrow(src, name, handle, lent=cls.c_type in names.lent)
+    _borrow(
+        src,
+        name,
+        handle,
+        lent=(
+            (
+                f"Hold_{cls.c_type}" if cls.is_base else "Hold",
+                cls.is_base and not cls.model.virtual_destructor,
+            )
+            if cls.c_type in names.lent
+            else None
+        ),
+    )
     chain = _primary_chain(cls, by_type)
     _views(src, cls, chain)
     for nested in cls.enums:

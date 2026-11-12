@@ -1531,9 +1531,7 @@ internal static unsafe class Thunks
             }
             else
             {
-                using var lease = value.Hold(true, true);
-                *result = lease.Give();
-                value.Surrender();
+                *result = global::Drc.Shape.Beam.GiveToCpp(value, "Shape.make_beam");
             }
         }
         catch (global::System.Exception error)

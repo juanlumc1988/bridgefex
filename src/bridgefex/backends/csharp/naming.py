@@ -45,7 +45,7 @@ RESERVED_MEMBERS = BODY_TYPES | frozenset(
     Dispose Close Equals GetHashCode GetType ToString Finalize MemberwiseClone ReferenceEquals
     IsClosed Handle Hold Owners ReadOnly Retained Origin CppType Retain Attach Surrender KeepOf
     ClaimToGive CollectOwning RetainForever Borrow Director HoldDirector SetDirector
-    DirectorOverrides LendToOverride AdoptFromCpp
+    DirectorOverrides LendToOverride AdoptFromCpp GiveToCpp
     """.split()
 )
 

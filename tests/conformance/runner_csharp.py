@@ -191,12 +191,12 @@ def host_runtime() -> str | None:
     return f"{system}-{machine}"
 
 
-def publish_program(case: Case, output: Path, program: Path, name: str, mode: str) -> Path | None:
+def publish_program(case: Case, output: Path, program: Path, name: str, mode: str) -> Path:
     """``program`` built with the bindings of ``case`` and published as a self-contained
     executable that the trimmer (``mode`` "trim") or the native AOT compiler ("aot") has
-    reduced: the executable. None if the machine cannot do it (no packages of the SDK to
-    download, no C compiler for native AOT): a failure then, if the CI requires it. Raises
-    RuntimeError if the program does not publish."""
+    reduced: the executable. The test is skipped if the machine cannot do it: no linker or
+    zlib for native AOT, or (unless the CI requires it) no way to download the packages of the
+    SDK. Raises RuntimeError if the program does not publish."""
     if mode == "aot" and platform.system() != "Linux":
         pytest.skip("native AOT is tested on Linux only")
     runtime = host_runtime()
@@ -242,12 +242,23 @@ def publish_program(case: Case, output: Path, program: Path, name: str, mode: st
         timeout=1800,
     )
     if completed.returncode != 0:
-        text = completed.stdout + completed.stderr
-        missing = ("NU1101", "NU1102", "NU1301", "Unable to find package", "platform linker")
-        if any(word in text for word in missing) and os.environ.get(ENV_REQUIRED) != "1":
-            pytest.skip("the packages or the linker of this publish mode are not available")
+        text = (completed.stdout + completed.stderr).lower()
+        if any(word in text for word in _NO_LINKER):
+            pytest.skip("native AOT needs a linker (clang or gcc) and the zlib headers")
+        if any(word in text for word in _NO_PACKAGES) and os.environ.get(ENV_REQUIRED) != "1":
+            pytest.skip("the packages of the SDK for this publish mode cannot be downloaded")
         raise RuntimeError(f"{name} does not publish ({mode}):\n" + text)
     return executable
+
+
+_NO_LINKER = ("platform linker", "cannot find -lz", "unable to find -lz", "'zlib.h' file not found")
+_NO_PACKAGES = (
+    "nu1101",
+    "nu1102",
+    "nu1301",
+    "unable to find package",
+    "unable to load the service index",
+)
 
 
 def execute_native(case: Case, executable: Path, library: Path) -> subprocess.CompletedProcess[str]:

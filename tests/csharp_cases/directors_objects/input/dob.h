@@ -2,7 +2,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <string>
 
 namespace dob {
 
@@ -48,6 +50,8 @@ public:
     virtual std::int32_t take(std::unique_ptr<Node> node) const;
     virtual std::unique_ptr<Node> make(std::int32_t value) const;
     virtual std::unique_ptr<Plain> make_plain(std::int32_t value) const;
+    virtual std::unique_ptr<Node> pass(const Node& node) const;
+    virtual std::int32_t touch_pointer(Node* node) const;
     virtual std::int32_t both(std::unique_ptr<Node> a, const Node& b, std::unique_ptr<Node> c) const;
     virtual std::int32_t marker() const;
     virtual bool same(const Visitor* other) const;
@@ -58,6 +62,8 @@ public:
     std::int32_t call_take(std::unique_ptr<Node> node) const;
     std::unique_ptr<Node> call_make(std::int32_t value) const;
     std::unique_ptr<Plain> call_make_plain(std::int32_t value) const;
+    std::unique_ptr<Node> call_pass(const Node& node) const;
+    std::int32_t call_touch_pointer(Node* node) const;
     std::int32_t call_both(std::unique_ptr<Node> a, const Node& b, std::unique_ptr<Node> c) const;
     bool call_same(const Visitor* other) const;
     // C++ uses the object after the override returned.
@@ -80,5 +86,8 @@ public:
 private:
     std::unique_ptr<Visitor> visitor_;
 };
+
+// A function with a callback and another parameter that C# can refuse after it made the callback.
+std::int32_t run(const std::function<std::int32_t(std::int32_t)>& f, const std::string& label);
 
 }  // namespace dob

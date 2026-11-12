@@ -91,6 +91,7 @@ jobs:
             --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
             --csharp-runtime linux-arm --csharp-trim \
             --csharp-check containers --csharp-check spans --csharp-check callbacks --csharp-check directors \
+            --csharp-check callbacks_edge --csharp-check directors_containers --csharp-check directors_objects \
             --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)
         if: matrix.target == 'windows-x64'
