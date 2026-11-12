@@ -14,6 +14,7 @@ import demo.geometry.Circle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 
 class Check {
     // The object is forgotten in another method: the unoptimized code of main would keep its
@@ -123,7 +124,7 @@ class Check {
         for (Thread thread : threads) {
             thread.join();
         }
-        check(failures.isEmpty(), "threads: " + failures.stream().limit(3).toList());
+        check(failures.isEmpty(), "threads: " + failures.stream().limit(3).collect(Collectors.toList()));
 
         // Many threads use one object while another one closes it: each call either runs or says
         // the object is closed, and nothing is destroyed under a running call.
@@ -151,7 +152,7 @@ class Check {
             for (Thread thread : users) {
                 thread.join();
             }
-            check(unexpected.isEmpty(), "close while in use: " + unexpected.stream().limit(1).toList());
+            check(unexpected.isEmpty(), "close while in use: " + unexpected.stream().limit(1).collect(Collectors.toList()));
         }
         check(Counter.liveInstances() == 0, "nothing leaks");
 

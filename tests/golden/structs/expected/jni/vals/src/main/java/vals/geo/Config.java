@@ -59,7 +59,7 @@ public final class Config {
         __seg.fill((byte) 0);
         __seg.set(BridgefexRuntime.C_INT, OFFSET_BAUD, BridgefexRuntime.u32("baud", baud));
         __seg.set(BridgefexRuntime.C_BOOL, OFFSET_PARITY, parity);
-        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_KIND, BridgefexRuntime.u8("kind", (short) kind.value()));
+        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_KIND, BridgefexRuntime.u8("kind", (short) BridgefexRuntime.nonNull(kind, "kind").value()));
     }
 
     /**

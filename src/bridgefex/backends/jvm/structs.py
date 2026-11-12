@@ -106,16 +106,15 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
             info = scalar(enum.model.underlying.c_name)
             element = names.enum(enum)
             layout = info.layout
+            # The first use of the member checks that it is not null, and names it if it is (the
+            # message of a NullPointerException of the JVM only has a name from Java 14).
+            first = f"BridgefexRuntime.nonNull({{value}}, {quoted}).value()"
             checks = ""
             valid = enum.model.valid_range
             if valid is not None:
-                checks = (
-                    f"BridgefexRuntime.checkEnum({{value}}.value(), {valid[0]}, {valid[1]}, "
-                    f"{quoted}); "
-                )
-            value = (
-                "{value}.value()" if info.public == "long" else f"({info.public}) {{value}}.value()"
-            )
+                checks = f"BridgefexRuntime.checkEnum({first}, {valid[0]}, {valid[1]}, {quoted}); "
+                first = "{value}.value()"
+            value = first if info.public == "long" else f"({info.public}) {first}"
             write = checks + info.write.replace("{name}", quoted).replace("{}", value)
             read = f"{element}.of({info.read})"
             size = f"{info.layout}.byteSize()"
@@ -124,7 +123,10 @@ def _members(struct: StructPlan, names: Names) -> list[_Member]:
             other = names.struct_plans[type_.usr]
             element = names.struct(other)
             layout = f"{element}.LAYOUT"
-            write = "{value}.write({seg}.asSlice({off}, " + layout + ".byteSize()));"
+            write = (
+                f"BridgefexRuntime.nonNull({{value}}, {quoted})."
+                "write({seg}.asSlice({off}, " + layout + ".byteSize()));"
+            )
             read = f"{element}.read({{seg}}.asSlice({{off}}, {layout}.byteSize()))"
             size = f"{layout}.byteSize()"
             fresh = f"new {element}()"

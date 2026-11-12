@@ -9,6 +9,8 @@ the conformance suite.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,8 @@ import pytest
 import bridgefex
 from bridgefex.errors import GenerationError
 from tests.conformance import runner_jvm
+from tests.support.build import jni_includes
+from tests.support.cases import GOLDEN_DIR, load_case
 from tests.test_jvm_backend import (
     COMPILES,
     HIDING,
@@ -193,3 +197,64 @@ def test_the_two_flavors_say_the_same_in_the_options(tmp_path: Path) -> None:
     languages = bridgefex.LANGUAGES
     assert "jni" in languages
     assert "jvm" in languages
+
+
+# -- The glue on the targets that have no JVM here -------------------------------------------------
+
+_STUBS = {
+    "stdio.h": "#pragma once\n#include <stddef.h>\n",
+    "string.h": '#pragma once\n#include <stddef.h>\nextern "C" size_t strlen(const char*);\n',
+}
+"""What ``jni.h`` and the glue ask of the C library, for a target whose headers are not here."""
+
+
+@pytest.mark.parametrize(
+    "target", ["armv7a-linux-gnueabihf", "i686-linux-gnu", "aarch64-linux-gnu", "x86_64-linux-gnu"]
+)
+@pytest.mark.parametrize("name", ["demo", "containers", "inherit"])
+def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
+    tmp_path: Path, target: str, name: str
+) -> None:
+    """Pointers are 32 bits on 32-bit ARM: the glue converts the addresses of Java with explicit
+    casts, and says nothing under -Wconversion. Checked with clang for the target, over stand-in
+    headers of the C library (it only needs a syntax check, not a sysroot)."""
+    clang = shutil.which("clang++")
+    includes = jni_includes()
+    if clang is None or not includes:
+        pytest.skip("needs clang and a JDK with jni.h")
+    case = load_case(GOLDEN_DIR / name)
+    files = bridgefex.generate(case.headers, case.options(("jni",))).files
+    bridgefex.write_files(files, tmp_path / "out")
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    for header, text in _STUBS.items():
+        (stubs / header).write_text(text, encoding="utf-8")
+    resource = subprocess.run(
+        ["clang", "-print-resource-dir"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    glue = next((tmp_path / "out" / "jni").glob("*/native/*.cpp"))
+    completed = subprocess.run(
+        [
+            clang,
+            f"--target={target}",
+            "-std=c++17",
+            "-fsyntax-only",
+            "-Wall",
+            "-Wextra",
+            "-Wpedantic",
+            "-Wconversion",
+            "-Werror",
+            "-nostdinc",
+            "-isystem",
+            f"{resource}/include",
+            f"-I{stubs}",
+            *(f"-I{path}" for path in includes),
+            f"-I{tmp_path / 'out' / 'c'}",
+            f"-I{case.input_dir}",
+            str(glue),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr

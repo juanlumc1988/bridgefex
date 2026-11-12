@@ -125,7 +125,7 @@ public final class Tagged {
      */
     public void write(java.lang.foreign.MemorySegment __seg) {
         __seg.fill((byte) 0);
-        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_MODE, (byte) mode.value());
+        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_MODE, (byte) BridgefexRuntime.nonNull(mode, "mode").value());
         __seg.set(BridgefexRuntime.C_INT, OFFSET_VALUE, value);
     }
 

@@ -59,9 +59,9 @@ public final class Leg {
      */
     public void write(BridgefexSegment __seg) {
         __seg.fill((byte) 0);
-        from.write(__seg.asSlice(OFFSET_FROM, vals.geo.Point.LAYOUT.byteSize()));
-        to.write(__seg.asSlice(OFFSET_TO, vals.geo.Point.LAYOUT.byteSize()));
-        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_KIND, BridgefexRuntime.u8("kind", (short) kind.value()));
+        BridgefexRuntime.nonNull(from, "from").write(__seg.asSlice(OFFSET_FROM, vals.geo.Point.LAYOUT.byteSize()));
+        BridgefexRuntime.nonNull(to, "to").write(__seg.asSlice(OFFSET_TO, vals.geo.Point.LAYOUT.byteSize()));
+        __seg.set(BridgefexRuntime.C_BYTE, OFFSET_KIND, BridgefexRuntime.u8("kind", (short) BridgefexRuntime.nonNull(kind, "kind").value()));
     }
 
     /**

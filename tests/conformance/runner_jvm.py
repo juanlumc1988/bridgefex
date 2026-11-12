@@ -61,11 +61,13 @@ def build_program(
     support: tuple[Path, ...] = (),
     edit: Callable[[dict[str, str]], dict[str, str]] | None = None,
     language: str = "jvm",
+    release: str | None = None,
 ) -> Path:
     """``program`` (a Java file with ``main``) compiled with the bindings of ``case`` (those of
     ``language``, ``jvm`` or ``jni``) and the files of ``support`` (``edit`` may change the
     generated files first): the directory of the classes. Raises RuntimeError if it does not
-    compile."""
+    compile. ``release`` is the Java that the program is written for, if it has to run on an
+    older one than the JDK that compiles it (the JNI bindings run on Java 8)."""
     work = output / f"{language}-{name}"
     classes = work / "classes"
     if classes.exists():
@@ -84,13 +86,16 @@ def build_program(
     if language == "jvm":
         steps = [([*sources, *extra], "22", "-Xlint:all")]
     else:
-        steps = [(sources, "8", "-Xlint:all,-options"), (extra, "22", "-Xlint:all")]
-    for step, release, lint in steps:
+        steps = [
+            (sources, "8", "-Xlint:all,-options"),
+            (extra, release or "22", "-Xlint:all,-options"),
+        ]
+    for step, level, lint in steps:
         completed = subprocess.run(
             [
                 command,
                 "--release",
-                release,
+                level,
                 lint,
                 "-Werror",
                 "-encoding",
@@ -112,13 +117,27 @@ def build_program(
 
 
 def execute(
-    case: Case, classes: Path, library: Path, main: str, *arguments: str
+    case: Case,
+    classes: Path,
+    library: Path,
+    main: str,
+    *arguments: str,
+    java: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run ``main`` of a compiled program with the library of ``case``."""
+    """Run ``main`` of a compiled program with the library of ``case`` (with the ``java`` given,
+    or that of the JDK that compiles)."""
     command = javac()
     assert command is not None
     return subprocess.run(
-        [java_runtime(command), *ARGUMENTS, "-cp", str(classes), main, *arguments],
+        # An older java does not know the flag of the foreign function API.
+        [
+            java or java_runtime(command),
+            *(() if java else ARGUMENTS),
+            "-cp",
+            str(classes),
+            main,
+            *arguments,
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -157,7 +176,7 @@ def _binary(name: str, nested: int) -> str:
     return f"{head}${last}"
 
 
-def _map(case: Case, output: Path, language: str) -> dict[str, object]:
+def _map(case: Case, output: Path, language: str, name: str) -> dict[str, object]:
     plan = plan_of(case)
     names = build_names(plan)
     enums: dict[str, str] = {}
@@ -170,7 +189,7 @@ def _map(case: Case, output: Path, language: str) -> dict[str, object]:
     }
     return {
         "language": language,
-        "types": _types(output, "Runner", language),
+        "types": _types(output, name, language),
         "enums": enums,
         "members": members,
         "structs": structs,
@@ -178,18 +197,27 @@ def _map(case: Case, output: Path, language: str) -> dict[str, object]:
 
 
 def run(
-    case: Case, library: Path, output: Path, path: Path, language: str = "jvm"
+    case: Case,
+    library: Path,
+    output: Path,
+    path: Path,
+    language: str = "jvm",
+    *,
+    java: str | None = None,
+    release: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Play the scenarios of ``path`` against the Java bindings of ``case`` (``jvm`` or ``jni``)."""
+    """Play the scenarios of ``path`` against the Java bindings of ``case`` (``jvm`` or ``jni``),
+    with the ``java`` given and the runner written for ``release``, if they are not the JDK's."""
+    name = "Runner" if release is None else f"Runner{release}"
     try:
-        classes = build_program(case, output, RUNNER, "Runner", language=language)
+        classes = build_program(case, output, RUNNER, name, language=language, release=release)
     except RuntimeError as error:
         return subprocess.CompletedProcess([], 3, "", str(error))
     plan = plan_of(case)
     data = {
         "scenarios": scenarios.resolve(scenarios.load(path), plan),
-        "map": _map(case, output, language),
+        "map": _map(case, output, language, name),
     }
     target = classes.parent / f"data-{path.parent.name}-{path.stem}.json"
     target.write_text(json.dumps(_json_safe(data)), encoding="utf-8")
-    return execute(case, classes, library, "Runner", str(target))
+    return execute(case, classes, library, "Runner", str(target), java=java)

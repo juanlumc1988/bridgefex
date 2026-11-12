@@ -14,6 +14,7 @@ import static checks.Checks.expect;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadLocalRandom;
@@ -151,32 +152,26 @@ class Check {
                     try {
                         barrier.await();
                         for (int turn = 0; turn < 20; turn++) {
-                            switch (role % 3) {
-                                case 0 -> {
-                                    if (shared.tryLease() == BridgefexHandle.LeaseResult.OK) {
-                                        running.incrementAndGet();
-                                        Thread.onSpinWait();
-                                        running.decrementAndGet();
-                                        shared.releaseLease();
-                                    }
+                            if (role % 3 == 0) {
+                                if (shared.tryLease() == BridgefexHandle.LeaseResult.OK) {
+                                    running.incrementAndGet();
+                                    Thread.yield();
+                                    running.decrementAndGet();
+                                    shared.releaseLease();
                                 }
-                                case 1 -> {
-                                    if (shared.tryClaim() == BridgefexHandle.LeaseResult.OK) {
-                                        running.incrementAndGet();
-                                        if (ThreadLocalRandom.current().nextBoolean()) {
-                                            shared.giveUp();
-                                        }
-                                        running.decrementAndGet();
-                                        shared.releaseLease();
+                            } else if (role % 3 == 1) {
+                                if (shared.tryClaim() == BridgefexHandle.LeaseResult.OK) {
+                                    running.incrementAndGet();
+                                    if (ThreadLocalRandom.current().nextBoolean()) {
+                                        shared.giveUp();
                                     }
+                                    running.decrementAndGet();
+                                    shared.releaseLease();
                                 }
-                                default -> {
-                                    if (role == 2 && turn == 10) {
-                                        shared.closeObject();
-                                    } else {
-                                        shared.run();
-                                    }
-                                }
+                            } else if (role == 2 && turn == 10) {
+                                shared.closeObject();
+                            } else {
+                                shared.run();
                             }
                         }
                     } catch (Exception failure) {
@@ -471,7 +466,7 @@ class Check {
             CyclicBarrier barrier = new CyclicBarrier(3);
             AtomicInteger given = new AtomicInteger();
             AtomicInteger refused = new AtomicInteger();
-            List<Thread> threads = List.of(
+            List<Thread> threads = Arrays.asList(
                 new Thread(() -> {
                     try {
                         barrier.await();
