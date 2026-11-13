@@ -62,7 +62,8 @@ public final class Runner {
         if (failures != 0) {
             System.exit(1);
         }
-        System.out.println("conformance OK: " + count + " scenarios, " + steps + " steps (jvm)");
+        System.out.println("conformance OK: " + count + " scenarios, " + steps + " steps ("
+            + Json.object(root.get("map")).get("language") + ")");
     }
 
     private static String stack(Throwable error) {

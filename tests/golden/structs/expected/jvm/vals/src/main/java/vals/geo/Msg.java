@@ -72,7 +72,7 @@ public final class Msg {
     public void write(java.lang.foreign.MemorySegment __seg) {
         __seg.fill((byte) 0);
         __seg.set(BridgefexRuntime.C_BYTE, OFFSET_TAG, BridgefexRuntime.u8("tag", tag));
-        where.write(__seg.asSlice(OFFSET_WHERE, vals.geo.Point.LAYOUT.byteSize()));
+        BridgefexRuntime.nonNull(where, "where").write(__seg.asSlice(OFFSET_WHERE, vals.geo.Point.LAYOUT.byteSize()));
         BridgefexRuntime.length(samples, 3, "samples");
         for (int __i = 0; __i < 3; __i++) {
             __seg.set(BridgefexRuntime.C_SHORT, OFFSET_SAMPLES + __i * BridgefexRuntime.C_SHORT.byteSize(), samples[__i]);
@@ -80,9 +80,9 @@ public final class Msg {
         __seg.set(BridgefexRuntime.C_BOOL, OFFSET_OK, ok);
         BridgefexRuntime.length(path, 2, "path");
         for (int __i = 0; __i < 2; __i++) {
-            path[__i].write(__seg.asSlice(OFFSET_PATH + __i * vals.geo.Point.LAYOUT.byteSize(), vals.geo.Point.LAYOUT.byteSize()));
+            BridgefexRuntime.nonNull(path[__i], "path").write(__seg.asSlice(OFFSET_PATH + __i * vals.geo.Point.LAYOUT.byteSize(), vals.geo.Point.LAYOUT.byteSize()));
         }
-        BridgefexRuntime.checkEnum(quality.value(), 0, 3, "quality"); __seg.set(BridgefexRuntime.C_INT, OFFSET_QUALITY, (int) quality.value());
+        BridgefexRuntime.checkEnum(BridgefexRuntime.nonNull(quality, "quality").value(), 0, 3, "quality"); __seg.set(BridgefexRuntime.C_INT, OFFSET_QUALITY, (int) quality.value());
     }
 
     /**

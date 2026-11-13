@@ -59,7 +59,7 @@ def built(
 ) -> tuple[Case, Path, Path]:
     case: Case = request.param
     directory = tmp_path_factory.mktemp(f"roundtrip_{case.name}")
-    library, output = build(case, toolchain, directory)
+    library, output = build(case, toolchain, directory, glue=False)
     return case, library, output
 
 

@@ -189,7 +189,7 @@ def native_layout(ffi: Ffi) -> str:
     raise Unsupported(f"the C type of kind '{kind.value}' is not supported in Java yet")
 
 
-def native_java(ffi: Ffi) -> str:
+def native_java(ffi: Ffi, segment: str = SEGMENT) -> str:
     """The Java type of a parameter or a result of a downcall handle."""
     kind = ffi.kind
     if kind is FfiKind.VOID:
@@ -207,7 +207,7 @@ def native_java(ffi: Ffi) -> str:
         FfiKind.CALLBACK,
         FfiKind.RELEASE,
     ):
-        return SEGMENT
+        return segment
     raise Unsupported(f"the C type of kind '{kind.value}' is not supported in Java yet")
 
 

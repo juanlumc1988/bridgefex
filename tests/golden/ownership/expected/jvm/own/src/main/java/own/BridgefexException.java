@@ -28,13 +28,19 @@ public class BridgefexException extends RuntimeException {
     }
 
     public String statusName() {
-        return switch (status) {
-            case EXCEPTION -> "ERROR_EXCEPTION";
-            case UNKNOWN_EXCEPTION -> "ERROR_UNKNOWN_EXCEPTION";
-            case NULL_ARGUMENT -> "ERROR_NULL_ARGUMENT";
-            case OUT_OF_MEMORY -> "ERROR_OUT_OF_MEMORY";
-            case INVALID_ARGUMENT -> "ERROR_INVALID_ARGUMENT";
-            default -> "UNKNOWN_STATUS_" + status;
-        };
+        switch (status) {
+            case EXCEPTION:
+                return "ERROR_EXCEPTION";
+            case UNKNOWN_EXCEPTION:
+                return "ERROR_UNKNOWN_EXCEPTION";
+            case NULL_ARGUMENT:
+                return "ERROR_NULL_ARGUMENT";
+            case OUT_OF_MEMORY:
+                return "ERROR_OUT_OF_MEMORY";
+            case INVALID_ARGUMENT:
+                return "ERROR_INVALID_ARGUMENT";
+            default:
+                return "UNKNOWN_STATUS_" + status;
+        }
     }
 }

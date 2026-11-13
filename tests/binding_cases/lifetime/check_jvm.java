@@ -12,8 +12,9 @@ import static checks.Checks.collect;
 import static checks.Checks.eventually;
 import static checks.Checks.expect;
 
-import java.lang.foreign.MemorySegment;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ThreadLocalRandom;
@@ -52,11 +53,28 @@ class Check {
         }
     }
 
+    // The pointer of a handle is a MemorySegment in the bindings over the foreign function API and a
+    // BridgefexSegment in the ones over JNI: both have ofAddress(long), and this runs on either.
+    static void assignAddress(BridgefexHandle handle, long address) {
+        try {
+            for (Method method : BridgefexHandle.class.getMethods()) {
+                if (method.getName().equals("assign")) {
+                    Object pointer = method.getParameterTypes()[0].getMethod("ofAddress", long.class).invoke(null, address);
+                    method.invoke(handle, pointer);
+                    return;
+                }
+            }
+            throw new AssertionError("no assign");
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError(error);
+        }
+    }
+
     // A handle over a destroyer that counts, without a C++ object: the state that the calls, the
     // user and the collector share, alone.
     static BridgefexHandle counting(AtomicInteger destroyed, boolean owns) {
         BridgefexHandle handle = new BridgefexHandle(pointer -> destroyed.incrementAndGet(), owns);
-        handle.assign(MemorySegment.ofAddress(0x1000));
+        assignAddress(handle, 0x1000);
         return handle;
     }
 
@@ -125,7 +143,7 @@ class Check {
                     under.incrementAndGet();
                 }
             }, true);
-            shared.assign(MemorySegment.ofAddress(0x2000));
+            assignAddress(shared, 0x2000);
             CyclicBarrier barrier = new CyclicBarrier(6);
             List<Thread> threads = new ArrayList<>();
             for (int number = 0; number < 6; number++) {
@@ -134,32 +152,26 @@ class Check {
                     try {
                         barrier.await();
                         for (int turn = 0; turn < 20; turn++) {
-                            switch (role % 3) {
-                                case 0 -> {
-                                    if (shared.tryLease() == BridgefexHandle.LeaseResult.OK) {
-                                        running.incrementAndGet();
-                                        Thread.onSpinWait();
-                                        running.decrementAndGet();
-                                        shared.releaseLease();
-                                    }
+                            if (role % 3 == 0) {
+                                if (shared.tryLease() == BridgefexHandle.LeaseResult.OK) {
+                                    running.incrementAndGet();
+                                    Thread.yield();
+                                    running.decrementAndGet();
+                                    shared.releaseLease();
                                 }
-                                case 1 -> {
-                                    if (shared.tryClaim() == BridgefexHandle.LeaseResult.OK) {
-                                        running.incrementAndGet();
-                                        if (ThreadLocalRandom.current().nextBoolean()) {
-                                            shared.giveUp();
-                                        }
-                                        running.decrementAndGet();
-                                        shared.releaseLease();
+                            } else if (role % 3 == 1) {
+                                if (shared.tryClaim() == BridgefexHandle.LeaseResult.OK) {
+                                    running.incrementAndGet();
+                                    if (ThreadLocalRandom.current().nextBoolean()) {
+                                        shared.giveUp();
                                     }
+                                    running.decrementAndGet();
+                                    shared.releaseLease();
                                 }
-                                default -> {
-                                    if (role == 2 && turn == 10) {
-                                        shared.closeObject();
-                                    } else {
-                                        shared.run();
-                                    }
-                                }
+                            } else if (role == 2 && turn == 10) {
+                                shared.closeObject();
+                            } else {
+                                shared.run();
                             }
                         }
                     } catch (Exception failure) {
@@ -244,7 +256,7 @@ class Check {
                     next.unpin();
                 }
             }, true);
-            chain[i].assign(MemorySegment.ofAddress(0x3000L + i));
+            assignAddress(chain[i], 0x3000L + i);
             if (next != null) {
                 next.pin();
             }
@@ -274,7 +286,7 @@ class Check {
             destroyed.incrementAndGet();
             tail.unpin();
         }, true);
-        middle.assign(MemorySegment.ofAddress(0x5000));
+        assignAddress(middle, 0x5000);
         tail.pin();
         tail.run();
         check(destroyed.get() == 0, "the tail waits for the one that points to it");
@@ -454,7 +466,7 @@ class Check {
             CyclicBarrier barrier = new CyclicBarrier(3);
             AtomicInteger given = new AtomicInteger();
             AtomicInteger refused = new AtomicInteger();
-            List<Thread> threads = List.of(
+            List<Thread> threads = Arrays.asList(
                 new Thread(() -> {
                     try {
                         barrier.await();

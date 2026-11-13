@@ -43,7 +43,11 @@ class Check {
         check(Functions.maybeNull(false) != null, "and not NULL is a string");
 
         // A very long string.
-        String big = "0123456789abcdef".repeat(1 << 16);
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < (1 << 16); i++) {
+            text.append("0123456789abcdef");
+        }
+        String big = text.toString();
         check(big.equals(Functions.echo(big)), "a megabyte");
         check(Functions.countString(big) == big.length(), "counted");
 

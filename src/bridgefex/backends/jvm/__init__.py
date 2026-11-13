@@ -4,7 +4,7 @@ Kotlin uses too. One project per module, a package per header."""
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
 
@@ -20,8 +20,10 @@ from ...plan import (
 )
 from ...rendering import Renderer
 from ..base import Backend
+from . import jni
 from .check import check
 from .classes import class_source
+from .flavor import FFM, JNI, Flavor
 from .lower import Names
 from .mapping import Unsupported
 from .module import build_names, functions_source, header_package, native_source, type_source
@@ -67,6 +69,8 @@ class _Sources:
         }
         self.problems: list[Diagnostic] = []
         self.refused = False
+        self.language = base.split("/", maxsplit=1)[0]
+        """The language that is generated (the first directory of the project)."""
 
     def put(self, path: str, make: Callable[[], str]) -> None:
         try:
@@ -105,8 +109,9 @@ class _Sources:
             self.problems.append(
                 Diagnostic(
                     "Java: the declarations above are not supported by the Java bindings yet; "
-                    "the other languages do not have these limits (leave 'jvm' out of the "
-                    "languages to generate them), or take the declarations out of the header"
+                    "the other languages do not have these limits (leave "
+                    f"'{self.language}' out of the languages to generate them), or take the "
+                    "declarations out of the header"
                 )
             )
         if self.problems:
@@ -114,17 +119,17 @@ class _Sources:
         return self.files
 
 
-def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
-    """The project ``jvm/<module>``: the runtime, the native declarations and a package for
+def render(plan: ModulePlan, fingerprint: str, flavor: Flavor = FFM) -> dict[str, str]:
+    """The project ``<flavor>/<module>``: the runtime, the native declarations and a package for
     each header."""
     problems = _module_problems(plan)
     if problems:
         raise GenerationError(problems)
-    names = build_names(plan)
+    names = build_names(plan, flavor)
     root = names.root
     files: dict[str, str] = {}
     renderer = Renderer(_TEMPLATES, plan, files)
-    base = f"jvm/{root}"
+    base = f"{flavor.directory}/{root}"
     context = {
         "pkg": root,
         "library": plan.name,
@@ -132,10 +137,28 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "property": f"{plan.name}.library",
         "env": f"{plan.name.upper()}_LIBRARY",
         "api_fingerprint": plan.api_fingerprint_function,
+        "ffm": flavor.modern,
+        "segment": flavor.segment_name,
+        "cleaner": flavor.cleaner,
     }
-    renderer.put(f"{base}/pom.xml", "pom.xml.j2", **context)
+    java = f"{base}/src/main/java/{root}"
+    if flavor.modern:
+        renderer.put(f"{base}/pom.xml", "pom.xml.j2", **context)
+        own: tuple[str, ...] = ("BridgefexRuntime",)
+    else:
+        renderer.put(f"{base}/pom.xml", "jni/pom.xml.j2", **context)
+        own = (
+            "BridgefexRuntime",
+            "BridgefexSegment",
+            "BridgefexArena",
+            "BridgefexLayout",
+            "BridgefexStruct",
+            "BridgefexCleaner",
+        )
+    for name in own:
+        template = name if flavor.modern else f"jni/{name}"
+        renderer.put(f"{java}/{name}.java", f"{template}.java.j2", **context)
     for name in (
-        "BridgefexRuntime",
         "BridgefexException",
         "BridgefexFunction",
         "BridgefexUnsigned",
@@ -144,17 +167,31 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "BridgefexKeep",
         "BridgefexObject",
     ):
-        renderer.put(f"{base}/src/main/java/{root}/{name}.java", f"{name}.java.j2", **context)
+        renderer.put(f"{java}/{name}.java", f"{name}.java.j2", **context)
     sources = _Sources(plan, names, files, base)
-    sources.put(
-        f"{base}/src/main/java/{root}/BridgefexNative.java", partial(native_source, plan, names)
-    )
+    if flavor.modern:
+        sources.put(f"{java}/BridgefexNative.java", partial(native_source, plan, names))
+    else:
+        sources.put(f"{java}/BridgefexNative.java", partial(jni.native_source, plan, names))
+        sources.put(
+            f"{base}/native/{root}_jni.cpp",
+            lambda: renderer.render("jni/glue.cpp.j2", root=root, **jni.glue_parts(plan)),
+        )
     for header in plan.headers:
         sources.header(header)
     return sources.result()
 
 
-__all__ = ["BACKEND", "pascal"]
+def render_jni(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
+    """The project ``jni/<module>``: the same bindings over JNI (Java 8 or later)."""
+    return render(plan, fingerprint, JNI)
+
+
+def check_jni(plan: ModulePlan, files: Mapping[str, str], root: Path) -> list[Diagnostic]:
+    return check(plan, files, root, JNI)
+
+
+__all__ = ["BACKEND", "JNI_BACKEND", "pascal"]
 
 BACKEND = Backend(
     "jvm",
@@ -164,3 +201,5 @@ BACKEND = Backend(
     Reservations(locals=locals_of),
     check=check,
 )
+
+JNI_BACKEND = Backend("jni", render_jni, Reservations(locals=locals_of), check=check_jni)

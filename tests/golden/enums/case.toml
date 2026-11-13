@@ -3,4 +3,4 @@ module = "enm"
 headers = ["colors.h", "shapes.h"]
 std = "c++17"
 min_cxx = "c++17"
-languages = ["python", "csharp", "jvm"]
+languages = ["python", "csharp", "jvm", "jni"]

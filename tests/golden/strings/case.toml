@@ -4,4 +4,4 @@ headers = ["text.h", "views.h"]
 std = "c++17"
 # views.h needs std::string_view.
 min_cxx = "c++17"
-languages = ["python", "csharp", "jvm"]
+languages = ["python", "csharp", "jvm", "jni"]

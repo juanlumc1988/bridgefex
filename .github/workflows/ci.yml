@@ -146,4 +146,48 @@ jobs:
         env:
           CC: gcc-14
           CXX: g++-14
-        run: python -m pytest -ra tests/test_jvm_backend.py tests/test_jvm_roundtrip.py tests/test_conformance.py -k "jvm or java"
+        run: python -m pytest -ra tests/test_jvm_backend.py tests/test_jni_backend.py tests/test_jni_layouts.py tests/test_jvm_roundtrip.py tests/test_conformance.py -k "jvm or jni or java"
+
+  # The JNI bindings are Java 8: their checks run on the JDKs that 32-bit ARM, embedded Linux and
+  # Android have (8, 11 and 17), compiled for Java 8 by a newer JDK. The conformance scenarios run
+  # on the 17.
+  jni-old-javas:
+    name: ubuntu-24.04 / JNI on Java 8, 11 and 17
+    runs-on: ubuntu-24.04
+    env:
+      BRIDGEFEX_REQUIRE_JAVA: "1"
+      BRIDGEFEX_REQUIRE_OLD_JAVA: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # Each of these sets JAVA_HOME_<n>_X64, which the tests look for; the last one compiles.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "8"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Install libclang 20 and compilers
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libclang1-20 libclang-common-20-dev gcc-14 g++-14
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Test
+        env:
+          CC: gcc-14
+          CXX: g++-14
+        run: python -m pytest -ra tests/test_jni_other_javas.py

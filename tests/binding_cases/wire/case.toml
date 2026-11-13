@@ -3,4 +3,4 @@
 module = "wire"
 headers = ["wire.h"]
 std = "c++17"
-languages = ["jvm"]
+languages = ["jvm", "jni"]

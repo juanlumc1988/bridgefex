@@ -11,6 +11,7 @@ language does beyond that (its idioms, its failures) is tested apart, in the
 
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
 import sys
@@ -62,6 +63,7 @@ RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProces
     "python": run_python,
     "csharp": runner_csharp.run,
     "jvm": runner_jvm.run,
+    "jni": functools.partial(runner_jvm.run, language="jni"),
 }
 
 # What each backend can already play: the cases whose scenarios use only what it supports.
@@ -70,7 +72,12 @@ SUPPORTED: dict[str, frozenset[str] | None] = {
     "csharp": frozenset(
         {"scalars", "strings", "enums", "structs", "demo", "inherit", "containers", "spans"}
     ),
-    "jvm": frozenset({"scalars", "enums", "structs", "strings", "demo", "inherit"}),
+    "jvm": frozenset(
+        {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
+    ),
+    "jni": frozenset(
+        {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
+    ),
 }
 
 
@@ -85,7 +92,7 @@ def _dotnet(request: pytest.FixtureRequest) -> None:
     callspec = getattr(request.node, "callspec", None)
     if callspec is not None and callspec.params.get("language") == "csharp":
         request.getfixturevalue("dotnet")
-    if callspec is not None and callspec.params.get("language") == "jvm":
+    if callspec is not None and callspec.params.get("language") in ("jvm", "jni"):
         runner_jvm.skip_without_java()
 
 

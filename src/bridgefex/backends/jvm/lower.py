@@ -7,7 +7,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ...model import ClassForm, ClassRef, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    ClassForm,
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import (
     CallableKind,
     CallablePlan,
@@ -19,7 +27,9 @@ from ...plan import (
     ResultSpec,
     StructPlan,
 )
-from .mapping import SEGMENT, STRING, Unsupported, scalar
+from . import containers
+from .flavor import FFM, Flavor
+from .mapping import STRING, Unsupported, scalar
 from .naming import LOCAL_PREFIX, camel, identifier, parameter
 from .source import Source
 
@@ -44,6 +54,9 @@ class Names:
     struct_plans: Mapping[str, StructPlan] = field(default_factory=dict)
     destroyers: Mapping[str, str] = field(default_factory=dict)
     """The C function that destroys an object of each class, by the C type."""
+
+    flavor: Flavor = FFM
+    """How the bindings call the C layer."""
 
     def cls(self, info: ClassInfo) -> str:
         return self.classes[info.c_type]
@@ -152,11 +165,21 @@ class _Lowerer:
             result.append(name)
         return result
 
+    def declare(self, type_: str) -> str:
+        """The start of the declaration of a local variable of ``type_``."""
+        return self.names.flavor.declare(type_)
+
+    @property
+    def segment(self) -> str:
+        return self.names.flavor.segment
+
     def arena_resource(self) -> str:
         """The memory of the call, made when something needs it."""
         if not self.arena:
             self.arena = True
-            self.resources.insert(0, f"var {L}arena = BridgefexRuntime.arena()")
+            self.resources.insert(
+                0, f"{self.declare(self.names.flavor.arena)} {L}arena = BridgefexRuntime.arena()"
+            )
         return f"{L}arena"
 
     def run(self) -> Lowering:
@@ -173,7 +196,9 @@ class _Lowerer:
                 if declaring is not None and declaring.is_base
                 else "hold"
             )
-            self.resources.append(f"var {L}self = {hold}({mutable}, false)")
+            self.resources.append(
+                f"{self.declare('BridgefexLease')} {L}self = {hold}({mutable}, false)"
+            )
             self.arguments["self"] = f"{L}self.pointer()"
         self.same_object_checks()
         for position, spec in enumerate(plan.params, start=1):
@@ -293,6 +318,8 @@ class _Lowerer:
             self.struct_param(spec, position, name)
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
+        elif isinstance(type_, ContainerType):
+            containers.param(self, spec, type_, position, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
@@ -324,17 +351,21 @@ class _Lowerer:
             if "nullable" in spec.words:
                 self.lowering.remarks.append(f"{name} may be null (a NULL const char*).")
                 statements.append(
-                    f"var {L}p{position} = {name} == null ? {SEGMENT}.NULL"
+                    f"{self.declare(self.segment)} {L}p{position} = "
+                    f"{name} == null ? {self.segment}.NULL"
                     f' : {R}.bytes({arena}, {R}.utf8z({name}, "{name}"));'
                 )
             else:
                 statements.append(
-                    f'var {L}p{position} = {R}.bytes({arena}, {R}.utf8z({name}, "{name}"));'
+                    f"{self.declare(self.segment)} {L}p{position} = "
+                    f'{R}.bytes({arena}, {R}.utf8z({name}, "{name}"));'
                 )
             self.arguments[spec.name] = f"{L}p{position}"
             return
         statements.append(f'byte[] {L}b{position} = {R}.utf8({name}, "{name}");')
-        statements.append(f"var {L}p{position} = {R}.bytes({arena}, {L}b{position});")
+        statements.append(
+            f"{self.declare(self.segment)} {L}p{position} = {R}.bytes({arena}, {L}b{position});"
+        )
         self.arguments[spec.name] = f"{L}p{position}"
         self.arguments[spec.size] = f"(long) {L}b{position}.length"
 
@@ -344,7 +375,9 @@ class _Lowerer:
         arena = self.arena_resource()
         self.lowering.parameters.append(f"{struct} {name}")
         local = f"{L}s{position}"
-        self.statements.append(f"var {local} = {arena}.allocate({struct}.LAYOUT);")
+        self.statements.append(
+            f"{self.declare(self.segment)} {local} = {arena}.allocate({struct}.LAYOUT);"
+        )
         self.statements.append(f'{R}.nonNull({name}, "{name}").write({local});')
         self.arguments[spec.name] = local
 
@@ -373,13 +406,18 @@ class _Lowerer:
             check = f'BridgefexObject.checkExact({name}, {self.names.cls(info)}.class, "{name}");'
             self.pre.append(f"if ({name} != null) {check}" if nullable else check)
         if nullable:
-            self.resources.append(f"var {lease} = {name} == null ? null : {name}.{hold}")
+            self.resources.append(
+                f"{self.declare('BridgefexLease')} {lease} = {name} == null ? null : {name}.{hold}"
+            )
             self.statements.append(
-                f"var {L}h{position} = {lease} == null ? {SEGMENT}.NULL : {lease}.pointer();"
+                f"{self.declare(self.segment)} {L}h{position} = "
+                f"{lease} == null ? {self.segment}.NULL : {lease}.pointer();"
             )
         else:
-            self.resources.append(f"var {lease} = {name}.{hold}")
-            self.statements.append(f"var {L}h{position} = {lease}.pointer();")
+            self.resources.append(f"{self.declare('BridgefexLease')} {lease} = {name}.{hold}")
+            self.statements.append(
+                f"{self.declare(self.segment)} {L}h{position} = {lease}.pointer();"
+            )
         self.arguments[spec.name] = f"{L}h{position}"
         if given:
             self.transfers.append((name, lease, nullable))
@@ -405,12 +443,16 @@ class _Lowerer:
             return self.struct_result(spec)
         if isinstance(type_, ClassRef):
             return self.object_result(spec, type_)
+        if isinstance(type_, ContainerType):
+            return containers.result(self, spec, type_)
         raise Unsupported(f"the result of type '{type_.cpp_spelling}' is not supported in Java yet")
 
     def scalar_result(self, type_: ScalarType) -> list[str]:
         info = scalar(type_.c_name)
         arena = self.arena_resource()
-        self.statements.append(f"var {L}result = {arena}.allocate({info.layout});")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({info.layout});"
+        )
         self.arguments["out_result"] = f"{L}result"
         self.lowering.returns = info.public
         if info.unsigned:
@@ -421,7 +463,9 @@ class _Lowerer:
         assert spec.enum is not None
         info = scalar(spec.enum.model.underlying.c_name)
         arena = self.arena_resource()
-        self.statements.append(f"var {L}result = {arena}.allocate({info.layout});")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({info.layout});"
+        )
         self.arguments["out_result"] = f"{L}result"
         enum = self.names.enum(spec.enum)
         self.lowering.returns = enum
@@ -432,15 +476,21 @@ class _Lowerer:
         assert spec.struct is not None
         struct = self.names.struct(spec.struct)
         arena = self.arena_resource()
-        self.statements.append(f"var {L}result = {arena}.allocate({struct}.LAYOUT);")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({struct}.LAYOUT);"
+        )
         self.arguments["out_result"] = f"{L}result"
         self.lowering.returns = struct
         return [f"return {struct}.read({L}result);"]
 
     def string_result(self, type_: StringType, as_bytes: bool) -> list[str]:
         arena = self.arena_resource()
-        self.statements.append(f"var {L}text = {arena}.allocate({R}.ADDRESS);")
-        self.statements.append(f"var {L}size = {arena}.allocate({R}.C_SIZE);")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}text = {arena}.allocate({R}.ADDRESS);"
+        )
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}size = {arena}.allocate({R}.C_SIZE);"
+        )
         self.arguments["out_result"] = f"{L}text"
         self.arguments["out_result_size"] = f"{L}size"
         self.cleanup = [
@@ -465,7 +515,9 @@ class _Lowerer:
 
     def constructor_result(self) -> list[str]:
         arena = self.arena_resource()
-        self.statements.append(f"var {L}result = {arena}.allocate({R}.ADDRESS);")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({R}.ADDRESS);"
+        )
         self.arguments["out_self"] = f"{L}result"
         assign = f"{L}result.get({R}.ADDRESS, 0)"
         if self.factory is None:
@@ -475,8 +527,9 @@ class _Lowerer:
         # A static method: the object exists before the call, so that its destruction is
         # guaranteed from the moment the C function writes the pointer.
         assert self.declaring is not None
-        self.statements.append(f"var {L}h = {self.names.destroyer(self.declaring.c_type)};")
-        self.statements.append(f"var {L}new = {self.factory}.wrap({L}h);")
+        handle = self.declare("BridgefexHandle")
+        self.statements.append(f"{handle} {L}h = {self.names.destroyer(self.declaring.c_type)};")
+        self.statements.append(f"{self.declare(self.factory)} {L}new = {self.factory}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({assign});"]
         self.lowering.returns = self.factory
         return [*(f"{L}new.retain({name});" for name in self.retained), f"return {L}new;"]
@@ -495,7 +548,9 @@ class _Lowerer:
             ClassForm.REFERENCE,
             ClassForm.CONST_REFERENCE,
         )
-        self.statements.append(f"var {L}result = {arena}.allocate({R}.ADDRESS);")
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({R}.ADDRESS);"
+        )
         self.arguments["out_result"] = f"{L}result"
         given = ["this"] if self.plan.kind is CallableKind.METHOD else self.owners
         owner_list = f"new BridgefexObject[] {{{', '.join(given)}}}" if given else "null"
@@ -510,8 +565,9 @@ class _Lowerer:
             ]
         # The object exists before the call, so that its destruction is guaranteed from the
         # moment the C function writes the pointer.
-        self.statements.append(f"var {L}h = {self.names.destroyer(info.c_type)};")
-        self.statements.append(f"var {L}new = {class_name}.wrap({L}h);")
+        handle = self.declare("BridgefexHandle")
+        self.statements.append(f"{handle} {L}h = {self.names.destroyer(info.c_type)};")
+        self.statements.append(f"{self.declare(class_name)} {L}new = {class_name}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({pointer});"]
         if nullable:
             return [f"return {L}h.isInvalid() ? null : {L}new;"]

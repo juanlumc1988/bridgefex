@@ -220,8 +220,24 @@ warning. What a
 backend does not support yet is `Unsupported`, which `render` turns into a `GenerationError`
 that says so, instead of a half-working class.
 
-The JVM backend (`backends/jvm`, Java 22 with the foreign function API; a JNI flavor is planned for Android and
-32-bit ARM) has the same parts. `mapping.py` maps `Ffi` to the layouts and the `MethodHandle` types of the downcalls
+The JVM backend (`backends/jvm`) has two flavors that write the same Java API: `jvm` (Java 22, the foreign function
+API) and `jni` (Java 8, Android and 32-bit ARM, over `native` methods and glue in C++). A `Flavor` (`flavor.py`) is
+all that the generator says differently: the types of memory, `var` and the patterns of `instanceof`, and where the
+project goes. The generated code of a header is the same text for both, because each runtime has the classes that it
+uses with the same names and signatures: the jni one has a mini FFM over direct buffers (`BridgefexSegment`,
+`BridgefexArena`, `BridgefexLayout`, `BridgefexStruct`: `get`/`set` by layout, `allocate`, `asSlice`, `view`), which is
+what the lowering of containers, structs and results needs too. `jni.py` writes `BridgefexNative` (a public method
+with the signature of the FFM one, over a private `native` method that takes the pointers as `long`) and the glue,
+which registers its natives (`bridgefex_<module>_jni_register`, called by `JNI_OnLoad` unless the library has one of its
+own) and calls the C API with explicit casts; the sizes and the alignments of 64-bit values of the platform are taken
+from Java by the layouts and checked against the library when it loads. The memory of a call is the slab of its
+outermost arena, taken from a pool (a thread that is not in a call keeps none, so a class loader can be collected and
+virtual threads do not allocate one each), and the buffers of the requests that do not fit it are kept by the arena
+until it is closed (the address that the native method takes does not keep a buffer alive). The runtime of the objects (handle, lease,
+keep, object) is one set of templates for both flavors (Java 8 syntax; `Cleaner` or a `PhantomReference` queue).
+The FFM output did not change when the flavor was introduced: the goldens say so.
+
+The parts of the backend are these. `mapping.py` maps `Ffi` to the layouts and the `MethodHandle` types of the downcalls
 (`BridgefexNative` has a static method for each function of the C API over a handle in a nested class of its own,
 which is initialised on the first call of the function, after the library was loaded: a failed load can be retried,
 a function that the library lacks fails alone, and no class initialiser nears the 64 KB that Java limits it to; an

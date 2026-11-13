@@ -21,7 +21,7 @@ def _literal(value: int, unsigned_64: bool) -> str:
     return f"{value}L"
 
 
-def enum_class(src: Source, enum: EnumPlan, *, nested: bool) -> None:
+def enum_class(src: Source, enum: EnumPlan, *, nested: bool, modern: bool = True) -> None:
     """A final class with a constant for each enumerator: any value of the underlying type can be
     one (a flag, a strong integer type without enumerators), where a Java ``enum`` could not."""
     name = pascal(enum.model.name)
@@ -61,7 +61,7 @@ def enum_class(src: Source, enum: EnumPlan, *, nested: bool) -> None:
     src.line()
     _factory(src, name, underlying, unsigned_64)
     _accessors(src, name, unsigned_64)
-    _object_methods(src, name, unsigned_64)
+    _object_methods(src, name, unsigned_64, modern)
     src.close()
 
 
@@ -124,11 +124,14 @@ def _accessors(src: Source, name: str, unsigned_64: bool) -> None:
     src.close()
 
 
-def _object_methods(src: Source, name: str, unsigned_64: bool) -> None:
+def _object_methods(src: Source, name: str, unsigned_64: bool, modern: bool) -> None:
     src.line()
     src.line("@java.lang.Override")
     src.open("public boolean equals(java.lang.Object other)")
-    src.line(f"return other instanceof {name} that && that.value == value;")
+    if modern:
+        src.line(f"return other instanceof {name} that && that.value == value;")
+    else:
+        src.line(f"return other instanceof {name} && (({name}) other).value == value;")
     src.close()
     src.line()
     src.line("@java.lang.Override")

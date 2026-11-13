@@ -15,7 +15,7 @@ from .base import Backend
 
 __all__ = ["BACKENDS", "DEFAULT_LANGUAGES", "Backend", "registry", "reservations"]
 
-BACKENDS: tuple[Backend, ...] = (python.BACKEND, csharp.BACKEND, jvm.BACKEND)
+BACKENDS: tuple[Backend, ...] = (python.BACKEND, csharp.BACKEND, jvm.BACKEND, jvm.JNI_BACKEND)
 """Every backend, in the order their files are generated."""
 
 

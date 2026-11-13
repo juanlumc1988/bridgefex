@@ -21,8 +21,10 @@ import inh.widget.PlainDerived;
 import inh.widget.Shelf;
 import inh.widget.Widget;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 class Check {
     static int alive() {
@@ -118,9 +120,9 @@ class Check {
             made.add(inh.shapes.Functions.makeShape(kind, 3.0));
         }
         check(made.stream().allMatch(item -> item.getClass() == Shape.class), "the class is the declared one");
-        check(made.stream().map(Named::name).toList().equals(List.of("circle", "square", "ring")), "names");
-        check(made.stream().map(Shape::sides).toList().equals(List.of(0, 4, 0)), "sides");
-        check(made.stream().map(Shape::area).toList().equals(List.of(27.0, 9.0, 27.0 - 3.0 * 0.6 * 0.6)), "areas");
+        check(made.stream().map(Named::name).collect(Collectors.toList()).equals(Arrays.asList("circle", "square", "ring")), "names");
+        check(made.stream().map(Shape::sides).collect(Collectors.toList()).equals(Arrays.asList(0, 4, 0)), "sides");
+        check(made.stream().map(Shape::area).collect(Collectors.toList()).equals(Arrays.asList(27.0, 9.0, 27.0 - 3.0 * 0.6 * 0.6)), "areas");
         check(alive() == 3, "three shapes");
         for (Shape item : made) {
             item.close();
@@ -139,7 +141,8 @@ class Check {
         }
 
         // Giving an object up as the base class: the object is closed, C++ destroys it.
-        List<Supplier<Shape>> makers = List.of(() -> new Circle(1.0), () -> new Square(1.0), () -> new Ring(2.0, 1.0));
+        List<Supplier<Shape>> makers = Arrays.<Supplier<Shape>>asList(
+            () -> new Circle(1.0), () -> new Square(1.0), () -> new Ring(2.0, 1.0));
         for (Supplier<Shape> make : makers) {
             Shape kind = make.get();
             check(alive() == 1, "one shape");

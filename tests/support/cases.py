@@ -67,6 +67,13 @@ class Case:
         return self.directory / "check_jvm.java"
 
     @property
+    def check_jni(self) -> Path:
+        """The Java check for the JNI bindings: the one of the FFM bindings, unless the case has
+        one of its own (what it checks of the memory is not the same)."""
+        own = self.directory / "check_jni.java"
+        return own if own.exists() else self.check_jvm
+
+    @property
     def check_c(self) -> Path:
         return self.directory / "check_c.c"
 

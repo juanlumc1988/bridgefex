@@ -63,6 +63,9 @@ public final class BridgefexRuntime {
     private static final boolean LONG_IS_64 = C_LONG.byteSize() == 8;
     private static final boolean SIZE_IS_64 = C_SIZE.byteSize() == 8;
 
+    /** The size of a string of the C layer: {@code {const char* data; size_t size;}}. */
+    public static final long STRING_SIZE = ADDRESS.byteSize() + C_SIZE.byteSize();
+
     private static volatile boolean loaded;
     private static SymbolLookup lookup;
 
@@ -361,6 +364,19 @@ public final class BridgefexRuntime {
             return "";
         }
         return strictDecode(data.reinterpret(size).toArray(ValueLayout.JAVA_BYTE), "the text of C++");
+    }
+
+    /** The number of elements that C++ gave, as the length of an array. */
+    public static int count(long size) {
+        if (size < 0 || size > Integer.MAX_VALUE - 8) {
+            throw new IllegalStateException("C++ gave " + Long.toUnsignedString(size) + " elements, more than a Java array holds");
+        }
+        return (int) size;
+    }
+
+    /** The memory that C++ gave, to be read: {@code size} bytes at {@code data}. */
+    public static MemorySegment view(MemorySegment data, long size) {
+        return data.reinterpret(size);
     }
 
     /** The bytes that C++ gave (a result that the annotations want as bytes, not text). */

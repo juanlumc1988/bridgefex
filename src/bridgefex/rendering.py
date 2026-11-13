@@ -65,11 +65,15 @@ class Renderer:
         self._plan = plan
         self.files = files
 
-    def put(self, path: str, template: str, **context: object) -> None:
-        """Render ``template`` into ``files[path]``; ``m`` is the plan unless the
-        context says another module object."""
+    def render(self, template: str, **context: object) -> str:
+        """The text of ``template``; ``m`` is the plan unless the context says another module
+        object."""
         context.setdefault("m", self._plan)
-        self.files[path] = tidy(self._environment.get_template(template).render(**context))
+        return tidy(self._environment.get_template(template).render(**context))
+
+    def put(self, path: str, template: str, **context: object) -> None:
+        """Render ``template`` into ``files[path]``."""
+        self.files[path] = self.render(template, **context)
 
 
 def write_files(files: Mapping[str, str], output: Path) -> list[Path]:
