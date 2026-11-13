@@ -32,5 +32,5 @@ def test_every_template_is_in_the_package_data() -> None:
 
 
 def test_the_templates_of_the_jni_flavor_are_among_them() -> None:
-    declared = {str(path.relative_to(PACKAGE)) for path in _declared()}
+    declared = {path.relative_to(PACKAGE).as_posix() for path in _declared()}
     assert "backends/jvm/templates/jni/glue.cpp.j2" in declared

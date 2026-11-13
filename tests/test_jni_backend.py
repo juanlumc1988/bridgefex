@@ -225,6 +225,22 @@ _STUBS = {
 }
 """What ``jni.h`` and the glue ask of the C library, for a target whose headers are not here."""
 
+_JNI_MD = """\
+#pragma once
+// What the jni_md.h of a Linux JDK says. The targets here are Linux whatever the host is: the
+// one of a Windows JDK has __declspec, which clang does not take for a Linux target.
+#define JNIEXPORT __attribute__((visibility("default")))
+#define JNIIMPORT __attribute__((visibility("default")))
+#define JNICALL
+typedef int jint;
+#ifdef _LP64
+typedef long jlong;
+#else
+typedef long long jlong;
+#endif
+typedef signed char jbyte;
+"""
+
 
 @pytest.mark.parametrize(
     "target", ["armv7a-linux-gnueabihf", "i686-linux-gnu", "aarch64-linux-gnu", "x86_64-linux-gnu"]
@@ -245,7 +261,7 @@ def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
     bridgefex.write_files(files, tmp_path / "out")
     stubs = tmp_path / "stubs"
     stubs.mkdir()
-    for header, text in _STUBS.items():
+    for header, text in {**_STUBS, "jni_md.h": _JNI_MD}.items():
         (stubs / header).write_text(text, encoding="utf-8")
     resource = subprocess.run(
         ["clang", "-print-resource-dir"], capture_output=True, text=True, check=True
@@ -266,7 +282,7 @@ def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
             "-isystem",
             f"{resource}/include",
             f"-I{stubs}",
-            *(f"-I{path}" for path in includes),
+            f"-I{includes[0]}",  # jni.h; jni_md.h is the stand-in of the Linux one
             f"-I{tmp_path / 'out' / 'c'}",
             f"-I{case.input_dir}",
             str(glue),

@@ -322,10 +322,15 @@ def test_a_second_class_loader_is_told_that_the_library_is_loaded_already(
     assert "two loaders OK" in completed.stdout
 
 
+# The library is built for the platform of this machine: a JVM that says another one is refused. A
+# long of 32 bits is Windows'; on Windows, the other system is Linux (a long of 64 bits).
+_OTHER_SYSTEM = "Linux" if sys.platform == "win32" else "Windows 10"
+
+
 @pytest.mark.parametrize(
     "properties",
-    [("-Dsun.arch.data.model=32",), ("-Dos.name=Windows 10",)],
-    ids=["32-bit", "windows"],
+    [("-Dsun.arch.data.model=32",), (f"-Dos.name={_OTHER_SYSTEM}",)],
+    ids=["32-bit", "other-system"],
 )
 def test_a_library_that_is_not_built_for_the_platform_is_refused(
     demo: tuple[Case, Path, Path, Path], language: str, properties: tuple[str, ...]
@@ -410,8 +415,8 @@ def test_a_library_with_its_own_jni_on_load_registers_the_glue_from_it(
         case,
         toolchain,
         tmp_path,
-        (f"-D{case.module.upper()}_JNI_NO_ONLOAD",),
         glue=True,
+        glue_prefix=f"#define {case.module.upper()}_JNI_NO_ONLOAD",
         extra_sources=(own,),
     )
     completed = _run(case, classes, properties=(f"-D{case.module}.library={library}",))

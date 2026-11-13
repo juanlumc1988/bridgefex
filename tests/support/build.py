@@ -42,6 +42,7 @@ def build(
     extra_flags: Sequence[str] = (),
     *,
     glue: bool | None = None,
+    glue_prefix: str = "",
     extra_sources: Sequence[Path] = (),
 ) -> tuple[Path, Path]:
     """Generate the bindings and build the shared library; return (library, output dir).
@@ -49,7 +50,9 @@ def build(
     A case that asks for the JNI bindings (and a machine with a JDK that has ``jni.h``) has the
     glue of those in the library too, as the bindings need it: the other languages do not mind.
     ``glue=False`` builds the C layer alone (what its exports are checked on).
-    ``extra_sources`` are built into the library too (a ``JNI_OnLoad`` of its own).
+    ``glue_prefix`` is code that comes before the glue (a macro that it reads: no compiler flag, so
+    it works with every toolchain) and ``extra_sources`` are built into the library too (a
+    ``JNI_OnLoad`` of its own).
     """
     if glue is None:
         glue = "jni" in case.languages
@@ -63,7 +66,14 @@ def build(
     sources = sorted((output / "c").glob("*.cpp")) + list(case.impl_sources) + list(extra_sources)
     include_dirs = [output / "c", case.input_dir]
     if glue:
-        sources += sorted((output / "jni").glob("*/native/*.cpp"))
+        for original in sorted((output / "jni").glob("*/native/*.cpp")):
+            source = original
+            if glue_prefix:
+                source = directory / f"prefixed_{original.name}"
+                source.write_text(
+                    f'{glue_prefix}\n#include "{original.as_posix()}"\n', encoding="utf-8"
+                )
+            sources.append(source)
         include_dirs += jni_includes()
     toolchain.build_shared_library(
         sources, include_dirs, library, cxx_standard(case), extra_flags
