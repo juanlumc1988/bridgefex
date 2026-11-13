@@ -20,7 +20,7 @@ from ...plan import (
 )
 from ...rendering import Renderer
 from ..base import Backend
-from . import jni
+from . import callbacks, jni
 from .check import check
 from .classes import class_source
 from .flavor import FFM, JNI, Flavor
@@ -176,6 +176,13 @@ def render(plan: ModulePlan, fingerprint: str, flavor: Flavor = FFM) -> dict[str
         sources.put(
             f"{base}/native/{root}_jni.cpp",
             lambda: renderer.render("jni/glue.cpp.j2", root=root, **jni.glue_parts(plan)),
+        )
+    if names.has_callbacks:
+        sources.put(
+            f"{java}/BridgefexCallbacks.java",
+            lambda: renderer.render(
+                "BridgefexCallbacks.java.j2", **context, **callbacks.context(plan, names)
+            ),
         )
     for header in plan.headers:
         sources.header(header)

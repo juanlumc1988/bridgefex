@@ -65,6 +65,14 @@ class Scalar:
     call_layout: str = ""
     """The layout of that parameter."""
 
+    from_native: str = "{}"
+    """The expression that gives the public value from the native one that C++ passes to a
+    callback by value (``{}``): an unsigned integer is widened."""
+
+    convert: str = "{}"
+    """The expression that gives the native value of the carrier (``native``) from the public one
+    (``{}``; ``{name}``: the text of the message of a check): what a callback returns."""
+
     @property
     def annotation(self) -> str:
         return "@BridgefexUnsigned " if self.unsigned else ""
@@ -90,10 +98,12 @@ def _widened(
         narrow,
         f"{R}.{layout}",
         to_native=f"{R}.{argument or convert}({{name}}, {{}})",
+        convert=f"{R}.{convert}({{name}}, {{}})",
         read=f"{R}.{widen}({{seg}}.get({R}.{layout}, {{off}}))",
         write=f"{{seg}}.set({R}.{layout}, {{off}}, {R}.{convert}({{name}}, {{}}));",
         call_native="int" if argument else "",
         call_layout=f"{R}.C_INT" if argument else "",
+        from_native=f"{R}.{widen}({{}})",
     )
 
 
@@ -102,6 +112,8 @@ _C_LONG = Scalar(
     "long",
     f"{R}.C_LONG",
     to_native=f"{R}.toCLong({{name}}, {{}})",
+    convert=f"{R}.toCLong({{name}}, {{}})",
+    from_native=f"{R}.fromCLong({{}})",
     read=f"{R}.getCLong({{seg}}, {{off}})",
     write=f"{R}.putCLong({{seg}}, {{off}}, {R}.toCLong({{name}}, {{}}));",
 )
@@ -110,6 +122,8 @@ _C_ULONG = Scalar(
     "long",
     f"{R}.C_LONG",
     to_native=f"{R}.toCULong({{name}}, {{}})",
+    convert=f"{R}.toCULong({{name}}, {{}})",
+    from_native=f"{R}.fromCULong({{}})",
     read=f"{R}.getCULong({{seg}}, {{off}})",
     write=f"{R}.putCLong({{seg}}, {{off}}, {R}.toCULong({{name}}, {{}}));",
     unsigned=True,
@@ -119,6 +133,8 @@ _SIZE = Scalar(
     "long",
     f"{R}.C_SIZE",
     to_native=f"{R}.toSize({{name}}, {{}})",
+    convert=f"{R}.toSize({{name}}, {{}})",
+    from_native=f"{R}.fromSize({{}})",
     read=f"{R}.getSize({{seg}}, {{off}})",
     write=f"{R}.putSize({{seg}}, {{off}}, {R}.toSize({{name}}, {{}}));",
     unsigned=True,

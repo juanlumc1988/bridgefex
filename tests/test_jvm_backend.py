@@ -577,20 +577,36 @@ def test_a_header_named_like_a_type_of_java_compiles(tmp_path: Path, java: None,
 
 # -- What the Java bindings do not have yet -------------------------------------------------------
 
-UNSUPPORTED = {
-    "a callback": "#include <functional>\nint f(std::function<int(int)> g);",
-    "a method with a callback": (
-        "#include <functional>\nclass K { public: K(); ~K(); void m(std::function<void()> f); };"
-    ),
-}
+
+def refused_directors(
+    tmp_path: Path, classes: tuple[str, ...] = ("Widget",), languages: tuple[str, ...] = ("jvm",)
+) -> dict[str, str]:
+    """Generates a header whose classes ask for a director, which Java cannot do yet."""
+    annotations = tmp_path / "directors.toml"
+    annotations.write_text(
+        "directors = [" + ", ".join(f'"mod_{name}"' for name in classes) + "]\n", encoding="utf-8"
+    )
+    header = tmp_path / "api.h"
+    header.write_text(
+        PRELUDE
+        + "".join(
+            f"class {name} {{ public: {name}(); virtual ~{name}(); virtual int draw(); }};\n"
+            for name in classes
+        )
+        + "int other(int);\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options(
+        "mod", std="c++17", languages=languages, verify=False, annotations=(annotations,)
+    )
+    return bridgefex.generate([header], options).files
 
 
-@pytest.mark.parametrize("code", UNSUPPORTED.values(), ids=UNSUPPORTED.keys())
 def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_and_where(
-    tmp_path: Path, code: str
+    tmp_path: Path,
 ) -> None:
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, code)
+        refused_directors(tmp_path)
     [diagnostic, advice] = raised.value.diagnostics
     assert diagnostic.message.startswith("Java:")
     assert "not supported in Java yet" in diagnostic.message
@@ -600,24 +616,17 @@ def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_a
     # What to do about it.
     assert "leave 'jvm' out" in advice.message
     # The Python bindings of the same header are generated all the same.
-    assert generate(tmp_path, code, languages=("python",))
+    assert refused_directors(tmp_path, languages=("python",))
 
 
 def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path: Path) -> None:
-    code = (
-        "#include <functional>\n"
-        "int a(std::function<int(int)> g);\n"
-        "int b(std::function<int(int)> g);\n"
-        "class K { public: K(); ~K(); void m(std::function<void()> f); void n(); "
-        "void o(std::function<void()> f); };\n"
-    )
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, code)
+        refused_directors(tmp_path, ("Widget", "Gadget", "Gizmo"))
     refused = [d for d in raised.value.diagnostics if d.location is not None]
     lines = sorted(d.location.line for d in refused if d.location is not None)
     base = PRELUDE.count("\n")
-    assert lines == [base + 2, base + 3, base + 4, base + 4]  # a, b, K::m and K::o
-    assert len(raised.value.diagnostics) == 5  # and what to do
+    assert lines == [base + 1, base + 2, base + 3]  # the three classes
+    assert len(raised.value.diagnostics) == 4  # and what to do
 
 
 def test_a_class_that_asks_for_a_director_is_refused(tmp_path: Path) -> None:

@@ -28,8 +28,8 @@ from tests.test_jvm_backend import (
     HIDING,
     OVERRIDES,
     SMALL,
-    UNSUPPORTED,
     generate,
+    refused_directors,
 )
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -124,12 +124,11 @@ def test_a_method_that_would_hide_one_of_its_base_is_refused(tmp_path: Path, cod
     assert "Java cannot hide a method" in str(raised.value)
 
 
-@pytest.mark.parametrize("code", UNSUPPORTED.values(), ids=UNSUPPORTED.keys())
 def test_what_the_jni_bindings_do_not_have_is_refused_saying_what_to_leave_out(
-    tmp_path: Path, code: str
+    tmp_path: Path,
 ) -> None:
     with pytest.raises(GenerationError) as raised:
-        files_of(tmp_path, code)
+        refused_directors(tmp_path, languages=LANGUAGES)
     [diagnostic, advice] = raised.value.diagnostics
     assert "not supported in Java yet" in diagnostic.message
     assert diagnostic.location is not None

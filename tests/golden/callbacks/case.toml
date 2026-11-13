@@ -4,4 +4,4 @@ headers = ["events.h"]
 std = "c++17"
 # std::string_view arguments.
 min_cxx = "c++17"
-languages = ["python", "csharp"]
+languages = ["python", "csharp", "jvm"]

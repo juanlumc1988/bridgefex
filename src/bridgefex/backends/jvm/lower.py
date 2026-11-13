@@ -6,8 +6,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from ...model import (
+    CallbackType,
     ClassForm,
     ClassRef,
     ContainerType,
@@ -33,6 +35,9 @@ from .mapping import STRING, Unsupported, scalar
 from .naming import LOCAL_PREFIX, camel, identifier, parameter
 from .source import Source
 
+if TYPE_CHECKING:
+    from .callbacks import Thunks
+
 L = LOCAL_PREFIX
 R = "BridgefexRuntime"
 
@@ -57,6 +62,20 @@ class Names:
 
     flavor: Flavor = FFM
     """How the bindings call the C layer."""
+
+    thunks: Thunks | None = None
+    """The functions that C++ calls for the callbacks of the module (None: it has none)."""
+
+    @property
+    def has_callbacks(self) -> bool:
+        return self.thunks is not None and bool(self.thunks.items)
+
+    @property
+    def imports(self) -> tuple[str, ...]:
+        """The classes of the runtime that the generated code of a header imports besides the
+        common ones."""
+        extra = ("BridgefexCallbacks",) if self.has_callbacks else ()
+        return (*self.flavor.root_types, *extra)
 
     def cls(self, info: ClassInfo) -> str:
         return self.classes[info.c_type]
@@ -135,6 +154,9 @@ class _Lowerer:
         self.statements: list[str] = []
         self.arguments: dict[str, str] = {}
         self.arena = False
+        self.callbacks = False
+        """True if the call gives callbacks."""
+
         self.cleanup: list[str] = []
         """What frees what C++ allocated for the result."""
 
@@ -182,6 +204,16 @@ class _Lowerer:
             )
         return f"{L}arena"
 
+    def scope_resource(self) -> str:
+        """The call that C++ runs the callbacks of: it raises their exceptions, and drops the
+        callbacks if the C function is never called."""
+        if not self.callbacks:
+            self.callbacks = True
+            self.resources.insert(
+                0, f"BridgefexCallbacks.Scope {L}scope = BridgefexCallbacks.begin()"
+            )
+        return f"{L}scope"
+
     def run(self) -> Lowering:
         plan = self.plan
         if plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
@@ -219,7 +251,16 @@ class _Lowerer:
                 "retain" if plan.kind is CallableKind.METHOD else "BridgefexObject.retainForever"
             )
             self.statements.extend(f"{target}({name});" for name in self.retained)
-        if self.cleanup:
+        if not self.callbacks and self.names.has_callbacks:
+            # A callback that C++ stored and runs now is not one of the callbacks of this call.
+            self.resources.insert(
+                0, f"BridgefexCallbacks.Call {L}call = BridgefexCallbacks.enter()"
+            )
+            # The resource only counts the call: nothing in the body refers to it.
+            self.lowering.annotations.append('@SuppressWarnings("try")')
+        if self.callbacks:
+            self.checked_call(call, after)
+        elif self.cleanup:
             # What C++ allocated for the result is freed whatever happens after the call.
             self.statements.append("try")
             self.statements.append("{")
@@ -240,6 +281,28 @@ class _Lowerer:
             self.statements.extend(after)
         self.lowering.body = self.finish()
         return self.lowering
+
+    def checked_call(self, call: str, after: list[str]) -> None:
+        """The call of a function that gives callbacks: from the moment that C++ has it, C++ owns
+        and releases them, and an exception of one of them is the one that the call raises."""
+        body = [
+            f"int {L}status = {call};",
+            f"{L}scope.returned();",
+            *self.after_call,
+            f"{L}scope.check({L}status);",
+            *after,
+        ]
+        if not self.cleanup:
+            self.statements.extend(body)
+            return
+        self.statements.append("try")
+        self.statements.append("{")
+        self.statements.extend(f"    {line}" if line else line for line in body)
+        self.statements.append("}")
+        self.statements.append("finally")
+        self.statements.append("{")
+        self.statements.extend(f"    {line}" for line in self.cleanup)
+        self.statements.append("}")
 
     def finish(self) -> list[str]:
         src = Source()
@@ -320,11 +383,41 @@ class _Lowerer:
             self.object_param(spec, type_, position, name)
         elif isinstance(type_, ContainerType):
             containers.param(self, spec, type_, position, name)
+        elif isinstance(type_, CallbackType):
+            self.callback_param(spec, position, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported "
                 "in Java yet"
             )
+
+    def callback_param(self, spec: ParamSpec, position: int, name: str) -> None:
+        """A functional object (or null) goes to C as a thunk, a key and the release function."""
+        assert spec.callback is not None
+        assert spec.user_data
+        assert spec.release
+        if not self.names.flavor.modern:
+            raise Unsupported("callbacks are not supported in the JNI bindings yet")
+        assert self.names.thunks is not None
+        key = next(param.ffi.name for param in self.plan.function.params if param.name == spec.name)
+        thunk = self.names.thunks.of(key, spec.callback, self.names)
+        self.lowering.parameters.append(f"{thunk.interface} {name}")
+        self.lowering.remarks.append(
+            f"{name}: null is an empty std::function, and C++ that calls it fails with "
+            "BridgefexException. An exception of the callback is raised by this call; one that no "
+            "call can raise (a callback that C++ stored and a later call runs) goes to "
+            "BridgefexCallbacks.setUnobserved."
+        )
+        scope = self.scope_resource()
+        registration = f"{L}o{position}"
+        address = f"{self.names.root}.BridgefexCallbacks.Thunk{thunk.index}.ADDRESS"
+        self.statements.append(
+            f"{self.declare('BridgefexCallbacks.Registration')} {registration} = "
+            f'{scope}.register({name}, "{spec.name}", {address});'
+        )
+        self.arguments[spec.name] = f"{registration}.callback()"
+        self.arguments[spec.user_data] = f"{registration}.userData()"
+        self.arguments[spec.release] = f"{registration}.release()"
 
     def enum_param(self, spec: ParamSpec, name: str) -> None:
         assert spec.enum is not None

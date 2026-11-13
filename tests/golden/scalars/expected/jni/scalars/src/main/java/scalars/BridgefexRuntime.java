@@ -352,6 +352,14 @@ public final class BridgefexRuntime {
         return strictDecode(takeBytes(data, size), "the text of C++");
     }
 
+    /** A {@code const char*} that C++ passed to a callback: null for NULL, else a strict UTF-8 text. */
+    public static String cString(BridgefexSegment text) {
+        if (text.address() == 0L) {
+            return null;
+        }
+        return takeText(text, BridgefexNative.length(text.address()));
+    }
+
     /** The number of elements that C++ gave, as the length of an array. */
     public static int count(long size) {
         if (size < 0 || size > Integer.MAX_VALUE - 8) {
@@ -432,6 +440,21 @@ public final class BridgefexRuntime {
 
     public static long fromU32(int value) {
         return value & 0xFFFFFFFFL;
+    }
+
+    /** A C {@code long} that C++ passes to a callback: signed, whatever its size. */
+    public static long fromCLong(long value) {
+        return value;
+    }
+
+    /** A C {@code unsigned long} that C++ passes to a callback: its bits, 32 or 64. */
+    public static long fromCULong(long value) {
+        return LONG_IS_64 ? value : value & 0xFFFFFFFFL;
+    }
+
+    /** A {@code size_t} that C++ passes to a callback: its bits, 32 or 64. */
+    public static long fromSize(long value) {
+        return SIZE_IS_64 ? value : value & 0xFFFFFFFFL;
     }
 
     /** A C {@code long}: 32 bits on some platforms. */

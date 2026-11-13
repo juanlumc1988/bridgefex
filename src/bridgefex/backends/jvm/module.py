@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable
 
 from ...errors import Diagnostic, GenerationError
@@ -16,6 +17,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from . import callbacks
 from .enums import enum_class
 from .flavor import FFM, Flavor
 from .lower import Names, lower_callable, method_name
@@ -50,6 +52,11 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         (plan.api_fingerprint_function, SEGMENT, []),
         (plan.free_function, "void", [(SEGMENT, "p_memory", "BridgefexRuntime.ADDRESS")]),
     ]
+    if names.has_callbacks:
+        # What C++ is told when the JVM exits: it calls and releases no callback from then on.
+        declarations.append(
+            (plan.disable_callbacks, "void", [(SEGMENT, "p_release", "BridgefexRuntime.ADDRESS")])
+        )
     for header in plan.headers:
         declarations.extend(_declaration(function) for function in header.c_functions)
     src = Source()
@@ -155,7 +162,7 @@ def functions_source(
             "BridgefexObject",
             "BridgefexRuntime",
             "BridgefexUnsigned",
-            *names.flavor.root_types,
+            *names.imports,
         )
     ):
         src.line(f"import {names.root}.{imported};")
@@ -273,7 +280,8 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
                     enum_plans[nested.model.usr] = nested
     if errors:
         raise GenerationError(errors)
-    return Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers, flavor)
+    names = Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers, flavor)
+    return dataclasses.replace(names, thunks=callbacks.collect(plan, names))
 
 
 def _nested_problems(

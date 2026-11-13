@@ -461,7 +461,7 @@ def class_source(
             "BridgefexObject",
             "BridgefexRuntime",
             "BridgefexUnsigned",
-            *names.flavor.root_types,
+            *names.imports,
         )
     ):
         src.line(f"import {names.root}.{imported};")
