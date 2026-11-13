@@ -41,6 +41,13 @@ L = LOCAL_PREFIX
 WIDEST = 64
 """The most arguments of a callback that the bindings have interfaces for."""
 
+FFM_SLOTS = 252
+"""The most parameter slots that the linker of the foreign function API accepts (a pointer and a
+``long`` take two, and it keeps three of the 255 of a method)."""
+
+JNI_SLOTS = 255
+"""The most parameter slots of a Java method (a pointer is a ``long`` over JNI)."""
+
 _BOXES = {
     "boolean": "java.lang.Boolean",
     "byte": "java.lang.Byte",
@@ -170,12 +177,33 @@ def result(part: CallbackPart, names: Names) -> Returns | None:
     )
 
 
+def _slots(callback: CallbackSpec, names: Names) -> int:
+    """The parameter slots of the thunk of a callback: ``user_data`` is a pointer, a pointer and a
+    ``long`` or a ``double`` take two, and over the foreign function API the result pointer is one
+    more (over JNI the thunk returns the result)."""
+    total = 2
+    for part in callback.arguments:
+        for carrier in argument(part, names).carriers:
+            total += 2 if carrier in ("pointer", "long", "double") else 1
+    if names.flavor.modern and result(callback.result, names) is not None:
+        total += 2
+    return total
+
+
 def functional(callback: CallbackSpec, names: Names) -> tuple[str, str]:
     """The Java interface of a callback and the name of its method."""
     count = len(callback.arguments)
     if count > WIDEST:
         raise Unsupported(
             f"a callback with {count} arguments (the bindings have interfaces for up to {WIDEST})"
+        )
+    limit = FFM_SLOTS if names.flavor.modern else JNI_SLOTS
+    slots = _slots(callback, names)
+    if slots > limit:
+        raise Unsupported(
+            f"a callback with {count} arguments takes {slots} slots of the {limit} that a function "
+            "of the bindings can have (a pointer and a long take 2; a string is a pointer and a "
+            "size)"
         )
     types = [boxed(argument(part, names).public) for part in callback.arguments]
     out = result(callback.result, names)
@@ -306,7 +334,7 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
     the expression of each argument)."""
     ffm = names.flavor.modern
     segment = names.flavor.segment
-    parameters = [f"{segment if ffm else 'long'} userData"]
+    parameters = [f"{segment if ffm else 'long'} {L}userData"]
     prelude: list[str] = []
     values: list[str] = []
     position = 0
@@ -315,13 +343,13 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
         locals_: list[str] = []
         for carrier in argument_.carriers:
             position += 1
-            local = f"c{position}"
+            local = f"{L}c{position}"
             if carrier == "pointer":
                 if ffm:
                     parameters.append(f"{segment} {local}")
                 else:
-                    parameters.append(f"long r{position}")
-                    prelude.append(f"{segment} {local} = {segment}.ofAddress(r{position});")
+                    parameters.append(f"long {L}r{position}")
+                    prelude.append(f"{segment} {local} = {segment}.ofAddress({L}r{position});")
             else:
                 parameters.append(f"{carrier} {local}")
             locals_.append(local)
@@ -334,50 +362,54 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
 
 def method_lines(thunk: Thunk, names: Names) -> list[str]:
     """The static method that C++ reaches: it has the C signature of the callback (``user_data``
-    first and, over the foreign function API, ``out_result`` last)."""
+    first and, over the foreign function API, ``out_result`` last). Its locals have the prefix of
+    the generated code: a name of the module in a type (``mod.api.Point``) is a package, which a
+    local or a field of that name would hide."""
     ffm = names.flavor.modern
     segment = names.flavor.segment
     out = result(thunk.callback.result, names)
     parameters, prelude, values = _parameters(thunk, names)
     if ffm and out is not None:
-        parameters.append(f"{segment} out")
+        parameters.append(f"{segment} {L}out")
     # Over JNI the thunk returns what C++ gets, and the glue writes it.
     returns = "void" if ffm or out is None else out.carrier
     nothing = "" if returns == "void" else " false" if returns == "boolean" else " 0"
+    key = f"{L}userData.address()" if ffm else f"{L}userData"
     lines = [
         '@SuppressWarnings("unchecked")',
         f"private static {returns} thunk{thunk.index}({', '.join(parameters)}) {{",
-        "    Box box = null;",
+        f"    Box {L}box = null;",
         "    try {",
-        f"        box = of({'userData.address()' if ffm else 'userData'});",
-        "        if (box.skip()) {",
+        f"        {L}box = of({key});",
+        f"        if ({L}box.skip()) {{",
         f"            return{nothing};",
         "        }",
     ]
     lines += [f"        {line}" for line in prelude]
-    lines.append(f"        {thunk.interface} function = ({thunk.interface}) box.function;")
-    call = f"function.{thunk.method}({', '.join(values)})"
+    lines.append(f"        {thunk.interface} {L}function = ({thunk.interface}) {L}box.function;")
+    call = f"{L}function.{thunk.method}({', '.join(values)})"
     if out is None:
         lines.append(f"        {call};")
     else:
-        lines.append(f"        {boxed(out.public)} value = {call};")
-        label = '"the result of the callback \'" + box.name + "\'"'
+        label = f'"the result of the callback \'" + {L}box.name + "\'"'
+        # A null result names the callback, whatever the type (a boxed scalar would fail to unbox).
+        lines.append(f"        {boxed(out.public)} {L}value = {R}.nonNull({call}, {label});")
         if out.check is not None:
             low, high = out.check
-            lines.append(
-                f"        box.checkResult({R}.nonNull(value, {label}).value(), {low}, {high});"
-            )
+            lines.append(f"        {L}box.checkResult({L}value.value(), {low}, {high});")
         if ffm:
-            lines.append(f"        {segment} slot = out.reinterpret({out.layout}.byteSize());")
-            write = out.write.replace("{seg}", "slot").replace("{off}", "0")
-            write = write.replace("{name}", label).replace("{}", "value")
+            lines.append(
+                f"        {segment} {L}slot = {L}out.reinterpret({out.layout}.byteSize());"
+            )
+            write = out.write.replace("{seg}", f"{L}slot").replace("{off}", "0")
+            write = write.replace("{name}", label).replace("{}", f"{L}value")
             lines.append(f"        {write}")
         else:
-            convert = out.convert.replace("{name}", label).replace("{}", "value")
+            convert = out.convert.replace("{name}", label).replace("{}", f"{L}value")
             lines.append(f"        return {convert};")
     lines += [
-        "    } catch (java.lang.Throwable error) {",
-        "        fail(box, error);",
+        f"    }} catch (java.lang.Throwable {L}error) {{",
+        f"        fail({L}box, {L}error);",
         "    }",
     ]
     if not ffm and returns != "void":
@@ -387,9 +419,10 @@ def method_lines(thunk: Thunk, names: Names) -> list[str]:
 
 
 def holder_lines(thunk: Thunk, names: Names) -> list[str]:
-    """The class that has the address of the thunk, made when it is first needed."""
+    """The class that has the address of the thunk. It is made when it is first needed, not when
+    the class is initialised: that can fail (the library is not loaded yet), and a failure of a
+    static initializer leaves the class unusable for ever."""
     segment = names.flavor.segment
-    lines = [f"public static final class Thunk{thunk.index} {{"]
     if names.flavor.modern:
         carriers = ["java.lang.foreign.MemorySegment"]
         layouts = [f"{R}.ADDRESS"]
@@ -405,18 +438,25 @@ def holder_lines(thunk: Thunk, names: Names) -> list[str]:
             carriers.append("java.lang.foreign.MemorySegment")
             layouts.append(f"{R}.ADDRESS")
         types = ", ".join(f"{carrier}.class" for carrier in carriers)
-        lines.append(
-            f'    public static final {segment} ADDRESS = stub("thunk{thunk.index}", '
+        make = (
+            f'stub("thunk{thunk.index}", '
             f"java.lang.invoke.MethodType.methodType(void.class, {types}), "
-            f"java.lang.foreign.FunctionDescriptor.ofVoid({', '.join(layouts)}));"
+            f"java.lang.foreign.FunctionDescriptor.ofVoid({', '.join(layouts)}))"
         )
     else:
-        lines.append(
-            f"    public static final {segment} ADDRESS = "
-            f"{segment}.ofAddress(BridgefexNative.callbackAddress({thunk.index}));"
-        )
-    lines.append("}")
-    return lines
+        make = f"{segment}.ofAddress(BridgefexNative.callbackAddress({thunk.index}))"
+    return [
+        f"public static final class Thunk{thunk.index} {{",
+        f"    private static volatile {segment} address;",
+        "",
+        f"    public static synchronized {segment} address() {{",
+        "        if (address == null) {",
+        f"            address = {make};",
+        "        }",
+        "        return address;",
+        "    }",
+        "}",
+    ]
 
 
 def _interface(returns: bool, count: int) -> list[str]:
@@ -540,7 +580,8 @@ def trampoline(thunk: Thunk, names: Names) -> list[str]:
         lines.append(f"    const {_JNI[out.carrier][0]} value = {call};")
     lines += [
         "    if (env->ExceptionCheck()) {",
-        "        env->ExceptionClear();",
+        "        // Nothing in Java caught it (a stack overflow where it starts): it is shown.",
+        "        env->ExceptionDescribe();",
         "    } else {" if out is not None else "    }",
     ]
     if out is not None:

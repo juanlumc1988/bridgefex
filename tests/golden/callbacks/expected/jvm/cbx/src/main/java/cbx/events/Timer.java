@@ -45,7 +45,7 @@ public class Timer extends BridgefexObject {
     public Timer(java.util.function.Consumer<java.lang.Integer> onTick) {
         super(new BridgefexHandle(BridgefexNative::ev_Timer_destroy, true));
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            var __o1 = __scope.register(onTick, "on_tick", cbx.BridgefexCallbacks.Thunk9.ADDRESS);
+            var __o1 = __scope.register(onTick, "on_tick", cbx.BridgefexCallbacks.Thunk9.address());
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.ev_Timer_create(__result, __o1.callback(), __o1.userData(), __o1.release());
             __scope.returned();
@@ -74,7 +74,7 @@ public class Timer extends BridgefexObject {
     @BridgefexFunction("ev_Timer_set_on_tick")
     public void setOnTick(java.util.function.Consumer<java.lang.Integer> onTick) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold(true, false)) {
-            var __o1 = __scope.register(onTick, "on_tick", cbx.BridgefexCallbacks.Thunk9.ADDRESS);
+            var __o1 = __scope.register(onTick, "on_tick", cbx.BridgefexCallbacks.Thunk9.address());
             int __status = BridgefexNative.ev_Timer_set_on_tick(__self.pointer(), __o1.callback(), __o1.userData(), __o1.release());
             __scope.returned();
             __scope.check(__status);
@@ -119,7 +119,7 @@ public class Timer extends BridgefexObject {
             {
                 __c1.set(BridgefexRuntime.C_INT, __i * BridgefexRuntime.C_INT.byteSize(), values[__i]);
             }
-            var __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk9.ADDRESS);
+            var __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk9.address());
             var __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.ev_Timer_each(__self.pointer(), __c1, (long) values.length, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();
@@ -136,7 +136,7 @@ public class Timer extends BridgefexObject {
     @BridgefexFunction("ev_Timer_apply")
     public static int apply(int value, java.util.function.Function<java.lang.Integer, java.lang.Integer> f) {
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            var __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk0.ADDRESS);
+            var __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk0.address());
             var __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.ev_Timer_apply(value, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();

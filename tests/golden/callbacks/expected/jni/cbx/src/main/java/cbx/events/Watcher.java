@@ -52,7 +52,7 @@ public class Watcher extends BridgefexObject {
             BridgefexSegment __p1 = BridgefexRuntime.bytes(__arena, __b1);
             BridgefexSegment __s2 = __arena.allocate(cbx.events.Point.LAYOUT);
             BridgefexRuntime.nonNull(at, "at").write(__s2);
-            BridgefexCallbacks.Registration __o3 = __scope.register(onNotify, "on_notify", cbx.BridgefexCallbacks.Thunk12.ADDRESS);
+            BridgefexCallbacks.Registration __o3 = __scope.register(onNotify, "on_notify", cbx.BridgefexCallbacks.Thunk12.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.ev_Watcher_create(__result, __p1, (long) __b1.length, __s2, __o3.callback(), __o3.userData(), __o3.release());
             __scope.returned();

@@ -31,7 +31,7 @@ public final class BridgefexCallbacks {
     private BridgefexCallbacks() {
     }
 
-    private static volatile Consumer<Throwable> unobserved;
+    private static volatile Consumer<Throwable> UNOBSERVED;
 
     /**
      * Sets what happens with an exception of a callback that no call raises: one that C++ runs after
@@ -39,7 +39,7 @@ public final class BridgefexCallbacks {
      * with {@code null}) it is written to the standard error.
      */
     public static void setUnobserved(Consumer<Throwable> handler) {
-        unobserved = handler;
+        UNOBSERVED = handler;
     }
 
     /** The number of callbacks that C++ holds (for the tests of the code that uses the bindings). */
@@ -56,9 +56,12 @@ public final class BridgefexCallbacks {
     // -- for the generated code --------------------------------------------------------------
 
     private static final ConcurrentHashMap<Long, Box> TABLE = new ConcurrentHashMap<Long, Box>();
-    private static final AtomicLong NEXT = new AtomicLong();
-    private static volatile boolean disabled;
-    private static boolean watching;
+    // Where the keys start differs from a class loader of the bindings to the next one: if the library
+    // stays mapped after a redeploy, a callback that C++ still holds from the old one has a key that the
+    // new one does not give.
+    private static final AtomicLong NEXT = new AtomicLong((System.nanoTime() ^ System.identityHashCode(TABLE)) & 0x3FFFFFFFL);
+    private static volatile boolean DISABLED;
+    private static boolean WATCHING;
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
     private static final class Box {
@@ -111,13 +114,14 @@ public final class BridgefexCallbacks {
     }
 
     /** The module starts: its callbacks are disabled when the JVM exits, so that C++ neither calls nor
-     * releases them while it runs the destructors of its globals. */
+     * releases them while it runs the destructors of its globals. (Over JNI the glue does it when the
+     * process exits: a hook of the JVM would keep the class loader of the bindings alive.) */
     private static void watch() {
-        if (watching) {
+        if (WATCHING) {
             return;
         }
         synchronized (BridgefexCallbacks.class) {
-            if (watching) {
+            if (WATCHING) {
                 return;
             }
             try {
@@ -131,13 +135,16 @@ public final class BridgefexCallbacks {
                 disable();
                 throw new IllegalStateException("the JVM is exiting: no callback can be given to C++", exiting);
             }
-            watching = true;
+            WATCHING = true;
         }
     }
 
     private static void disable() {
-        disabled = true;
-        BridgefexNative.cbx_disable_callbacks(Release.ADDRESS);
+        DISABLED = true;
+        // A library that was never loaded has no callback to disable.
+        if (BridgefexRuntime.isLoaded()) {
+            BridgefexNative.cbx_disable_callbacks(Release.address());
+        }
     }
 
     /** The exception of a callback goes to the call that runs it: the innermost call of this thread
@@ -163,7 +170,7 @@ public final class BridgefexCallbacks {
 
     private static void report(Throwable error) {
         try {
-            Consumer<Throwable> handler = unobserved;
+            Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
                 System.err.println("Unobserved exception in a C++ callback: " + error);
                 error.printStackTrace();
@@ -283,15 +290,20 @@ public final class BridgefexCallbacks {
             if (function == null) {
                 return Registration.NONE;
             }
-            if (disabled) {
+            if (DISABLED) {
                 throw new IllegalStateException("the callbacks of the module are disabled: the JVM is exiting");
             }
-            long key = add(new Box(function, name, this));
             if (keys == null) {
                 keys = new ArrayList<Long>();
             }
-            keys.add(key);
-            return new Registration(thunk, java.lang.foreign.MemorySegment.ofAddress(key), Release.ADDRESS);
+            long key = add(new Box(function, name, this));
+            try {
+                keys.add(key);
+            } catch (Throwable error) {
+                TABLE.remove(key);
+                throw error;
+            }
+            return new Registration(thunk, java.lang.foreign.MemorySegment.ofAddress(key), Release.address());
         }
 
         /** The C function has returned: from now on C++ owns the callbacks. */
@@ -360,280 +372,392 @@ public final class BridgefexCallbacks {
 
     private static MemorySegment stub(String name, MethodType type, FunctionDescriptor descriptor) {
         try {
-            MethodHandle target = MethodHandles.lookup().findStatic(BridgefexCallbacks.class, name, type);
-            return Linker.nativeLinker().upcallStub(target.asType(descriptor.toMethodType()), descriptor, Arena.global());
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle target = lookup.findStatic(BridgefexCallbacks.class, name, type);
+            // The thunks catch what a callback throws, but not what is thrown before they can (a stack
+            // overflow where they start): an exception that crosses an upcall ends the JVM.
+            MethodHandle escaped = lookup.findStatic(
+                BridgefexCallbacks.class, "escaped", MethodType.methodType(void.class, Throwable.class));
+            MethodHandle safe = MethodHandles.catchException(
+                target, Throwable.class, MethodHandles.dropArguments(escaped, 1, type.parameterList()));
+            return Linker.nativeLinker().upcallStub(safe.asType(descriptor.toMethodType()), descriptor, Arena.global());
         } catch (ReflectiveOperationException error) {
             throw new IllegalStateException("cannot make the function of the callback " + name, error);
         }
     }
 
-    /** The function that C++ calls to release a callback. */
+    /** An exception that no thunk could route: reported as one that no call can raise. */
+    private static void escaped(Throwable error) {
+        report(error);
+    }
+
+    /** The function that C++ calls to release a callback. Its address is made when it is first needed,
+     * and a failure (the library is not loaded) can be tried again: a static initializer that fails
+     * would leave the class unusable. */
     public static final class Release {
         private Release() {
         }
 
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("release", MethodType.methodType(void.class, MemorySegment.class), FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("release", MethodType.methodType(void.class, MemorySegment.class), FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk0(java.lang.foreign.MemorySegment userData, int c1, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk0(java.lang.foreign.MemorySegment __userData, int __c1, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Function<java.lang.Integer, java.lang.Integer> function = (java.util.function.Function<java.lang.Integer, java.lang.Integer>) box.function;
-            java.lang.Integer value = function.apply(c1);
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_INT.byteSize());
-            slot.set(BridgefexRuntime.C_INT, 0, value);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Integer, java.lang.Integer> __function = (java.util.function.Function<java.lang.Integer, java.lang.Integer>) __box.function;
+            java.lang.Integer __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_INT.byteSize());
+            __slot.set(BridgefexRuntime.C_INT, 0, __value);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk0 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk0", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk0", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk1(java.lang.foreign.MemorySegment userData, long c1, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk1(java.lang.foreign.MemorySegment __userData, long __c1, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Function<java.lang.Long, java.lang.Boolean> function = (java.util.function.Function<java.lang.Long, java.lang.Boolean>) box.function;
-            java.lang.Boolean value = function.apply(c1);
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_BOOL.byteSize());
-            slot.set(BridgefexRuntime.C_BOOL, 0, value);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Long, java.lang.Boolean> __function = (java.util.function.Function<java.lang.Long, java.lang.Boolean>) __box.function;
+            java.lang.Boolean __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_BOOL.byteSize());
+            __slot.set(BridgefexRuntime.C_BOOL, 0, __value);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk1 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk1", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk1", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_LONG_LONG, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk2(java.lang.foreign.MemorySegment userData) {
-        Box box = null;
+    private static void thunk2(java.lang.foreign.MemorySegment __userData) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.lang.Runnable function = (java.lang.Runnable) box.function;
-            function.run();
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.lang.Runnable __function = (java.lang.Runnable) __box.function;
+            __function.run();
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk2 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk2", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk2", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk3(java.lang.foreign.MemorySegment userData, int c1, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk3(java.lang.foreign.MemorySegment __userData, int __c1, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Function<java.lang.Integer, cbx.events.Level> function = (java.util.function.Function<java.lang.Integer, cbx.events.Level>) box.function;
-            cbx.events.Level value = function.apply(c1);
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_BYTE.byteSize());
-            slot.set(BridgefexRuntime.C_BYTE, 0, BridgefexRuntime.u8("the result of the callback '" + box.name + "'", (short) BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value()));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Integer, cbx.events.Level> __function = (java.util.function.Function<java.lang.Integer, cbx.events.Level>) __box.function;
+            cbx.events.Level __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_BYTE.byteSize());
+            __slot.set(BridgefexRuntime.C_BYTE, 0, BridgefexRuntime.u8("the result of the callback '" + __box.name + "'", (short) BridgefexRuntime.nonNull(__value, "the result of the callback '" + __box.name + "'").value()));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk3 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk3", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk3", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk4(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk4(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Supplier<cbx.events.Mode> function = (java.util.function.Supplier<cbx.events.Mode>) box.function;
-            cbx.events.Mode value = function.get();
-            box.checkResult(BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value(), 0, 3);
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_INT.byteSize());
-            slot.set(BridgefexRuntime.C_INT, 0, (int) BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value());
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Supplier<cbx.events.Mode> __function = (java.util.function.Supplier<cbx.events.Mode>) __box.function;
+            cbx.events.Mode __value = BridgefexRuntime.nonNull(__function.get(), "the result of the callback '" + __box.name + "'");
+            __box.checkResult(__value.value(), 0, 3);
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_INT.byteSize());
+            __slot.set(BridgefexRuntime.C_INT, 0, (int) BridgefexRuntime.nonNull(__value, "the result of the callback '" + __box.name + "'").value());
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk4 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk4", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk4", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk5(java.lang.foreign.MemorySegment userData, double c1, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk5(java.lang.foreign.MemorySegment __userData, double __c1, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Function<java.lang.Double, java.lang.Double> function = (java.util.function.Function<java.lang.Double, java.lang.Double>) box.function;
-            java.lang.Double value = function.apply(c1);
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_DOUBLE.byteSize());
-            slot.set(BridgefexRuntime.C_DOUBLE, 0, value);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Double, java.lang.Double> __function = (java.util.function.Function<java.lang.Double, java.lang.Double>) __box.function;
+            java.lang.Double __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_DOUBLE.byteSize());
+            __slot.set(BridgefexRuntime.C_DOUBLE, 0, __value);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk5 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk5", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk5", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, double.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk6(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment c1, java.lang.foreign.MemorySegment c2, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk6(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __c1, java.lang.foreign.MemorySegment __c2, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double> function = (java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double>) box.function;
-            java.lang.Double value = function.apply(cbx.events.Point.read(BridgefexRuntime.view(c1, cbx.events.Point.LAYOUT.byteSize())), BridgefexRuntime.cString(c2));
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_DOUBLE.byteSize());
-            slot.set(BridgefexRuntime.C_DOUBLE, 0, value);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double> __function = (java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double>) __box.function;
+            java.lang.Double __value = BridgefexRuntime.nonNull(__function.apply(cbx.events.Point.read(BridgefexRuntime.view(__c1, cbx.events.Point.LAYOUT.byteSize())), BridgefexRuntime.cString(__c2)), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_DOUBLE.byteSize());
+            __slot.set(BridgefexRuntime.C_DOUBLE, 0, __value);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk6 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk6", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk6", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk7(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment c1, int c2) {
-        Box box = null;
+    private static void thunk7(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __c1, int __c2) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode> function = (java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode>) box.function;
-            function.accept(cbx.events.Point.read(BridgefexRuntime.view(c1, cbx.events.Point.LAYOUT.byteSize())), cbx.events.Mode.of(c2));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode> __function = (java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode>) __box.function;
+            __function.accept(cbx.events.Point.read(BridgefexRuntime.view(__c1, cbx.events.Point.LAYOUT.byteSize())), cbx.events.Mode.of(__c2));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk7 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk7", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk7", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk8(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment c1, long c2, java.lang.foreign.MemorySegment c3, long c4, java.lang.foreign.MemorySegment c5, long c6) {
-        Box box = null;
+    private static void thunk8(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __c1, long __c2, java.lang.foreign.MemorySegment __c3, long __c4, java.lang.foreign.MemorySegment __c5, long __c6) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String> function = (cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String>) box.function;
-            function.accept(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)), BridgefexRuntime.takeText(c3, BridgefexRuntime.fromSize(c4)), BridgefexRuntime.takeText(c5, BridgefexRuntime.fromSize(c6)));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String> __function = (cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String>) __box.function;
+            __function.accept(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2)), BridgefexRuntime.takeText(__c3, BridgefexRuntime.fromSize(__c4)), BridgefexRuntime.takeText(__c5, BridgefexRuntime.fromSize(__c6)));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk8 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk8", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk8", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk9(java.lang.foreign.MemorySegment userData, int c1) {
-        Box box = null;
+    private static void thunk9(java.lang.foreign.MemorySegment __userData, int __c1) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Consumer<java.lang.Integer> function = (java.util.function.Consumer<java.lang.Integer>) box.function;
-            function.accept(c1);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Consumer<java.lang.Integer> __function = (java.util.function.Consumer<java.lang.Integer>) __box.function;
+            __function.accept(__c1);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk9 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk9", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk9", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, int.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk10(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment c1, long c2, java.lang.foreign.MemorySegment out) {
-        Box box = null;
+    private static void thunk10(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __c1, long __c2, java.lang.foreign.MemorySegment __out) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Function<java.lang.String, java.lang.Integer> function = (java.util.function.Function<java.lang.String, java.lang.Integer>) box.function;
-            java.lang.Integer value = function.apply(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)));
-            java.lang.foreign.MemorySegment slot = out.reinterpret(BridgefexRuntime.C_INT.byteSize());
-            slot.set(BridgefexRuntime.C_INT, 0, value);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.String, java.lang.Integer> __function = (java.util.function.Function<java.lang.String, java.lang.Integer>) __box.function;
+            java.lang.Integer __value = BridgefexRuntime.nonNull(__function.apply(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2))), "the result of the callback '" + __box.name + "'");
+            java.lang.foreign.MemorySegment __slot = __out.reinterpret(BridgefexRuntime.C_INT.byteSize());
+            __slot.set(BridgefexRuntime.C_INT, 0, __value);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk10 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk10", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk10", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk11(java.lang.foreign.MemorySegment userData, byte c1, java.lang.foreign.MemorySegment c2, long c3) {
-        Box box = null;
+    private static void thunk11(java.lang.foreign.MemorySegment __userData, byte __c1, java.lang.foreign.MemorySegment __c2, long __c3) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.BiConsumer<cbx.events.Level, java.lang.String> function = (java.util.function.BiConsumer<cbx.events.Level, java.lang.String>) box.function;
-            function.accept(cbx.events.Level.of(BridgefexRuntime.fromU8(c1)), BridgefexRuntime.takeText(c2, BridgefexRuntime.fromSize(c3)));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.BiConsumer<cbx.events.Level, java.lang.String> __function = (java.util.function.BiConsumer<cbx.events.Level, java.lang.String>) __box.function;
+            __function.accept(cbx.events.Level.of(BridgefexRuntime.fromU8(__c1)), BridgefexRuntime.takeText(__c2, BridgefexRuntime.fromSize(__c3)));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk11 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk11", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, byte.class, java.lang.foreign.MemorySegment.class, long.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BYTE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk11", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, byte.class, java.lang.foreign.MemorySegment.class, long.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.C_BYTE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk12(java.lang.foreign.MemorySegment userData, java.lang.foreign.MemorySegment c1, long c2, java.lang.foreign.MemorySegment c3) {
-        Box box = null;
+    private static void thunk12(java.lang.foreign.MemorySegment __userData, java.lang.foreign.MemorySegment __c1, long __c2, java.lang.foreign.MemorySegment __c3) {
+        Box __box = null;
         try {
-            box = of(userData.address());
-            if (box.skip()) {
+            __box = of(__userData.address());
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.BiConsumer<java.lang.String, cbx.events.Point> function = (java.util.function.BiConsumer<java.lang.String, cbx.events.Point>) box.function;
-            function.accept(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)), cbx.events.Point.read(BridgefexRuntime.view(c3, cbx.events.Point.LAYOUT.byteSize())));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.BiConsumer<java.lang.String, cbx.events.Point> __function = (java.util.function.BiConsumer<java.lang.String, cbx.events.Point>) __box.function;
+            __function.accept(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2)), cbx.events.Point.read(BridgefexRuntime.view(__c3, cbx.events.Point.LAYOUT.byteSize())));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk12 {
-        public static final java.lang.foreign.MemorySegment ADDRESS = stub("thunk12", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS));
+        private static volatile java.lang.foreign.MemorySegment address;
+
+        public static synchronized java.lang.foreign.MemorySegment address() {
+            if (address == null) {
+                address = stub("thunk12", java.lang.invoke.MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class), java.lang.foreign.FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS));
+            }
+            return address;
+        }
     }
 }

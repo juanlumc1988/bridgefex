@@ -28,6 +28,7 @@ from .structs import struct_class
 
 JAVA_LANG = "java.lang"
 MAX_SLOTS = 255
+MAX_DOWNCALL_SLOTS = 252
 
 
 def header_package(plan: ModulePlan, header: HeaderPlan) -> str:
@@ -134,12 +135,14 @@ def _declaration(function: CFunction) -> _Declaration:
         returns = "int" if status else native_java(function.ffi_restype)
     except Unsupported as error:
         raise Unsupported(f"'{function.description}': {error}") from error
-    # A method of a Java class has at most 255 slots of parameters (a long and a double take two).
-    slots = sum(2 if type_ in ("long", "double") else 1 for type_, _, _ in params)
-    if slots > MAX_SLOTS:
+    # A downcall has at most 252 slots of parameters: a pointer and a long or a double take two (the
+    # linker keeps three of the 255 that a method has).
+    slots = sum(2 if type_ in (SEGMENT, "long", "double") else 1 for type_, _, _ in params)
+    if slots > MAX_DOWNCALL_SLOTS:
         raise Unsupported(
             f"'{function.description}' has too many parameters for Java (its C function takes "
-            f"{slots} slots of the {MAX_SLOTS} that a method has: a std::string takes 3)"
+            f"{slots} slots of the {MAX_DOWNCALL_SLOTS} that a call has: a pointer takes 2, and a "
+            "std::string is a pointer and a size)"
         )
     return function.name, returns, params
 

@@ -35,7 +35,7 @@ public final class BridgefexCallbacks {
     private BridgefexCallbacks() {
     }
 
-    private static volatile Consumer<Throwable> unobserved;
+    private static volatile Consumer<Throwable> UNOBSERVED;
 
     /**
      * Sets what happens with an exception of a callback that no call raises: one that C++ runs after
@@ -43,7 +43,7 @@ public final class BridgefexCallbacks {
      * with {@code null}) it is written to the standard error.
      */
     public static void setUnobserved(Consumer<Throwable> handler) {
-        unobserved = handler;
+        UNOBSERVED = handler;
     }
 
     /** The number of callbacks that C++ holds (for the tests of the code that uses the bindings). */
@@ -57,9 +57,14 @@ public final class BridgefexCallbacks {
     // -- for the generated code --------------------------------------------------------------
 
     private static final ConcurrentHashMap<Long, Box> TABLE = new ConcurrentHashMap<Long, Box>();
-    private static final AtomicLong NEXT = new AtomicLong();
-    private static volatile boolean disabled;
-    private static boolean watching;
+    // Where the keys start differs from a class loader of the bindings to the next one: if the library
+    // stays mapped after a redeploy, a callback that C++ still holds from the old one has a key that the
+    // new one does not give.
+    private static final AtomicLong NEXT = new AtomicLong((System.nanoTime() ^ System.identityHashCode(TABLE)) & 0x3FFFFFFFL);
+{% if ffm %}
+    private static volatile boolean DISABLED;
+    private static boolean WATCHING;
+{% endif %}
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
     private static final class Box {
@@ -111,14 +116,16 @@ public final class BridgefexCallbacks {
         TABLE.remove({{ release_key }});
     }
 
+{% if ffm %}
     /** The module starts: its callbacks are disabled when the JVM exits, so that C++ neither calls nor
-     * releases them while it runs the destructors of its globals. */
+     * releases them while it runs the destructors of its globals. (Over JNI the glue does it when the
+     * process exits: a hook of the JVM would keep the class loader of the bindings alive.) */
     private static void watch() {
-        if (watching) {
+        if (WATCHING) {
             return;
         }
         synchronized (BridgefexCallbacks.class) {
-            if (watching) {
+            if (WATCHING) {
                 return;
             }
             try {
@@ -132,14 +139,21 @@ public final class BridgefexCallbacks {
                 disable();
                 throw new IllegalStateException("the JVM is exiting: no callback can be given to C++", exiting);
             }
-            watching = true;
+            WATCHING = true;
         }
     }
 
     private static void disable() {
-        disabled = true;
-        BridgefexNative.{{ disable_function }}(Release.ADDRESS);
+        DISABLED = true;
+        // A library that was never loaded has no callback to disable.
+        if (BridgefexRuntime.isLoaded()) {
+            BridgefexNative.{{ disable_function }}(Release.address());
+        }
     }
+{% else %}
+    private static void watch() {
+    }
+{% endif %}
 
     /** The exception of a callback goes to the call that runs it: the innermost call of this thread
      * that gives callbacks. On a thread of C++ (no call runs on it), it goes to the call that gave the
@@ -164,7 +178,7 @@ public final class BridgefexCallbacks {
 
     private static void report(Throwable error) {
         try {
-            Consumer<Throwable> handler = unobserved;
+            Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
                 System.err.println("Unobserved exception in a C++ callback: " + error);
                 error.printStackTrace();
@@ -284,15 +298,22 @@ public final class BridgefexCallbacks {
             if (function == null) {
                 return Registration.NONE;
             }
-            if (disabled) {
+{% if ffm %}
+            if (DISABLED) {
                 throw new IllegalStateException("the callbacks of the module are disabled: the JVM is exiting");
             }
-            long key = add(new Box(function, name, this));
+{% endif %}
             if (keys == null) {
                 keys = new ArrayList<Long>();
             }
-            keys.add(key);
-            return new Registration(thunk, {{ segment_type }}.ofAddress(key), Release.ADDRESS);
+            long key = add(new Box(function, name, this));
+            try {
+                keys.add(key);
+            } catch (Throwable error) {
+                TABLE.remove(key);
+                throw error;
+            }
+            return new Registration(thunk, {{ segment_type }}.ofAddress(key), Release.address());
         }
 
         /** The C function has returned: from now on C++ owns the callbacks. */
@@ -362,20 +383,41 @@ public final class BridgefexCallbacks {
 
     private static MemorySegment stub(String name, MethodType type, FunctionDescriptor descriptor) {
         try {
-            MethodHandle target = MethodHandles.lookup().findStatic(BridgefexCallbacks.class, name, type);
-            return Linker.nativeLinker().upcallStub(target.asType(descriptor.toMethodType()), descriptor, Arena.global());
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodHandle target = lookup.findStatic(BridgefexCallbacks.class, name, type);
+            // The thunks catch what a callback throws, but not what is thrown before they can (a stack
+            // overflow where they start): an exception that crosses an upcall ends the JVM.
+            MethodHandle escaped = lookup.findStatic(
+                BridgefexCallbacks.class, "escaped", MethodType.methodType(void.class, Throwable.class));
+            MethodHandle safe = MethodHandles.catchException(
+                target, Throwable.class, MethodHandles.dropArguments(escaped, 1, type.parameterList()));
+            return Linker.nativeLinker().upcallStub(safe.asType(descriptor.toMethodType()), descriptor, Arena.global());
         } catch (ReflectiveOperationException error) {
             throw new IllegalStateException("cannot make the function of the callback " + name, error);
         }
     }
+
+    /** An exception that no thunk could route: reported as one that no call can raise. */
+    private static void escaped(Throwable error) {
+        report(error);
+    }
 {% endif %}
 
-    /** The function that C++ calls to release a callback. */
+    /** The function that C++ calls to release a callback. Its address is made when it is first needed,
+     * and a failure (the library is not loaded) can be tried again: a static initializer that fails
+     * would leave the class unusable. */
     public static final class Release {
         private Release() {
         }
 
-        public static final {{ segment_type }} ADDRESS = {{ release_address }};
+        private static volatile {{ segment_type }} address;
+
+        public static synchronized {{ segment_type }} address() {
+            if (address == null) {
+                address = {{ release_address }};
+            }
+            return address;
+        }
     }
 {% for line in thunks %}
 {{ line }}

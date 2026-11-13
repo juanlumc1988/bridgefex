@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cbx_runtime.h"
@@ -43,13 +44,6 @@ void JNICALL glue_cbx_free(JNIEnv* env, jclass cls, jlong a0)
     (void) env;
     (void) cls;
     cbx_free((void*) static_cast<uintptr_t>(a0));
-}
-
-void JNICALL glue_cbx_disable_callbacks(JNIEnv* env, jclass cls, jlong a0)
-{
-    (void) env;
-    (void) cls;
-    cbx_disable_callbacks((void (*)(void*)) static_cast<uintptr_t>(a0));
 }
 
 jint JNICALL glue_ev_Point_init(JNIEnv* env, jclass cls, jlong a0)
@@ -298,12 +292,21 @@ jweak g_callbacks = nullptr;
 jmethodID g_thunks[13];
 jmethodID g_release = nullptr;
 
-// A thread that C++ started is attached to the JVM while it runs a callback, and detached when it ends.
+// The process is exiting: C++ may still run callbacks (the destructor of a global), and joins its threads.
+volatile bool g_exiting = false;
+
+// Set when the thread has been detached for good: a destructor of C++ that runs after that one must not
+// attach it again (nothing would detach it). Trivially destructible, so it can still be read.
+thread_local bool t_detached = false;
+
+// A thread that C++ started is attached to the JVM while it runs a callback, and detached when it ends,
+// unless the process is exiting: the JVM does not let a thread detach then, and C++ may be joining it.
 struct Detacher {
     bool attached = false;
     ~Detacher()
     {
-        if (attached && g_vm != nullptr) {
+        t_detached = true;
+        if (attached && !g_exiting && g_vm != nullptr) {
             g_vm->DetachCurrentThread();
         }
     }
@@ -311,7 +314,7 @@ struct Detacher {
 
 JNIEnv* callback_env()
 {
-    if (g_vm == nullptr) {
+    if (g_vm == nullptr || g_exiting) {
         return nullptr;
     }
     JNIEnv* env = nullptr;
@@ -319,7 +322,7 @@ JNIEnv* callback_env()
     if (status == JNI_OK) {
         return env;
     }
-    if (status != JNI_EDETACHED) {
+    if (status != JNI_EDETACHED || t_detached) {
         return nullptr;
     }
     static thread_local Detacher detacher;
@@ -345,7 +348,8 @@ void glue_callback_0(void* a0, int32_t a1, int32_t* out)
     }
     const jint value = env->CallStaticIntMethod(callbacks, g_thunks[0], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (int32_t) value;
     }
@@ -363,7 +367,8 @@ void glue_callback_1(void* a0, int64_t a1, bool* out)
     }
     const jboolean value = env->CallStaticBooleanMethod(callbacks, g_thunks[1], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(a1));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = value != JNI_FALSE;
     }
@@ -381,7 +386,8 @@ void glue_callback_2(void* a0)
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[2], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -397,7 +403,8 @@ void glue_callback_3(void* a0, int32_t a1, ev_Level* out)
     }
     const jbyte value = env->CallStaticByteMethod(callbacks, g_thunks[3], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (ev_Level) value;
     }
@@ -415,7 +422,8 @@ void glue_callback_4(void* a0, ev_Mode* out)
     }
     const jint value = env->CallStaticIntMethod(callbacks, g_thunks[4], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (ev_Mode) value;
     }
@@ -433,7 +441,8 @@ void glue_callback_5(void* a0, double a1, double* out)
     }
     const jdouble value = env->CallStaticDoubleMethod(callbacks, g_thunks[5], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jdouble>(a1));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (double) value;
     }
@@ -451,7 +460,8 @@ void glue_callback_6(void* a0, const ev_Point* a1, const char* a2, double* out)
     }
     const jdouble value = env->CallStaticDoubleMethod(callbacks, g_thunks[6], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a2)));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (double) value;
     }
@@ -469,7 +479,8 @@ void glue_callback_7(void* a0, const ev_Point* a1, ev_Mode a2)
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[7], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jint>(a2));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -485,7 +496,8 @@ void glue_callback_8(void* a0, const char* a1, size_t a2, const char* a3, size_t
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[8], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jlong>(a2), static_cast<jlong>(reinterpret_cast<uintptr_t>(a3)), static_cast<jlong>(a4), static_cast<jlong>(reinterpret_cast<uintptr_t>(a5)), static_cast<jlong>(a6));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -501,7 +513,8 @@ void glue_callback_9(void* a0, int32_t a1)
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[9], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -517,7 +530,8 @@ void glue_callback_10(void* a0, const char* a1, size_t a2, int32_t* out)
     }
     const jint value = env->CallStaticIntMethod(callbacks, g_thunks[10], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jlong>(a2));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     } else {
         *out = (int32_t) value;
     }
@@ -535,7 +549,8 @@ void glue_callback_11(void* a0, ev_Level a1, const char* a2, size_t a3)
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[11], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jbyte>(a1), static_cast<jlong>(reinterpret_cast<uintptr_t>(a2)), static_cast<jlong>(a3));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -551,7 +566,8 @@ void glue_callback_12(void* a0, const char* a1, size_t a2, const ev_Point* a3)
     }
     env->CallStaticVoidMethod(callbacks, g_thunks[12], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jlong>(a2), static_cast<jlong>(reinterpret_cast<uintptr_t>(a3)));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
 }
@@ -566,9 +582,19 @@ void glue_release(void* user_data)
     }
     env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
     if (env->ExceptionCheck()) {
-        env->ExceptionClear();
+        env->ExceptionDescribe();
     }
     env->DeleteLocalRef(callbacks);
+}
+
+// The process exits (or the library is unloaded): C++ calls and releases no callback of this library from
+// now on, and the JVM is not asked for anything. This runs before the destructors of the globals of the
+// library that were made before the library was registered, and not on the JVM's shutdown hooks, which
+// halt() skips and which would keep the class loader of the bindings alive.
+void glue_at_exit()
+{
+    g_exiting = true;
+    cbx_disable_callbacks(&glue_release);
 }
 
 jlong JNICALL glue_callbackAddress(JNIEnv* env, jclass cls, jint index)
@@ -640,12 +666,11 @@ extern "C" JNIEXPORT jint bridgefex_cbx_jni_register(JNIEnv* env)
         {const_cast<char*>("length"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_length)},
         {const_cast<char*>("copyOut"), const_cast<char*>("(JI)[B"), reinterpret_cast<void*>(glue_copyOut)},
         {const_cast<char*>("sizes"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_sizes)},
-        {const_cast<char*>("callbackAddress"), const_cast<char*>("(I)J"), reinterpret_cast<void*>(glue_callbackAddress)},
-        {const_cast<char*>("releaseAddress"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_releaseAddress)},
+        {const_cast<char*>("n_callbackAddress"), const_cast<char*>("(I)J"), reinterpret_cast<void*>(glue_callbackAddress)},
+        {const_cast<char*>("n_releaseAddress"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_releaseAddress)},
         {const_cast<char*>("n_cbx_last_error"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_cbx_last_error)},
         {const_cast<char*>("n_cbx_api_fingerprint"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_cbx_api_fingerprint)},
         {const_cast<char*>("n_cbx_free"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_cbx_free)},
-        {const_cast<char*>("n_cbx_disable_callbacks"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_cbx_disable_callbacks)},
         {const_cast<char*>("n_ev_Point_init"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_ev_Point_init)},
         {const_cast<char*>("n_ev_sum"), const_cast<char*>("(IJJJJ)I"), reinterpret_cast<void*>(glue_ev_sum)},
         {const_cast<char*>("n_ev_count_if"), const_cast<char*>("(IJJJJ)I"), reinterpret_cast<void*>(glue_ev_count_if)},
@@ -712,6 +737,11 @@ extern "C" JNIEXPORT jint bridgefex_cbx_jni_register(JNIEnv* env)
         return JNI_OK;
     }
     g_callbacks = env->NewWeakGlobalRef(callbacks_class);
+    static bool exit_registered = false;
+    if (!exit_registered) {
+        exit_registered = true;
+        atexit(glue_at_exit);
+    }
     return JNI_OK;
 }
 

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -26,7 +27,14 @@ def _virtual(member: CallablePlan) -> bool:
 
 def _signature(parameters: list[str]) -> tuple[str, ...]:
     """The types of the parameters of a Java method, which is what overloads are told apart by."""
-    return tuple(parameter.rsplit(" ", 1)[0] for parameter in parameters)
+    found = []
+    for parameter in parameters:
+        type_ = parameter.rsplit(" ", 1)[0]
+        # Type arguments nest (``Function<Integer, Consumer<String>>``): remove the innermost first.
+        while re.search(r"<[^<>]*>", type_):
+            type_ = re.sub(r"<[^<>]*>", "", type_)
+        found.append(type_)
+    return tuple(found)
 
 
 def _cpp_signature(member: CallablePlan) -> tuple[object, ...] | None:
@@ -273,6 +281,7 @@ class _Class:
             src.doc(ctor.function.description, *item.remarks)
             src.line(f'@BridgefexFunction("{ctor.function.name}")')
             if count[_signature(item.parameters)] == 1:
+                src.lines_of(item.annotations)
                 src.open(f"public {name}({', '.join(item.parameters)})")
                 # The handle is made before the call: the destruction of what C++ makes is
                 # guaranteed from the moment the C function writes the pointer.
@@ -283,6 +292,7 @@ class _Class:
             factory = method_name(f"create{ctor.suffix}", RESERVED_MEMBERS | set(self.taken))
             self.taken[factory] = ctor.function.description
             made = lower_callable(ctor, names, plan, declaring=cls, factory=name)
+            src.lines_of(made.annotations)
             src.open(f"public static {name} {factory}({', '.join(made.parameters)})")
             src.lines_of(made.body)
             src.close()

@@ -81,6 +81,11 @@ public final class BridgefexRuntime {
 
     // -- the library -------------------------------------------------------------------------
 
+    /** True once the library is loaded (what has to be done at exit is only done for a library that is). */
+    public static boolean isLoaded() {
+        return loaded;
+    }
+
     /** Loads the library on the first use of the C API. A failure is that of the call that needed
      * the library, and the next call tries again. */
     public static void ensureLoaded() {

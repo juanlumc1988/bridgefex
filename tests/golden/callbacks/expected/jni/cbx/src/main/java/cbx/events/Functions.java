@@ -28,7 +28,7 @@ public final class Functions {
     @BridgefexFunction("ev_sum")
     public static long sum(int n, java.util.function.Function<java.lang.Integer, java.lang.Integer> f) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk0.ADDRESS);
+            BridgefexCallbacks.Registration __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk0.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_LONG_LONG);
             int __status = BridgefexNative.ev_sum(n, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();
@@ -45,7 +45,7 @@ public final class Functions {
     @BridgefexFunction("ev_count_if")
     public static int countIf(int n, java.util.function.Function<java.lang.Long, java.lang.Boolean> predicate) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o2 = __scope.register(predicate, "predicate", cbx.BridgefexCallbacks.Thunk1.ADDRESS);
+            BridgefexCallbacks.Registration __o2 = __scope.register(predicate, "predicate", cbx.BridgefexCallbacks.Thunk1.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.ev_count_if(n, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();
@@ -62,7 +62,7 @@ public final class Functions {
     @BridgefexFunction("ev_is_empty")
     public static boolean isEmpty(java.lang.Runnable f) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk2.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk2.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BOOL);
             int __status = BridgefexNative.ev_is_empty(__o1.callback(), __o1.userData(), __o1.release(), __result);
             __scope.returned();
@@ -79,7 +79,7 @@ public final class Functions {
     @BridgefexFunction("ev_classify")
     public static cbx.events.Level classify(int value, java.util.function.Function<java.lang.Integer, cbx.events.Level> classifier) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o2 = __scope.register(classifier, "classifier", cbx.BridgefexCallbacks.Thunk3.ADDRESS);
+            BridgefexCallbacks.Registration __o2 = __scope.register(classifier, "classifier", cbx.BridgefexCallbacks.Thunk3.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BYTE);
             int __status = BridgefexNative.ev_classify(value, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();
@@ -96,7 +96,7 @@ public final class Functions {
     @BridgefexFunction("ev_pick")
     public static cbx.events.Mode pick(java.util.function.Supplier<cbx.events.Mode> chooser) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(chooser, "chooser", cbx.BridgefexCallbacks.Thunk4.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(chooser, "chooser", cbx.BridgefexCallbacks.Thunk4.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.ev_pick(__o1.callback(), __o1.userData(), __o1.release(), __result);
             __scope.returned();
@@ -113,7 +113,7 @@ public final class Functions {
     @BridgefexFunction("ev_integrate")
     public static double integrate(java.util.function.Function<java.lang.Double, java.lang.Double> f, double a, double b, int steps) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk5.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk5.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
             int __status = BridgefexNative.ev_integrate(__o1.callback(), __o1.userData(), __o1.release(), a, b, steps, __result);
             __scope.returned();
@@ -130,7 +130,7 @@ public final class Functions {
     @BridgefexFunction("ev_walk")
     public static double walk(java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double> visit) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(visit, "visit", cbx.BridgefexCallbacks.Thunk6.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(visit, "visit", cbx.BridgefexCallbacks.Thunk6.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
             int __status = BridgefexNative.ev_walk(__o1.callback(), __o1.userData(), __o1.release(), __result);
             __scope.returned();
@@ -147,7 +147,7 @@ public final class Functions {
     @BridgefexFunction("ev_shift")
     public static void shift(java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode> sink) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(sink, "sink", cbx.BridgefexCallbacks.Thunk7.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(sink, "sink", cbx.BridgefexCallbacks.Thunk7.address());
             int __status = BridgefexNative.ev_shift(__o1.callback(), __o1.userData(), __o1.release());
             __scope.returned();
             __scope.check(__status);
@@ -162,7 +162,7 @@ public final class Functions {
     @BridgefexFunction("ev_strings")
     public static void strings(cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String> f) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk8.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk8.address());
             int __status = BridgefexNative.ev_strings(__o1.callback(), __o1.userData(), __o1.release());
             __scope.returned();
             __scope.check(__status);
@@ -177,7 +177,7 @@ public final class Functions {
     @BridgefexFunction("ev_parallel")
     public static void parallel(int threads, int n, java.util.function.Consumer<java.lang.Integer> f) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o3 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk9.ADDRESS);
+            BridgefexCallbacks.Registration __o3 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk9.address());
             int __status = BridgefexNative.ev_parallel(threads, n, __o3.callback(), __o3.userData(), __o3.release());
             __scope.returned();
             __scope.check(__status);
@@ -194,7 +194,7 @@ public final class Functions {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexArena __arena = BridgefexRuntime.arena()) {
             byte[] __b1 = BridgefexRuntime.utf8(prefix, "prefix");
             BridgefexSegment __p1 = BridgefexRuntime.bytes(__arena, __b1);
-            BridgefexCallbacks.Registration __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk10.ADDRESS);
+            BridgefexCallbacks.Registration __o2 = __scope.register(f, "f", cbx.BridgefexCallbacks.Thunk10.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.ev_prefixed(__p1, (long) __b1.length, __o2.callback(), __o2.userData(), __o2.release(), __result);
             __scope.returned();
@@ -211,7 +211,7 @@ public final class Functions {
     @BridgefexFunction("ev_store_and_sleep")
     public static void storeAndSleep(java.util.function.Function<java.lang.Integer, java.lang.Integer> handler, int ms) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(handler, "handler", cbx.BridgefexCallbacks.Thunk0.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(handler, "handler", cbx.BridgefexCallbacks.Thunk0.address());
             int __status = BridgefexNative.ev_store_and_sleep(__o1.callback(), __o1.userData(), __o1.release(), ms);
             __scope.returned();
             __scope.check(__status);
@@ -239,7 +239,7 @@ public final class Functions {
     @BridgefexFunction("ev_set_log_handler")
     public static void setLogHandler(java.util.function.BiConsumer<cbx.events.Level, java.lang.String> handler) {
         try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
-            BridgefexCallbacks.Registration __o1 = __scope.register(handler, "handler", cbx.BridgefexCallbacks.Thunk11.ADDRESS);
+            BridgefexCallbacks.Registration __o1 = __scope.register(handler, "handler", cbx.BridgefexCallbacks.Thunk11.address());
             int __status = BridgefexNative.ev_set_log_handler(__o1.callback(), __o1.userData(), __o1.release());
             __scope.returned();
             __scope.check(__status);

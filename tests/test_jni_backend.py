@@ -221,6 +221,7 @@ def test_the_two_flavors_say_the_same_in_the_options(tmp_path: Path) -> None:
 _STUBS = {
     "stdio.h": "#pragma once\n#include <stddef.h>\n",
     "string.h": '#pragma once\n#include <stddef.h>\nextern "C" size_t strlen(const char*);\n',
+    "stdlib.h": '#pragma once\n#include <stddef.h>\nextern "C" int atexit(void (*)(void));\n',
 }
 """What ``jni.h`` and the glue ask of the C library, for a target whose headers are not here."""
 

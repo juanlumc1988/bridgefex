@@ -22,8 +22,18 @@ public final class BridgefexNative {
     static native int length(long address);
     static native byte[] copyOut(long address, int size);
     static native long sizes();
-    static native long callbackAddress(int index);
-    static native long releaseAddress();
+
+    static long callbackAddress(int index) {
+        BridgefexRuntime.ensureLoaded();
+        return n_callbackAddress(index);
+    }
+    private static native long n_callbackAddress(int index);
+
+    static long releaseAddress() {
+        BridgefexRuntime.ensureLoaded();
+        return n_releaseAddress();
+    }
+    private static native long n_releaseAddress();
 
     public static BridgefexSegment cbx_last_error() {
         BridgefexRuntime.ensureLoaded();
@@ -42,12 +52,6 @@ public final class BridgefexNative {
         n_cbx_free(p_memory.address());
     }
     private static native void n_cbx_free(long p_memory);
-
-    public static void cbx_disable_callbacks(BridgefexSegment p_release) {
-        BridgefexRuntime.ensureLoaded();
-        n_cbx_disable_callbacks(p_release.address());
-    }
-    private static native void n_cbx_disable_callbacks(long p_release);
 
     public static int ev_Point_init(BridgefexSegment p_out_result) {
         BridgefexRuntime.ensureLoaded();

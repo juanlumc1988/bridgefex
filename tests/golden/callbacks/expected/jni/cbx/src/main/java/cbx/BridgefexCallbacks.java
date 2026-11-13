@@ -23,7 +23,7 @@ public final class BridgefexCallbacks {
     private BridgefexCallbacks() {
     }
 
-    private static volatile Consumer<Throwable> unobserved;
+    private static volatile Consumer<Throwable> UNOBSERVED;
 
     /**
      * Sets what happens with an exception of a callback that no call raises: one that C++ runs after
@@ -31,7 +31,7 @@ public final class BridgefexCallbacks {
      * with {@code null}) it is written to the standard error.
      */
     public static void setUnobserved(Consumer<Throwable> handler) {
-        unobserved = handler;
+        UNOBSERVED = handler;
     }
 
     /** The number of callbacks that C++ holds (for the tests of the code that uses the bindings). */
@@ -48,9 +48,10 @@ public final class BridgefexCallbacks {
     // -- for the generated code --------------------------------------------------------------
 
     private static final ConcurrentHashMap<Long, Box> TABLE = new ConcurrentHashMap<Long, Box>();
-    private static final AtomicLong NEXT = new AtomicLong();
-    private static volatile boolean disabled;
-    private static boolean watching;
+    // Where the keys start differs from a class loader of the bindings to the next one: if the library
+    // stays mapped after a redeploy, a callback that C++ still holds from the old one has a key that the
+    // new one does not give.
+    private static final AtomicLong NEXT = new AtomicLong((System.nanoTime() ^ System.identityHashCode(TABLE)) & 0x3FFFFFFFL);
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
     private static final class Box {
@@ -102,34 +103,7 @@ public final class BridgefexCallbacks {
         TABLE.remove(userData);
     }
 
-    /** The module starts: its callbacks are disabled when the JVM exits, so that C++ neither calls nor
-     * releases them while it runs the destructors of its globals. */
     private static void watch() {
-        if (watching) {
-            return;
-        }
-        synchronized (BridgefexCallbacks.class) {
-            if (watching) {
-                return;
-            }
-            try {
-                Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        disable();
-                    }
-                }, "bridgefex-callbacks"));
-            } catch (IllegalStateException exiting) {
-                disable();
-                throw new IllegalStateException("the JVM is exiting: no callback can be given to C++", exiting);
-            }
-            watching = true;
-        }
-    }
-
-    private static void disable() {
-        disabled = true;
-        BridgefexNative.cbx_disable_callbacks(Release.ADDRESS);
     }
 
     /** The exception of a callback goes to the call that runs it: the innermost call of this thread
@@ -155,7 +129,7 @@ public final class BridgefexCallbacks {
 
     private static void report(Throwable error) {
         try {
-            Consumer<Throwable> handler = unobserved;
+            Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
                 System.err.println("Unobserved exception in a C++ callback: " + error);
                 error.printStackTrace();
@@ -275,15 +249,17 @@ public final class BridgefexCallbacks {
             if (function == null) {
                 return Registration.NONE;
             }
-            if (disabled) {
-                throw new IllegalStateException("the callbacks of the module are disabled: the JVM is exiting");
-            }
-            long key = add(new Box(function, name, this));
             if (keys == null) {
                 keys = new ArrayList<Long>();
             }
-            keys.add(key);
-            return new Registration(thunk, BridgefexSegment.ofAddress(key), Release.ADDRESS);
+            long key = add(new Box(function, name, this));
+            try {
+                keys.add(key);
+            } catch (Throwable error) {
+                TABLE.remove(key);
+                throw error;
+            }
+            return new Registration(thunk, BridgefexSegment.ofAddress(key), Release.address());
         }
 
         /** The C function has returned: from now on C++ owns the callbacks. */
@@ -350,283 +326,383 @@ public final class BridgefexCallbacks {
 
     // -- the thunks that C++ calls -----------------------------------------------------------
 
-    /** The function that C++ calls to release a callback. */
+    /** The function that C++ calls to release a callback. Its address is made when it is first needed,
+     * and a failure (the library is not loaded) can be tried again: a static initializer that fails
+     * would leave the class unusable. */
     public static final class Release {
         private Release() {
         }
 
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.releaseAddress());
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.releaseAddress());
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static int thunk0(long userData, int c1) {
-        Box box = null;
+    private static int thunk0(long __userData, int __c1) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            java.util.function.Function<java.lang.Integer, java.lang.Integer> function = (java.util.function.Function<java.lang.Integer, java.lang.Integer>) box.function;
-            java.lang.Integer value = function.apply(c1);
-            return value;
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Integer, java.lang.Integer> __function = (java.util.function.Function<java.lang.Integer, java.lang.Integer>) __box.function;
+            java.lang.Integer __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            return __value;
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk0 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(0));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(0));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static boolean thunk1(long userData, long c1) {
-        Box box = null;
+    private static boolean thunk1(long __userData, long __c1) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return false;
             }
-            java.util.function.Function<java.lang.Long, java.lang.Boolean> function = (java.util.function.Function<java.lang.Long, java.lang.Boolean>) box.function;
-            java.lang.Boolean value = function.apply(c1);
-            return value;
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Long, java.lang.Boolean> __function = (java.util.function.Function<java.lang.Long, java.lang.Boolean>) __box.function;
+            java.lang.Boolean __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            return __value;
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return false;
     }
 
     public static final class Thunk1 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(1));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(1));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk2(long userData) {
-        Box box = null;
+    private static void thunk2(long __userData) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            java.lang.Runnable function = (java.lang.Runnable) box.function;
-            function.run();
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.lang.Runnable __function = (java.lang.Runnable) __box.function;
+            __function.run();
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk2 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(2));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(2));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static byte thunk3(long userData, int c1) {
-        Box box = null;
+    private static byte thunk3(long __userData, int __c1) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            java.util.function.Function<java.lang.Integer, cbx.events.Level> function = (java.util.function.Function<java.lang.Integer, cbx.events.Level>) box.function;
-            cbx.events.Level value = function.apply(c1);
-            return BridgefexRuntime.u8("the result of the callback '" + box.name + "'", (short) BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value());
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Integer, cbx.events.Level> __function = (java.util.function.Function<java.lang.Integer, cbx.events.Level>) __box.function;
+            cbx.events.Level __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            return BridgefexRuntime.u8("the result of the callback '" + __box.name + "'", (short) BridgefexRuntime.nonNull(__value, "the result of the callback '" + __box.name + "'").value());
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk3 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(3));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(3));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static int thunk4(long userData) {
-        Box box = null;
+    private static int thunk4(long __userData) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            java.util.function.Supplier<cbx.events.Mode> function = (java.util.function.Supplier<cbx.events.Mode>) box.function;
-            cbx.events.Mode value = function.get();
-            box.checkResult(BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value(), 0, 3);
-            return (int) BridgefexRuntime.nonNull(value, "the result of the callback '" + box.name + "'").value();
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Supplier<cbx.events.Mode> __function = (java.util.function.Supplier<cbx.events.Mode>) __box.function;
+            cbx.events.Mode __value = BridgefexRuntime.nonNull(__function.get(), "the result of the callback '" + __box.name + "'");
+            __box.checkResult(__value.value(), 0, 3);
+            return (int) BridgefexRuntime.nonNull(__value, "the result of the callback '" + __box.name + "'").value();
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk4 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(4));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(4));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static double thunk5(long userData, double c1) {
-        Box box = null;
+    private static double thunk5(long __userData, double __c1) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            java.util.function.Function<java.lang.Double, java.lang.Double> function = (java.util.function.Function<java.lang.Double, java.lang.Double>) box.function;
-            java.lang.Double value = function.apply(c1);
-            return value;
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Function<java.lang.Double, java.lang.Double> __function = (java.util.function.Function<java.lang.Double, java.lang.Double>) __box.function;
+            java.lang.Double __value = BridgefexRuntime.nonNull(__function.apply(__c1), "the result of the callback '" + __box.name + "'");
+            return __value;
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk5 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(5));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(5));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static double thunk6(long userData, long r1, long r2) {
-        Box box = null;
+    private static double thunk6(long __userData, long __r1, long __r2) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment c1 = BridgefexSegment.ofAddress(r1);
-            BridgefexSegment c2 = BridgefexSegment.ofAddress(r2);
-            java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double> function = (java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double>) box.function;
-            java.lang.Double value = function.apply(cbx.events.Point.read(BridgefexRuntime.view(c1, cbx.events.Point.LAYOUT.byteSize())), BridgefexRuntime.cString(c2));
-            return value;
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            BridgefexSegment __c2 = BridgefexSegment.ofAddress(__r2);
+            java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double> __function = (java.util.function.BiFunction<cbx.events.Point, java.lang.String, java.lang.Double>) __box.function;
+            java.lang.Double __value = BridgefexRuntime.nonNull(__function.apply(cbx.events.Point.read(BridgefexRuntime.view(__c1, cbx.events.Point.LAYOUT.byteSize())), BridgefexRuntime.cString(__c2)), "the result of the callback '" + __box.name + "'");
+            return __value;
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk6 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(6));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(6));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk7(long userData, long r1, int c2) {
-        Box box = null;
+    private static void thunk7(long __userData, long __r1, int __c2) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            BridgefexSegment c1 = BridgefexSegment.ofAddress(r1);
-            java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode> function = (java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode>) box.function;
-            function.accept(cbx.events.Point.read(BridgefexRuntime.view(c1, cbx.events.Point.LAYOUT.byteSize())), cbx.events.Mode.of(c2));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode> __function = (java.util.function.BiConsumer<cbx.events.Point, cbx.events.Mode>) __box.function;
+            __function.accept(cbx.events.Point.read(BridgefexRuntime.view(__c1, cbx.events.Point.LAYOUT.byteSize())), cbx.events.Mode.of(__c2));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk7 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(7));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(7));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk8(long userData, long r1, long c2, long r3, long c4, long r5, long c6) {
-        Box box = null;
+    private static void thunk8(long __userData, long __r1, long __c2, long __r3, long __c4, long __r5, long __c6) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            BridgefexSegment c1 = BridgefexSegment.ofAddress(r1);
-            BridgefexSegment c3 = BridgefexSegment.ofAddress(r3);
-            BridgefexSegment c5 = BridgefexSegment.ofAddress(r5);
-            cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String> function = (cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String>) box.function;
-            function.accept(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)), BridgefexRuntime.takeText(c3, BridgefexRuntime.fromSize(c4)), BridgefexRuntime.takeText(c5, BridgefexRuntime.fromSize(c6)));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            BridgefexSegment __c3 = BridgefexSegment.ofAddress(__r3);
+            BridgefexSegment __c5 = BridgefexSegment.ofAddress(__r5);
+            cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String> __function = (cbx.BridgefexCallbacks.Consumer3<java.lang.String, java.lang.String, java.lang.String>) __box.function;
+            __function.accept(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2)), BridgefexRuntime.takeText(__c3, BridgefexRuntime.fromSize(__c4)), BridgefexRuntime.takeText(__c5, BridgefexRuntime.fromSize(__c6)));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk8 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(8));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(8));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk9(long userData, int c1) {
-        Box box = null;
+    private static void thunk9(long __userData, int __c1) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            java.util.function.Consumer<java.lang.Integer> function = (java.util.function.Consumer<java.lang.Integer>) box.function;
-            function.accept(c1);
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            java.util.function.Consumer<java.lang.Integer> __function = (java.util.function.Consumer<java.lang.Integer>) __box.function;
+            __function.accept(__c1);
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk9 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(9));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(9));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static int thunk10(long userData, long r1, long c2) {
-        Box box = null;
+    private static int thunk10(long __userData, long __r1, long __c2) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment c1 = BridgefexSegment.ofAddress(r1);
-            java.util.function.Function<java.lang.String, java.lang.Integer> function = (java.util.function.Function<java.lang.String, java.lang.Integer>) box.function;
-            java.lang.Integer value = function.apply(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)));
-            return value;
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            java.util.function.Function<java.lang.String, java.lang.Integer> __function = (java.util.function.Function<java.lang.String, java.lang.Integer>) __box.function;
+            java.lang.Integer __value = BridgefexRuntime.nonNull(__function.apply(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2))), "the result of the callback '" + __box.name + "'");
+            return __value;
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
         return 0;
     }
 
     public static final class Thunk10 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(10));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(10));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk11(long userData, byte c1, long r2, long c3) {
-        Box box = null;
+    private static void thunk11(long __userData, byte __c1, long __r2, long __c3) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            BridgefexSegment c2 = BridgefexSegment.ofAddress(r2);
-            java.util.function.BiConsumer<cbx.events.Level, java.lang.String> function = (java.util.function.BiConsumer<cbx.events.Level, java.lang.String>) box.function;
-            function.accept(cbx.events.Level.of(BridgefexRuntime.fromU8(c1)), BridgefexRuntime.takeText(c2, BridgefexRuntime.fromSize(c3)));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c2 = BridgefexSegment.ofAddress(__r2);
+            java.util.function.BiConsumer<cbx.events.Level, java.lang.String> __function = (java.util.function.BiConsumer<cbx.events.Level, java.lang.String>) __box.function;
+            __function.accept(cbx.events.Level.of(BridgefexRuntime.fromU8(__c1)), BridgefexRuntime.takeText(__c2, BridgefexRuntime.fromSize(__c3)));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk11 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(11));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(11));
+            }
+            return address;
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static void thunk12(long userData, long r1, long c2, long r3) {
-        Box box = null;
+    private static void thunk12(long __userData, long __r1, long __c2, long __r3) {
+        Box __box = null;
         try {
-            box = of(userData);
-            if (box.skip()) {
+            __box = of(__userData);
+            if (__box.skip()) {
                 return;
             }
-            BridgefexSegment c1 = BridgefexSegment.ofAddress(r1);
-            BridgefexSegment c3 = BridgefexSegment.ofAddress(r3);
-            java.util.function.BiConsumer<java.lang.String, cbx.events.Point> function = (java.util.function.BiConsumer<java.lang.String, cbx.events.Point>) box.function;
-            function.accept(BridgefexRuntime.takeText(c1, BridgefexRuntime.fromSize(c2)), cbx.events.Point.read(BridgefexRuntime.view(c3, cbx.events.Point.LAYOUT.byteSize())));
-        } catch (java.lang.Throwable error) {
-            fail(box, error);
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            BridgefexSegment __c3 = BridgefexSegment.ofAddress(__r3);
+            java.util.function.BiConsumer<java.lang.String, cbx.events.Point> __function = (java.util.function.BiConsumer<java.lang.String, cbx.events.Point>) __box.function;
+            __function.accept(BridgefexRuntime.takeText(__c1, BridgefexRuntime.fromSize(__c2)), cbx.events.Point.read(BridgefexRuntime.view(__c3, cbx.events.Point.LAYOUT.byteSize())));
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
         }
     }
 
     public static final class Thunk12 {
-        public static final BridgefexSegment ADDRESS = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(12));
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(12));
+            }
+            return address;
+        }
     }
 }

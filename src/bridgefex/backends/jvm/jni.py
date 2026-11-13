@@ -89,16 +89,6 @@ def _functions(plan: ModulePlan, *, callbacks: bool) -> list[_Function]:
         _Function(plan.api_fingerprint_function, JNI.segment, [], True),
         _Function(plan.free_function, "void", [(JNI.segment, "p_memory", "void*")], False),
     ]
-    if callbacks:
-        # What C++ is told when the JVM exits: it calls and releases no callback from then on.
-        functions.append(
-            _Function(
-                plan.disable_callbacks,
-                "void",
-                [(JNI.segment, "p_release", "void (*)(void*)")],
-                False,
-            )
-        )
     for header in plan.headers:
         functions.extend(_function(f) for f in header.c_functions)
     return functions
@@ -134,16 +124,19 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         "static native int length(long address);",
         "static native byte[] copyOut(long address, int size);",
         "static native long sizes();",
-        *(
-            (
-                "static native long callbackAddress(int index);",
-                "static native long releaseAddress();",
-            )
-            if names.has_callbacks
-            else ()
-        ),
     ):
         src.line(declaration)
+    if names.has_callbacks:
+        # The addresses of what C++ calls: asked for before any other call may have loaded the
+        # library.
+        for name, parameter in (("callbackAddress", "int index"), ("releaseAddress", "")):
+            argument = parameter.split()[-1] if parameter else ""
+            src.line()
+            src.open(f"static long {name}({parameter})")
+            src.line("BridgefexRuntime.ensureLoaded();")
+            src.line(f"return n_{name}({argument});")
+            src.close()
+            src.line(f"private static native long n_{name}({parameter});")
     for function in functions:
         src.line()
         parameters = ", ".join(f"{type_} {name}" for type_, name, _ in function.params)
@@ -194,6 +187,7 @@ def glue_parts(plan: ModulePlan) -> dict[str, object]:
         "methods": methods,
         "module": plan.name,
         "macro": plan.macro_prefix,
+        "disable_function": plan.disable_callbacks,
         "callbacks": [
             {
                 "lines": callbacks.trampoline(thunk, names),

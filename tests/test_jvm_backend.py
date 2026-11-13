@@ -974,7 +974,7 @@ def test_the_callbacks_of_one_signature_share_a_thunk(tmp_path: Path, language: 
     # none, supply, one, two, three, four, int(int) for same_a and same_b, and the holder's.
     assert len(thunks) == 8
     functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
-    used = re.findall(r"BridgefexCallbacks\.(Thunk\d+)\.ADDRESS", functions)
+    used = re.findall(r"BridgefexCallbacks\.(Thunk\d+)\.address\(\)", functions)
     assert len(used) == len(set(used)) + 1  # same_a and same_b use the same one
 
 

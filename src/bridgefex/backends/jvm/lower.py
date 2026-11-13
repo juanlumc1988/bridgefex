@@ -408,7 +408,7 @@ class _Lowerer:
         )
         scope = self.scope_resource()
         registration = f"{L}o{position}"
-        address = f"{self.names.root}.BridgefexCallbacks.Thunk{thunk.index}.ADDRESS"
+        address = f"{self.names.root}.BridgefexCallbacks.Thunk{thunk.index}.address()"
         self.statements.append(
             f"{self.declare('BridgefexCallbacks.Registration')} {registration} = "
             f'{scope}.register({name}, "{spec.name}", {address});'
