@@ -396,8 +396,6 @@ class _Lowerer:
         assert spec.callback is not None
         assert spec.user_data
         assert spec.release
-        if not self.names.flavor.modern:
-            raise Unsupported("callbacks are not supported in the JNI bindings yet")
         assert self.names.thunks is not None
         key = next(param.ffi.name for param in self.plan.function.params if param.name == spec.name)
         thunk = self.names.thunks.of(key, spec.callback, self.names)

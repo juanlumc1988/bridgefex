@@ -209,6 +209,8 @@ class Thunk:
     callback: CallbackSpec
     interface: str
     method: str
+    c_params: tuple[str, ...] = ()
+    """The C types of the parameters of the thunk (``void*`` first, then the result pointer)."""
 
 
 @dataclass(slots=True)
@@ -242,8 +244,6 @@ def collect(plan: ModulePlan, names: Names) -> Thunks:
     """The thunks that the callable plans of the module use, each once."""
     items: list[Thunk] = []
     seen: set[tuple[str, str]] = set()
-    if not names.flavor.modern:
-        return Thunks(items)
     for call in callables_of(plan):
         for spec in call.params:
             if spec.callback is None:
@@ -257,7 +257,21 @@ def collect(plan: ModulePlan, names: Names) -> Thunks:
             if (key, interface) in seen:
                 continue
             seen.add((key, interface))
-            items.append(Thunk(len(items), key, spec.callback, interface, method))
+            c_params = next(
+                param.function_params or ""
+                for param in call.function.params
+                if param.name == spec.name
+            )
+            items.append(
+                Thunk(
+                    len(items),
+                    key,
+                    spec.callback,
+                    interface,
+                    method,
+                    tuple(part.strip() for part in c_params.split(",")),
+                )
+            )
     return Thunks(items)
 
 
@@ -450,3 +464,87 @@ def context(plan: ModulePlan, names: Names) -> dict[str, object]:
             else f"{names.flavor.segment}.ofAddress(BridgefexNative.releaseAddress())"
         ),
     }
+
+
+# The glue of the JNI flavor ------------------------------------------------------------------
+
+_JNI = {
+    "boolean": ("jboolean", "Z", "Boolean"),
+    "byte": ("jbyte", "B", "Byte"),
+    "short": ("jshort", "S", "Short"),
+    "int": ("jint", "I", "Int"),
+    "long": ("jlong", "J", "Long"),
+    "float": ("jfloat", "F", "Float"),
+    "double": ("jdouble", "D", "Double"),
+    "pointer": ("jlong", "J", "Long"),
+}
+
+
+def _carriers(thunk: Thunk, names: Names) -> list[str]:
+    """The Java type that carries each C parameter of a thunk, ``user_data`` included (the result
+    pointer is not one: the glue writes it)."""
+    found = ["pointer"]
+    for part in thunk.callback.arguments:
+        found.extend(argument(part, names).carriers)
+    return found
+
+
+def descriptor(thunk: Thunk, names: Names) -> str:
+    """The JNI signature of the Java method of a thunk."""
+    out = result(thunk.callback.result, names)
+    letters = "".join(_JNI[carrier][1] for carrier in _carriers(thunk, names))
+    return f"({letters}){'V' if out is None else _JNI[out.carrier][1]}"
+
+
+def trampoline(thunk: Thunk, names: Names) -> list[str]:
+    """The C++ function that C++ calls for the callbacks of a thunk: it has the C signature of the
+    callback and calls the Java method of the thunk, on the thread that C++ is on."""
+    out = result(thunk.callback.result, names)
+    carriers = _carriers(thunk, names)
+    c_types = list(thunk.c_params)
+    inputs = c_types[: len(carriers)]
+    parameters = [f"{c_type} a{index}" for index, c_type in enumerate(inputs)]
+    pointee = ""
+    if out is not None:
+        pointee = c_types[-1].rstrip().removesuffix("*").rstrip()
+        parameters.append(f"{c_types[-1]} out")
+    arguments = []
+    for index, carrier in enumerate(carriers):
+        jni = _JNI[carrier][0]
+        if carrier == "pointer":
+            arguments.append(f"static_cast<jlong>(reinterpret_cast<uintptr_t>(a{index}))")
+        elif carrier == "boolean":
+            arguments.append(f"(a{index} ? JNI_TRUE : JNI_FALSE)")
+        else:
+            arguments.append(f"static_cast<{jni}>(a{index})")
+    call_name = "Void" if out is None else _JNI[out.carrier][2]
+    call = (
+        f"env->CallStatic{call_name}Method(callbacks, g_thunks[{thunk.index}]"
+        + "".join(f", {argument_}" for argument_ in arguments)
+        + ")"
+    )
+    lines = [
+        f"void glue_callback_{thunk.index}({', '.join(parameters)})",
+        "{",
+        "    JNIEnv* env = callback_env();",
+        "    jclass callbacks = env == nullptr",
+        "        ? nullptr",
+        "        : static_cast<jclass>(env->NewLocalRef(g_callbacks));",
+        "    if (callbacks == nullptr) {",
+        "        return;",
+        "    }",
+    ]
+    if out is None:
+        lines.append(f"    {call};")
+    else:
+        lines.append(f"    const {_JNI[out.carrier][0]} value = {call};")
+    lines += [
+        "    if (env->ExceptionCheck()) {",
+        "        env->ExceptionClear();",
+        "    } else {" if out is not None else "    }",
+    ]
+    if out is not None:
+        write = "value != JNI_FALSE" if out.carrier == "boolean" else f"({pointee}) value"
+        lines += [f"        *out = {write};", "    }"]
+    lines += ["    env->DeleteLocalRef(callbacks);", "}"]
+    return lines

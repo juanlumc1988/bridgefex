@@ -917,3 +917,106 @@ def test_a_container_of_something_else_is_refused(tmp_path: Path) -> None:
     )
     with pytest.raises((GenerationError, ConfigurationError)):
         generate(tmp_path, code)
+
+
+# -- Callbacks ---------------------------------------------------------------------------------
+
+CALLBACKS = """
+#include <cstdint>
+#include <functional>
+#include <string>
+enum class Level : std::uint8_t { Low, High };
+struct Pt { double x; double y; };
+void none(std::function<void()> f);
+int supply(std::function<int()> f);
+void one(std::function<void(int)> f);
+bool two(std::function<bool(int, double)> f);
+void three(std::function<void(int, const std::string&, Pt)> f);
+Level four(std::function<Level(int, int, int, int)> f);
+void same_a(std::function<int(int)> f);
+void same_b(std::function<int(int)> g);
+class Holder { public: Holder(std::function<void(std::uint8_t)> f); ~Holder(); };
+"""
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_std_function_is_the_functional_interface_of_its_arity(
+    tmp_path: Path, language: str
+) -> None:
+    files = generate(tmp_path, CALLBACKS, languages=(language,))
+    functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
+    for signature in (
+        "none(java.lang.Runnable f)",
+        "supply(java.util.function.Supplier<java.lang.Integer> f)",
+        "one(java.util.function.Consumer<java.lang.Integer> f)",
+        "two(java.util.function.BiFunction<java.lang.Integer, java.lang.Double, "
+        "java.lang.Boolean> f)",
+        "three(mod.BridgefexCallbacks.Consumer3<java.lang.Integer, java.lang.String, "
+        "mod.api.Pt> f)",
+        "four(mod.BridgefexCallbacks.Function4<java.lang.Integer, java.lang.Integer, "
+        "java.lang.Integer, java.lang.Integer, mod.api.Level> f)",
+    ):
+        assert signature in functions
+    # An unsigned integer is the next bigger type, as everywhere else.
+    holder = files[f"{language}/mod/src/main/java/mod/api/Holder.java"]
+    assert "Holder(java.util.function.Consumer<java.lang.Short> f)" in holder
+    callbacks = files[f"{language}/mod/src/main/java/mod/BridgefexCallbacks.java"]
+    assert "public interface Consumer3<T1, T2, T3>" in callbacks
+    assert "public interface Function4<T1, T2, T3, T4, TResult>" in callbacks
+    assert "Consumer1" not in callbacks  # java.util.function has it
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_callbacks_of_one_signature_share_a_thunk(tmp_path: Path, language: str) -> None:
+    files = generate(tmp_path, CALLBACKS, languages=(language,))
+    callbacks = files[f"{language}/mod/src/main/java/mod/BridgefexCallbacks.java"]
+    thunks = re.findall(r"private static \w+ (thunk\d+)\(", callbacks)
+    # none, supply, one, two, three, four, int(int) for same_a and same_b, and the holder's.
+    assert len(thunks) == 8
+    functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
+    used = re.findall(r"BridgefexCallbacks\.(Thunk\d+)\.ADDRESS", functions)
+    assert len(used) == len(set(used)) + 1  # same_a and same_b use the same one
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_callbacks_compile(tmp_path: Path, java: None, language: str) -> None:
+    assert generate(tmp_path, CALLBACKS, languages=(language,), verify=True)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_call_that_gives_a_callback_raises_its_exception_and_drops_it_if_it_never_runs(
+    tmp_path: Path, language: str
+) -> None:
+    functions = generate(tmp_path, CALLBACKS, languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert "BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()" in functions
+    assert '__scope.register(f, "f", mod.BridgefexCallbacks.Thunk' in functions
+    assert "__scope.returned();" in functions
+    assert "__scope.check(__status);" in functions
+    # A call that gives none is a call all the same (a callback that C++ stored may run in it).
+    assert "BridgefexCallbacks.enter()" not in functions  # every function here gives one
+    plain = generate(tmp_path, CALLBACKS + "\nint plain(int);\n", languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert "BridgefexCallbacks.Call __call = BridgefexCallbacks.enter()" in plain
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_callback_with_more_arguments_than_the_bindings_have_interfaces_for_is_refused(
+    tmp_path: Path, language: str
+) -> None:
+    arguments = ", ".join("int" for _ in range(65))
+    with pytest.raises(GenerationError) as raised:
+        generate(
+            tmp_path,
+            f"#include <functional>\nvoid wide(std::function<void({arguments})> f);",
+            languages=(language,),
+        )
+    assert "a callback with 65 arguments" in str(raised.value)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_module_without_callbacks_has_no_callbacks_class(tmp_path: Path, language: str) -> None:
+    files = generate(tmp_path, SMALL, languages=(language,))
+    assert not any(path.endswith("BridgefexCallbacks.java") for path in files)

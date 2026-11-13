@@ -76,6 +76,96 @@ jbyteArray JNICALL glue_copyOut(JNIEnv* env, jclass cls, jlong address, jint siz
     return result;
 }
 
+{% if callbacks %}
+// The callbacks: C++ calls a function of this file, on the thread that it is on, and it calls the thunk
+// of the bindings (a static method of BridgefexCallbacks) with what Java carries. The class is held
+// weakly: a class loader of the bindings that is not used any more can be collected, and the library
+// goes with it.
+JavaVM* g_vm = nullptr;
+jweak g_callbacks = nullptr;
+jmethodID g_thunks[{{ callbacks|length }}];
+jmethodID g_release = nullptr;
+
+// A thread that C++ started is attached to the JVM while it runs a callback, and detached when it ends.
+struct Detacher {
+    bool attached = false;
+    ~Detacher()
+    {
+        if (attached && g_vm != nullptr) {
+            g_vm->DetachCurrentThread();
+        }
+    }
+};
+
+JNIEnv* callback_env()
+{
+    if (g_vm == nullptr) {
+        return nullptr;
+    }
+    JNIEnv* env = nullptr;
+    const jint status = g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+    if (status == JNI_OK) {
+        return env;
+    }
+    if (status != JNI_EDETACHED) {
+        return nullptr;
+    }
+    static thread_local Detacher detacher;
+#ifdef __ANDROID__
+    if (g_vm->AttachCurrentThreadAsDaemon(&env, nullptr) != JNI_OK) {
+#else
+    if (g_vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
+#endif
+        return nullptr;
+    }
+    detacher.attached = true;
+    return env;
+}
+
+{% for callback in callbacks %}
+{% for line in callback.lines %}
+{{ line }}
+{% endfor %}
+
+{% endfor %}
+// C++ is done with a callback.
+void glue_release(void* user_data)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr ? nullptr : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+jlong JNICALL glue_callbackAddress(JNIEnv* env, jclass cls, jint index)
+{
+    (void) env;
+    (void) cls;
+    static const uintptr_t addresses[] = {
+{% for callback in callbacks %}
+        reinterpret_cast<uintptr_t>(&glue_callback_{{ loop.index0 }}),
+{% endfor %}
+    };
+    if (index < 0 || static_cast<size_t>(index) >= sizeof(addresses) / sizeof(addresses[0])) {
+        return 0;
+    }
+    return static_cast<jlong>(addresses[index]);
+}
+
+jlong JNICALL glue_releaseAddress(JNIEnv* env, jclass cls)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(&glue_release));
+}
+
+{% endif %}
 // Where a struct of C puts a 64-bit value: the alignment that it has as a member, which is not that of
 // the value alone on every platform (a double and a long long are aligned to 4 in a struct on i386).
 struct DoubleMember {
@@ -113,6 +203,10 @@ extern "C" JNIEXPORT jint bridgefex_{{ module }}_jni_register(JNIEnv* env)
         {const_cast<char*>("length"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_length)},
         {const_cast<char*>("copyOut"), const_cast<char*>("(JI)[B"), reinterpret_cast<void*>(glue_copyOut)},
         {const_cast<char*>("sizes"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_sizes)},
+{% if callbacks %}
+        {const_cast<char*>("callbackAddress"), const_cast<char*>("(I)J"), reinterpret_cast<void*>(glue_callbackAddress)},
+        {const_cast<char*>("releaseAddress"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_releaseAddress)},
+{% endif %}
 {% for method in methods %}
         {{ method }}
 {% endfor %}
@@ -126,6 +220,27 @@ extern "C" JNIEXPORT jint bridgefex_{{ module }}_jni_register(JNIEnv* env)
             env->ExceptionClear();
         }
     }
+{% if callbacks %}
+    // The thunks of the callbacks: the class is held weakly, and a bindings that lack it only fail when
+    // C++ calls a callback (which it cannot, as the bindings give none).
+    if (env->GetJavaVM(&g_vm) != JNI_OK) {
+        return JNI_ERR;
+    }
+    jclass callbacks_class = env->FindClass("{{ root }}/BridgefexCallbacks");
+    if (callbacks_class == nullptr) {
+        env->ExceptionClear();
+        return JNI_OK;
+    }
+{% for callback in callbacks %}
+    g_thunks[{{ loop.index0 }}] = env->GetStaticMethodID(callbacks_class, "thunk{{ loop.index0 }}", "{{ callback.descriptor }}");
+{% endfor %}
+    g_release = env->GetStaticMethodID(callbacks_class, "release", "(J)V");
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return JNI_OK;
+    }
+    g_callbacks = env->NewWeakGlobalRef(callbacks_class);
+{% endif %}
     return JNI_OK;
 }
 

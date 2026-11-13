@@ -244,7 +244,7 @@ typedef signed char jbyte;
 @pytest.mark.parametrize(
     "target", ["armv7a-linux-gnueabihf", "i686-linux-gnu", "aarch64-linux-gnu", "x86_64-linux-gnu"]
 )
-@pytest.mark.parametrize("name", ["demo", "containers", "inherit"])
+@pytest.mark.parametrize("name", ["demo", "containers", "inherit", "callbacks"])
 def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
     tmp_path: Path, target: str, name: str
 ) -> None:
