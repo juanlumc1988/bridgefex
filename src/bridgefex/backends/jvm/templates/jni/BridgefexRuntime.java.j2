@@ -373,6 +373,13 @@ public final class BridgefexRuntime {
         return BridgefexSegment.of(takeBytes(data, size));
     }
 
+{% if directors %}
+    /** The result of an override that Java wrote in {@code source}, copied where C++ says. */
+    public static void copyIn(BridgefexSegment destination, BridgefexSegment source) {
+        BridgefexNative.copyIn(destination.address(), source.toArray(0, (int) source.byteSize()));
+    }
+
+{% endif %}
     /** The bytes that C++ gave (a result that the annotations want as bytes, not text). */
     public static byte[] takeBytes(BridgefexSegment data, long size) {
         if (size == 0) {

@@ -24,6 +24,13 @@ public final class BridgefexLease implements AutoCloseable {
     public {{ segment }} pointer() {
         return pointer;
     }
+{% if directors %}
+
+    /** A hold on nothing: the pointer is valid while an override of the object runs on this thread. */
+    public static BridgefexLease unheld({{ segment }} pointer) {
+        return new BridgefexLease(null, pointer, null);
+    }
+{% endif %}
 
     /** The same hold, for the address of the object as another of its classes. */
     public BridgefexLease as({{ segment }} other) {

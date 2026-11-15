@@ -54,7 +54,7 @@ public final class BridgefexCallbacks {
     private static final AtomicLong NEXT = new AtomicLong((System.nanoTime() ^ System.identityHashCode(TABLE)) & 0x3FFFFFFFL);
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
-    private static final class Box {
+    static class Box {
         final Object function;
         final String name;
         final Scope scope;
@@ -72,10 +72,18 @@ public final class BridgefexCallbacks {
 
         /** An enum without a fixed type holds only some values, and C++ would not. */
         void checkResult(long value, long low, long high) {
+            checkResult(value, low, high, "the callback '" + name + "'");
+        }
+
+        void checkResult(long value, long low, long high, String what) {
             if (value < low || value > high) {
-                throw new IllegalStateException("the callback '" + name + "' returned " + value
+                throw new IllegalStateException(what + " returned " + value
                     + ", which is not a value of the enum (" + low + ".." + high + ")");
             }
+        }
+
+        /** C++ holds the callback (or the director) no more. */
+        void released() {
         }
     }
 
@@ -100,7 +108,10 @@ public final class BridgefexCallbacks {
 
     /** C++ holds the callback no more. */
     private static void release(long userData) {
-        TABLE.remove(userData);
+        Box box = TABLE.remove(userData);
+        if (box != null) {
+            box.released();
+        }
     }
 
     private static void watch() {

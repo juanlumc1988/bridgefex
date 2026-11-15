@@ -578,27 +578,21 @@ def test_a_header_named_like_a_type_of_java_compiles(tmp_path: Path, java: None,
 # -- What the Java bindings do not have yet -------------------------------------------------------
 
 
-def refused_directors(
-    tmp_path: Path, classes: tuple[str, ...] = ("Widget",), languages: tuple[str, ...] = ("jvm",)
+def refused_declarations(
+    tmp_path: Path, count: int = 1, languages: tuple[str, ...] = ("jvm",)
 ) -> dict[str, str]:
-    """Generates a header whose classes ask for a director, which Java cannot do yet."""
-    annotations = tmp_path / "directors.toml"
-    annotations.write_text(
-        "directors = [" + ", ".join(f'"mod_{name}"' for name in classes) + "]\n", encoding="utf-8"
-    )
+    """Generates a header with functions that Java cannot do: a callback with more arguments than
+    the bindings have interfaces for."""
+    arguments = ", ".join("int" for _ in range(65))
     header = tmp_path / "api.h"
     header.write_text(
         PRELUDE
-        + "".join(
-            f"class {name} {{ public: {name}(); virtual ~{name}(); virtual int draw(); }};\n"
-            for name in classes
-        )
+        + "#include <functional>\n"
+        + "".join(f"void wide{n}(std::function<void({arguments})> f);\n" for n in range(count))
         + "int other(int);\n",
         encoding="utf-8",
     )
-    options = bridgefex.Options(
-        "mod", std="c++17", languages=languages, verify=False, annotations=(annotations,)
-    )
+    options = bridgefex.Options("mod", std="c++17", languages=languages, verify=False)
     return bridgefex.generate([header], options).files
 
 
@@ -606,51 +600,27 @@ def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_a
     tmp_path: Path,
 ) -> None:
     with pytest.raises(GenerationError) as raised:
-        refused_directors(tmp_path)
+        refused_declarations(tmp_path)
     [diagnostic, advice] = raised.value.diagnostics
     assert diagnostic.message.startswith("Java:")
-    assert "not supported in Java yet" in diagnostic.message
+    assert "a callback with 65 arguments" in diagnostic.message
     assert diagnostic.location is not None
     assert diagnostic.location.line >= 1
     assert "api.h" in str(raised.value)
     # What to do about it.
     assert "leave 'jvm' out" in advice.message
     # The Python bindings of the same header are generated all the same.
-    assert refused_directors(tmp_path, languages=("python",))
+    assert refused_declarations(tmp_path, languages=("python",))
 
 
 def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path: Path) -> None:
     with pytest.raises(GenerationError) as raised:
-        refused_directors(tmp_path, ("Widget", "Gadget", "Gizmo"))
+        refused_declarations(tmp_path, 3)
     refused = [d for d in raised.value.diagnostics if d.location is not None]
     lines = sorted(d.location.line for d in refused if d.location is not None)
-    base = PRELUDE.count("\n")
-    assert lines == [base + 1, base + 2, base + 3]  # the three classes
+    base = PRELUDE.count("\n") + 1  # the include
+    assert lines == [base + 1, base + 2, base + 3]  # the three functions
     assert len(raised.value.diagnostics) == 4  # and what to do
-
-
-def test_a_class_that_asks_for_a_director_is_refused(tmp_path: Path) -> None:
-    """Without a director C++ would never call what a subclass in Java overrides."""
-    annotations = tmp_path / "directors.toml"
-    annotations.write_text('directors = ["mod_Widget"]\n', encoding="utf-8")
-    header = tmp_path / "api.h"
-    header.write_text(
-        PRELUDE + "class Widget { public: Widget(); virtual ~Widget(); virtual int draw(); };\n",
-        encoding="utf-8",
-    )
-    options = bridgefex.Options(
-        "mod", std="c++17", languages=("jvm",), verify=False, annotations=(annotations,)
-    )
-    with pytest.raises(GenerationError) as raised:
-        bridgefex.generate([header], options)
-    message = str(raised.value)
-    assert "'Widget' asks for a director" in message
-    assert "api.h" in message
-    # The other languages have it.
-    python = bridgefex.Options(
-        "mod", std="c++17", languages=("python",), verify=False, annotations=(annotations,)
-    )
-    assert bridgefex.generate([header], python).files
 
 
 # -- The check with the compiler of Java -----------------------------------------------------------

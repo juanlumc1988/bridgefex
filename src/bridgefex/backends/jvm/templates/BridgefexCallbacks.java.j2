@@ -10,6 +10,9 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 {% endif %}
+{% if directors %}
+import java.lang.ref.WeakReference;
+{% endif %}
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,7 +70,7 @@ public final class BridgefexCallbacks {
 {% endif %}
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
-    private static final class Box {
+    static class Box {
         final Object function;
         final String name;
         final Scope scope;
@@ -85,10 +88,18 @@ public final class BridgefexCallbacks {
 
         /** An enum without a fixed type holds only some values, and C++ would not. */
         void checkResult(long value, long low, long high) {
+            checkResult(value, low, high, "the callback '" + name + "'");
+        }
+
+        void checkResult(long value, long low, long high, String what) {
             if (value < low || value > high) {
-                throw new IllegalStateException("the callback '" + name + "' returned " + value
+                throw new IllegalStateException(what + " returned " + value
                     + ", which is not a value of the enum (" + low + ".." + high + ")");
             }
+        }
+
+        /** C++ holds the callback (or the director) no more. */
+        void released() {
         }
     }
 
@@ -113,7 +124,10 @@ public final class BridgefexCallbacks {
 
     /** C++ holds the callback no more. */
     private static void release({{ release_parameter }}) {
-        TABLE.remove({{ release_key }});
+        Box box = TABLE.remove({{ release_key }});
+        if (box != null) {
+            box.released();
+        }
     }
 
 {% if ffm %}
@@ -316,6 +330,30 @@ public final class BridgefexCallbacks {
             return new Registration(thunk, {{ segment_type }}.ofAddress(key), Release.address());
         }
 
+{% if directors %}
+        /** A director that this call creates: C++ releases it if the C function runs, else the scope drops it. */
+        public DirectorBox director(BridgefexObject target, int kind) {
+{% if ffm %}
+            if (DISABLED) {
+                throw new IllegalStateException("the callbacks of the module are disabled: the JVM is exiting");
+            }
+{% endif %}
+            if (keys == null) {
+                keys = new ArrayList<Long>();
+            }
+            DirectorBox box = new DirectorBox(target, kind);
+            long key = add(box);
+            box.key = key;
+            try {
+                keys.add(key);
+            } catch (Throwable error) {
+                TABLE.remove(key);
+                throw error;
+            }
+            return box;
+        }
+
+{% endif %}
         /** The C function has returned: from now on C++ owns the callbacks. */
         public void returned() {
             returned = true;
@@ -378,6 +416,119 @@ public final class BridgefexCallbacks {
         }
     }
 
+{% if directors %}
+    // -- directors ---------------------------------------------------------------------------
+
+    private static final ThreadLocal<List<DirectorBox>> RUNNING = new ThreadLocal<List<DirectorBox>>();
+
+    /**
+     * The Java object of a director. While Java owns it the box does not keep it alive (the collector may
+     * collect it, and then C++ destroys the director); while C++ owns it, or a C++ object points to it,
+     * the box does, until C++ destroys the director.
+     */
+    public static final class DirectorBox extends Box {
+        private final WeakReference<BridgefexObject> weak;
+        private volatile BridgefexObject strong;
+        private final int kind;
+        private volatile long key;
+        private volatile long pointer;
+        private int pins;
+        private boolean given;
+
+        DirectorBox(BridgefexObject target, int kind) {
+            super(null, target.getClass().getName(), null);
+            this.weak = new WeakReference<BridgefexObject>(target);
+            this.kind = kind;
+        }
+
+        /** The {@code user_data} of the vtable. */
+        public {{ segment_type }} key() {
+            return {{ segment_type }}.ofAddress(key);
+        }
+
+        /** The director of which class: the base call to use. */
+        public int kind() {
+            return kind;
+        }
+
+        /** The C function made the director: the pointer for its base calls. */
+        public void attach({{ segment_type }} director, {{ segment_type }} object) {
+            pointer = director.address();
+        }
+
+        /** The director (the pointer for its base calls); NULL until the C function has made it. */
+        public {{ segment_type }} pointer() {
+            return {{ segment_type }}.ofAddress(pointer);
+        }
+
+        BridgefexObject target() {
+            BridgefexObject kept = strong;
+            return kept != null ? kept : weak.get();
+        }
+
+        private void update() {
+            strong = given || pins > 0 ? weak.get() : null;
+        }
+
+        /** A C++ object points to the object: nobody else keeps it alive. */
+        synchronized void pin() {
+            pins++;
+            update();
+        }
+
+        synchronized void unpin() {
+            pins--;
+            update();
+        }
+
+        /** The object was given to C++: nobody else keeps it alive. */
+        synchronized void give() {
+            given = true;
+            update();
+        }
+
+        @Override
+        synchronized void released() {
+            given = false;
+            pins = 0;
+            strong = null;
+        }
+
+        /** The innermost call of the thread that has failed already cannot run another override. */
+        @Override
+        boolean skip() {
+            State state = STATE.get();
+            Scope scope = state == null ? null : state.innermost;
+            return scope != null && scope.failed;
+        }
+
+        /** C++ is running an override of the object on this thread: its director is alive until it returns. */
+        void enter() {
+            List<DirectorBox> running = RUNNING.get();
+            if (running == null) {
+                running = new ArrayList<DirectorBox>();
+                RUNNING.set(running);
+            }
+            running.add(this);
+        }
+
+        void leave() {
+            List<DirectorBox> running = RUNNING.get();
+            if (running != null) {
+                running.remove(this);
+                if (running.isEmpty()) {
+                    RUNNING.remove();
+                }
+            }
+        }
+
+        public boolean isRunning() {
+            List<DirectorBox> running = RUNNING.get();
+            return running != null && running.contains(this);
+        }
+    }
+
+{% endif %}
     // -- the thunks that C++ calls -----------------------------------------------------------
 {% if ffm %}
 

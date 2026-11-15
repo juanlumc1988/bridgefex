@@ -25,6 +25,7 @@ RUNTIME_TYPES = frozenset(
     """
     BridgefexRuntime BridgefexNative BridgefexObject BridgefexException BridgefexFunction
     BridgefexUnsigned BridgefexHandle BridgefexLease BridgefexKeep BridgefexCallbacks
+    BridgefexDirectors
     """.split()
 )
 
@@ -41,7 +42,7 @@ OBJECT_MEMBERS = frozenset(
 RESERVED_MEMBERS = OBJECT_MEMBERS | frozenset(
     """
     close isClosed isReadOnly hold retain attach surrender keepOf borrow borrowed
-    setOrigin retainForever checkExact collectOwning cppType wrap
+    setOrigin retainForever checkExact collectOwning cppType wrap director setDirector holdDirector
     """.split()
 )
 

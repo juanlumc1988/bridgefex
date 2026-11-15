@@ -140,6 +140,7 @@ def render(plan: ModulePlan, fingerprint: str, flavor: Flavor = FFM) -> dict[str
         "ffm": flavor.modern,
         "segment": flavor.segment_name,
         "cleaner": flavor.cleaner,
+        "directors": names.has_directors,
     }
     java = f"{base}/src/main/java/{root}"
     if flavor.modern:
@@ -168,6 +169,8 @@ def render(plan: ModulePlan, fingerprint: str, flavor: Flavor = FFM) -> dict[str
         "BridgefexObject",
     ):
         renderer.put(f"{java}/{name}.java", f"{name}.java.j2", **context)
+    if names.has_directors:
+        renderer.put(f"{java}/BridgefexDirectors.java", "BridgefexDirectors.java.j2", **context)
     sources = _Sources(plan, names, files, base)
     if flavor.modern:
         sources.put(f"{java}/BridgefexNative.java", partial(native_source, plan, names))

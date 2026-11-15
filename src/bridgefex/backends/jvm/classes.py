@@ -9,8 +9,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ...errors import Diagnostic, GenerationError
-from ...model import Method
+from ...model import Access, Method
 from ...plan import CallableKind, CallablePlan, ClassPlan, ClassView, HeaderPlan, ModulePlan
+from . import directors
 from .enums import enum_class
 from .lower import Lowering, Names, lower_callable, method_name
 from .mapping import Unsupported
@@ -244,6 +245,7 @@ class _Class:
             enum_class(src, nested, nested=True, modern=self.names.flavor.modern)
         for member in cls.members:
             self.attempt(self.member, src, member)
+        self.attempt(self.director_members, src)
         for view in cls.views:
             if view.c_type in {above.c_type for above in self.chain} or view.c_type == cls.c_type:
                 continue
@@ -276,6 +278,7 @@ class _Class:
             except Unsupported as error:
                 self.refusals.append(Diagnostic(f"Java: {error}", error.location))
         count = Counter(_signature(item.parameters) for _, item in lowered)
+        d = names.directors.get(cls.c_type)
         for ctor, item in lowered:
             src.line()
             src.doc(ctor.function.description, *item.remarks)
@@ -286,7 +289,27 @@ class _Class:
                 # The handle is made before the call: the destruction of what C++ makes is
                 # guaranteed from the moment the C function writes the pointer.
                 src.line(f"super({names.destroyer(cls.c_type)});")
-                src.lines_of(item.body)
+                director_ctor = directors.director_constructor(cls, ctor) if d is not None else None
+                if d is None or director_ctor is None:
+                    src.lines_of(item.body)
+                else:
+                    # A class of the user that derives from this one and overrides something
+                    # makes a director; this class itself, or one that overrides nothing, a plain
+                    # object.
+                    made = lower_callable(
+                        director_ctor,
+                        names,
+                        plan,
+                        declaring=cls,
+                        prelude=directors.vtable_prelude(names, d),
+                    )
+                    src.line("boolean[] __over = DirectorOverrides.of(getClass(), false);")
+                    src.open("if (__over == null)")
+                    src.lines_of(item.body)
+                    src.close()
+                    src.open("else")
+                    src.lines_of(made.body)
+                    src.close()
                 src.close()
                 continue
             factory = method_name(f"create{ctor.suffix}", RESERVED_MEMBERS | set(self.taken))
@@ -294,6 +317,42 @@ class _Class:
             made = lower_callable(ctor, names, plan, declaring=cls, factory=name)
             src.lines_of(made.annotations)
             src.open(f"public static {name} {factory}({', '.join(made.parameters)})")
+            src.lines_of(made.body)
+            src.close()
+        if d is not None:
+            self.protected_constructors(
+                src, d, {_signature(item.parameters) for _, item in lowered}
+            )
+
+    def protected_constructors(
+        self, src: Source, d: directors.DirectorClass, signatures: set[tuple[str, ...]]
+    ) -> None:
+        """The constructors that only a class of the user can call: the ones of the C++ class that
+        make no plain object (protected ones, or all of them if the class is abstract)."""
+        cls, name, names, plan = self.cls, self.name, self.names, self.plan
+        assert cls.director is not None
+        plain = {ctor.source for ctor in cls.constructors}
+        for director_ctor in cls.director.constructors:
+            if director_ctor.source in plain:
+                continue
+            made = lower_callable(
+                director_ctor,
+                names,
+                plan,
+                declaring=cls,
+                prelude=directors.vtable_prelude(names, d),
+            )
+            signature = _signature(made.parameters)
+            if signature in signatures:
+                continue  # Java cannot tell it from another constructor
+            signatures.add(signature)
+            src.line()
+            src.doc(director_ctor.function.description, *made.remarks)
+            src.line(f'@BridgefexFunction("{director_ctor.function.name}")')
+            src.lines_of(made.annotations)
+            src.open(f"protected {name}({', '.join(made.parameters)})")
+            src.line(f"super({names.destroyer(cls.c_type)});")
+            src.line("boolean[] __over = DirectorOverrides.of(getClass(), true);")
             src.lines_of(made.body)
             src.close()
 
@@ -432,14 +491,98 @@ class _Class:
             _cpp_signature(member),
         )
         self.taken.setdefault(name, member.function.description)
+        slot = None if copied else directors.slot_of(self.names, cls, member)
+        body = lowered.body
+        if slot is not None:
+            body = directors.virtual_body(
+                self.plan, self.names, cls, slot.entry, lowered.body, returns=lowered.returns
+            )
         src.line()
         src.doc(member.function.description, *lowered.remarks)
         src.line(f'@BridgefexFunction("{member.function.name}")')
         src.lines_of(lowered.annotations)
         keyword = "public static " if member.kind is CallableKind.STATIC else "public "
+        if member.kind is not CallableKind.STATIC and slot is None and self.derivable_family():
+            # C++ would not call an override of it: Java says so when the class is compiled.
+            keyword += "final "
         src.open(f"{keyword}{lowered.returns} {name}({', '.join(lowered.parameters)})")
-        src.lines_of(lowered.body)
+        src.lines_of(body)
         src.close()
+
+    def derivable_family(self) -> bool:
+        """True for a class that others derive from, and for those below one that cannot be."""
+        return self.cls.c_type in self.names.directors or self.cls.c_type in self.names.guarded
+
+    # -- the director -----------------------------------------------------------------------
+
+    def director_members(self, src: Source) -> None:
+        """What the class has for its director besides the wrappers: the virtual methods that are
+        not part of the API, the bridges that the thunks call, and the check of what a class of
+        the user overrides."""
+        cls, names, plan = self.cls, self.names, self.plan
+        d = names.directors.get(cls.c_type)
+        if d is None:
+            return
+        for slot in d.slots:
+            entry = slot.entry
+            if not directors.emits(names, cls, entry):
+                continue
+            parameters = ", ".join(
+                f"{type_} {name}" for type_, name in directors.types_of(entry, names)
+            )
+            arguments = ", ".join(name for _, name in directors.types_of(entry, names))
+            returns = directors.result_type(entry, names)
+            if not any(item.source == entry.method for item in cls.members):
+                if slot.name in self.taken:
+                    raise GenerationError(
+                        [
+                            Diagnostic(
+                                f"'{entry.description}' gets the Java method '{slot.name}', which "
+                                f"'{self.taken[slot.name]}' has",
+                                entry.location,
+                            )
+                        ]
+                    )
+                self.taken[slot.name] = entry.description
+                body = directors.virtual_body(plan, names, cls, entry, None, returns=returns)
+                src.line()
+                src.doc(entry.description)
+                if entry.base is not None:
+                    src.line(f'@BridgefexFunction("{entry.base.function.name}")')
+                src.open(f"protected {returns} {slot.name}({parameters})")
+                src.lines_of(body)
+                src.close()
+            if slot.root is cls and entry.access is not Access.PUBLIC:
+                # The thunks are in another package: they cannot call a protected method.
+                src.line()
+                src.doc(
+                    "For the generated code: C++ calls the override of the method through this."
+                )
+                call = f"{slot.name}({arguments})"
+                src.open(f"public final {returns} bridgefex_{slot.name}({parameters})")
+                src.line(call + ";" if returns == "void" else f"return {call};")
+                src.close()
+        for slot in directors.dropped(names, cls):
+            if slot.name in self.taken:
+                continue  # the class declares a method of its own with that name
+            parameters = ", ".join(
+                f"{type_} {name}" for type_, name in directors.types_of(slot.root_entry, names)
+            )
+            arguments = ", ".join(name for _, name in directors.types_of(slot.root_entry, names))
+            returns = directors.result_type(slot.root_entry, names)
+            access = "public" if slot.root_entry.access is Access.PUBLIC else "protected"
+            self.taken[slot.name] = slot.root_entry.description
+            src.line()
+            src.doc(
+                f"{slot.root_entry.description}: the C++ class implements it where it cannot be "
+                "overridden, so it cannot be overridden from Java either."
+            )
+            src.line(OVERRIDE)
+            src.open(f"{access} final {returns} {slot.name}({parameters})")
+            call = f"super.{slot.name}({arguments})"
+            src.line(call + ";" if returns == "void" else f"return {call};")
+            src.close()
+        directors.overrides_helper(src, names, d)
 
 
 def class_source(
@@ -450,14 +593,6 @@ def class_source(
     by_type: dict[str, ClassPlan],
 ) -> str:
     """The file of a class: its own Java class, in the package of the header."""
-    if cls.director is not None:
-        # The annotations file asks for a director: a subclass written in Java would not be
-        # called from C++, which is what it is for.
-        raise Unsupported(
-            f"the class '{cls.model.qualified_name}' asks for a director in the annotations "
-            "file, and overriding its virtual methods from Java is not supported in Java yet",
-            cls.model.location,
-        )
     src = Source()
     src.line(f'// Generated by bridgefex from "{header.stem}.h". Do not edit.')
     src.line(f"package {header_package(plan, header)};")

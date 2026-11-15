@@ -4,9 +4,9 @@ the call of the native function, and what it converts after it."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ...model import (
     CallbackType,
@@ -66,15 +66,27 @@ class Names:
     thunks: Thunks | None = None
     """The functions that C++ calls for the callbacks of the module (None: it has none)."""
 
+    directors: Mapping[str, Any] = field(default_factory=dict)
+    """The classes that can be derived from, by C type (see ``directors.py``)."""
+
+    guarded: frozenset[str] = frozenset()
+    """The classes below one that can be derived from, that cannot be derived from themselves."""
+
     @property
     def has_callbacks(self) -> bool:
         return self.thunks is not None and bool(self.thunks.items)
+
+    @property
+    def has_directors(self) -> bool:
+        return bool(self.directors)
 
     @property
     def imports(self) -> tuple[str, ...]:
         """The classes of the runtime that the generated code of a header imports besides the
         common ones."""
         extra = ("BridgefexCallbacks",) if self.has_callbacks else ()
+        if self.has_directors:
+            extra = (*extra, "BridgefexDirectors")
         return (*self.flavor.root_types, *extra)
 
     def cls(self, info: ClassInfo) -> str:
@@ -118,12 +130,15 @@ def lower_callable(
     *,
     declaring: ClassPlan | None = None,
     factory: str | None = None,
+    prelude: Sequence[str] = (),
 ) -> Lowering:
     """The Java method (or constructor) for ``plan``. ``declaring`` is the class that declares a
     method. ``factory`` (the Java class) lowers a constructor to a static method that returns the
-    object."""
+    object. ``prelude``: statements that follow the scope of the call (the vtable of a director)."""
     try:
-        return _Lowerer(plan, names, module, declaring, factory).run()
+        return _Lowerer(
+            plan, names, module, declaring, factory=factory, prelude=tuple(prelude)
+        ).run()
     except Unsupported as error:
         if error.location is not None:
             raise
@@ -137,13 +152,16 @@ class _Lowerer:
         names: Names,
         module: ModulePlan,
         declaring: ClassPlan | None,
+        *,
         factory: str | None,
+        prelude: tuple[str, ...] = (),
     ) -> None:
         self.plan = plan
         self.names = names
         self.module = module
         self.declaring = declaring
         self.factory = factory
+        self.prelude = prelude
         self.lowering = Lowering()
         self.pre: list[str] = []
         """What is checked before anything is held."""
@@ -214,10 +232,28 @@ class _Lowerer:
             )
         return f"{L}scope"
 
+    def director_setup(self) -> None:
+        """What a module with directors adds to a call: its scope (an override may run), the vtable
+        of a director that is made, and the director that a base call runs."""
+        plan = self.plan
+        if self.names.has_directors:
+            # Every call of a module with directors can run an override, whose exception it
+            # raises.
+            self.scope_resource()
+        if plan.kind is CallableKind.DIRECTOR_CONSTRUCTOR:
+            self.arena_resource()
+        self.statements.extend(self.prelude)
+        if plan.kind is CallableKind.DIRECTOR_BASE:
+            # The base call of an override: the director, not the object, is what C++ runs.
+            mutable = "false" if plan.is_const else "true"
+            self.resources.append(
+                f"{self.declare('BridgefexLease')} {L}self = holdDirector({mutable})"
+            )
+            self.arguments["director"] = f"{L}self.pointer()"
+
     def run(self) -> Lowering:
         plan = self.plan
-        if plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
-            raise Unsupported("directors are not supported in Java yet")
+        self.director_setup()
         if plan.kind is CallableKind.METHOD:
             mutable = "false" if plan.is_const else "true"
             # A class that others derive from is reached through the address of its own part of
@@ -518,6 +554,8 @@ class _Lowerer:
     def result(self) -> list[str]:
         if self.plan.kind is CallableKind.CONSTRUCTOR:
             return self.constructor_result()
+        if self.plan.kind is CallableKind.DIRECTOR_CONSTRUCTOR:
+            return self.director_constructor_result()
         spec = self.plan.result
         if spec is None:
             return []
@@ -624,6 +662,26 @@ class _Lowerer:
         self.after_call = [f"{L}h.assign({assign});"]
         self.lowering.returns = self.factory
         return [*(f"{L}new.retain({name});" for name in self.retained), f"return {L}new;"]
+
+    def director_constructor_result(self) -> list[str]:
+        """A constructor that makes the director: the vtable and the box were made by the
+        prelude, and the object (this one) is the C++ object that the C function writes."""
+        arena = self.arena_resource()
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}result = {arena}.allocate({R}.ADDRESS);"
+        )
+        self.statements.append(
+            f"{self.declare(self.segment)} {L}director = {arena}.allocate({R}.ADDRESS);"
+        )
+        self.arguments["out_object"] = f"{L}result"
+        self.arguments["out_director"] = f"{L}director"
+        self.arguments["vtable"] = f"{L}vt"
+        self.after_call = [
+            f"this.handle.assign({L}result.get({R}.ADDRESS, 0));",
+            f"{L}box.attach({L}director.get({R}.ADDRESS, 0), {L}result.get({R}.ADDRESS, 0));",
+            f"setDirector({L}box);",
+        ]
+        return [f"retain({name});" for name in self.retained]
 
     def object_result(self, spec: ResultSpec, ref: ClassRef) -> list[str]:
         info = spec.cls

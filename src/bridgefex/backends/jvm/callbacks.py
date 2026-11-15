@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import EnumRef, ScalarType, StringType, StructRef
+from ...model import Access, EnumRef, ScalarType, StringType, StructRef
 from ...plan import (
     CallablePlan,
     CallbackPart,
@@ -177,6 +177,25 @@ def result(part: CallbackPart, names: Names) -> Returns | None:
     )
 
 
+def director_result(part: CallbackPart, names: Names) -> Returns | Pointed | None:
+    """What an override gives back: as for a callback, and also a string (copied by C++ through
+    its sink) and a struct (written where C++ says)."""
+    type_ = part.type
+    if isinstance(type_, StringType):
+        return Pointed("string", "java.lang.String", type_.sized)
+    if isinstance(type_, StructRef):
+        assert part.struct is not None
+        return Pointed("struct", names.struct(part.struct))
+    return result(part, names)
+
+
+def out_of(thunk: Thunk, names: Names) -> Returns | Pointed | None:
+    """What a thunk gives back: the result of the callback, or of the override."""
+    if thunk.target is not None:
+        return director_result(thunk.callback.result, names)
+    return result(thunk.callback.result, names)
+
+
 def _slots(callback: CallbackSpec, names: Names) -> int:
     """The parameter slots of the thunk of a callback: ``user_data`` is a pointer, a pointer and a
     ``long`` or a ``double`` take two, and over the foreign function API the result pointer is one
@@ -240,6 +259,41 @@ class Thunk:
     c_params: tuple[str, ...] = ()
     """The C types of the parameters of the thunk (``void*`` first, then the result pointer)."""
 
+    slot: str = ""
+    """For a virtual method of a director: its name (``D_<class>_<member>``)."""
+
+    target: Target | None = None
+    """For a virtual method of a director: the Java method of the object that it calls."""
+
+    sink: str = ""
+    """The C function that gives a string result to C++ (a thunk of a director)."""
+
+
+@dataclass(frozen=True, slots=True)
+class Target:
+    """The Java method that a thunk of a director calls: the one of the class that declares the
+    virtual method (the override of the class of the object is the one that runs)."""
+
+    root: str
+    """The Java class."""
+
+    method: str
+    what: str
+    """The C++ method, for the messages (``Shape.name``)."""
+
+
+@dataclass(frozen=True, slots=True)
+class Pointed:
+    """A result that an override gives through a pointer that C++ provides: the sink of a string
+    (copied by C++) or the struct that C++ reads."""
+
+    kind: str
+    """``string`` or ``struct``."""
+
+    public: str
+    sized: bool = True
+    """A ``std::string`` or ``std::string_view`` cannot be null; a ``const char*`` can."""
+
 
 @dataclass(slots=True)
 class Thunks:
@@ -253,6 +307,13 @@ class Thunks:
             if item.key == key and item.interface == interface:
                 return item
         raise KeyError(f"no thunk for {key} {interface}")
+
+    def for_slot(self, slot: str) -> Thunk:
+        """The thunk of a virtual method of a director."""
+        for item in self.items:
+            if item.slot == slot:
+                return item
+        raise KeyError(f"no thunk for the virtual method {slot}")
 
 
 def callables_of(plan: ModulePlan) -> list[CallablePlan]:
@@ -300,6 +361,33 @@ def collect(plan: ModulePlan, names: Names) -> Thunks:
                     tuple(part.strip() for part in c_params.split(",")),
                 )
             )
+    slots: set[str] = set()
+    for director in names.directors.values():
+        for slot in director.slots:
+            if not slot.ok or slot.thunk in slots:
+                continue
+            slots.add(slot.thunk)
+            entry = slot.entry
+            items.append(
+                Thunk(
+                    len(items),
+                    entry.thunk_key,
+                    entry.callback,
+                    "",
+                    "",
+                    tuple(part.strip() for part in entry.function_params.split(",")),
+                    slot=slot.thunk,
+                    target=Target(
+                        names.classes[slot.root.c_type],
+                        # A protected method is reached through the bridge that the class has.
+                        slot.name
+                        if slot.root_entry.access is Access.PUBLIC
+                        else f"bridgefex_{slot.name}",
+                        f"{slot.root.model.name}.{slot.root_entry.name}",
+                    ),
+                    sink=plan.string_sink_set,
+                )
+            )
     return Thunks(items)
 
 
@@ -317,6 +405,8 @@ def interfaces(thunks: Thunks, names: Names) -> list[tuple[bool, int]]:
     """(returns, arguments) of each interface of the module that ``java.util.function`` lacks."""
     found: set[tuple[bool, int]] = set()
     for item in thunks.items:
+        if item.target is not None:
+            continue
         count = len(item.callback.arguments)
         if count > 2:
             found.add((result(item.callback.result, names) is not None, count))
@@ -365,6 +455,8 @@ def method_lines(thunk: Thunk, names: Names) -> list[str]:
     first and, over the foreign function API, ``out_result`` last). Its locals have the prefix of
     the generated code: a name of the module in a type (``mod.api.Point``) is a package, which a
     local or a field of that name would hide."""
+    if thunk.target is not None:
+        return director_lines(thunk, names)
     ffm = names.flavor.modern
     segment = names.flavor.segment
     out = result(thunk.callback.result, names)
@@ -418,6 +510,129 @@ def method_lines(thunk: Thunk, names: Names) -> list[str]:
     return lines
 
 
+_PRIMITIVES = frozenset({"boolean", "byte", "short", "int", "long", "float", "double", "char"})
+
+
+def _director_call(
+    thunk: Thunk, names: Names, out: Returns | Pointed | None, call: str
+) -> list[str]:
+    """The statements that call the override and give its result to C++."""
+    target = thunk.target
+    assert target is not None
+    what = f'"the override {target.what}"'
+    label = f"\"the result of the override '{target.what}'\""
+    body: list[str] = []
+    segment = names.flavor.segment
+    ffm = names.flavor.modern
+    if out is None:
+        body.append(f"{call};")
+    elif isinstance(out, Returns):
+        primitive = out.public in _PRIMITIVES
+        value = call if primitive else f"{R}.nonNull({call}, {label})"
+        body.append(f"{out.public} {L}value = {value};")
+        if out.check is not None:
+            low, high = out.check
+            body.append(f"{L}box.checkResult({L}value.value(), {low}, {high}, {what});")
+        if ffm:
+            body.append(f"{segment} {L}slot = {L}out.reinterpret({out.layout}.byteSize());")
+            write = out.write.replace("{seg}", f"{L}slot").replace("{off}", "0")
+            body.append(write.replace("{name}", label).replace("{}", f"{L}value"))
+        else:
+            convert = out.convert.replace("{name}", label).replace("{}", f"{L}value")
+            body.append(f"return {convert};")
+    elif out.kind == "struct":
+        body.append(f"{out.public} {L}value = {R}.nonNull({call}, {label});")
+        if ffm:
+            body.append(f"{L}value.write({R}.view({L}out, {out.public}.LAYOUT.byteSize()));")
+        else:
+            # Java cannot write the memory that C++ gave: the struct is written in memory of Java,
+            # and copied where C++ says.
+            body += [
+                f"{segment} {L}copy = "
+                f"{segment}.of(new byte[(int) {out.public}.LAYOUT.byteSize()]);",
+                f"{L}value.write({L}copy);",
+                f"{R}.copyIn({L}slot, {L}copy);",
+            ]
+    else:
+        body.append(f"java.lang.String {L}value = {call};")
+        if out.sized:
+            body += [
+                f"if ({L}value == null) {{",
+                "    throw new IllegalStateException("
+                f'"the override {target.what} returned null for a std::string");',
+                "}",
+            ]
+        sink = f"{L}out" if ffm else f"{L}slot"
+        arena = names.flavor.declare(names.flavor.arena)
+        body += [
+            f"if ({L}value != null) {{",
+            f'    byte[] {L}bytes = {R}.utf8({L}value, "result");',
+            f"    try ({arena} {L}arena = {R}.arena()) {{",
+            f"        BridgefexNative.{thunk.sink}({sink}, {R}.bytes({L}arena, {L}bytes), "
+            f"(long) {L}bytes.length);",
+            "    }",
+            "}",
+        ]
+    return body
+
+
+def director_lines(thunk: Thunk, names: Names) -> list[str]:
+    """The static method that C++ reaches for a virtual method of a director: it has the C
+    signature of the vtable member (``user_data`` first, then the arguments and, if the method
+    gives something back, the pointer where it goes). It finds the Java object of the director by
+    the key and calls the method of the class that declares the virtual method: the override of
+    the class of the object is the one that runs."""
+    target = thunk.target
+    assert target is not None
+    ffm = names.flavor.modern
+    segment = names.flavor.segment
+    out = director_result(thunk.callback.result, names)
+    parameters, prelude, values = _parameters(thunk, names)
+    if out is not None and (ffm or isinstance(out, Pointed)):
+        parameters.append(f"{segment} {L}out" if ffm else f"long {L}out")
+        if not ffm:
+            prelude.append(f"{segment} {L}slot = {segment}.ofAddress({L}out);")
+    # Over JNI a scalar is what the thunk returns, and the glue writes it.
+    returns = out.carrier if isinstance(out, Returns) and not ffm else "void"
+    nothing = "" if returns == "void" else " false" if returns == "boolean" else " 0"
+    key = f"{L}userData.address()" if ffm else f"{L}userData"
+    lines = [
+        f"private static {returns} thunk{thunk.index}({', '.join(parameters)}) {{",
+        f"    DirectorBox {L}box = null;",
+        "    try {",
+        f"        {L}box = (DirectorBox) of({key});",
+        f"        if ({L}box.skip()) {{",
+        f"            return{nothing};",
+        "        }",
+    ]
+    lines += [f"        {line}" for line in prelude]
+    lines += [
+        f"        {target.root} {L}target = ({target.root}) {L}box.target();",
+        f"        if ({L}target == null) {{",
+        "            throw new IllegalStateException(",
+        '                "C++ called an override of an object that was collected: '
+        'keep a reference to it while C++ uses it");',
+        "        }",
+        f"        {L}box.enter();",
+        "        try {",
+    ]
+    call = f"{L}target.{target.method}({', '.join(values)})"
+    body = _director_call(thunk, names, out, call)
+    lines += [f"            {line}" for line in body]
+    lines += [
+        "        } finally {",
+        f"            {L}box.leave();",
+        "        }",
+        f"    }} catch (java.lang.Throwable {L}error) {{",
+        f"        fail({L}box, {L}error);",
+        "    }",
+    ]
+    if returns != "void":
+        lines.append(f"    return{nothing};")
+    lines.append("}")
+    return lines
+
+
 def holder_lines(thunk: Thunk, names: Names) -> list[str]:
     """The class that has the address of the thunk. It is made when it is first needed, not when
     the class is initialised: that can fail (the library is not loaded yet), and a failure of a
@@ -433,8 +648,7 @@ def holder_lines(thunk: Thunk, names: Names) -> list[str]:
                     "java.lang.foreign.MemorySegment" if carrier == "pointer" else carrier
                 )
                 layouts.append(layout)
-        out = result(thunk.callback.result, names)
-        if out is not None:
+        if out_of(thunk, names) is not None:
             carriers.append("java.lang.foreign.MemorySegment")
             layouts.append(f"{R}.ADDRESS")
         types = ", ".join(f"{carrier}.class" for carrier in carriers)
@@ -531,15 +745,18 @@ def _carriers(thunk: Thunk, names: Names) -> list[str]:
 
 def descriptor(thunk: Thunk, names: Names) -> str:
     """The JNI signature of the Java method of a thunk."""
-    out = result(thunk.callback.result, names)
+    out = out_of(thunk, names)
     letters = "".join(_JNI[carrier][1] for carrier in _carriers(thunk, names))
+    if isinstance(out, Pointed):
+        # The result pointer is one more argument, and the thunk writes through it.
+        return f"({letters}J)V"
     return f"({letters}){'V' if out is None else _JNI[out.carrier][1]}"
 
 
 def trampoline(thunk: Thunk, names: Names) -> list[str]:
     """The C++ function that C++ calls for the callbacks of a thunk: it has the C signature of the
     callback and calls the Java method of the thunk, on the thread that C++ is on."""
-    out = result(thunk.callback.result, names)
+    out = out_of(thunk, names)
     carriers = _carriers(thunk, names)
     c_types = list(thunk.c_params)
     inputs = c_types[: len(carriers)]
@@ -557,7 +774,10 @@ def trampoline(thunk: Thunk, names: Names) -> list[str]:
             arguments.append(f"(a{index} ? JNI_TRUE : JNI_FALSE)")
         else:
             arguments.append(f"static_cast<{jni}>(a{index})")
-    call_name = "Void" if out is None else _JNI[out.carrier][2]
+    if isinstance(out, Pointed):
+        # The thunk of the override writes the result where C++ says.
+        arguments.append("static_cast<jlong>(reinterpret_cast<uintptr_t>(out))")
+    call_name = "Void" if not isinstance(out, Returns) else _JNI[out.carrier][2]
     call = (
         f"env->CallStatic{call_name}Method(callbacks, g_thunks[{thunk.index}]"
         + "".join(f", {argument_}" for argument_ in arguments)
@@ -574,7 +794,7 @@ def trampoline(thunk: Thunk, names: Names) -> list[str]:
         "        return;",
         "    }",
     ]
-    if out is None:
+    if not isinstance(out, Returns):
         lines.append(f"    {call};")
     else:
         lines.append(f"    const {_JNI[out.carrier][0]} value = {call};")
@@ -582,9 +802,9 @@ def trampoline(thunk: Thunk, names: Names) -> list[str]:
         "    if (env->ExceptionCheck()) {",
         "        // Nothing in Java caught it (a stack overflow where it starts): it is shown.",
         "        env->ExceptionDescribe();",
-        "    } else {" if out is not None else "    }",
+        "    } else {" if isinstance(out, Returns) else "    }",
     ]
-    if out is not None:
+    if isinstance(out, Returns):
         write = "value != JNI_FALSE" if out.carrier == "boolean" else f"({pointee}) value"
         lines += [f"        *out = {write};", "    }"]
     lines += ["    env->DeleteLocalRef(callbacks);", "}"]

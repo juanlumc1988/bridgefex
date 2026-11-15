@@ -77,6 +77,20 @@ jbyteArray JNICALL glue_copyOut(JNIEnv* env, jclass cls, jlong address, jint siz
     return result;
 }
 
+{% if directors %}
+// The result of an override that is a struct: C++ gives the address where it goes.
+void JNICALL glue_copyIn(JNIEnv* env, jclass cls, jlong address, jbyteArray bytes)
+{
+    (void) cls;
+    if (address == 0 || bytes == nullptr) {
+        throw_new(env, "java/lang/NullPointerException", "the address or the bytes of the result are NULL");
+        return;
+    }
+    env->GetByteArrayRegion(bytes, 0, env->GetArrayLength(bytes),
+                            reinterpret_cast<jbyte*>(static_cast<uintptr_t>(address)));
+}
+
+{% endif %}
 {% if callbacks %}
 // The callbacks: C++ calls a function of this file, on the thread that it is on, and it calls the thunk
 // of the bindings (a static method of BridgefexCallbacks) with what Java carries. The class is held
@@ -223,6 +237,9 @@ extern "C" JNIEXPORT jint bridgefex_{{ module }}_jni_register(JNIEnv* env)
         {const_cast<char*>("length"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_length)},
         {const_cast<char*>("copyOut"), const_cast<char*>("(JI)[B"), reinterpret_cast<void*>(glue_copyOut)},
         {const_cast<char*>("sizes"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_sizes)},
+{% if directors %}
+        {const_cast<char*>("copyIn"), const_cast<char*>("(J[B)V"), reinterpret_cast<void*>(glue_copyIn)},
+{% endif %}
 {% if callbacks %}
         {const_cast<char*>("n_callbackAddress"), const_cast<char*>("(I)J"), reinterpret_cast<void*>(glue_callbackAddress)},
         {const_cast<char*>("n_releaseAddress"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_releaseAddress)},
