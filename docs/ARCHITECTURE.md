@@ -239,7 +239,9 @@ The FFM output did not change when the flavor was introduced: the goldens say so
 The callbacks (`callbacks.py`) are the same text for both flavors, `BridgefexCallbacks` (a table of the callbacks that C++
 holds, by a key that is the `user_data`; the scope of each call that gives callbacks, which keeps their first exception for the
 call; the release function; the disable at exit) and one *thunk* for each C signature and Java types: a static method with the C
-signature of the callback. Over the foreign function API an upcall stub makes it a function pointer and it writes the result where
+signature of the callback. The disable at exit is what differs: over JNI the glue registers an `atexit` handler (a hook of the
+JVM would pin the class loader, and `Runtime.halt` skips hooks), over the foreign function API a shutdown hook is the only place
+there is, so `halt` is not covered. Over the foreign function API an upcall stub makes it a function pointer and it writes the result where
 C++ says; over JNI the glue has a C++ function with that C signature for each thunk, which attaches the thread if C++ started it,
 calls the thunk with what JNI carries (a pointer is a `long`) and writes what it returns. The glue holds the class of the thunks
 weakly: a strong reference would keep the class loader of the bindings from being collected.
