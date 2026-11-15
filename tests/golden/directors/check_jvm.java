@@ -24,6 +24,7 @@ import drc.shape.Shape;
 import drc.stage.Stage;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,6 +71,22 @@ class Check {
             check(square.sum(3, 4) == 12, "an overload");
             check(square.sumDouble(5.0, 2.0) == 3.0, "the other overload");
             check(square.howQuiet() == 9, "a noexcept method");
+            // Containers, in both directions: an array that C++ copies, and an array that C++ copies back.
+            check(square.totalOfThree() == 12,
+                "total() is the override, which calls the base with the array: " + square.totalOfThree());
+            check(square.callTotal(new int[] {5, 6}) == 22, "a vector of int");
+            check(Arrays.equals(square.callNumbers(new int[] {1, 2, 3}), new int[] {3, 2, 1, 99}),
+                "the base result, and one more");
+            check(Arrays.equals(square.callWords(new String[] {"a", "b\u00e9"}), new String[] {"a?", "b\u00e9?"}),
+                "strings");
+            check(Arrays.equals(square.callModes(new Mode[] {Mode.ON, Mode.OFF}), new Mode[] {Mode.OFF, Mode.ON}),
+                "enums");
+            Point[] moved = square.callPoints(new Point[] {new Point(1.0, 2.0)});
+            check(moved.length == 1 && moved[0].x == 3.0 && moved[0].y == 2.0, "structs");
+            check(Arrays.equals(square.callFlags(new boolean[] {true, false}), new boolean[] {false, true}), "bool");
+            check(Arrays.equals(square.callTriple(new double[] {1.0, 2.0, 3.0}), new double[] {1.5, 3.0, 4.5}),
+                "std::array");
+            check(square.callTotal(new int[0]) == 0, "an empty vector");
             check(square.middle(new Point(4.0, 0.0)).x == 3.0, "structs go both ways");
             check(square.choose(Mode.ON) == Mode.OFF && square.choose(Mode.OFF) == Mode.of(5), "enums");
             check(square.welcome("Ann").equals(">>|hello|Ann|>> hello Ann, I am sq:shape"),
@@ -284,6 +301,64 @@ class Square extends Shape {
     @Override
     public int quiet() {
         return 9;
+    }
+
+    @Override
+    public int total(int[] values) {
+        return super.total(values) * 2;
+    }
+
+    @Override
+    public int[] numbers(int[] values) {
+        int[] base = super.numbers(values);
+        int[] more = Arrays.copyOf(base, base.length + 1);
+        more[base.length] = 99;
+        return more;
+    }
+
+    @Override
+    public String[] words(String[] input) {
+        String[] result = new String[input.length];
+        for (int i = 0; i < input.length; i++) {
+            result[i] = input[i] + "?";
+        }
+        return result;
+    }
+
+    @Override
+    public Mode[] modes(Mode[] wanted) {
+        Mode[] result = new Mode[wanted.length];
+        for (int i = 0; i < wanted.length; i++) {
+            result[i] = wanted[wanted.length - 1 - i];
+        }
+        return result;
+    }
+
+    @Override
+    public Point[] points(Point[] list) {
+        Point[] result = new Point[list.length];
+        for (int i = 0; i < list.length; i++) {
+            result[i] = new Point(list[i].x + 2.0, list[i].y);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean[] flags(boolean[] input) {
+        boolean[] result = new boolean[input.length];
+        for (int i = 0; i < input.length; i++) {
+            result[i] = !input[i];
+        }
+        return result;
+    }
+
+    @Override
+    public double[] triple(double[] values) {
+        double[] result = new double[values.length];
+        for (int i = 0; i < values.length; i++) {
+            result[i] = values[i] * 1.5;
+        }
+        return result;
     }
 
     @Override

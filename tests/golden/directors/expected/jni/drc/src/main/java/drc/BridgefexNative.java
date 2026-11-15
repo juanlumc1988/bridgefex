@@ -594,6 +594,18 @@ public final class BridgefexNative {
     }
     private static native void n_drc_string_sink_set(long p_sink, long p_data, long p_size);
 
+    public static void drc_vector_sink_set(BridgefexSegment p_sink, BridgefexSegment p_data, long p_count, long p_size) {
+        BridgefexRuntime.ensureLoaded();
+        n_drc_vector_sink_set(p_sink.address(), p_data.address(), p_count, p_size);
+    }
+    private static native void n_drc_vector_sink_set(long p_sink, long p_data, long p_count, long p_size);
+
+    public static void drc_vector_sink_set_strings(BridgefexSegment p_sink, BridgefexSegment p_items, long p_count) {
+        BridgefexRuntime.ensureLoaded();
+        n_drc_vector_sink_set_strings(p_sink.address(), p_items.address(), p_count);
+    }
+    private static native void n_drc_vector_sink_set_strings(long p_sink, long p_items, long p_count);
+
     public static int drc_Beam_director_create_int32(BridgefexSegment p_out_object, BridgefexSegment p_out_director, BridgefexSegment p_vtable, int p_length) {
         BridgefexRuntime.ensureLoaded();
         return n_drc_Beam_director_create_int32(p_out_object.address(), p_out_director.address(), p_vtable.address(), p_length);

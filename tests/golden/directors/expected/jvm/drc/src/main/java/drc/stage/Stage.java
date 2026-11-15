@@ -49,8 +49,8 @@ public class Stage extends BridgefexObject {
             var __vt = __arena.allocate(4L * drc.BridgefexRuntime.ADDRESS.byteSize(), drc.BridgefexRuntime.ADDRESS.byteSize());
             __vt.set(BridgefexRuntime.ADDRESS, 0L, __box.key());
             __vt.set(BridgefexRuntime.ADDRESS, drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Release.address());
-            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk14.address());
-            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk15.address());
+            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
+            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             var __director = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.drc_Stage_director_create_void(__result, __director, __vt);
@@ -74,8 +74,8 @@ public class Stage extends BridgefexObject {
             var __vt = __arena.allocate(4L * drc.BridgefexRuntime.ADDRESS.byteSize(), drc.BridgefexRuntime.ADDRESS.byteSize());
             __vt.set(BridgefexRuntime.ADDRESS, 0L, __box.key());
             __vt.set(BridgefexRuntime.ADDRESS, drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Release.address());
-            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk14.address());
-            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk15.address());
+            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
+            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             var __director = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.drc_Stage_director_create_int32(__result, __director, __vt, steps);

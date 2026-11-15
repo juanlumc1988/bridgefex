@@ -20,7 +20,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    Access,
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import (
     CallablePlan,
     CallbackPart,
@@ -30,6 +38,7 @@ from ...plan import (
     FunctionPlan,
     ModulePlan,
 )
+from .containers import element_of
 from .mapping import R, Unsupported, scalar
 from .naming import LOCAL_PREFIX
 
@@ -76,6 +85,11 @@ class Part:
 
     layouts: tuple[str, ...]
     read: str
+
+    prelude: tuple[str, ...] = ()
+    """Statements that make the value (a container is read element by element): ``{0}``, ``{1}``
+    are the C parameters, ``{v}`` the local that ``read`` is, ``{n}``, ``{b}`` and ``{i}`` the
+    count, the memory and the index."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +151,42 @@ def argument(part: CallbackPart, names: Names) -> Part:
             (info.layout,),
             info.from_native.replace("{}", "{0}"),
         )
+    if isinstance(type_, ContainerType):
+        return _container_argument(part, type_, names)
     raise Unsupported(
         f"the type '{type_.cpp_spelling}' of an argument of a callback is not supported in Java"
     )
+
+
+def _container_argument(part: CallbackPart, type_: ContainerType, names: Names) -> Part:
+    """A container that C++ gives to an override: a Java array, a copy of what C++ holds (the
+    memory is only valid while the override runs)."""
+    element = element_of(part.element, names)
+    if type_.kind is ContainerKind.ARRAY:
+        carriers: tuple[str, ...] = ("pointer",)
+        layouts: tuple[str, ...] = (f"{R}.ADDRESS",)
+        count = f"{type_.length}"
+    else:
+        carriers = ("pointer", "long")
+        layouts = (f"{R}.ADDRESS", f"{R}.C_SIZE")
+        count = f"{R}.count({{1}})"
+    segment = names.flavor.declare(names.flavor.segment)
+    if element.kind == "string":
+        read = (
+            f"{R}.takeText({{b}}.get({R}.ADDRESS, {{i}} * {element.size}), "
+            f"{R}.getSize({{b}}, {{i}} * {element.size} + {R}.ADDRESS.byteSize()))"
+        )
+    else:
+        read = element.read.replace("{seg}", "{b}").replace("{off}", f"{{i}} * {element.size}")
+    prelude = (
+        f"int {{n}} = {count};",
+        f"{segment} {{b}} = {R}.view({{0}}, (long) {{n}} * {element.size});",
+        f"{element.public}[] {{v}} = new {element.public}[{{n}}];",
+        "for (int {i} = 0; {i} < {n}; {i}++) {",
+        f"    {{v}}[{{i}}] = {read};",
+        "}",
+    )
+    return Part(f"{element.public}[]", carriers, layouts, "{v}", prelude)
 
 
 def result(part: CallbackPart, names: Names) -> Returns | None:
@@ -186,6 +233,8 @@ def director_result(part: CallbackPart, names: Names) -> Returns | Pointed | Non
     if isinstance(type_, StructRef):
         assert part.struct is not None
         return Pointed("struct", names.struct(part.struct))
+    if isinstance(type_, ContainerType):
+        return Pointed("container", f"{element_of(part.element, names).public}[]", part=part)
     return result(part, names)
 
 
@@ -268,6 +317,10 @@ class Thunk:
     sink: str = ""
     """The C function that gives a string result to C++ (a thunk of a director)."""
 
+    vector_sink: str = ""
+    strings_sink: str = ""
+    """The C functions that give a container to C++."""
+
 
 @dataclass(frozen=True, slots=True)
 class Target:
@@ -288,11 +341,14 @@ class Pointed:
     (copied by C++) or the struct that C++ reads."""
 
     kind: str
-    """``string`` or ``struct``."""
+    """``string``, ``struct`` or ``container``."""
 
     public: str
     sized: bool = True
     """A ``std::string`` or ``std::string_view`` cannot be null; a ``const char*`` can."""
+
+    part: CallbackPart | None = None
+    """The container, for a ``container``."""
 
 
 @dataclass(slots=True)
@@ -386,6 +442,8 @@ def collect(plan: ModulePlan, names: Names) -> Thunks:
                         f"{slot.root.model.name}.{slot.root_entry.name}",
                     ),
                     sink=plan.string_sink_set,
+                    vector_sink=plan.vector_sink_set,
+                    strings_sink=plan.vector_sink_set_strings,
                 )
             )
     return Thunks(items)
@@ -428,7 +486,7 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
     prelude: list[str] = []
     values: list[str] = []
     position = 0
-    for part in thunk.callback.arguments:
+    for number, part in enumerate(thunk.callback.arguments, start=1):
         argument_ = argument(part, names)
         locals_: list[str] = []
         for carrier in argument_.carriers:
@@ -443,10 +501,22 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
             else:
                 parameters.append(f"{carrier} {local}")
             locals_.append(local)
-        value = argument_.read
-        for index, local in enumerate(locals_):
-            value = value.replace(f"{{{index}}}", local)
-        values.append(value)
+        names_ = {
+            "v": f"{L}v{number}",
+            "n": f"{L}n{number}",
+            "b": f"{L}b{number}",
+            "i": f"{L}k{number}",
+        }
+
+        def fill(text: str, locals_: list[str] = locals_, names_: dict[str, str] = names_) -> str:
+            for index, local in enumerate(locals_):
+                text = text.replace(f"{{{index}}}", local)
+            for key, new in names_.items():
+                text = text.replace(f"{{{key}}}", new)
+            return text
+
+        prelude.extend(fill(line) for line in argument_.prelude)
+        values.append(fill(argument_.read))
     return parameters, prelude, values
 
 
@@ -513,6 +583,71 @@ def method_lines(thunk: Thunk, names: Names) -> list[str]:
 _PRIMITIVES = frozenset({"boolean", "byte", "short", "int", "long", "float", "double", "char"})
 
 
+def _container_result(thunk: Thunk, names: Names, out: Pointed, call: str) -> list[str]:
+    """The statements that give C++ the array that an override returned: C++ copies it into the
+    container before the thunk returns."""
+    target = thunk.target
+    assert target is not None
+    assert out.part is not None
+    type_ = out.part.type
+    assert isinstance(type_, ContainerType)
+    element = element_of(out.part.element, names)
+    ffm = names.flavor.modern
+    sink = f"{L}out" if ffm else f"{L}slot"
+    shape = "std::array" if type_.kind is ContainerKind.ARRAY else "std::vector"
+    arena = names.flavor.declare(names.flavor.arena)
+    segment = names.flavor.declare(names.flavor.segment)
+    value, block, index = f"{L}value", f"{L}block", f"{L}k"
+    lines = [
+        f"{out.public} {value} = {call};",
+        f"if ({value} == null) {{",
+        "    throw new IllegalStateException("
+        f'"the override {target.what} returned null for a {shape}");',
+        "}",
+    ]
+    if type_.kind is ContainerKind.ARRAY:
+        lines += [
+            f"if ({value}.length != {type_.length}) {{",
+            "    throw new IllegalStateException("
+            f'"the override {target.what} returned " + {value}.length + " elements for a '
+            f'std::array of {type_.length}");',
+            "}",
+        ]
+    where = f'"the override {target.what}[" + {index} + "]"'
+    offset = f"{index} * {element.size}"
+    lines += [
+        f"try ({arena} {L}arena = {R}.arena()) {{",
+        f"    {segment} {block} = {L}arena.allocate("
+        f"Math.max(1L, {element.size} * (long) {value}.length));",
+        f"    for (int {index} = 0; {index} < {value}.length; {index}++) {{",
+    ]
+    if element.kind == "string":
+        lines += [
+            f"        byte[] {L}bytes = {R}.utf8({R}.nonNull({value}[{index}], {where}), {where});",
+            f"        {segment} {L}e = {R}.bytes({L}arena, {L}bytes);",
+            f"        {block}.set({R}.ADDRESS, {offset}, {L}e);",
+            f"        {R}.putSize({block}, {offset} + {R}.ADDRESS.byteSize(), "
+            f"(long) {L}bytes.length);",
+        ]
+        send = f"BridgefexNative.{thunk.strings_sink}({sink}, {block}, (long) {value}.length);"
+    else:
+        write = element.write
+        for key, new in (
+            ("{seg}", block),
+            ("{off}", offset),
+            ("{value}", f"{value}[{index}]"),
+            ("{name}", where),
+        ):
+            write = write.replace(key, new)
+        lines.append(f"        {write}")
+        send = (
+            f"BridgefexNative.{thunk.vector_sink}({sink}, {block}, (long) {value}.length, "
+            f"{element.size});"
+        )
+    lines += ["    }", f"    {send}", "}"]
+    return lines
+
+
 def _director_call(
     thunk: Thunk, names: Names, out: Returns | Pointed | None, call: str
 ) -> list[str]:
@@ -540,6 +675,8 @@ def _director_call(
         else:
             convert = out.convert.replace("{name}", label).replace("{}", f"{L}value")
             body.append(f"return {convert};")
+    elif out.kind == "container":
+        body += _container_result(thunk, names, out, call)
     elif out.kind == "struct":
         body.append(f"{out.public} {L}value = {R}.nonNull({call}, {label});")
         if ffm:

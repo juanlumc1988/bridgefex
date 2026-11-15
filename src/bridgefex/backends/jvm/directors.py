@@ -19,9 +19,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, EnumRef, ScalarType, StringType, StructRef
+from ...model import Access, ContainerType, EnumRef, ScalarType, StringType, StructRef
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import argument
+from .containers import element_of
 from .lower import lower_callable, method_name
 from .mapping import scalar
 from .naming import LOCAL_PREFIX, RESERVED_MEMBERS, parameter
@@ -34,10 +35,17 @@ L = LOCAL_PREFIX
 
 
 def supported_part(part: CallbackPart) -> bool:
-    """True if an override can take (or give) the type: a scalar, an enum, a string or a struct."""
-    return isinstance(part.type, ScalarType | EnumRef | StringType | StructRef) and (
-        not isinstance(part.type, EnumRef) or part.enum is not None
-    )
+    """True if an override can take (or give) the type: a scalar, an enum, a string, a struct or
+    a container of those."""
+    if isinstance(part.type, ContainerType):
+        return part.element is not None and supported_part(
+            CallbackPart(part.element.type, enum=part.element.enum, struct=part.element.struct)
+        )
+    if isinstance(part.type, EnumRef):
+        return part.enum is not None
+    if isinstance(part.type, StructRef):
+        return part.struct is not None
+    return isinstance(part.type, ScalarType | StringType)
 
 
 def supported(entry: DirectorEntry) -> bool:
@@ -248,6 +256,8 @@ def result_type(entry: DirectorEntry, names: Names) -> str:
         return names.enum(part.enum)
     if isinstance(kind, StructRef) and part.struct is not None:
         return names.struct(part.struct)
+    if isinstance(kind, ContainerType):
+        return f"{element_of(part.element, names).public}[]"
     raise AssertionError(kind)
 
 
@@ -383,7 +393,10 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
         if not slot.ok:
             src.line("false,")
             continue
-        parameters = ", ".join(f"{type_}.class" for type_, _ in types_of(slot.entry, names))
+        parameters = ", ".join(
+            f"{type_.removeprefix('@BridgefexUnsigned ')}.class"
+            for type_, _ in types_of(slot.entry, names)
+        )
         src.line(
             f'BridgefexDirectors.overrides(type, GENERATED, "{slot.name}", '
             f"new java.lang.Class<?>[] {{ {parameters} }}),"

@@ -106,6 +106,32 @@ def _functions(plan: ModulePlan, *, callbacks: bool) -> list[_Function]:
                 False,
             )
         )
+        sink = f"{plan.name}_vector_sink"
+        functions.append(
+            _Function(
+                plan.vector_sink_set,
+                "void",
+                [
+                    (JNI.segment, "p_sink", f"{sink}*"),
+                    (JNI.segment, "p_data", "const void*"),
+                    ("long", "p_count", "size_t"),
+                    ("long", "p_size", "size_t"),
+                ],
+                False,
+            )
+        )
+        functions.append(
+            _Function(
+                plan.vector_sink_set_strings,
+                "void",
+                [
+                    (JNI.segment, "p_sink", f"{sink}*"),
+                    (JNI.segment, "p_items", f"const {plan.name}_string*"),
+                    ("long", "p_count", "size_t"),
+                ],
+                False,
+            )
+        )
         for header in plan.headers:
             functions.extend(_function(f) for f in header.director_functions)
     return functions

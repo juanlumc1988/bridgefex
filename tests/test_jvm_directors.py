@@ -162,44 +162,23 @@ def test_a_module_without_directors_has_no_final_methods_nor_the_runtime_of_dire
     assert "DirectorBox" not in "".join(files.values())
 
 
-def test_a_class_whose_pure_virtual_method_cannot_be_overridden_cannot_be_derived_from(
-    tmp_path: Path, language: str
-) -> None:
-    """Its pure virtual method takes a type that the bindings do not support in an override yet
-    (a container): nothing could implement it, so the class has no director in Java."""
-    code = """
-#include <vector>
-class Strict {
-public:
-    virtual ~Strict();
-    virtual int total(const std::vector<int>& values) const = 0;
-    int twice() const;
-};
-"""
-    strict = source(generate(tmp_path, code, ("Strict",), language=language), language, "Strict")
-    assert "    public int total(int[] values) {" in strict  # nothing is final: no family
-    assert "DirectorOverrides" not in strict
-    assert "public int twice()" in strict  # not derivable: not in the family either
-
-
 def test_a_virtual_method_with_types_that_an_override_cannot_have_keeps_the_implementation(
     tmp_path: Path, language: str
 ) -> None:
     code = """
-#include <vector>
-#include <string>
+class Item { public: Item(); ~Item(); int size() const; };
 class Mixed {
 public:
     Mixed();
     virtual ~Mixed();
     virtual std::string name() const;
-    virtual int total(const std::vector<int>& values) const;
+    virtual int total(Item item) const;
 };
 """
     mixed = source(generate(tmp_path, code, ("Mixed",), language=language), language, "Mixed")
     assert "    public java.lang.String name() {" in mixed
-    # A container in an override is not supported yet: C++ keeps its implementation.
-    assert "    public final int total(int[] values) {" in mixed
+    # An object by value is a copy: C++ keeps its implementation.
+    assert "    public final int total(" in mixed
 
 
 def test_the_member_names_of_the_directors_are_reserved(tmp_path: Path, language: str) -> None:

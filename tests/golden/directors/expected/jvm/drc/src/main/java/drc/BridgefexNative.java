@@ -1336,10 +1336,10 @@ public final class BridgefexNative {
             "drc_string_sink_set", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
     }
 
-    public static int drc_Beam_director_create_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, int p_length) {
+    public static void drc_vector_sink_set(java.lang.foreign.MemorySegment p_sink, java.lang.foreign.MemorySegment p_data, long p_count, long p_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle94.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_length);
+            Handle94.HANDLE.invokeExact(p_sink, p_data, p_count, p_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1347,13 +1347,13 @@ public final class BridgefexNative {
     }
     private static final class Handle94 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Beam_director_create_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
+            "drc_vector_sink_set", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.C_SIZE), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, long.class));
     }
 
-    public static int drc_Beam_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
+    public static void drc_vector_sink_set_strings(java.lang.foreign.MemorySegment p_sink, java.lang.foreign.MemorySegment p_items, long p_count) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle95.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
+            Handle95.HANDLE.invokeExact(p_sink, p_items, p_count);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1361,13 +1361,13 @@ public final class BridgefexNative {
     }
     private static final class Handle95 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Beam_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_vector_sink_set_strings", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
     }
 
-    public static int drc_Beam_director_create_string(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, java.lang.foreign.MemorySegment p_label, long p_label_size) {
+    public static int drc_Beam_director_create_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, int p_length) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle96.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_label, p_label_size);
+            return (int) Handle96.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_length);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1375,13 +1375,13 @@ public final class BridgefexNative {
     }
     private static final class Handle96 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Beam_director_create_string", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+            "drc_Beam_director_create_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
-    public static java.lang.foreign.MemorySegment drc_Beam_director_object(java.lang.foreign.MemorySegment p_director) {
+    public static int drc_Beam_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handle97.HANDLE.invokeExact(p_director);
+            return (int) Handle97.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1389,13 +1389,13 @@ public final class BridgefexNative {
     }
     private static final class Handle97 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Beam_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Beam_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Beam_director_base_length(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Beam_director_create_string(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, java.lang.foreign.MemorySegment p_label, long p_label_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle98.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle98.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_label, p_label_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1403,13 +1403,13 @@ public final class BridgefexNative {
     }
     private static final class Handle98 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Beam_director_base_length", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Beam_director_create_string", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
     }
 
-    public static int drc_Shape_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
+    public static java.lang.foreign.MemorySegment drc_Beam_director_object(java.lang.foreign.MemorySegment p_director) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle99.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
+            return (java.lang.foreign.MemorySegment) Handle99.HANDLE.invokeExact(p_director);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1417,13 +1417,13 @@ public final class BridgefexNative {
     }
     private static final class Handle99 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Beam_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_create_string_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, java.lang.foreign.MemorySegment p_label, long p_label_size, int p_sides) {
+    public static int drc_Beam_director_base_length(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle100.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_label, p_label_size, p_sides);
+            return (int) Handle100.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1431,13 +1431,13 @@ public final class BridgefexNative {
     }
     private static final class Handle100 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_create_string_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, int.class));
+            "drc_Beam_director_base_length", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static java.lang.foreign.MemorySegment drc_Shape_director_object(java.lang.foreign.MemorySegment p_director) {
+    public static int drc_Shape_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handle101.HANDLE.invokeExact(p_director);
+            return (int) Handle101.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1445,13 +1445,13 @@ public final class BridgefexNative {
     }
     private static final class Handle101 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_name(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_create_string_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, java.lang.foreign.MemorySegment p_label, long p_label_size, int p_sides) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle102.HANDLE.invokeExact(p_director, p_out_result, p_out_result_size);
+            return (int) Handle102.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_label, p_label_size, p_sides);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1459,13 +1459,13 @@ public final class BridgefexNative {
     }
     private static final class Handle102 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_create_string_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, int.class));
     }
 
-    public static int drc_Shape_director_base_sides(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static java.lang.foreign.MemorySegment drc_Shape_director_object(java.lang.foreign.MemorySegment p_director) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle103.HANDLE.invokeExact(p_director, p_out_result);
+            return (java.lang.foreign.MemorySegment) Handle103.HANDLE.invokeExact(p_director);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1473,13 +1473,13 @@ public final class BridgefexNative {
     }
     private static final class Handle103 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_center(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_name(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle104.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle104.HANDLE.invokeExact(p_director, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1487,13 +1487,13 @@ public final class BridgefexNative {
     }
     private static final class Handle104 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_center", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_move(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_by, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_sides(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle105.HANDLE.invokeExact(p_director, p_by, p_other, p_out_result);
+            return (int) Handle105.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1501,13 +1501,13 @@ public final class BridgefexNative {
     }
     private static final class Handle105 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_move", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_mode(java.lang.foreign.MemorySegment p_director, int p_requested, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_center(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle106.HANDLE.invokeExact(p_director, p_requested, p_out_result);
+            return (int) Handle106.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1515,13 +1515,13 @@ public final class BridgefexNative {
     }
     private static final class Handle106 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_mode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_center", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_scale(java.lang.foreign.MemorySegment p_director, double p_factor) {
+    public static int drc_Shape_director_base_move(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_by, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle107.HANDLE.invokeExact(p_director, p_factor);
+            return (int) Handle107.HANDLE.invokeExact(p_director, p_by, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1529,13 +1529,13 @@ public final class BridgefexNative {
     }
     private static final class Handle107 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
+            "drc_Shape_director_base_move", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_add_int32_int32(java.lang.foreign.MemorySegment p_director, int p_a, int p_b, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_mode(java.lang.foreign.MemorySegment p_director, int p_requested, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle108.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
+            return (int) Handle108.HANDLE.invokeExact(p_director, p_requested, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1543,13 +1543,13 @@ public final class BridgefexNative {
     }
     private static final class Handle108 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_add_int32_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_mode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_add_double_double(java.lang.foreign.MemorySegment p_director, double p_a, double p_b, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_scale(java.lang.foreign.MemorySegment p_director, double p_factor) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle109.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
+            return (int) Handle109.HANDLE.invokeExact(p_director, p_factor);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1557,13 +1557,13 @@ public final class BridgefexNative {
     }
     private static final class Handle109 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_add_double_double", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
     }
 
-    public static int drc_Shape_director_base_greet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_who, long p_who_size, java.lang.foreign.MemorySegment p_tag, long p_tag_size, java.lang.foreign.MemorySegment p_mark, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_add_int32_int32(java.lang.foreign.MemorySegment p_director, int p_a, int p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle110.HANDLE.invokeExact(p_director, p_who, p_who_size, p_tag, p_tag_size, p_mark, p_out_result, p_out_result_size);
+            return (int) Handle110.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1571,13 +1571,13 @@ public final class BridgefexNative {
     }
     private static final class Handle110 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_greet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_add_int32_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_quiet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_add_double_double(java.lang.foreign.MemorySegment p_director, double p_a, double p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle111.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle111.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1585,13 +1585,13 @@ public final class BridgefexNative {
     }
     private static final class Handle111 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_quiet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_add_double_double", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_total(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_greet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_who, long p_who_size, java.lang.foreign.MemorySegment p_tag, long p_tag_size, java.lang.foreign.MemorySegment p_mark, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle112.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result);
+            return (int) Handle112.HANDLE.invokeExact(p_director, p_who, p_who_size, p_tag, p_tag_size, p_mark, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1599,13 +1599,13 @@ public final class BridgefexNative {
     }
     private static final class Handle112 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_greet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_numbers(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_quiet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle113.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result, p_out_result_size);
+            return (int) Handle113.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1613,13 +1613,13 @@ public final class BridgefexNative {
     }
     private static final class Handle113 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_numbers", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_quiet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_words(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_total(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle114.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
+            return (int) Handle114.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1627,13 +1627,13 @@ public final class BridgefexNative {
     }
     private static final class Handle114 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_words", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_modes(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_wanted, long p_wanted_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_numbers(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle115.HANDLE.invokeExact(p_director, p_wanted, p_wanted_size, p_out_result, p_out_result_size);
+            return (int) Handle115.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1641,13 +1641,13 @@ public final class BridgefexNative {
     }
     private static final class Handle115 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_modes", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_numbers", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_points(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_list, long p_list_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_words(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle116.HANDLE.invokeExact(p_director, p_list, p_list_size, p_out_result, p_out_result_size);
+            return (int) Handle116.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1655,13 +1655,13 @@ public final class BridgefexNative {
     }
     private static final class Handle116 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_points", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_words", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_flags(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Shape_director_base_modes(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_wanted, long p_wanted_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle117.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
+            return (int) Handle117.HANDLE.invokeExact(p_director, p_wanted, p_wanted_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1669,13 +1669,13 @@ public final class BridgefexNative {
     }
     private static final class Handle117 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_flags", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_modes", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_triple(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_points(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_list, long p_list_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle118.HANDLE.invokeExact(p_director, p_values, p_out_result);
+            return (int) Handle118.HANDLE.invokeExact(p_director, p_list, p_list_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1683,13 +1683,13 @@ public final class BridgefexNative {
     }
     private static final class Handle118 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_triple", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_points", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_peek(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_holder, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_flags(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle119.HANDLE.invokeExact(p_director, p_holder, p_out_result);
+            return (int) Handle119.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1697,13 +1697,13 @@ public final class BridgefexNative {
     }
     private static final class Handle119 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_flags", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_compare(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_triple(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle120.HANDLE.invokeExact(p_director, p_other, p_out_result);
+            return (int) Handle120.HANDLE.invokeExact(p_director, p_values, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1711,13 +1711,13 @@ public final class BridgefexNative {
     }
     private static final class Handle120 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_compare", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_triple", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_same(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_peek(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_holder, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle121.HANDLE.invokeExact(p_director, p_other, p_out_result);
+            return (int) Handle121.HANDLE.invokeExact(p_director, p_holder, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1725,13 +1725,13 @@ public final class BridgefexNative {
     }
     private static final class Handle121 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_grow(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_compare(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle122.HANDLE.invokeExact(p_director, p_beam, p_out_result);
+            return (int) Handle122.HANDLE.invokeExact(p_director, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1739,13 +1739,13 @@ public final class BridgefexNative {
     }
     private static final class Handle122 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_compare", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_adopt(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_same(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle123.HANDLE.invokeExact(p_director, p_beam, p_out_result);
+            return (int) Handle123.HANDLE.invokeExact(p_director, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1753,13 +1753,13 @@ public final class BridgefexNative {
     }
     private static final class Handle123 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_make_beam(java.lang.foreign.MemorySegment p_director, int p_length, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Shape_director_base_grow(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle124.HANDLE.invokeExact(p_director, p_length, p_out_result);
+            return (int) Handle124.HANDLE.invokeExact(p_director, p_beam, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1767,13 +1767,13 @@ public final class BridgefexNative {
     }
     private static final class Handle124 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_make_beam", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Shape_director_base_changed(java.lang.foreign.MemorySegment p_director, int p_reason) {
+    public static int drc_Shape_director_base_adopt(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle125.HANDLE.invokeExact(p_director, p_reason);
+            return (int) Handle125.HANDLE.invokeExact(p_director, p_beam, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1781,13 +1781,13 @@ public final class BridgefexNative {
     }
     private static final class Handle125 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Shape_director_base_changed", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
+            "drc_Shape_director_base_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_create(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, double p_radius) {
+    public static int drc_Shape_director_base_make_beam(java.lang.foreign.MemorySegment p_director, int p_length, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle126.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_radius);
+            return (int) Handle126.HANDLE.invokeExact(p_director, p_length, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1795,13 +1795,13 @@ public final class BridgefexNative {
     }
     private static final class Handle126 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, double.class));
+            "drc_Shape_director_base_make_beam", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static java.lang.foreign.MemorySegment drc_Circle_director_object(java.lang.foreign.MemorySegment p_director) {
+    public static int drc_Shape_director_base_changed(java.lang.foreign.MemorySegment p_director, int p_reason) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handle127.HANDLE.invokeExact(p_director);
+            return (int) Handle127.HANDLE.invokeExact(p_director, p_reason);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1809,13 +1809,13 @@ public final class BridgefexNative {
     }
     private static final class Handle127 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Shape_director_base_changed", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
-    public static int drc_Circle_director_base_area(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_create(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, double p_radius) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle128.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle128.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_radius);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1823,13 +1823,13 @@ public final class BridgefexNative {
     }
     private static final class Handle128 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, double.class));
     }
 
-    public static int drc_Circle_director_base_name(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static java.lang.foreign.MemorySegment drc_Circle_director_object(java.lang.foreign.MemorySegment p_director) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle129.HANDLE.invokeExact(p_director, p_out_result, p_out_result_size);
+            return (java.lang.foreign.MemorySegment) Handle129.HANDLE.invokeExact(p_director);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1837,13 +1837,13 @@ public final class BridgefexNative {
     }
     private static final class Handle129 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_add_int32_int32(java.lang.foreign.MemorySegment p_director, int p_a, int p_b, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_area(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle130.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
+            return (int) Handle130.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1851,13 +1851,13 @@ public final class BridgefexNative {
     }
     private static final class Handle130 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_add_int32_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_area", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_sides(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_name(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle131.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle131.HANDLE.invokeExact(p_director, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1865,13 +1865,13 @@ public final class BridgefexNative {
     }
     private static final class Handle131 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_name", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_center(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_add_int32_int32(java.lang.foreign.MemorySegment p_director, int p_a, int p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle132.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle132.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1879,13 +1879,13 @@ public final class BridgefexNative {
     }
     private static final class Handle132 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_center", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_add_int32_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_move(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_by, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_sides(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle133.HANDLE.invokeExact(p_director, p_by, p_other, p_out_result);
+            return (int) Handle133.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1893,13 +1893,13 @@ public final class BridgefexNative {
     }
     private static final class Handle133 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_move", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_sides", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_mode(java.lang.foreign.MemorySegment p_director, int p_requested, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_center(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle134.HANDLE.invokeExact(p_director, p_requested, p_out_result);
+            return (int) Handle134.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1907,13 +1907,13 @@ public final class BridgefexNative {
     }
     private static final class Handle134 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_mode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_center", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_scale(java.lang.foreign.MemorySegment p_director, double p_factor) {
+    public static int drc_Circle_director_base_move(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_by, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle135.HANDLE.invokeExact(p_director, p_factor);
+            return (int) Handle135.HANDLE.invokeExact(p_director, p_by, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1921,13 +1921,13 @@ public final class BridgefexNative {
     }
     private static final class Handle135 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
+            "drc_Circle_director_base_move", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_add_double_double(java.lang.foreign.MemorySegment p_director, double p_a, double p_b, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_mode(java.lang.foreign.MemorySegment p_director, int p_requested, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle136.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
+            return (int) Handle136.HANDLE.invokeExact(p_director, p_requested, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1935,13 +1935,13 @@ public final class BridgefexNative {
     }
     private static final class Handle136 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_add_double_double", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_mode", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_greet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_who, long p_who_size, java.lang.foreign.MemorySegment p_tag, long p_tag_size, java.lang.foreign.MemorySegment p_mark, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_scale(java.lang.foreign.MemorySegment p_director, double p_factor) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle137.HANDLE.invokeExact(p_director, p_who, p_who_size, p_tag, p_tag_size, p_mark, p_out_result, p_out_result_size);
+            return (int) Handle137.HANDLE.invokeExact(p_director, p_factor);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1949,13 +1949,13 @@ public final class BridgefexNative {
     }
     private static final class Handle137 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_greet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_scale", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class));
     }
 
-    public static int drc_Circle_director_base_quiet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_add_double_double(java.lang.foreign.MemorySegment p_director, double p_a, double p_b, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle138.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle138.HANDLE.invokeExact(p_director, p_a, p_b, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1963,13 +1963,13 @@ public final class BridgefexNative {
     }
     private static final class Handle138 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_quiet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_add_double_double", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.C_DOUBLE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, double.class, double.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_total(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_greet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_who, long p_who_size, java.lang.foreign.MemorySegment p_tag, long p_tag_size, java.lang.foreign.MemorySegment p_mark, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle139.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result);
+            return (int) Handle139.HANDLE.invokeExact(p_director, p_who, p_who_size, p_tag, p_tag_size, p_mark, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1977,13 +1977,13 @@ public final class BridgefexNative {
     }
     private static final class Handle139 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_greet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_numbers(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_quiet(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle140.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result, p_out_result_size);
+            return (int) Handle140.HANDLE.invokeExact(p_director, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -1991,13 +1991,13 @@ public final class BridgefexNative {
     }
     private static final class Handle140 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_numbers", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_quiet", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_words(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_total(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle141.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
+            return (int) Handle141.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2005,13 +2005,13 @@ public final class BridgefexNative {
     }
     private static final class Handle141 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_words", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_modes(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_wanted, long p_wanted_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_numbers(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, long p_values_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle142.HANDLE.invokeExact(p_director, p_wanted, p_wanted_size, p_out_result, p_out_result_size);
+            return (int) Handle142.HANDLE.invokeExact(p_director, p_values, p_values_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2019,13 +2019,13 @@ public final class BridgefexNative {
     }
     private static final class Handle142 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_modes", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_numbers", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_points(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_list, long p_list_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_words(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle143.HANDLE.invokeExact(p_director, p_list, p_list_size, p_out_result, p_out_result_size);
+            return (int) Handle143.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2033,13 +2033,13 @@ public final class BridgefexNative {
     }
     private static final class Handle143 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_points", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_words", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_flags(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
+    public static int drc_Circle_director_base_modes(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_wanted, long p_wanted_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle144.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
+            return (int) Handle144.HANDLE.invokeExact(p_director, p_wanted, p_wanted_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2047,13 +2047,13 @@ public final class BridgefexNative {
     }
     private static final class Handle144 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_flags", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_modes", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_triple(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_points(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_list, long p_list_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle145.HANDLE.invokeExact(p_director, p_values, p_out_result);
+            return (int) Handle145.HANDLE.invokeExact(p_director, p_list, p_list_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2061,13 +2061,13 @@ public final class BridgefexNative {
     }
     private static final class Handle145 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_triple", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_points", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_peek(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_holder, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_flags(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_input, long p_input_size, java.lang.foreign.MemorySegment p_out_result, java.lang.foreign.MemorySegment p_out_result_size) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle146.HANDLE.invokeExact(p_director, p_holder, p_out_result);
+            return (int) Handle146.HANDLE.invokeExact(p_director, p_input, p_input_size, p_out_result, p_out_result_size);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2075,13 +2075,13 @@ public final class BridgefexNative {
     }
     private static final class Handle146 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_flags", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_compare(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_triple(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_values, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle147.HANDLE.invokeExact(p_director, p_other, p_out_result);
+            return (int) Handle147.HANDLE.invokeExact(p_director, p_values, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2089,13 +2089,13 @@ public final class BridgefexNative {
     }
     private static final class Handle147 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_compare", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_triple", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_same(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_peek(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_holder, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle148.HANDLE.invokeExact(p_director, p_other, p_out_result);
+            return (int) Handle148.HANDLE.invokeExact(p_director, p_holder, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2103,13 +2103,13 @@ public final class BridgefexNative {
     }
     private static final class Handle148 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_peek", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_grow(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_compare(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle149.HANDLE.invokeExact(p_director, p_beam, p_out_result);
+            return (int) Handle149.HANDLE.invokeExact(p_director, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2117,13 +2117,13 @@ public final class BridgefexNative {
     }
     private static final class Handle149 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_compare", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_adopt(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_same(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_other, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle150.HANDLE.invokeExact(p_director, p_beam, p_out_result);
+            return (int) Handle150.HANDLE.invokeExact(p_director, p_other, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2131,13 +2131,13 @@ public final class BridgefexNative {
     }
     private static final class Handle150 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_same", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_make_beam(java.lang.foreign.MemorySegment p_director, int p_length, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Circle_director_base_grow(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle151.HANDLE.invokeExact(p_director, p_length, p_out_result);
+            return (int) Handle151.HANDLE.invokeExact(p_director, p_beam, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2145,13 +2145,13 @@ public final class BridgefexNative {
     }
     private static final class Handle151 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_make_beam", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_grow", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Circle_director_base_changed(java.lang.foreign.MemorySegment p_director, int p_reason) {
+    public static int drc_Circle_director_base_adopt(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_beam, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle152.HANDLE.invokeExact(p_director, p_reason);
+            return (int) Handle152.HANDLE.invokeExact(p_director, p_beam, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2159,13 +2159,13 @@ public final class BridgefexNative {
     }
     private static final class Handle152 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Circle_director_base_changed", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
+            "drc_Circle_director_base_adopt", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Stage_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
+    public static int drc_Circle_director_base_make_beam(java.lang.foreign.MemorySegment p_director, int p_length, java.lang.foreign.MemorySegment p_out_result) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle153.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
+            return (int) Handle153.HANDLE.invokeExact(p_director, p_length, p_out_result);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2173,13 +2173,13 @@ public final class BridgefexNative {
     }
     private static final class Handle153 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Stage_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Circle_director_base_make_beam", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Stage_director_create_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, int p_steps) {
+    public static int drc_Circle_director_base_changed(java.lang.foreign.MemorySegment p_director, int p_reason) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle154.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_steps);
+            return (int) Handle154.HANDLE.invokeExact(p_director, p_reason);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2187,13 +2187,13 @@ public final class BridgefexNative {
     }
     private static final class Handle154 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Stage_director_create_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
+            "drc_Circle_director_base_changed", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, int.class));
     }
 
-    public static java.lang.foreign.MemorySegment drc_Stage_director_object(java.lang.foreign.MemorySegment p_director) {
+    public static int drc_Stage_director_create_void(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (java.lang.foreign.MemorySegment) Handle155.HANDLE.invokeExact(p_director);
+            return (int) Handle155.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
@@ -2201,19 +2201,47 @@ public final class BridgefexNative {
     }
     private static final class Handle155 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
-            "drc_Stage_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+            "drc_Stage_director_create_void", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }
 
-    public static int drc_Stage_director_base_origin(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+    public static int drc_Stage_director_create_int32(java.lang.foreign.MemorySegment p_out_object, java.lang.foreign.MemorySegment p_out_director, java.lang.foreign.MemorySegment p_vtable, int p_steps) {
         try {
             BridgefexRuntime.ensureLoaded();
-            return (int) Handle156.HANDLE.invokeExact(p_director, p_out_result);
+            return (int) Handle156.HANDLE.invokeExact(p_out_object, p_out_director, p_vtable, p_steps);
         }
         catch (Throwable error) {
             throw BridgefexRuntime.unchecked(error);
         }
     }
     private static final class Handle156 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "drc_Stage_director_create_int32", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_INT), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, int.class));
+    }
+
+    public static java.lang.foreign.MemorySegment drc_Stage_director_object(java.lang.foreign.MemorySegment p_director) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (java.lang.foreign.MemorySegment) Handle157.HANDLE.invokeExact(p_director);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle157 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "drc_Stage_director_object", FunctionDescriptor.of(BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int drc_Stage_director_base_origin(java.lang.foreign.MemorySegment p_director, java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle158.HANDLE.invokeExact(p_director, p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle158 {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "drc_Stage_director_base_origin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
     }

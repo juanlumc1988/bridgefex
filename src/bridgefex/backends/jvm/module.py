@@ -74,6 +74,29 @@ def native_source(plan: ModulePlan, names: Names) -> str:
                 ],
             )
         )
+        declarations.append(
+            (
+                plan.vector_sink_set,
+                "void",
+                [
+                    (SEGMENT, "p_sink", "BridgefexRuntime.ADDRESS"),
+                    (SEGMENT, "p_data", "BridgefexRuntime.ADDRESS"),
+                    ("long", "p_count", "BridgefexRuntime.C_SIZE"),
+                    ("long", "p_size", "BridgefexRuntime.C_SIZE"),
+                ],
+            )
+        )
+        declarations.append(
+            (
+                plan.vector_sink_set_strings,
+                "void",
+                [
+                    (SEGMENT, "p_sink", "BridgefexRuntime.ADDRESS"),
+                    (SEGMENT, "p_items", "BridgefexRuntime.ADDRESS"),
+                    ("long", "p_count", "BridgefexRuntime.C_SIZE"),
+                ],
+            )
+        )
         for header in plan.headers:
             declarations.extend(_declaration(function) for function in header.director_functions)
     src = Source()
