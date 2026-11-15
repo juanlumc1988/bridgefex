@@ -254,6 +254,13 @@ class Check {
                 byte[] garbage = new byte[1 << 20];
                 garbage[0] = 1;
                 System.gc();
+                try {
+                    // A collection after another, without a pause, starves the thread that reads the
+                    // strings on a slow machine (a runner of Windows needed more than ten minutes).
+                    Thread.sleep(1);
+                } catch (InterruptedException error) {
+                    return;
+                }
             }
         });
         churn.setDaemon(true);
