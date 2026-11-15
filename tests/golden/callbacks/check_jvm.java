@@ -79,6 +79,15 @@ class Check {
     public static void main(String[] args) throws Exception {
         BridgefexCallbacks.setUnobserved(UNOBSERVED::add);
 
+        // -- The first call into the module gives a callback and returns nothing: nothing has loaded
+        // the library before it (over JNI, the address of its thunk is asked of the glue, which is
+        // registered when the library is loaded).
+        final List<String> first = new ArrayList<String>();
+        Functions.setLogHandler((level, text) -> first.add(text));
+        check(first.equals(Arrays.asList("set")), "the first call of the module is a callback: " + first);
+        Functions.setLogHandler(null);
+        noCallbacks("after the first call");
+
         // -- Results, and the registry is empty after synchronous calls ------------------------------
         check(Functions.sum(5, i -> i * 2) == 20, "sum");
         check(Functions.countIf(6, i -> i % 3 == 0) == 2, "count_if: a bool result and a 64-bit argument");
@@ -130,6 +139,13 @@ class Check {
         check(Functions.classify(1, value -> Level.of(200)).equals(Level.of(200)),
             "an enum with a fixed type holds every value of it");
         expect(NullPointerException.class, () -> Functions.pick(() -> null), "is null");
+        // A scalar result that is null names the callback (and does not fail to unbox).
+        expect(NullPointerException.class, () -> Functions.sum(1, i -> null),
+            "the result of the callback 'f' is null");
+        expect(NullPointerException.class, () -> Functions.countIf(1, i -> null),
+            "the result of the callback 'predicate' is null");
+        expect(NullPointerException.class, () -> Functions.integrate(x -> null, 0.0, 1.0, 2),
+            "the result of the callback 'f' is null");
         noCallbacks("after the refused results");
 
         // -- The first exception of a callback is the one the call raises; C++ gets defaults ------------

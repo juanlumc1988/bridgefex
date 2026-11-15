@@ -146,6 +146,37 @@ def execute(
     )
 
 
+def run_program(
+    case: Case,
+    classes: Path,
+    *arguments: str,
+    properties: tuple[str, ...] = (),
+    environment: dict[str, str] | None = None,
+    main: str = "Check",
+    cwd: Path | None = None,
+    timeout: int = 600,
+) -> subprocess.CompletedProcess[str]:
+    """Run ``main`` of a compiled program without the variable that gives the library, unless
+    ``environment`` does (the tests of how the library is found). ``properties`` are the options
+    of the JVM that come first. A program that does not end in ``timeout`` seconds raises
+    ``subprocess.TimeoutExpired``."""
+    command = javac()
+    assert command is not None
+    variables = {
+        key: value for key, value in os.environ.items() if key != f"{case.module.upper()}_LIBRARY"
+    }
+    variables.update(environment or {})
+    return subprocess.run(
+        [java_runtime(command), *ARGUMENTS, *properties, "-cp", str(classes), main, *arguments],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=variables,
+        timeout=timeout,
+        cwd=cwd,
+    )
+
+
 def _json_safe(value: object) -> object:
     """JSON has no NaN nor infinities: they become ``{ "float": "nan" }``."""
     if isinstance(value, float) and not math.isfinite(value):
