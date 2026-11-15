@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable
 
 from ...errors import Diagnostic, GenerationError
@@ -16,6 +17,7 @@ from ...plan import (
     ModulePlan,
     StructPlan,
 )
+from . import callbacks
 from .enums import enum_class
 from .flavor import FFM, Flavor
 from .lower import Names, lower_callable, method_name
@@ -26,6 +28,7 @@ from .structs import struct_class
 
 JAVA_LANG = "java.lang"
 MAX_SLOTS = 255
+MAX_DOWNCALL_SLOTS = 252
 
 
 def header_package(plan: ModulePlan, header: HeaderPlan) -> str:
@@ -50,6 +53,11 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         (plan.api_fingerprint_function, SEGMENT, []),
         (plan.free_function, "void", [(SEGMENT, "p_memory", "BridgefexRuntime.ADDRESS")]),
     ]
+    if names.has_callbacks:
+        # What C++ is told when the JVM exits: it calls and releases no callback from then on.
+        declarations.append(
+            (plan.disable_callbacks, "void", [(SEGMENT, "p_release", "BridgefexRuntime.ADDRESS")])
+        )
     for header in plan.headers:
         declarations.extend(_declaration(function) for function in header.c_functions)
     src = Source()
@@ -127,12 +135,14 @@ def _declaration(function: CFunction) -> _Declaration:
         returns = "int" if status else native_java(function.ffi_restype)
     except Unsupported as error:
         raise Unsupported(f"'{function.description}': {error}") from error
-    # A method of a Java class has at most 255 slots of parameters (a long and a double take two).
-    slots = sum(2 if type_ in ("long", "double") else 1 for type_, _, _ in params)
-    if slots > MAX_SLOTS:
+    # A downcall has at most 252 slots of parameters: a pointer and a long or a double take two (the
+    # linker keeps three of the 255 that a method has).
+    slots = sum(2 if type_ in (SEGMENT, "long", "double") else 1 for type_, _, _ in params)
+    if slots > MAX_DOWNCALL_SLOTS:
         raise Unsupported(
             f"'{function.description}' has too many parameters for Java (its C function takes "
-            f"{slots} slots of the {MAX_SLOTS} that a method has: a std::string takes 3)"
+            f"{slots} slots of the {MAX_DOWNCALL_SLOTS} that a call has: a pointer takes 2, and a "
+            "std::string is a pointer and a size)"
         )
     return function.name, returns, params
 
@@ -155,7 +165,7 @@ def functions_source(
             "BridgefexObject",
             "BridgefexRuntime",
             "BridgefexUnsigned",
-            *names.flavor.root_types,
+            *names.imports,
         )
     ):
         src.line(f"import {names.root}.{imported};")
@@ -273,7 +283,8 @@ def build_names(plan: ModulePlan, flavor: Flavor = FFM) -> Names:
                     enum_plans[nested.model.usr] = nested
     if errors:
         raise GenerationError(errors)
-    return Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers, flavor)
+    names = Names(root, enums, structs, classes, enum_plans, struct_plans, destroyers, flavor)
+    return dataclasses.replace(names, thunks=callbacks.collect(plan, names))
 
 
 def _nested_problems(

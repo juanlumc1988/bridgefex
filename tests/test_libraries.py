@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.build import jni_includes
 from tests.support.toolchain import Toolchain
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "build_libraries.py"
@@ -105,6 +106,47 @@ def test_other_cases_are_built_and_run_but_not_packaged(
         "bridgefex-demo-host",
         "bridgefex-demo-host",
     ]
+
+
+def test_the_glue_of_a_case_with_callbacks_is_compiled_but_not_built(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """``--jni-glue-case``: the glue of the JNI bindings of another golden case (the one with
+    callbacks has code that the packaged case lacks) is compiled with the compiler of the target,
+    and the case is not built nor run."""
+    includes = jni_includes()
+    if not includes:
+        pytest.skip("needs a JDK with jni.h")
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--target",
+            "host",
+            "--output",
+            str(tmp_path / "dist"),
+            "--work",
+            str(tmp_path / "work"),
+            "--cc",
+            toolchain.cc,
+            "--cxx",
+            toolchain.cxx,
+            "--jdk-include",
+            str(includes[0]),
+            "--jni-glue-case",
+            "callbacks",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    objects = list((tmp_path / "work" / "jni-glue-callbacks" / "obj_jni").iterdir())
+    assert len(objects) == 1
+    # The case that is packaged was not asked for its glue (no --jni-glue), and callbacks
+    # was not built.
+    assert not (tmp_path / "work" / "jni-glue-demo").exists()
+    assert not (tmp_path / "work" / "callbacks").exists()
 
 
 def _host_runtime() -> str | None:

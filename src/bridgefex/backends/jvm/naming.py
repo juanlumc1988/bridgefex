@@ -24,7 +24,7 @@ JAVA_KEYWORDS = frozenset(
 RUNTIME_TYPES = frozenset(
     """
     BridgefexRuntime BridgefexNative BridgefexObject BridgefexException BridgefexFunction
-    BridgefexUnsigned BridgefexHandle BridgefexLease BridgefexKeep
+    BridgefexUnsigned BridgefexHandle BridgefexLease BridgefexKeep BridgefexCallbacks
     """.split()
 )
 

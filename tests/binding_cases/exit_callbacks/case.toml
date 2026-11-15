@@ -1,0 +1,7 @@
+# A case for the Java bindings only (tests/test_jvm_callbacks.py): a C++ global that holds a callback
+# and calls it from its static destructor, when the process exits (on the exiting thread, or on a
+# thread that the destructor starts and joins), and the ways a JVM can exit.
+module = "exitcb"
+headers = ["exitcb.h"]
+std = "c++17"
+languages = ["jvm", "jni"]

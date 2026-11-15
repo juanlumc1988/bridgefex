@@ -577,20 +577,36 @@ def test_a_header_named_like_a_type_of_java_compiles(tmp_path: Path, java: None,
 
 # -- What the Java bindings do not have yet -------------------------------------------------------
 
-UNSUPPORTED = {
-    "a callback": "#include <functional>\nint f(std::function<int(int)> g);",
-    "a method with a callback": (
-        "#include <functional>\nclass K { public: K(); ~K(); void m(std::function<void()> f); };"
-    ),
-}
+
+def refused_directors(
+    tmp_path: Path, classes: tuple[str, ...] = ("Widget",), languages: tuple[str, ...] = ("jvm",)
+) -> dict[str, str]:
+    """Generates a header whose classes ask for a director, which Java cannot do yet."""
+    annotations = tmp_path / "directors.toml"
+    annotations.write_text(
+        "directors = [" + ", ".join(f'"mod_{name}"' for name in classes) + "]\n", encoding="utf-8"
+    )
+    header = tmp_path / "api.h"
+    header.write_text(
+        PRELUDE
+        + "".join(
+            f"class {name} {{ public: {name}(); virtual ~{name}(); virtual int draw(); }};\n"
+            for name in classes
+        )
+        + "int other(int);\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options(
+        "mod", std="c++17", languages=languages, verify=False, annotations=(annotations,)
+    )
+    return bridgefex.generate([header], options).files
 
 
-@pytest.mark.parametrize("code", UNSUPPORTED.values(), ids=UNSUPPORTED.keys())
 def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_and_where(
-    tmp_path: Path, code: str
+    tmp_path: Path,
 ) -> None:
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, code)
+        refused_directors(tmp_path)
     [diagnostic, advice] = raised.value.diagnostics
     assert diagnostic.message.startswith("Java:")
     assert "not supported in Java yet" in diagnostic.message
@@ -600,24 +616,17 @@ def test_what_the_jvm_bindings_do_not_have_is_refused_saying_which_declaration_a
     # What to do about it.
     assert "leave 'jvm' out" in advice.message
     # The Python bindings of the same header are generated all the same.
-    assert generate(tmp_path, code, languages=("python",))
+    assert refused_directors(tmp_path, languages=("python",))
 
 
 def test_every_declaration_that_the_jvm_bindings_cannot_do_is_reported(tmp_path: Path) -> None:
-    code = (
-        "#include <functional>\n"
-        "int a(std::function<int(int)> g);\n"
-        "int b(std::function<int(int)> g);\n"
-        "class K { public: K(); ~K(); void m(std::function<void()> f); void n(); "
-        "void o(std::function<void()> f); };\n"
-    )
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, code)
+        refused_directors(tmp_path, ("Widget", "Gadget", "Gizmo"))
     refused = [d for d in raised.value.diagnostics if d.location is not None]
     lines = sorted(d.location.line for d in refused if d.location is not None)
     base = PRELUDE.count("\n")
-    assert lines == [base + 2, base + 3, base + 4, base + 4]  # a, b, K::m and K::o
-    assert len(raised.value.diagnostics) == 5  # and what to do
+    assert lines == [base + 1, base + 2, base + 3]  # the three classes
+    assert len(raised.value.diagnostics) == 4  # and what to do
 
 
 def test_a_class_that_asks_for_a_director_is_refused(tmp_path: Path) -> None:
@@ -908,3 +917,228 @@ def test_a_container_of_something_else_is_refused(tmp_path: Path) -> None:
     )
     with pytest.raises((GenerationError, ConfigurationError)):
         generate(tmp_path, code)
+
+
+# -- Callbacks ---------------------------------------------------------------------------------
+
+CALLBACKS = """
+#include <cstdint>
+#include <functional>
+#include <string>
+enum class Level : std::uint8_t { Low, High };
+struct Pt { double x; double y; };
+void none(std::function<void()> f);
+int supply(std::function<int()> f);
+void one(std::function<void(int)> f);
+bool two(std::function<bool(int, double)> f);
+void three(std::function<void(int, const std::string&, Pt)> f);
+Level four(std::function<Level(int, int, int, int)> f);
+void same_a(std::function<int(int)> f);
+void same_b(std::function<int(int)> g);
+class Holder { public: Holder(std::function<void(std::uint8_t)> f); ~Holder(); };
+"""
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_std_function_is_the_functional_interface_of_its_arity(
+    tmp_path: Path, language: str
+) -> None:
+    files = generate(tmp_path, CALLBACKS, languages=(language,))
+    functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
+    for signature in (
+        "none(java.lang.Runnable f)",
+        "supply(java.util.function.Supplier<java.lang.Integer> f)",
+        "one(java.util.function.Consumer<java.lang.Integer> f)",
+        "two(java.util.function.BiFunction<java.lang.Integer, java.lang.Double, "
+        "java.lang.Boolean> f)",
+        "three(mod.BridgefexCallbacks.Consumer3<java.lang.Integer, java.lang.String, "
+        "mod.api.Pt> f)",
+        "four(mod.BridgefexCallbacks.Function4<java.lang.Integer, java.lang.Integer, "
+        "java.lang.Integer, java.lang.Integer, mod.api.Level> f)",
+    ):
+        assert signature in functions
+    # An unsigned integer is the next bigger type, as everywhere else.
+    holder = files[f"{language}/mod/src/main/java/mod/api/Holder.java"]
+    assert "Holder(java.util.function.Consumer<java.lang.Short> f)" in holder
+    callbacks = files[f"{language}/mod/src/main/java/mod/BridgefexCallbacks.java"]
+    assert "public interface Consumer3<T1, T2, T3>" in callbacks
+    assert "public interface Function4<T1, T2, T3, T4, TResult>" in callbacks
+    assert "Consumer1" not in callbacks  # java.util.function has it
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_callbacks_of_one_signature_share_a_thunk(tmp_path: Path, language: str) -> None:
+    files = generate(tmp_path, CALLBACKS, languages=(language,))
+    callbacks = files[f"{language}/mod/src/main/java/mod/BridgefexCallbacks.java"]
+    thunks = re.findall(r"private static \w+ (thunk\d+)\(", callbacks)
+    # none, supply, one, two, three, four, int(int) for same_a and same_b, and the holder's.
+    assert len(thunks) == 8
+    functions = files[f"{language}/mod/src/main/java/mod/api/Functions.java"]
+    used = re.findall(r"BridgefexCallbacks\.(Thunk\d+)\.address\(\)", functions)
+    assert len(used) == len(set(used)) + 1  # same_a and same_b use the same one
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_callbacks_compile(tmp_path: Path, java: None, language: str) -> None:
+    assert generate(tmp_path, CALLBACKS, languages=(language,), verify=True)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_call_that_gives_a_callback_raises_its_exception_and_drops_it_if_it_never_runs(
+    tmp_path: Path, language: str
+) -> None:
+    functions = generate(tmp_path, CALLBACKS, languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert "BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()" in functions
+    assert '__scope.register(f, "f", mod.BridgefexCallbacks.Thunk' in functions
+    assert "__scope.returned();" in functions
+    assert "__scope.check(__status);" in functions
+    # A call that gives none is a call all the same (a callback that C++ stored may run in it).
+    assert "BridgefexCallbacks.enter()" not in functions  # every function here gives one
+    plain = generate(tmp_path, CALLBACKS + "\nint plain(int);\n", languages=(language,))[
+        f"{language}/mod/src/main/java/mod/api/Functions.java"
+    ]
+    assert "BridgefexCallbacks.Call __call = BridgefexCallbacks.enter()" in plain
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_callback_with_more_arguments_than_the_bindings_have_interfaces_for_is_refused(
+    tmp_path: Path, language: str
+) -> None:
+    arguments = ", ".join("int" for _ in range(65))
+    with pytest.raises(GenerationError) as raised:
+        generate(
+            tmp_path,
+            f"#include <functional>\nvoid wide(std::function<void({arguments})> f);",
+            languages=(language,),
+        )
+    assert "a callback with 65 arguments" in str(raised.value)
+
+
+# The most strings a callback can take: 2 slots of user_data, and 4 for each string (a pointer and a
+# size, each of 2 slots). A call of the foreign function API has 252 slots, JNI's has 255.
+MOST_STRINGS = {"jvm": 62, "jni": 63}
+
+
+def _string_callback(count: int) -> str:
+    arguments = ", ".join("const std::string&" for _ in range(count))
+    return f"#include <functional>\nvoid cb(std::function<void({arguments})> f);"
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_callback_with_the_most_slots_that_a_call_has_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    assert generate(
+        tmp_path, _string_callback(MOST_STRINGS[language]), languages=(language,), verify=True
+    )
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_callback_with_more_slots_than_a_call_has_is_refused_where_it_is_declared(
+    tmp_path: Path, language: str
+) -> None:
+    count = MOST_STRINGS[language] + 1
+    message = error_of(tmp_path, _string_callback(count), languages=(language,))
+    assert f"a callback with {count} arguments takes" in message
+    assert "slots of the" in message
+    assert "api.h:" in message  # located at the declaration
+
+
+def _callbacks_given(count: int) -> str:
+    parameters = ", ".join(f"std::function<void()> f{n}" for n in range(count))
+    return f"#include <functional>\nvoid many({parameters});"
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_function_with_the_most_callbacks_that_a_call_has_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    # Each one is a function, a user_data and a release function: 6 slots; the 42nd makes 252.
+    assert generate(tmp_path, _callbacks_given(42), languages=(language,), verify=True)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_function_with_more_callbacks_than_a_call_has_slots_for_is_refused(
+    tmp_path: Path, language: str
+) -> None:
+    message = error_of(tmp_path, _callbacks_given(43), languages=(language,))
+    assert "too many parameters" in message
+    assert "many" in message
+
+
+# A module whose classes have a plain constructor and callbacks: the constructor is not a call that
+# can give a callback, and is not an error of the compiler's lint ("try" resource never referenced).
+CALLBACKS_AND_CLASSES = """
+#include <cstdint>
+#include <functional>
+class Plain { public: Plain(); ~Plain(); std::int32_t value() const; };
+class Mixed { public: Mixed(); explicit Mixed(std::function<void()> f); ~Mixed();
+              void run(std::function<void()> f); };
+std::int32_t apply(std::int32_t x, std::function<std::int32_t(std::int32_t)> f);
+std::int32_t plain(std::int32_t x);
+"""
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_module_with_a_class_with_a_plain_constructor_and_callbacks_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    assert generate(tmp_path, CALLBACKS_AND_CLASSES, languages=(language,), verify=True)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_the_constructors_of_a_module_with_callbacks_keep_the_lint_quiet(
+    tmp_path: Path, language: str
+) -> None:
+    files = generate(tmp_path, CALLBACKS_AND_CLASSES, languages=(language,))
+    plain = files[f"{language}/mod/src/main/java/mod/api/Plain.java"]
+    # The call that a constructor makes has a Call resource that is never read.
+    assert '@SuppressWarnings("try")' in plain
+    assert "public Plain()" in plain
+
+
+# Two constructors whose parameters are interfaces that erase to the same type: Java cannot tell
+# them apart (the generics are erased), so they are static methods with the suffix of the C API.
+SAME_ERASURE = """
+#include <cstdint>
+#include <functional>
+class Pair {
+public:
+    explicit Pair(std::function<std::int32_t(std::int32_t)> a);
+    explicit Pair(std::function<std::int64_t(std::int64_t)> b);
+    explicit Pair(std::function<void()> c);
+    ~Pair();
+};
+"""
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_constructors_that_differ_only_in_the_generics_of_a_callback_are_static_methods(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    files = generate(tmp_path, SAME_ERASURE, languages=(language,), verify=True)
+    pair = files[f"{language}/mod/src/main/java/mod/api/Pair.java"]
+    # The Runnable one is told apart by its type; the other two are not (both are a Function).
+    assert "public Pair(java.lang.Runnable c)" in pair
+    assert "public Pair(java.util.function.Function<" not in pair
+    assert pair.count("public static Pair create") == 2
+
+
+@pytest.mark.parametrize(
+    "module",
+    ["box", "function", "value", "out", "c1", "r1", "disabled", "watching", "unobserved", "scope"],
+)
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_module_named_like_a_local_or_a_field_of_the_callbacks_compiles(
+    tmp_path: Path, java: None, language: str, module: str
+) -> None:
+    # CALLBACKS has no class with a plain constructor: what is tested is the names.
+    assert generate(tmp_path, CALLBACKS, module=module, languages=(language,), verify=True)
+
+
+@pytest.mark.parametrize("language", ["jvm", "jni"])
+def test_a_module_without_callbacks_has_no_callbacks_class(tmp_path: Path, language: str) -> None:
+    files = generate(tmp_path, SMALL, languages=(language,))
+    assert not any(path.endswith("BridgefexCallbacks.java") for path in files)

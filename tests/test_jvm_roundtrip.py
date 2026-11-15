@@ -103,39 +103,7 @@ def demo(
     return case, library, output, _check(case, output, language)
 
 
-def _run(
-    case: Case,
-    classes: Path,
-    *arguments: str,
-    properties: tuple[str, ...] = (),
-    environment: dict[str, str] | None = None,
-    main: str = "Check",
-    cwd: Path | None = None,
-) -> subprocess.CompletedProcess[str]:
-    """Run a program without the variable that gives the library, unless ``environment`` does."""
-    command = runner_jvm.javac()
-    assert command is not None
-    variables = {
-        key: value for key, value in os.environ.items() if key != f"{case.module.upper()}_LIBRARY"
-    }
-    variables.update(environment or {})
-    return subprocess.run(
-        [
-            runner_jvm.java_runtime(command),
-            *runner_jvm.ARGUMENTS,
-            *properties,
-            "-cp",
-            str(classes),
-            main,
-            *arguments,
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=variables,
-        timeout=600,
-        cwd=cwd,
-    )
+_run = runner_jvm.run_program
 
 
 def test_the_property_gives_the_library(demo: tuple[Case, Path, Path, Path]) -> None:
