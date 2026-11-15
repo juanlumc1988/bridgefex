@@ -22,6 +22,7 @@ on:
       # The glue of the JNI bindings is compiled for every target here.
       - src/bridgefex/backends/jvm/jni.py
       - src/bridgefex/backends/jvm/callbacks.py
+      - src/bridgefex/backends/jvm/directors.py
       - src/bridgefex/backends/jvm/templates/jni/glue.cpp.j2
   workflow_dispatch:
 
@@ -84,7 +85,7 @@ jobs:
         env:
           CC: gcc-14
           CXX: g++-14
-        run: python scripts/build_libraries.py --target ${{ matrix.target }} --output dist --jni-glue --jni-glue-case callbacks --check-case directors --check-case directors11
+        run: python scripts/build_libraries.py --target ${{ matrix.target }} --output dist --jni-glue --jni-glue-case callbacks --jni-glue-case directors --check-case directors --check-case directors11
       # The headers are parsed as the cross compiler sees them: its target and sysroot.
       - name: Build and run the libraries (32-bit ARM)
         if: matrix.target == 'linux-armhf'
@@ -93,14 +94,14 @@ jobs:
             --cc arm-linux-gnueabihf-gcc-14 --cxx arm-linux-gnueabihf-g++-14 \
             --ar arm-linux-gnueabihf-ar --clang-target armv7a-linux-gnueabihf \
             --runner "qemu-arm -L /usr/arm-linux-gnueabihf" \
-            --jni-glue --jni-glue-case callbacks \
+            --jni-glue --jni-glue-case callbacks --jni-glue-case directors \
             --csharp-runtime linux-arm --csharp-trim \
             --csharp-check containers --csharp-check spans --csharp-check callbacks --csharp-check directors \
             --csharp-check callbacks_edge --csharp-check directors_containers --csharp-check directors_objects \
             --check-case directors --check-case directors11
       - name: Build and run the libraries (Windows)
         if: matrix.target == 'windows-x64'
-        run: python scripts/build_libraries.py --target windows-x64 --output dist --jni-glue --jni-glue-case callbacks --check-case directors --check-case directors11
+        run: python scripts/build_libraries.py --target windows-x64 --output dist --jni-glue --jni-glue-case callbacks --jni-glue-case directors --check-case directors --check-case directors11
       - uses: actions/upload-artifact@v4
         with:
           name: libraries-${{ matrix.target }}
