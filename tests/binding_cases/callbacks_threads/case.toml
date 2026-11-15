@@ -1,0 +1,7 @@
+# A case for the Java bindings only (tests/test_jvm_roundtrip.py, tests/test_jvm_callbacks.py): the
+# callbacks that C++ threads run after the call returned, the results that C++ gets from a callback
+# that failed, and callbacks beside results that C++ allocates. Found by mutating the bindings.
+module = "thr"
+headers = ["thr.h"]
+std = "c++17"
+languages = ["jvm", "jni"]

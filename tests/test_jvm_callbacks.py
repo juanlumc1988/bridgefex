@@ -213,6 +213,61 @@ def test_a_process_that_exits_does_not_call_the_callbacks_that_a_cpp_global_hold
     assert "HANDLER" not in completed.stdout, completed.stdout
 
 
+# A thread of C++ that is still alive when the program ends ---------------------------------------
+
+_LINGER = """\
+import java.util.concurrent.atomic.AtomicInteger;
+
+class Linger {
+    public static void main(String[] args) throws Exception {
+        final AtomicInteger calls = new AtomicInteger();
+        // The thread of C++ calls the callback and then sleeps for a minute.
+        thr.thr.Functions.linger(value -> calls.incrementAndGet());
+        long deadline = System.nanoTime() + 30_000_000_000L;
+        while (calls.get() == 0 && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        if (calls.get() != 1) {
+            throw new AssertionError("the callback did not run");
+        }
+        System.out.println("main ends");
+    }
+}
+"""
+
+THREADS_CASE = Path(__file__).parent / "binding_cases" / "callbacks_threads"
+
+
+@pytest.fixture(scope="module")
+def threads(
+    toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory, language: str
+) -> tuple[Case, Path, Path]:
+    runner_jvm.skip_without_java()
+    case = load_case(THREADS_CASE)
+    library, output = build(case, toolchain, tmp_path_factory.mktemp(f"{language}_threads"))
+    return case, library, output
+
+
+def test_a_thread_of_cpp_that_runs_a_callback_does_not_keep_the_jvm_from_ending(
+    threads: tuple[Case, Path, Path], tmp_path: Path, language: str
+) -> None:
+    """The thread that C++ started is attached to the JVM as a daemon, and the JVM does not wait
+    for it when the program ends (a thread that is not a daemon would be waited for, and this one
+    sleeps for a minute)."""
+    case, library, output = threads
+    program = _program(tmp_path, "Linger", _LINGER)
+    classes = runner_jvm.build_program(case, output, program, "Linger", language=language)
+    completed = runner_jvm.run_program(
+        case,
+        classes,
+        properties=(f"-D{case.module}.library={library}",),
+        main="Linger",
+        timeout=45,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "main ends" in completed.stdout
+
+
 # The checks of the JVM -------------------------------------------------------------------------
 
 
@@ -254,6 +309,7 @@ def _wide_case(directory: Path, language: str) -> Case:
     strings = MOST_STRINGS[language]
     parameters = ", ".join("const std::string&" for _ in range(strings))
     callbacks = ", ".join(f"std::function<void()> f{n}" for n in range(MOST_CALLBACKS))
+    ints = ", ".join("std::int32_t" for _ in range(64))
     (directory / "input").mkdir(parents=True)
     (directory / "impl").mkdir()
     (directory / "case.toml").write_text(
@@ -265,22 +321,28 @@ def _wide_case(directory: Path, language: str) -> Case:
         "namespace wide {\n"
         f"std::int32_t strings(std::function<void({parameters})> f);\n"
         f"void many({callbacks});\n"
+        f"std::int32_t ints(std::function<std::int32_t({ints})> f);\n"
         "}  // namespace wide\n",
         encoding="utf-8",
     )
     texts = ", ".join(f'"{n}"' for n in range(strings))
     calls = " ".join(f"f{n}();" for n in range(MOST_CALLBACKS))
+    values = ", ".join(str(n) for n in range(64))
     (directory / "impl" / "wide.cpp").write_text(
         '#include "wide.h"\n'
         "namespace wide {\n"
         f"std::int32_t strings(std::function<void({parameters})> f) {{\n"
         f"    f({texts});\n    return {strings};\n}}\n"
         f"void many({callbacks}) {{\n    {calls}\n}}\n"
+        f"std::int32_t ints(std::function<std::int32_t({ints})> f) {{\n"
+        f"    return f({values});\n}}\n"
         "}  // namespace wide\n",
         encoding="utf-8",
     )
     names = ", ".join(f"s{n}" for n in range(strings))
     runnables = ", ".join(f"() -> order.add({n})" for n in range(MOST_CALLBACKS))
+    arguments = ", ".join(f"a{n}" for n in range(64))
+    total = " + ".join(f"a{n}" for n in range(64))
     order_check = ", ".join(str(n) for n in range(MOST_CALLBACKS))
     expected = ",".join(str(n) for n in range(strings))
     (directory / "check_jvm.java").write_text(
@@ -300,6 +362,8 @@ def _wide_case(directory: Path, language: str) -> Case:
         f"        Functions.many({runnables});\n"
         f"        check(order.equals(java.util.Arrays.asList({order_check})),\n"
         '            "many: " + order);\n'
+        f"        int sum = Functions.ints(({arguments}) -> {total});\n"
+        f'        check(sum == {sum(range(64))}, "the widest callback, of 64 arguments: " + sum);\n'
         '        check(wide.BridgefexCallbacks.registered() == 0, "nothing is left");\n'
         '        System.out.println("wide: round trip OK");\n'
         "    }\n"

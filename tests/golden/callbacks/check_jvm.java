@@ -28,6 +28,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -60,6 +62,29 @@ class Check {
             sink.add(text);
         });
         return new WeakReference<Object>(captured);
+    }
+
+    // The bindings keep a state for the thread while a call that gives callbacks runs, and none after.
+    static boolean hasThreadState() {
+        try {
+            java.lang.reflect.Field field = BridgefexCallbacks.class.getDeclaredField("STATE");
+            field.setAccessible(true);
+            return ((ThreadLocal<?>) field.get(null)).get() != null;
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError(error);
+        }
+    }
+
+    static void noThreadState(String when) {
+        check(!hasThreadState(), "the thread keeps no state of the callbacks " + when);
+    }
+
+    static void await(CountDownLatch latch) {
+        try {
+            check(latch.await(30, TimeUnit.SECONDS), "a latch was not released");
+        } catch (InterruptedException error) {
+            throw new AssertionError(error);
+        }
     }
 
     static void abandon(List<Integer> sink) {
@@ -189,10 +214,20 @@ class Check {
             throw new NumberFormatException("inner");
         })), "inner");
         noCallbacks("after nested calls");
+        noThreadState("after nested calls");
 
         // A C++ exception: BridgefexException, and the callback is released.
         expect(BridgefexException.class, () -> Functions.integrate(x -> x, 0.0, 1.0, 0), "steps must be positive");
         noCallbacks("after a C++ exception");
+        noThreadState("after a C++ exception");
+
+        // A call that fails after it registered a callback (a null argument) drops it, and keeps no state.
+        expect(NullPointerException.class, () -> Functions.prefixed(null, text -> 1));
+        try (Timer plain = new Timer(null)) {
+            expect(NullPointerException.class, () -> plain.each(null, value -> { }));
+        }
+        noCallbacks("after a call that failed on another argument");
+        noThreadState("after a call that failed on another argument");
 
         // An empty std::function called by C++: bad_function_call.
         expect(BridgefexException.class, () -> Functions.sum(1, null), "function");
@@ -212,6 +247,32 @@ class Check {
         }));
         check(threadCalls.get() == 1, "the callbacks after the failure do not run, also on a C++ thread: " + threadCalls);
         noCallbacks("after the callbacks of C++ threads");
+        noThreadState("after the callbacks of C++ threads");
+
+        // Two callbacks of the same call fail at once, on two threads of C++ (the second one starts
+        // before the first one has failed, so it is not skipped): the call raises the first.
+        {
+            final CountDownLatch secondStarted = new CountDownLatch(1);
+            final CountDownLatch firstThrown = new CountDownLatch(1);
+            RuntimeException both = expect(RuntimeException.class, () -> Functions.parallel(2, 1, thread -> {
+                if (thread == 0) {
+                    await(secondStarted);
+                    firstThrown.countDown();
+                    throw new IllegalArgumentException("first");
+                }
+                secondStarted.countDown();
+                await(firstThrown);
+                try {
+                    Thread.sleep(300); // the first exception has reached the scope of the call by now
+                } catch (InterruptedException error) {
+                    throw new AssertionError(error);
+                }
+                throw new IllegalStateException("second");
+            }));
+            check(both instanceof IllegalArgumentException && "first".equals(both.getMessage()),
+                "the call raises the first exception, not the last: " + both);
+            noCallbacks("after two failing callbacks");
+        }
         check(UNOBSERVED.isEmpty(), "an exception of a callback that a call raised is not also unobserved");
 
         // -- Stored callbacks: kept while C++ keeps them, released on replacement --------------------
@@ -440,6 +501,9 @@ class Check {
                     if (!error.getMessage().equals(Integer.toString(number))) {
                         errors.add("wrong exception in thread " + number);
                     }
+                }
+                if (hasThreadState()) {
+                    errors.add("the thread " + number + " keeps a state of the callbacks");
                 }
             }));
         }
