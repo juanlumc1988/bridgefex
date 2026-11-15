@@ -1198,7 +1198,7 @@ void JNICALL glue_copyIn(JNIEnv* env, jclass cls, jlong address, jbyteArray byte
 // goes with it.
 JavaVM* g_vm = nullptr;
 jweak g_callbacks = nullptr;
-jmethodID g_thunks[23];
+jmethodID g_thunks[29];
 jmethodID g_release = nullptr;
 
 // The process is exiting: C++ may still run callbacks (the destructor of a global), and joins its threads.
@@ -1604,7 +1604,7 @@ void glue_callback_19(void* a0, const double* a1, drc_vector_sink* out)
     env->DeleteLocalRef(callbacks);
 }
 
-void glue_callback_20(void* a0, int32_t a1)
+void glue_callback_20(void* a0, const drc_Holder* a1, int32_t* out)
 {
     JNIEnv* env = callback_env();
     jclass callbacks = env == nullptr
@@ -1613,7 +1613,102 @@ void glue_callback_20(void* a0, int32_t a1)
     if (callbacks == nullptr) {
         return;
     }
-    env->CallStaticVoidMethod(callbacks, g_thunks[20], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1));
+    const jint value = env->CallStaticIntMethod(callbacks, g_thunks[20], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    } else {
+        *out = (int32_t) value;
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_21(void* a0, const drc_Shape* a1, double* out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    const jdouble value = env->CallStaticDoubleMethod(callbacks, g_thunks[21], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    } else {
+        *out = (double) value;
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_22(void* a0, const drc_Shape* a1, bool* out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    const jboolean value = env->CallStaticBooleanMethod(callbacks, g_thunks[22], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    } else {
+        *out = value != JNI_FALSE;
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_23(void* a0, drc_Beam* a1, int32_t* out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    const jint value = env->CallStaticIntMethod(callbacks, g_thunks[23], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    } else {
+        *out = (int32_t) value;
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_24(void* a0, drc_Beam* a1, int32_t* out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    const jint value = env->CallStaticIntMethod(callbacks, g_thunks[24], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    } else {
+        *out = (int32_t) value;
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_25(void* a0, int32_t a1, drc_Beam** out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_thunks[25], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
     if (env->ExceptionCheck()) {
         // Nothing in Java caught it (a stack overflow where it starts): it is shown.
         env->ExceptionDescribe();
@@ -1621,7 +1716,7 @@ void glue_callback_20(void* a0, int32_t a1)
     env->DeleteLocalRef(callbacks);
 }
 
-void glue_callback_21(void* a0, drc_Mode a1, int32_t a2, drc_string_sink* out)
+void glue_callback_26(void* a0, int32_t a1)
 {
     JNIEnv* env = callback_env();
     jclass callbacks = env == nullptr
@@ -1630,7 +1725,7 @@ void glue_callback_21(void* a0, drc_Mode a1, int32_t a2, drc_string_sink* out)
     if (callbacks == nullptr) {
         return;
     }
-    env->CallStaticVoidMethod(callbacks, g_thunks[21], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jbyte>(a1), static_cast<jint>(a2), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
+    env->CallStaticVoidMethod(callbacks, g_thunks[26], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jint>(a1));
     if (env->ExceptionCheck()) {
         // Nothing in Java caught it (a stack overflow where it starts): it is shown.
         env->ExceptionDescribe();
@@ -1638,7 +1733,7 @@ void glue_callback_21(void* a0, drc_Mode a1, int32_t a2, drc_string_sink* out)
     env->DeleteLocalRef(callbacks);
 }
 
-void glue_callback_22(void* a0, drc_Point* out)
+void glue_callback_27(void* a0, drc_Mode a1, int32_t a2, drc_string_sink* out)
 {
     JNIEnv* env = callback_env();
     jclass callbacks = env == nullptr
@@ -1647,7 +1742,24 @@ void glue_callback_22(void* a0, drc_Point* out)
     if (callbacks == nullptr) {
         return;
     }
-    env->CallStaticVoidMethod(callbacks, g_thunks[22], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
+    env->CallStaticVoidMethod(callbacks, g_thunks[27], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jbyte>(a1), static_cast<jint>(a2), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_28(void* a0, drc_Point* out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_thunks[28], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
     if (env->ExceptionCheck()) {
         // Nothing in Java caught it (a stack overflow where it starts): it is shown.
         env->ExceptionDescribe();
@@ -1708,6 +1820,12 @@ jlong JNICALL glue_callbackAddress(JNIEnv* env, jclass cls, jint index)
         reinterpret_cast<uintptr_t>(&glue_callback_20),
         reinterpret_cast<uintptr_t>(&glue_callback_21),
         reinterpret_cast<uintptr_t>(&glue_callback_22),
+        reinterpret_cast<uintptr_t>(&glue_callback_23),
+        reinterpret_cast<uintptr_t>(&glue_callback_24),
+        reinterpret_cast<uintptr_t>(&glue_callback_25),
+        reinterpret_cast<uintptr_t>(&glue_callback_26),
+        reinterpret_cast<uintptr_t>(&glue_callback_27),
+        reinterpret_cast<uintptr_t>(&glue_callback_28),
     };
     if (index < 0 || static_cast<size_t>(index) >= sizeof(addresses) / sizeof(addresses[0])) {
         return 0;
@@ -1960,9 +2078,15 @@ extern "C" JNIEXPORT jint bridgefex_drc_jni_register(JNIEnv* env)
     g_thunks[17] = env->GetStaticMethodID(callbacks_class, "thunk17", "(JJJJ)V");
     g_thunks[18] = env->GetStaticMethodID(callbacks_class, "thunk18", "(JJJJ)V");
     g_thunks[19] = env->GetStaticMethodID(callbacks_class, "thunk19", "(JJJ)V");
-    g_thunks[20] = env->GetStaticMethodID(callbacks_class, "thunk20", "(JI)V");
-    g_thunks[21] = env->GetStaticMethodID(callbacks_class, "thunk21", "(JBIJ)V");
-    g_thunks[22] = env->GetStaticMethodID(callbacks_class, "thunk22", "(JJ)V");
+    g_thunks[20] = env->GetStaticMethodID(callbacks_class, "thunk20", "(JJ)I");
+    g_thunks[21] = env->GetStaticMethodID(callbacks_class, "thunk21", "(JJ)D");
+    g_thunks[22] = env->GetStaticMethodID(callbacks_class, "thunk22", "(JJ)Z");
+    g_thunks[23] = env->GetStaticMethodID(callbacks_class, "thunk23", "(JJ)I");
+    g_thunks[24] = env->GetStaticMethodID(callbacks_class, "thunk24", "(JJ)I");
+    g_thunks[25] = env->GetStaticMethodID(callbacks_class, "thunk25", "(JIJ)V");
+    g_thunks[26] = env->GetStaticMethodID(callbacks_class, "thunk26", "(JI)V");
+    g_thunks[27] = env->GetStaticMethodID(callbacks_class, "thunk27", "(JBIJ)V");
+    g_thunks[28] = env->GetStaticMethodID(callbacks_class, "thunk28", "(JJ)V");
     g_release = env->GetStaticMethodID(callbacks_class, "release", "(J)V");
     if (env->ExceptionCheck()) {
         env->ExceptionClear();

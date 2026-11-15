@@ -421,6 +421,56 @@ public final class BridgefexCallbacks {
 
     private static final ThreadLocal<List<DirectorBox>> RUNNING = new ThreadLocal<List<DirectorBox>>();
 
+    /** The Java objects that are directors, by the address of their C++ object. */
+    private static final ConcurrentHashMap<Long, DirectorBox> OBJECTS = new ConcurrentHashMap<Long, DirectorBox>();
+
+    /**
+     * The objects that C++ lends to an override for the length of the call (a reference or a pointer to a
+     * class): the override gets the Java object that is the C++ object, if Java still owns one (it cannot
+     * be closed until the override returns), else a wrapper that is closed when the override returns, so
+     * that one that is kept fails instead of using what C++ may have freed.
+     */
+    private static final class Lent {
+        private List<BridgefexObject> borrowed;
+        private List<BridgefexHandle> held;
+
+        <T extends BridgefexObject> T known(long address, Class<T> type) {
+            DirectorBox box = OBJECTS.get(address);
+            BridgefexObject target = box == null ? null : box.target();
+            if (type.isInstance(target) && target.handle.tryLease() == BridgefexHandle.LeaseResult.OK) {
+                if (held == null) {
+                    held = new ArrayList<BridgefexHandle>();
+                }
+                held.add(target.handle);
+                return type.cast(target);
+            }
+            return null;
+        }
+
+        <T extends BridgefexObject> T borrowed(T wrapper) {
+            if (wrapper != null) {
+                if (borrowed == null) {
+                    borrowed = new ArrayList<BridgefexObject>();
+                }
+                borrowed.add(wrapper);
+            }
+            return wrapper;
+        }
+
+        void close() {
+            if (borrowed != null) {
+                for (BridgefexObject wrapper : borrowed) {
+                    wrapper.close();
+                }
+            }
+            if (held != null) {
+                for (BridgefexHandle handle : held) {
+                    handle.releaseLease();
+                }
+            }
+        }
+    }
+
     /**
      * The Java object of a director. While Java owns it the box does not keep it alive (the collector may
      * collect it, and then C++ destroys the director); while C++ owns it, or a C++ object points to it,
@@ -432,6 +482,7 @@ public final class BridgefexCallbacks {
         private final int kind;
         private volatile long key;
         private volatile long pointer;
+        private volatile long objectPointer;
         private int pins;
         private boolean given;
 
@@ -451,9 +502,19 @@ public final class BridgefexCallbacks {
             return kind;
         }
 
-        /** The C function made the director: the pointer for its base calls. */
+        /**
+         * The C function made the director: the pointer for its base calls, and the address of the C++
+         * object, as C++ passes it: when it lends the object to an override, the override gets this
+         * Java object and not a wrapper of it. A class with a director derives from at most one class,
+         * so the address is the same for all its classes.
+         */
         public void attach({{ segment_type }} director, {{ segment_type }} object) {
             pointer = director.address();
+            long address = object.address();
+            if (address != 0L) {
+                objectPointer = address;
+                OBJECTS.put(address, this);
+            }
         }
 
         /** The director (the pointer for its base calls); NULL until the C function has made it. */
@@ -492,6 +553,11 @@ public final class BridgefexCallbacks {
             given = false;
             pins = 0;
             strong = null;
+            long address = objectPointer;
+            if (address != 0L) {
+                // Only its own entry: the address may be another director's by now.
+                OBJECTS.remove(address, this);
+            }
         }
 
         /** The innermost call of the thread that has failed already cannot run another override. */

@@ -67,7 +67,13 @@ public class Shape extends BridgefexObject {
             if (__over[15]) __vt.set(BridgefexRuntime.ADDRESS, 17L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk17.address());
             if (__over[16]) __vt.set(BridgefexRuntime.ADDRESS, 18L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk18.address());
             if (__over[17]) __vt.set(BridgefexRuntime.ADDRESS, 19L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk19.address());
-            if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+            if (__over[18]) __vt.set(BridgefexRuntime.ADDRESS, 20L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+            if (__over[19]) __vt.set(BridgefexRuntime.ADDRESS, 21L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
+            if (__over[20]) __vt.set(BridgefexRuntime.ADDRESS, 22L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
+            if (__over[21]) __vt.set(BridgefexRuntime.ADDRESS, 23L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk23.address());
+            if (__over[22]) __vt.set(BridgefexRuntime.ADDRESS, 24L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk24.address());
+            if (__over[23]) __vt.set(BridgefexRuntime.ADDRESS, 25L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk25.address());
+            if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk26.address());
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             var __director = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.drc_Shape_director_create_void(__result, __director, __vt);
@@ -109,7 +115,13 @@ public class Shape extends BridgefexObject {
             if (__over[15]) __vt.set(BridgefexRuntime.ADDRESS, 17L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk17.address());
             if (__over[16]) __vt.set(BridgefexRuntime.ADDRESS, 18L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk18.address());
             if (__over[17]) __vt.set(BridgefexRuntime.ADDRESS, 19L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk19.address());
-            if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+            if (__over[18]) __vt.set(BridgefexRuntime.ADDRESS, 20L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+            if (__over[19]) __vt.set(BridgefexRuntime.ADDRESS, 21L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
+            if (__over[20]) __vt.set(BridgefexRuntime.ADDRESS, 22L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
+            if (__over[21]) __vt.set(BridgefexRuntime.ADDRESS, 23L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk23.address());
+            if (__over[22]) __vt.set(BridgefexRuntime.ADDRESS, 24L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk24.address());
+            if (__over[23]) __vt.set(BridgefexRuntime.ADDRESS, 25L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk25.address());
+            if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk26.address());
             byte[] __b1 = BridgefexRuntime.utf8(label, "label");
             var __p1 = BridgefexRuntime.bytes(__arena, __b1);
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
@@ -1287,7 +1299,36 @@ public class Shape extends BridgefexObject {
      * int32_t drc::Shape::peek(const drc::Holder&amp; holder) const
      */
     @BridgefexFunction("drc_Shape_peek")
-    public final int peek(drc.shape.Holder holder) {
+    public int peek(drc.shape.Holder holder) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    BridgefexRuntime.nonNull(holder, "holder");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = holder.hold(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        int __status = BridgefexNative.drc_Circle_director_base_peek(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                case 5: {
+                    BridgefexRuntime.nonNull(holder, "holder");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = holder.hold(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        int __status = BridgefexNative.drc_Shape_director_base_peek(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         BridgefexRuntime.nonNull(holder, "holder");
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold_drc_Shape(false, false); var __t1 = holder.hold(false, false)) {
             var __h1 = __t1.pointer();
@@ -1303,7 +1344,36 @@ public class Shape extends BridgefexObject {
      * double drc::Shape::compare(const drc::Shape&amp; other) const
      */
     @BridgefexFunction("drc_Shape_compare")
-    public final double compare(drc.shape.Shape other) {
+    public double compare(drc.shape.Shape other) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    BridgefexRuntime.nonNull(other, "other");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
+                        int __status = BridgefexNative.drc_Circle_director_base_compare(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_DOUBLE, 0);
+                    }
+                }
+                case 5: {
+                    BridgefexRuntime.nonNull(other, "other");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
+                        int __status = BridgefexNative.drc_Shape_director_base_compare(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_DOUBLE, 0);
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         BridgefexRuntime.nonNull(other, "other");
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold_drc_Shape(false, false); var __t1 = other.hold_drc_Shape(false, false)) {
             var __h1 = __t1.pointer();
@@ -1321,7 +1391,36 @@ public class Shape extends BridgefexObject {
      * other may be null.
      */
     @BridgefexFunction("drc_Shape_same")
-    public final boolean same(drc.shape.Shape other) {
+    public boolean same(drc.shape.Shape other) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    BridgefexRuntime.nonNull(other, "other");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_BOOL);
+                        int __status = BridgefexNative.drc_Circle_director_base_same(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_BOOL, 0);
+                    }
+                }
+                case 5: {
+                    BridgefexRuntime.nonNull(other, "other");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_BOOL);
+                        int __status = BridgefexNative.drc_Shape_director_base_same(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_BOOL, 0);
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold_drc_Shape(false, false); var __t1 = other == null ? null : other.hold_drc_Shape(false, false)) {
             var __h1 = __t1 == null ? java.lang.foreign.MemorySegment.NULL : __t1.pointer();
             var __result = __arena.allocate(BridgefexRuntime.C_BOOL);
@@ -1336,7 +1435,36 @@ public class Shape extends BridgefexObject {
      * int32_t drc::Shape::grow(drc::Beam&amp; beam) const
      */
     @BridgefexFunction("drc_Shape_grow")
-    public final int grow(drc.shape.Beam beam) {
+    public int grow(drc.shape.Beam beam) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    BridgefexRuntime.nonNull(beam, "beam");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = beam.hold(true, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        int __status = BridgefexNative.drc_Circle_director_base_grow(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                case 5: {
+                    BridgefexRuntime.nonNull(beam, "beam");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = beam.hold(true, false)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        int __status = BridgefexNative.drc_Shape_director_base_grow(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         BridgefexRuntime.nonNull(beam, "beam");
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold_drc_Shape(false, false); var __t1 = beam.hold(true, false)) {
             var __h1 = __t1.pointer();
@@ -1352,7 +1480,40 @@ public class Shape extends BridgefexObject {
      * int32_t drc::Shape::adopt(std::unique_ptr&lt;drc::Beam&gt; beam) const
      */
     @BridgefexFunction("drc_Shape_adopt")
-    public final int adopt(drc.shape.Beam beam) {
+    public int adopt(drc.shape.Beam beam) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    BridgefexRuntime.nonNull(beam, "beam");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = beam.hold(true, true)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        __t1.give();
+                        beam.surrender();
+                        int __status = BridgefexNative.drc_Circle_director_base_adopt(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                case 5: {
+                    BridgefexRuntime.nonNull(beam, "beam");
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = beam.hold(true, true)) {
+                        var __h1 = __t1.pointer();
+                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
+                        __t1.give();
+                        beam.surrender();
+                        int __status = BridgefexNative.drc_Shape_director_base_adopt(__self.pointer(), __h1, __result);
+                        __scope.returned();
+                        __scope.check(__status);
+                        return __result.get(BridgefexRuntime.C_INT, 0);
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         if ((java.lang.Object) beam == this)
         {
             throw new java.lang.IllegalArgumentException("beam: the object is given to C++, which destroys it, and the call uses it too");
@@ -1376,7 +1537,38 @@ public class Shape extends BridgefexObject {
      * The result is null if C++ gives a NULL pointer.
      */
     @BridgefexFunction("drc_Shape_make_beam")
-    public final drc.shape.Beam makeBeam(int length) {
+    public drc.shape.Beam makeBeam(int length) {
+        BridgefexCallbacks.DirectorBox __d = director();
+        if (__d != null) {
+            switch (__d.kind()) {
+                case 1: {
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false)) {
+                        var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
+                        var __h = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
+                        var __new = drc.shape.Beam.wrap(__h);
+                        int __status = BridgefexNative.drc_Circle_director_base_make_beam(__self.pointer(), length, __result);
+                        __scope.returned();
+                        __h.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+                        __scope.check(__status);
+                        return __h.isInvalid() ? null : __new;
+                    }
+                }
+                case 5: {
+                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false)) {
+                        var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
+                        var __h = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
+                        var __new = drc.shape.Beam.wrap(__h);
+                        int __status = BridgefexNative.drc_Shape_director_base_make_beam(__self.pointer(), length, __result);
+                        __scope.returned();
+                        __h.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+                        __scope.check(__status);
+                        return __h.isInvalid() ? null : __new;
+                    }
+                }
+                default:
+                    break;
+            }
+        }
         try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = hold_drc_Shape(false, false)) {
             var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             var __h = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
@@ -2059,12 +2251,12 @@ public class Shape extends BridgefexObject {
                     BridgefexDirectors.overrides(type, GENERATED, "points", new java.lang.Class<?>[] { drc.shape.Point[].class }),
                     BridgefexDirectors.overrides(type, GENERATED, "flags", new java.lang.Class<?>[] { boolean[].class }),
                     BridgefexDirectors.overrides(type, GENERATED, "triple", new java.lang.Class<?>[] { double[].class }),
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
+                    BridgefexDirectors.overrides(type, GENERATED, "peek", new java.lang.Class<?>[] { drc.shape.Holder.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "compare", new java.lang.Class<?>[] { drc.shape.Shape.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "same", new java.lang.Class<?>[] { drc.shape.Shape.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "grow", new java.lang.Class<?>[] { drc.shape.Beam.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "adopt", new java.lang.Class<?>[] { drc.shape.Beam.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "makeBeam", new java.lang.Class<?>[] { int.class }),
                     BridgefexDirectors.overrides(type, GENERATED, "changed", new java.lang.Class<?>[] { int.class }),
                 };
             }

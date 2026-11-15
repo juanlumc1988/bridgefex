@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 
 from ...model import (
     Access,
+    ClassForm,
+    ClassRef,
     ContainerKind,
     ContainerType,
     EnumRef,
@@ -89,7 +91,14 @@ class Part:
     prelude: tuple[str, ...] = ()
     """Statements that make the value (a container is read element by element): ``{0}``, ``{1}``
     are the C parameters, ``{v}`` the local that ``read`` is, ``{n}``, ``{b}`` and ``{i}`` the
-    count, the memory and the index."""
+    count, the memory and the index, ``{h}`` a handle and ``{lent}`` the objects that C++ lends."""
+
+    lends: bool = False
+    """An object that C++ lends for the call: the thunk makes ``{lent}`` and closes it."""
+
+    adopts: str = ""
+    """The class of an object that C++ gives up: the thunk declares ``{v}`` before anything can
+    fail, and destroys the object if the override never gets it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,9 +162,39 @@ def argument(part: CallbackPart, names: Names) -> Part:
         )
     if isinstance(type_, ContainerType):
         return _container_argument(part, type_, names)
+    if isinstance(type_, ClassRef) and part.cls is not None:
+        return _object_argument(part, type_, names)
     raise Unsupported(
         f"the type '{type_.cpp_spelling}' of an argument of a callback is not supported in Java"
     )
+
+
+def _object_argument(part: CallbackPart, type_: ClassRef, names: Names) -> Part:
+    """An object that C++ gives to an override: a reference or a pointer is lent (valid while the
+    override runs), a ``std::unique_ptr`` is given for good (a plain object that owns it)."""
+    info = part.cls
+    assert info is not None
+    cls = names.cls(info)
+    pointer = (f"{R}.ADDRESS",)
+    if type_.form is ClassForm.UNIQUE:
+        adopt = (
+            "if ({0}.address() != 0L) {",
+            f"    BridgefexHandle {{h}} = {names.destroyer(info.c_type)};",
+            "    {h}.assign({0});",
+            f"    {{v}} = {cls}.wrap({{h}});",
+            "}",
+        )
+        return Part(cls, ("pointer",), pointer, "{v}", adopt, adopts=cls)
+    readonly = (
+        "true" if type_.form in (ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER) else "false"
+    )
+    prelude = (
+        f"{cls} {{v}} = {{lent}}.known({{0}}.address(), {cls}.class);",
+        "if ({v} == null) {",
+        f"    {{v}} = {{lent}}.borrowed({cls}.borrow({{0}}, null, {readonly}));",
+        "}",
+    )
+    return Part(cls, ("pointer",), pointer, "{v}", prelude, lends=True)
 
 
 def _container_argument(part: CallbackPart, type_: ContainerType, names: Names) -> Part:
@@ -235,6 +274,8 @@ def director_result(part: CallbackPart, names: Names) -> Returns | Pointed | Non
         return Pointed("struct", names.struct(part.struct))
     if isinstance(type_, ContainerType):
         return Pointed("container", f"{element_of(part.element, names).public}[]", part=part)
+    if isinstance(type_, ClassRef) and part.cls is not None:
+        return Pointed("object", names.cls(part.cls), part=part)
     return result(part, names)
 
 
@@ -477,14 +518,34 @@ def interfaces(thunks: Thunks, names: Names) -> list[tuple[bool, int]]:
 _JNI_CARRIER = {"pointer": "long"}
 
 
-def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[str]]:
-    """(the parameters of the thunk, what makes a segment of a pointer that JNI carried as a long,
-    the expression of each argument)."""
+@dataclass(slots=True)
+class Arguments:
+    """What a thunk does with the C arguments."""
+
+    parameters: list[str]
+    prelude: list[str]
+    """What makes the arguments: the segments of the pointers that JNI carried as a long, then
+    the objects that C++ gave up, then the rest."""
+
+    values: list[str]
+    """The expression of each argument."""
+
+    adopted: list[tuple[str, str]]
+    """(the class, the local) of each object that C++ gave up."""
+
+    lends: bool
+
+
+def _arguments(thunk: Thunk, names: Names) -> Arguments:
     ffm = names.flavor.modern
     segment = names.flavor.segment
     parameters = [f"{segment if ffm else 'long'} {L}userData"]
-    prelude: list[str] = []
+    pointers: list[str] = []
+    adopts: list[str] = []
+    rest: list[str] = []
     values: list[str] = []
+    adopted: list[tuple[str, str]] = []
+    lends = False
     position = 0
     for number, part in enumerate(thunk.callback.arguments, start=1):
         argument_ = argument(part, names)
@@ -497,7 +558,7 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
                     parameters.append(f"{segment} {local}")
                 else:
                     parameters.append(f"long {L}r{position}")
-                    prelude.append(f"{segment} {local} = {segment}.ofAddress({L}r{position});")
+                    pointers.append(f"{segment} {local} = {segment}.ofAddress({L}r{position});")
             else:
                 parameters.append(f"{carrier} {local}")
             locals_.append(local)
@@ -506,6 +567,8 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
             "n": f"{L}n{number}",
             "b": f"{L}b{number}",
             "i": f"{L}k{number}",
+            "h": f"{L}h{number}",
+            "lent": f"{L}lent",
         }
 
         def fill(text: str, locals_: list[str] = locals_, names_: dict[str, str] = names_) -> str:
@@ -515,9 +578,18 @@ def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[
                 text = text.replace(f"{{{key}}}", new)
             return text
 
-        prelude.extend(fill(line) for line in argument_.prelude)
+        (adopts if argument_.adopts else rest).extend(fill(line) for line in argument_.prelude)
+        if argument_.adopts:
+            adopted.append((argument_.adopts, names_["v"]))
+        lends = lends or argument_.lends
         values.append(fill(argument_.read))
-    return parameters, prelude, values
+    return Arguments(parameters, [*pointers, *adopts, *rest], values, adopted, lends)
+
+
+def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[str]]:
+    """(the parameters of the thunk, what makes its arguments, the expression of each)."""
+    arguments = _arguments(thunk, names)
+    return arguments.parameters, arguments.prelude, arguments.values
 
 
 def method_lines(thunk: Thunk, names: Names) -> list[str]:
@@ -648,6 +720,44 @@ def _container_result(thunk: Thunk, names: Names, out: Pointed, call: str) -> li
     return lines
 
 
+def _object_result(thunk: Thunk, names: Names, out: Pointed, call: str) -> list[str]:
+    """The statements that give C++ the object that an override returned (a ``std::unique_ptr``):
+    Java gives it up, as a call that takes the object gives it."""
+    target = thunk.target
+    assert target is not None
+    assert out.part is not None
+    info = out.part.cls
+    assert info is not None
+    ffm = names.flavor.modern
+    segment = names.flavor.segment
+    hold = f"hold_{info.c_type}(true, true)" if info.is_base else "hold(true, true)"
+    value, lease, pointer = f"{L}value", f"{L}lease", f"{L}pointer"
+    lines = [f"{out.public} {value} = {call};", f"if ({value} != null) {{"]
+    if info.is_base and not info.model.virtual_destructor:
+        # C++ destroys the object through this class: only an object of exactly it.
+        what = f'"the override {target.what}"'
+        lines.append(f"    BridgefexObject.checkExact({value}, {out.public}.class, {what});")
+    lines += [
+        f"    BridgefexLease {lease} = {value}.{hold};",
+        "    try {",
+        f"        {segment} {pointer} = {lease}.pointer();",
+        f"        {lease}.give();",
+        f"        {value}.surrender();",
+    ]
+    if ffm:
+        lines.append(
+            f"        {L}out.reinterpret({R}.ADDRESS.byteSize()).set({R}.ADDRESS, 0, {pointer});"
+        )
+    else:
+        lines += [
+            f"        {segment} {L}copy = {segment}.of(new byte[(int) {R}.ADDRESS.byteSize()]);",
+            f"        {L}copy.set({R}.ADDRESS, 0, {pointer});",
+            f"        {R}.copyIn({L}slot, {L}copy);",
+        ]
+    lines += ["    } finally {", f"        {lease}.close();", "    }", "}"]
+    return lines
+
+
 def _director_call(
     thunk: Thunk, names: Names, out: Returns | Pointed | None, call: str
 ) -> list[str]:
@@ -677,6 +787,8 @@ def _director_call(
             body.append(f"return {convert};")
     elif out.kind == "container":
         body += _container_result(thunk, names, out, call)
+    elif out.kind == "object":
+        body += _object_result(thunk, names, out, call)
     elif out.kind == "struct":
         body.append(f"{out.public} {L}value = {R}.nonNull({call}, {label});")
         if ffm:
@@ -724,7 +836,8 @@ def director_lines(thunk: Thunk, names: Names) -> list[str]:
     ffm = names.flavor.modern
     segment = names.flavor.segment
     out = director_result(thunk.callback.result, names)
-    parameters, prelude, values = _parameters(thunk, names)
+    arguments = _arguments(thunk, names)
+    parameters, prelude, values = arguments.parameters, arguments.prelude, arguments.values
     if out is not None and (ffm or isinstance(out, Pointed)):
         parameters.append(f"{segment} {L}out" if ffm else f"long {L}out")
         if not ffm:
@@ -733,8 +846,15 @@ def director_lines(thunk: Thunk, names: Names) -> list[str]:
     returns = out.carrier if isinstance(out, Returns) and not ffm else "void"
     nothing = "" if returns == "void" else " false" if returns == "boolean" else " 0"
     key = f"{L}userData.address()" if ffm else f"{L}userData"
-    lines = [
-        f"private static {returns} thunk{thunk.index}({', '.join(parameters)}) {{",
+    lines = [f"private static {returns} thunk{thunk.index}({', '.join(parameters)}) {{"]
+    # The objects that C++ gave up are ours from the start: they are destroyed if the override
+    # never gets them.
+    lines += [f"    {cls} {local} = null;" for cls, local in arguments.adopted]
+    if arguments.adopted:
+        lines.append(f"    boolean {L}passed = false;")
+    if arguments.lends:
+        lines.append(f"    Lent {L}lent = new Lent();")
+    lines += [
         f"    DirectorBox {L}box = null;",
         "    try {",
         f"        {L}box = (DirectorBox) of({key});",
@@ -753,6 +873,8 @@ def director_lines(thunk: Thunk, names: Names) -> list[str]:
         f"        {L}box.enter();",
         "        try {",
     ]
+    if arguments.adopted:
+        lines.append(f"            {L}passed = true;")
     call = f"{L}target.{target.method}({', '.join(values)})"
     body = _director_call(thunk, names, out, call)
     lines += [f"            {line}" for line in body]
@@ -764,6 +886,18 @@ def director_lines(thunk: Thunk, names: Names) -> list[str]:
         f"        fail({L}box, {L}error);",
         "    }",
     ]
+    if arguments.lends or arguments.adopted:
+        lines.append("    finally {")
+        if arguments.lends:
+            lines.append(f"        {L}lent.close();")
+        if arguments.adopted:
+            lines.append(f"        if (!{L}passed) {{")
+            lines += [
+                f"            if ({local} != null) {{ {local}.close(); }}"
+                for _, local in arguments.adopted
+            ]
+            lines.append("        }")
+        lines.append("    }")
     if returns != "void":
         lines.append(f"    return{nothing};")
     lines.append("}")

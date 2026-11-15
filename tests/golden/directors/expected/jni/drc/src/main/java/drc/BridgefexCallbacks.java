@@ -351,6 +351,56 @@ public final class BridgefexCallbacks {
 
     private static final ThreadLocal<List<DirectorBox>> RUNNING = new ThreadLocal<List<DirectorBox>>();
 
+    /** The Java objects that are directors, by the address of their C++ object. */
+    private static final ConcurrentHashMap<Long, DirectorBox> OBJECTS = new ConcurrentHashMap<Long, DirectorBox>();
+
+    /**
+     * The objects that C++ lends to an override for the length of the call (a reference or a pointer to a
+     * class): the override gets the Java object that is the C++ object, if Java still owns one (it cannot
+     * be closed until the override returns), else a wrapper that is closed when the override returns, so
+     * that one that is kept fails instead of using what C++ may have freed.
+     */
+    private static final class Lent {
+        private List<BridgefexObject> borrowed;
+        private List<BridgefexHandle> held;
+
+        <T extends BridgefexObject> T known(long address, Class<T> type) {
+            DirectorBox box = OBJECTS.get(address);
+            BridgefexObject target = box == null ? null : box.target();
+            if (type.isInstance(target) && target.handle.tryLease() == BridgefexHandle.LeaseResult.OK) {
+                if (held == null) {
+                    held = new ArrayList<BridgefexHandle>();
+                }
+                held.add(target.handle);
+                return type.cast(target);
+            }
+            return null;
+        }
+
+        <T extends BridgefexObject> T borrowed(T wrapper) {
+            if (wrapper != null) {
+                if (borrowed == null) {
+                    borrowed = new ArrayList<BridgefexObject>();
+                }
+                borrowed.add(wrapper);
+            }
+            return wrapper;
+        }
+
+        void close() {
+            if (borrowed != null) {
+                for (BridgefexObject wrapper : borrowed) {
+                    wrapper.close();
+                }
+            }
+            if (held != null) {
+                for (BridgefexHandle handle : held) {
+                    handle.releaseLease();
+                }
+            }
+        }
+    }
+
     /**
      * The Java object of a director. While Java owns it the box does not keep it alive (the collector may
      * collect it, and then C++ destroys the director); while C++ owns it, or a C++ object points to it,
@@ -362,6 +412,7 @@ public final class BridgefexCallbacks {
         private final int kind;
         private volatile long key;
         private volatile long pointer;
+        private volatile long objectPointer;
         private int pins;
         private boolean given;
 
@@ -381,9 +432,19 @@ public final class BridgefexCallbacks {
             return kind;
         }
 
-        /** The C function made the director: the pointer for its base calls. */
+        /**
+         * The C function made the director: the pointer for its base calls, and the address of the C++
+         * object, as C++ passes it: when it lends the object to an override, the override gets this
+         * Java object and not a wrapper of it. A class with a director derives from at most one class,
+         * so the address is the same for all its classes.
+         */
         public void attach(BridgefexSegment director, BridgefexSegment object) {
             pointer = director.address();
+            long address = object.address();
+            if (address != 0L) {
+                objectPointer = address;
+                OBJECTS.put(address, this);
+            }
         }
 
         /** The director (the pointer for its base calls); NULL until the C function has made it. */
@@ -422,6 +483,11 @@ public final class BridgefexCallbacks {
             given = false;
             pins = 0;
             strong = null;
+            long address = objectPointer;
+            if (address != 0L) {
+                // Only its own entry: the address may be another director's by now.
+                OBJECTS.remove(address, this);
+            }
         }
 
         /** The innermost call of the thread that has failed already cannot run another override. */
@@ -1321,7 +1387,285 @@ public final class BridgefexCallbacks {
         }
     }
 
-    private static void thunk20(long __userData, int __c1) {
+    private static int thunk20(long __userData, long __r1) {
+        Lent __lent = new Lent();
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return 0;
+            }
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            drc.shape.Holder __v1 = __lent.known(__c1.address(), drc.shape.Holder.class);
+            if (__v1 == null) {
+                __v1 = __lent.borrowed(drc.shape.Holder.borrow(__c1, null, true));
+            }
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                int __value = __target.peek(__v1);
+                return __value;
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+        finally {
+            __lent.close();
+        }
+        return 0;
+    }
+
+    public static final class Thunk20 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(20));
+            }
+            return address;
+        }
+    }
+
+    private static double thunk21(long __userData, long __r1) {
+        Lent __lent = new Lent();
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return 0;
+            }
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            drc.shape.Shape __v1 = __lent.known(__c1.address(), drc.shape.Shape.class);
+            if (__v1 == null) {
+                __v1 = __lent.borrowed(drc.shape.Shape.borrow(__c1, null, true));
+            }
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                double __value = __target.compare(__v1);
+                return __value;
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+        finally {
+            __lent.close();
+        }
+        return 0;
+    }
+
+    public static final class Thunk21 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(21));
+            }
+            return address;
+        }
+    }
+
+    private static boolean thunk22(long __userData, long __r1) {
+        Lent __lent = new Lent();
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return false;
+            }
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            drc.shape.Shape __v1 = __lent.known(__c1.address(), drc.shape.Shape.class);
+            if (__v1 == null) {
+                __v1 = __lent.borrowed(drc.shape.Shape.borrow(__c1, null, true));
+            }
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                boolean __value = __target.same(__v1);
+                return __value;
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+        finally {
+            __lent.close();
+        }
+        return false;
+    }
+
+    public static final class Thunk22 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(22));
+            }
+            return address;
+        }
+    }
+
+    private static int thunk23(long __userData, long __r1) {
+        Lent __lent = new Lent();
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return 0;
+            }
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            drc.shape.Beam __v1 = __lent.known(__c1.address(), drc.shape.Beam.class);
+            if (__v1 == null) {
+                __v1 = __lent.borrowed(drc.shape.Beam.borrow(__c1, null, false));
+            }
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                int __value = __target.grow(__v1);
+                return __value;
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+        finally {
+            __lent.close();
+        }
+        return 0;
+    }
+
+    public static final class Thunk23 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(23));
+            }
+            return address;
+        }
+    }
+
+    private static int thunk24(long __userData, long __r1) {
+        drc.shape.Beam __v1 = null;
+        boolean __passed = false;
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return 0;
+            }
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            if (__c1.address() != 0L) {
+                BridgefexHandle __h1 = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
+                __h1.assign(__c1);
+                __v1 = drc.shape.Beam.wrap(__h1);
+            }
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                __passed = true;
+                int __value = __target.adopt(__v1);
+                return __value;
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+        finally {
+            if (!__passed) {
+                if (__v1 != null) { __v1.close(); }
+            }
+        }
+        return 0;
+    }
+
+    public static final class Thunk24 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(24));
+            }
+            return address;
+        }
+    }
+
+    private static void thunk25(long __userData, int __c1, long __out) {
+        DirectorBox __box = null;
+        try {
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return;
+            }
+            BridgefexSegment __slot = BridgefexSegment.ofAddress(__out);
+            drc.shape.Shape __target = (drc.shape.Shape) __box.target();
+            if (__target == null) {
+                throw new IllegalStateException(
+                    "C++ called an override of an object that was collected: keep a reference to it while C++ uses it");
+            }
+            __box.enter();
+            try {
+                drc.shape.Beam __value = __target.makeBeam(__c1);
+                if (__value != null) {
+                    BridgefexLease __lease = __value.hold(true, true);
+                    try {
+                        BridgefexSegment __pointer = __lease.pointer();
+                        __lease.give();
+                        __value.surrender();
+                        BridgefexSegment __copy = BridgefexSegment.of(new byte[(int) BridgefexRuntime.ADDRESS.byteSize()]);
+                        __copy.set(BridgefexRuntime.ADDRESS, 0, __pointer);
+                        BridgefexRuntime.copyIn(__slot, __copy);
+                    } finally {
+                        __lease.close();
+                    }
+                }
+            } finally {
+                __box.leave();
+            }
+        } catch (java.lang.Throwable __error) {
+            fail(__box, __error);
+        }
+    }
+
+    public static final class Thunk25 {
+        private static volatile BridgefexSegment address;
+
+        public static synchronized BridgefexSegment address() {
+            if (address == null) {
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(25));
+            }
+            return address;
+        }
+    }
+
+    private static void thunk26(long __userData, int __c1) {
         DirectorBox __box = null;
         try {
             __box = (DirectorBox) of(__userData);
@@ -1344,18 +1688,18 @@ public final class BridgefexCallbacks {
         }
     }
 
-    public static final class Thunk20 {
+    public static final class Thunk26 {
         private static volatile BridgefexSegment address;
 
         public static synchronized BridgefexSegment address() {
             if (address == null) {
-                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(20));
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(26));
             }
             return address;
         }
     }
 
-    private static void thunk21(long __userData, byte __c1, int __c2, long __out) {
+    private static void thunk27(long __userData, byte __c1, int __c2, long __out) {
         DirectorBox __box = null;
         try {
             __box = (DirectorBox) of(__userData);
@@ -1388,18 +1732,18 @@ public final class BridgefexCallbacks {
         }
     }
 
-    public static final class Thunk21 {
+    public static final class Thunk27 {
         private static volatile BridgefexSegment address;
 
         public static synchronized BridgefexSegment address() {
             if (address == null) {
-                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(21));
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(27));
             }
             return address;
         }
     }
 
-    private static void thunk22(long __userData, long __out) {
+    private static void thunk28(long __userData, long __out) {
         DirectorBox __box = null;
         try {
             __box = (DirectorBox) of(__userData);
@@ -1426,12 +1770,12 @@ public final class BridgefexCallbacks {
         }
     }
 
-    public static final class Thunk22 {
+    public static final class Thunk28 {
         private static volatile BridgefexSegment address;
 
         public static synchronized BridgefexSegment address() {
             if (address == null) {
-                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(22));
+                address = BridgefexSegment.ofAddress(BridgefexNative.callbackAddress(28));
             }
             return address;
         }

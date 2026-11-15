@@ -19,7 +19,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ...model import Access, ContainerType, EnumRef, ScalarType, StringType, StructRef
+from ...model import (
+    Access,
+    ClassRef,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+)
 from ...plan import CallablePlan, CallbackPart, ClassPlan, DirectorEntry, ModulePlan
 from .callbacks import argument
 from .containers import element_of
@@ -45,6 +53,8 @@ def supported_part(part: CallbackPart) -> bool:
         return part.enum is not None
     if isinstance(part.type, StructRef):
         return part.struct is not None
+    if isinstance(part.type, ClassRef):
+        return part.cls is not None
     return isinstance(part.type, ScalarType | StringType)
 
 
@@ -258,6 +268,8 @@ def result_type(entry: DirectorEntry, names: Names) -> str:
         return names.struct(part.struct)
     if isinstance(kind, ContainerType):
         return f"{element_of(part.element, names).public}[]"
+    if isinstance(kind, ClassRef) and part.cls is not None:
+        return names.cls(part.cls)
     raise AssertionError(kind)
 
 

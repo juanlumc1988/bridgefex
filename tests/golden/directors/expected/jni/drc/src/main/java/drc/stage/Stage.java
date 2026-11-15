@@ -52,8 +52,8 @@ public class Stage extends BridgefexObject {
             BridgefexSegment __vt = __arena.allocate(4L * drc.BridgefexRuntime.ADDRESS.byteSize(), drc.BridgefexRuntime.ADDRESS.byteSize());
             __vt.set(BridgefexRuntime.ADDRESS, 0L, __box.key());
             __vt.set(BridgefexRuntime.ADDRESS, drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Release.address());
-            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
-            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
+            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk27.address());
+            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk28.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             BridgefexSegment __director = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.drc_Stage_director_create_void(__result, __director, __vt);
@@ -77,8 +77,8 @@ public class Stage extends BridgefexObject {
             BridgefexSegment __vt = __arena.allocate(4L * drc.BridgefexRuntime.ADDRESS.byteSize(), drc.BridgefexRuntime.ADDRESS.byteSize());
             __vt.set(BridgefexRuntime.ADDRESS, 0L, __box.key());
             __vt.set(BridgefexRuntime.ADDRESS, drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Release.address());
-            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
-            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
+            if (__over[0]) __vt.set(BridgefexRuntime.ADDRESS, 2L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk27.address());
+            if (__over[1]) __vt.set(BridgefexRuntime.ADDRESS, 3L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk28.address());
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             BridgefexSegment __director = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.drc_Stage_director_create_int32(__result, __director, __vt, steps);

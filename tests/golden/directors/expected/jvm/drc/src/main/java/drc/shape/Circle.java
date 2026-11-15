@@ -77,7 +77,13 @@ public class Circle extends drc.shape.Shape {
                 if (__over[15]) __vt.set(BridgefexRuntime.ADDRESS, 17L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk17.address());
                 if (__over[16]) __vt.set(BridgefexRuntime.ADDRESS, 18L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk18.address());
                 if (__over[17]) __vt.set(BridgefexRuntime.ADDRESS, 19L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk19.address());
-                if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+                if (__over[18]) __vt.set(BridgefexRuntime.ADDRESS, 20L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk20.address());
+                if (__over[19]) __vt.set(BridgefexRuntime.ADDRESS, 21L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk21.address());
+                if (__over[20]) __vt.set(BridgefexRuntime.ADDRESS, 22L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk22.address());
+                if (__over[21]) __vt.set(BridgefexRuntime.ADDRESS, 23L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk23.address());
+                if (__over[22]) __vt.set(BridgefexRuntime.ADDRESS, 24L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk24.address());
+                if (__over[23]) __vt.set(BridgefexRuntime.ADDRESS, 25L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk25.address());
+                if (__over[24]) __vt.set(BridgefexRuntime.ADDRESS, 26L * drc.BridgefexRuntime.ADDRESS.byteSize(), BridgefexCallbacks.Thunk26.address());
                 var __result = __arena.allocate(BridgefexRuntime.ADDRESS);
                 var __director = __arena.allocate(BridgefexRuntime.ADDRESS);
                 int __status = BridgefexNative.drc_Circle_director_create(__result, __director, __vt, radius);
@@ -263,12 +269,12 @@ public class Circle extends drc.shape.Shape {
                     BridgefexDirectors.overrides(type, GENERATED, "points", new java.lang.Class<?>[] { drc.shape.Point[].class }),
                     BridgefexDirectors.overrides(type, GENERATED, "flags", new java.lang.Class<?>[] { boolean[].class }),
                     BridgefexDirectors.overrides(type, GENERATED, "triple", new java.lang.Class<?>[] { double[].class }),
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
-                    false,
+                    BridgefexDirectors.overrides(type, GENERATED, "peek", new java.lang.Class<?>[] { drc.shape.Holder.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "compare", new java.lang.Class<?>[] { drc.shape.Shape.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "same", new java.lang.Class<?>[] { drc.shape.Shape.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "grow", new java.lang.Class<?>[] { drc.shape.Beam.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "adopt", new java.lang.Class<?>[] { drc.shape.Beam.class }),
+                    BridgefexDirectors.overrides(type, GENERATED, "makeBeam", new java.lang.Class<?>[] { int.class }),
                     BridgefexDirectors.overrides(type, GENERATED, "changed", new java.lang.Class<?>[] { int.class }),
                 };
             }

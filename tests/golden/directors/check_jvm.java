@@ -87,6 +87,30 @@ class Check {
             check(Arrays.equals(square.callTriple(new double[] {1.0, 2.0, 3.0}), new double[] {1.5, 3.0, 4.5}),
                 "std::array");
             check(square.callTotal(new int[0]) == 0, "an empty vector");
+            // Objects: lent to the override during the call (a reference or a pointer), given to it,
+            // and given by it.
+            try (Holder holder = new Holder()) {
+                check(square.callPeek(holder) == 10, "a const reference to an object of C++");
+                holder.put(new Square());
+                check(square.callPeek(holder) == 20, "the override sees what the holder holds");
+            }
+            try (Circle circle = new Circle(1.0)) {
+                check(square.callCompare(circle) == 4.0 - 3.0 + 100.0,
+                    "an object of C++, whose methods the override calls");
+                check(!square.callSame(circle), "another object is not this one");
+            }
+            check(square.callCompare(square) == 100.0, "the object of Java is itself lent: its override runs");
+            check(square.callSame(square), "and it is the same object");
+            check(!square.callSame(null), "NULL is null");
+            try (Beam beam = new Beam(7)) {
+                check(square.callGrow(beam) == 107, "a reference that is not const");
+            }
+            Beam given = new Beam(3);
+            check(square.callAdopt(given) == 103, "an object that C++ gives up to the override");
+            check(given.isClosed(), "and the object of Java is closed");
+            try (Beam made = square.callMakeBeam(5)) {
+                check(made.callLength() == 10, "an object that the override gives to C++");
+            }
             check(square.middle(new Point(4.0, 0.0)).x == 3.0, "structs go both ways");
             check(square.choose(Mode.ON) == Mode.OFF && square.choose(Mode.OFF) == Mode.of(5), "enums");
             check(square.welcome("Ann").equals(">>|hello|Ann|>> hello Ann, I am sq:shape"),
@@ -153,6 +177,22 @@ class Check {
         try (Beam beam = new Beam(2)) {
             check(beam.callLength() == 2 && beam.madeBy() == 1, "the class itself: the public constructor");
         }
+
+        // -- Objects that C++ lends are valid while the override runs ----------------------------------------------
+        try (Keeper keeper = new Keeper(); Holder holder = new Holder(); Circle circle = new Circle(2.0)) {
+            check(keeper.callPeek(holder) == 1, "the override kept the object");
+            // A wrapper that is kept fails instead of using what C++ may have freed.
+            expect(IllegalStateException.class, () -> keeper.kept.empty(), "closed");
+            // A const reference is read-only: what would change the object fails.
+            check(keeper.callCompare(circle) == 12.0, "a const reference");
+            expect(IllegalStateException.class, () -> keeper.keptShape.area(), "closed");
+            check(keeper.sawReadOnly, "the const reference is read-only: " + keeper.sawReadOnly);
+            // An object that the override gives and that is closed cannot be given.
+            keeper.give = new Beam(1);
+            keeper.give.close();
+            expect(IllegalStateException.class, () -> keeper.callMakeBeam(1), "closed");
+        }
+        check(Shape.alive() == 0, "closed");
 
         // -- An exception from an override reaches the call that made C++ run it ------------------------------------
         try (Failing failing = new Failing()) {
@@ -304,6 +344,38 @@ class Square extends Shape {
     }
 
     @Override
+    public int peek(Holder holder) {
+        return holder.empty() ? 10 : 20;
+    }
+
+    @Override
+    public double compare(Shape other) {
+        return area() - other.area() + 100.0;
+    }
+
+    @Override
+    public boolean same(Shape other) {
+        return other == this;
+    }
+
+    @Override
+    public int grow(Beam beam) {
+        return beam.callLength() + 100;
+    }
+
+    @Override
+    public int adopt(Beam beam) {
+        int length = beam.callLength() + 100;
+        beam.close();
+        return length;
+    }
+
+    @Override
+    public Beam makeBeam(int length) {
+        return new Beam(length * 2);
+    }
+
+    @Override
     public int total(int[] values) {
         return super.total(values) * 2;
     }
@@ -365,6 +437,40 @@ class Square extends Shape {
     protected void changed(int reason) {
         seen = reason;
         super.changed(reason * 2); // a protected method of C++
+    }
+}
+
+class Keeper extends Shape {
+    Holder kept;
+    Shape keptShape;
+    boolean sawReadOnly;
+    Beam give;
+
+    @Override
+    public double area() {
+        return 1.0;
+    }
+
+    @Override
+    public int peek(Holder holder) {
+        kept = holder;
+        return 1;
+    }
+
+    @Override
+    public double compare(Shape other) {
+        keptShape = other;
+        try {
+            other.scale(2.0); // C++ lends a const reference: the object is read-only
+        } catch (IllegalStateException error) {
+            sawReadOnly = error.getMessage().contains("read-only");
+        }
+        return other.area();
+    }
+
+    @Override
+    public Beam makeBeam(int length) {
+        return give;
     }
 }
 
