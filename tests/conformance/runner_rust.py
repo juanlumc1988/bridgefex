@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -589,8 +590,33 @@ def _crate(case: Case, output: Path) -> Path:
     return crate_dir / "rust" / case.module
 
 
+@dataclass(frozen=True)
+class Cross:
+    """A target that is not the machine's: how to link for it, and how to run what is built."""
+
+    target: str
+    """The triple, for ``cargo --target``."""
+    linker: str
+    runner: tuple[str, ...]
+    """The command that runs a program of the target (``qemu-arm -L sysroot``)."""
+
+    def variables(self) -> dict[str, str]:
+        name = self.target.upper().replace("-", "_")
+        return {f"CARGO_TARGET_{name}_LINKER": self.linker}
+
+    def command(self, executable: Path, library: Path) -> list[str]:
+        """The command that runs ``executable``, which loads the library from its directory."""
+        return [*self.runner, "-E", f"LD_LIBRARY_PATH={library.parent}", str(executable)]
+
+
 def _cargo_program(
-    case: Case, library: Path, output: Path, name: str, source: str | Path, command: str
+    case: Case,
+    library: Path,
+    output: Path,
+    name: str,
+    source: str | Path,
+    command: str,
+    cross: Cross | None = None,
 ) -> Path:
     """Run ``cargo command`` (``build`` or ``check``) on a crate whose ``main.rs`` is ``source``
     (a text, or a file) and that depends on the crate of ``case``: the path of the executable
@@ -615,23 +641,33 @@ def _cargo_program(
             "--quiet",
             "--manifest-path",
             str(work / "Cargo.toml"),
+            *(["--target", cross.target] if cross else []),
         ],
         capture_output=True,
         text=True,
         check=False,
-        env=environment(case, output, library),
+        env={**environment(case, output, library), **(cross.variables() if cross else {})},
         timeout=900,
     )
     if completed.returncode != 0:
         raise RuntimeError(completed.stdout + completed.stderr)
     suffix = ".exe" if sys.platform == "win32" else ""
-    return output / "rust-target" / "debug" / (package + suffix)
+    directory = output / "rust-target" / (cross.target if cross else "") / "debug"
+    return directory / (package + suffix)
 
 
-def build_program(case: Case, library: Path, output: Path, name: str, source: str | Path) -> Path:
+def build_program(
+    case: Case,
+    library: Path,
+    output: Path,
+    name: str,
+    source: str | Path,
+    cross: Cross | None = None,
+) -> Path:
     """The program ``source`` (the text of a ``main.rs``, or a file with one) built against the
-    crate of ``case``: the executable. Raises RuntimeError if it does not build."""
-    return _cargo_program(case, library, output, name, source, "build")
+    crate of ``case`` (for the target ``cross`` if given): the executable. Raises RuntimeError if
+    it does not build."""
+    return _cargo_program(case, library, output, name, source, "build", cross)
 
 
 def check_program(case: Case, library: Path, output: Path, name: str, source: str | Path) -> None:
@@ -640,15 +676,18 @@ def check_program(case: Case, library: Path, output: Path, name: str, source: st
     _cargo_program(case, library, output, name, source, "check")
 
 
-def build_runner(case: Case, library: Path, output: Path, path: Path) -> Path:
-    """The program that plays ``path`` against the crate of ``case``: the executable.
-    Raises RuntimeError if it does not build."""
+def build_runner(
+    case: Case, library: Path, output: Path, path: Path, cross: Cross | None = None
+) -> Path:
+    """The program that plays ``path`` against the crate of ``case`` (built for the target
+    ``cross`` if given): the executable. Raises RuntimeError if it does not build."""
     plan = plan_of(case)
     index = scenarios._Index.of(plan)
     program = _Program(case.module, plan, targets(plan), index)
     for scenario in scenarios.resolve(scenarios.load(path), plan):
         program.scenario(scenario)
-    return build_program(case, library, output, f"{path.parent.name}-{path.stem}", program.source())
+    name = f"{path.parent.name}-{path.stem}" + ("-" + cross.target if cross else "")
+    return build_program(case, library, output, name, program.source(), cross)
 
 
 def environment(case: Case, output: Path, library: Path) -> dict[str, str]:
@@ -667,14 +706,17 @@ def environment(case: Case, output: Path, library: Path) -> dict[str, str]:
     return environment
 
 
-def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.CompletedProcess[str]:
-    """Play the scenarios of ``path`` against the Rust bindings of ``case``."""
+def run(
+    case: Case, library: Path, output: Path, path: Path, cross: Cross | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Play the scenarios of ``path`` against the Rust bindings of ``case`` (on the target
+    ``cross``, if given)."""
     try:
-        executable = build_runner(case, library, output, path)
+        executable = build_runner(case, library, output, path, cross)
     except RuntimeError as error:
         return subprocess.CompletedProcess([], 3, "", str(error))
     return subprocess.run(
-        [str(executable)],
+        cross.command(executable, library) if cross else [str(executable)],
         capture_output=True,
         text=True,
         check=False,
