@@ -11,22 +11,30 @@ public final class BridgefexLease implements AutoCloseable {
     private final BridgefexHandle handle;
     private final MemorySegment pointer;
     private final BridgefexHandle[] owners;
+    /** The object of the call: an override of it may run until the lease is closed. */
+    private final BridgefexObject target;
     private boolean released;
 
-    BridgefexLease(BridgefexHandle handle, MemorySegment pointer, BridgefexHandle[] owners) {
+    BridgefexLease(BridgefexHandle handle, MemorySegment pointer, BridgefexHandle[] owners, BridgefexObject target) {
         this.handle = handle;
         this.pointer = pointer;
         this.owners = owners;
+        this.target = target;
     }
 
     public MemorySegment pointer() {
         return pointer;
     }
 
+    /** A hold on nothing: the pointer is valid while an override of the object runs on this thread. */
+    public static BridgefexLease unheld(MemorySegment pointer) {
+        return new BridgefexLease(null, pointer, null, null);
+    }
+
     /** The same hold, for the address of the object as another of its classes. */
     public BridgefexLease as(MemorySegment other) {
         released = true; // the new lease releases the hold
-        return new BridgefexLease(handle, other, owners);
+        return new BridgefexLease(handle, other, owners, target);
     }
 
     /** The object (claimed by {@code hold(..., true)}) goes to C++, which destroys it. */
@@ -49,6 +57,11 @@ public final class BridgefexLease implements AutoCloseable {
             for (BridgefexHandle owner : owners) {
                 owner.releaseLease();
             }
+        }
+        // The Java object must not be collected while an override of it can run: the collector
+        // would clear the weak reference that C++ reaches it by, and the call would fail.
+        if (target != null) {
+            java.lang.ref.Reference.reachabilityFence(target);
         }
     }
 }

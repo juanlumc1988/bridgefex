@@ -23,7 +23,7 @@ public final class BridgefexRuntime {
     /** The name of the library, without the prefix and the extension of the platform. */
     public static final String LIBRARY = "drc";
     /** The fingerprint of the C API that these bindings were generated for. */
-    public static final String FINGERPRINT = "76c5f1c2fd950a2b25053a0f36ff49eb";
+    public static final String FINGERPRINT = "9a0ee76310213a53418ce56e476a899a";
     /** The system property that gives the path of the library. */
     public static final String PROPERTY = "drc.library";
     /** The environment variable that gives the path of the library. */

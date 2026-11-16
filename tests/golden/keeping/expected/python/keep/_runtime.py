@@ -5,6 +5,8 @@ import collections.abc
 import ctypes
 import enum
 import functools
+import importlib
+import inspect
 import math
 import numbers
 import operator
@@ -15,7 +17,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "KEEP_LIBRARY"
 
-API_FINGERPRINT = "953182e858b5b37eada8773138eab9c7"
+API_FINGERPRINT = "7455465d644f37e3b3e32f82d6b5d545"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32
@@ -147,6 +149,21 @@ def load(path=None):
         library.keep_disable_callbacks.restype = None
         library.keep_enable_callbacks.argtypes = [Release]
         library.keep_enable_callbacks.restype = None
+        library.keep_string_sink_set.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_size_t]
+        library.keep_string_sink_set.restype = None
+        library.keep_vector_sink_set.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+            ctypes.c_size_t,
+        ]
+        library.keep_vector_sink_set.restype = None
+        library.keep_vector_sink_set_strings.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
+        library.keep_vector_sink_set_strings.restype = None
         # An earlier interpreter of the process may have disabled a release
         # function at the address of this one (ctypes reuses freed closures).
         library.keep_enable_callbacks(release)
@@ -249,6 +266,11 @@ that has no single owner. Like the ``_retained`` of an object, it holds each
 object once, however many times it is retained."""
 
 
+_classes = {}
+"""The generated class of each C type, for the code that gets a pointer from C++ (the
+objects that an override takes): a class registers itself when its module is imported."""
+
+
 class Object:
     """Root of the wrapped classes. It holds the instance layout, so that a class
     with several bases can exist: Python does not combine the layouts of
@@ -256,6 +278,7 @@ class Object:
 
     __slots__ = (
         "__weakref__",
+        "_director",
         "_finalizer",
         "_handle",
         "_owned",
@@ -267,11 +290,17 @@ class Object:
     _cxx_class = None
     """The C type of its C++ class (the generated classes set it)."""
 
+    _director_slots = None
+    """The virtual methods that a subclass may override, for the classes that have a
+    director (and those derived from them)."""
+
     _ancestors = ()
     """The names of the methods that give its handle as each ancestor."""
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        if "_cxx_class" in cls.__dict__:
+            _classes[cls._cxx_class] = cls
         # A class that bridgefex generates names its own C++ class. A class of the
         # user extends one: the object it makes has one handle.
         if "_cxx_class" not in cls.__dict__:
@@ -285,6 +314,7 @@ class Object:
                     f"{cls.__name__} derives from wrapped classes of different C++ classes "
                     f"({', '.join(sorted(classes))}): an object has the handle of one"
                 )
+            check_overrides(cls)
 
 
 def check_object(value, cls, name, nullable=False):
@@ -341,6 +371,7 @@ def borrow(cls, handle, owners, readonly):
     # its owner's: with several possible owners (or none), forever.
     obj._retained = owners[0]._retained if len(owners) == 1 else forever
     obj._finalizer = None
+    obj._director = None
     return obj
 
 
@@ -375,6 +406,11 @@ def take(retained, *arguments, keep=None):
         owned = value._owned
         if not owned or value._collected():
             raise ValueError(f"argument {name!r}: {type(value).__name__} object is closed")
+        if value._director is not None and _is_lent(value._director):
+            raise RuntimeError(
+                f"argument {name!r}: {type(value).__name__} object cannot be given away while "
+                "C++ is lending it to an override: C++ is using it"
+            )
         if owned[-1][0] is None:
             raise ValueError(
                 f"argument {name!r}: {type(value).__name__} object cannot be transferred: "
@@ -402,6 +438,9 @@ def take(retained, *arguments, keep=None):
         value._handle = None
         # The collection of the Python object must not destroy it any more.
         value._finalizer._as_parameter_ = null
+        if value._director is not None:
+            # C++ owns the director now, and calls the object: it lives until C++ destroys it.
+            value._director.promote()
         if value._retained:
             # What it kept pointers to lives as long as its new owner, and as long
             # as whoever gets the object back from it (see recover()).
@@ -1037,6 +1076,441 @@ def callback_string(data, size):
 def callback_c_string(data):
     """A const char* argument of a callback: None if NULL."""
     return None if data is None else decode(ctypes.string_at(data))
+
+
+# Directors ---------------------------------------------------------------------
+#
+# An object of a Python class that derives from a wrapped class that has a director,
+# and overrides some of its virtual methods, is a director in C++: its vtable has a
+# fixed thunk (in _types.py) for each virtual method that the class overrides, and the
+# user_data of the vtable is the key of a Director in _callbacks, from which the thunk
+# finds the object. As for the callbacks, ``release`` removes the entry when C++
+# destroys the director, exactly once, so no thunk is ever freed while C++ may call it.
+# (The vtable is fixed when the object is created: a method that is defined, patched or
+# removed afterwards is not seen by C++.)
+
+
+class _Active:
+    """An override that C++ is running: the thunk keeps it in a local variable, so that it
+    ends with the frame whatever happens (a signal cannot skip the end of a ``finally``)."""
+
+    __slots__ = ("__weakref__", "ident", "lent")
+
+
+class _Owned:
+    """The entry of a director that C++ owns: the object lives as long as the entry, and
+    the entry goes when C++ releases the director, with no cycle left for the collector."""
+
+    __slots__ = ("director", "obj")
+
+    def __init__(self, director, obj):
+        self.director = director
+        self.obj = obj
+
+
+class Director:
+    """The director of an object, which the object keeps to call the implementation of the
+    class (the base calls); the registry has it, or an ``_Owned``, while C++ may call it.
+
+    The registry holds the object weakly while Python owns the C++ object (its collection
+    destroys the director), and strongly once C++ owns it (see take()).
+    """
+
+    __slots__ = ("_ref", "key", "pointer", "running")
+
+    def __init__(self, obj):
+        self.pointer = None
+        self.key = None
+        self.running = {}
+        """The overrides of the object that C++ is running now: C++ is using the object, so
+        it must not be closed, and it may call its implementation although Python gave
+        the object up. A token ends with the frame of its thunk, which removes it from here
+        with a callback that is not a Python function."""
+        self._ref = weakref.ref(obj)
+
+    def register(self, vtable):
+        """Put the director in the registry and give its key and release function to the
+        vtable. The last thing before the create function is called (it is an argument
+        of it): C++ releases the entry, also if the creation fails."""
+        global _next_key
+        if _disabled:
+            raise RuntimeError("directors are disabled at exit, C++ would not call them")
+        with _callback_lock:
+            key = _next_key
+            while key in _callbacks:
+                key = key + 1 if key < _MAX_KEY else 1
+            _next_key = key + 1 if key < _MAX_KEY else 1
+            _callbacks[key] = self
+        self.key = key
+        vtable.user_data = key
+        vtable.release = release
+        return vtable
+
+    def promote(self):
+        """C++ owns the director from now on: the object lives until it destroys it."""
+        obj = self._ref()
+        if obj is not None and _callbacks.get(self.key) is self:
+            _callbacks[self.key] = _Owned(self, obj)
+
+    def cannot_close(self, class_name):
+        raise RuntimeError(
+            f"{class_name} object cannot be closed while one of its overrides runs: "
+            "C++ is using it"
+        )
+
+
+def _entry(key):
+    """(director, object) registered under ``key``, or (None, None)."""
+    entry = _callbacks.get(key)
+    if type(entry) is Director:
+        return entry, entry._ref()
+    if type(entry) is _Owned:
+        return entry.director, entry.obj
+    return None, None
+
+
+def _is_lent(director):
+    """True if C++ has lent the object of ``director`` to an override that is running."""
+    return any(
+        token is not None and token.lent
+        for token in (reference() for reference in tuple(director.running.values()))
+    )
+
+
+def _runs_here(director):
+    """True if the calling thread is running an override of the object of ``director``."""
+    ident = threading.get_ident()
+    for reference in tuple(director.running.values()):
+        token = reference()
+        if token is not None and token.ident == ident:
+            return True
+    return False
+
+
+class DirectorSlots:
+    """The virtual methods of a wrapped class that a Python subclass may override: the
+    vtable type of its director, and (method, vtable member, pure, thunk) for each."""
+
+    __slots__ = ("c_type", "class_name", "slots", "vtable")
+
+    def __init__(self, c_type, class_name, vtable, slots):
+        self.c_type = c_type
+        self.class_name = class_name
+        self.vtable = vtable
+        self.slots = slots
+
+    def overrides(self, cls, subclass=False):
+        """The (vtable member, thunk) of each virtual method that ``cls`` overrides: if there
+        is none, the object is an ordinary one, without a director, unless the class has no
+        other way to make objects (``subclass``: its constructors are protected, or it is
+        abstract), which then has to be a subclass."""
+        if subclass and "_cxx_class" in vars(cls):
+            raise TypeError(
+                f"{cls.__name__} cannot be instantiated itself: derive a class from it, "
+                f"which can override the virtual methods of {self.class_name}"
+            )
+        found = []
+        missing = []
+        for name, field, pure, thunk in self.slots:
+            owner = next((klass for klass in cls.__mro__ if name in vars(klass)), None)
+            if owner is None or "_cxx_class" in vars(owner):
+                if pure:
+                    missing.append(name)
+                continue
+            function = getattr(cls, name)
+            if not callable(function):
+                raise TypeError(f"{cls.__name__}.{name} must be a method to override C++")
+            if (
+                inspect.iscoroutinefunction(function)
+                or inspect.isgeneratorfunction(function)
+                or inspect.isasyncgenfunction(function)
+            ):
+                raise TypeError(
+                    f"{cls.__name__}.{name} is a coroutine or a generator function: C++ would "
+                    "get its object and never run it; define an ordinary method"
+                )
+            found.append((field, thunk))
+        if missing:
+            raise TypeError(
+                f"{cls.__name__} is abstract: it must override {', '.join(missing)} "
+                f"(pure virtual in {self.class_name})"
+            )
+        return found
+
+    def make(self, obj, found):
+        """(vtable, Director) of ``obj``, which is being created. The director goes to the
+        registry when the create function is called (see Director.register)."""
+        vtable = self.vtable()
+        for field, thunk in found:
+            setattr(vtable, field, thunk)
+        return vtable, Director(obj)
+
+
+def check_overrides(cls):
+    """Refuse a class of the user that defines a method with the name of a virtual method of
+    C++ that C++ would never call (it would silently do nothing): the class has no director,
+    or its director names the method differently, or the method cannot be overridden (it is
+    final, overloaded under that name, or its types are not supported yet)."""
+    tables = [
+        slots
+        for klass in cls.__mro__
+        if (slots := vars(klass).get("_director_slots")) is not None
+    ]
+    nearest = cls._director_slots
+    director = nearest is not None and nearest.c_type == cls._cxx_class
+    own = {name for name, _, _, _ in nearest.slots} if director else set()
+    called = {}
+    for slots in tables:
+        for name, _, _, _ in slots.slots:
+            called.setdefault(name, slots.class_name)
+    virtual = {}
+    for klass in cls.__mro__:
+        for name in vars(klass).get("_virtual_names", ()):
+            virtual.setdefault(name, vars(klass)["_cxx_class"])
+    for name in sorted(vars_of_user_classes(cls)):
+        if name in own:
+            continue
+        # Is the method that this one hides a virtual method? The nearest generated class
+        # that has a method of that name says (a derived class can hide a virtual method of
+        # a base with another that is not); none has it: the virtual methods of all of them.
+        generated = next(
+            (klass for klass in cls.__mro__ if "_cxx_class" in vars(klass) and name in vars(klass)),
+            None,
+        )
+        if generated is not None:
+            owner = vars(generated)["_cxx_class"]
+            if name not in vars(generated).get("_virtual_names", ()):
+                continue
+        elif name in virtual:
+            owner = virtual[name]
+        else:
+            continue
+        if name in called:
+            if director:
+                raise TypeError(
+                    f"{cls.__name__} defines {name}, which names a virtual method of "
+                    f"{called[name]} but not of {nearest.class_name}: its director calls "
+                    f"{', '.join(sorted(own))}"
+                )
+        elif director:
+            raise TypeError(
+                f"{cls.__name__} defines {name}, a virtual method of {owner} that C++ cannot "
+                "call from Python: it is final, or overloaded (the overloads have their own "
+                f"names: see {nearest.class_name}), or its types are not supported yet"
+            )
+        raise TypeError(_no_director(cls, name, called.get(name, owner)))
+
+
+def vars_of_user_classes(cls):
+    """The names that the classes of the user in the order of the bases of ``cls`` define."""
+    names = set()
+    for klass in cls.__mro__:
+        if "_cxx_class" not in vars(klass) and klass is not object and klass is not Object:
+            names.update(name for name in vars(klass) if not name.startswith("__"))
+    return names
+
+
+def _no_director(cls, name, owner):
+    return (
+        f"{cls.__name__} defines {name}, a virtual method of {owner}, but its C++ class "
+        f"{cls._cxx_class} has no director: C++ would never call it (ask for one with "
+        f'directors = ["{cls._cxx_class}"] in the annotations file; a final class cannot have one)'
+    )
+
+
+def director_pointer(director, class_name):
+    """The handle of the director of an object for a base call, while it exists.
+
+    An object that Python gave up (to C++, as a std::unique_ptr) is closed for Python, as
+    for every other call, except for the thread that runs one of its overrides: C++ owns it
+    and calls it, and the override may run the implementation of the class (super()).
+    """
+    registered, obj = _entry(director.key) if director is not None else (None, None)
+    if registered is None or registered is not director:
+        raise ValueError(f"{class_name} object is closed")
+    if not _runs_here(director) and (obj is None or not obj._owned):
+        raise ValueError(f"{class_name} object is closed")
+    return director.pointer
+
+
+def director_method(user_data, name):
+    """(method ``name`` of the object of a director, its token) for its thunk, which keeps
+    the token as long as the method runs; (None, None) if an earlier override of the
+    same call failed (C++ then gets the default result)."""
+    if getattr(_scopes, "interrupt", None) is not None:
+        return None, None
+    stack = getattr(_scopes, "stack", None)
+    if stack and stack[-1].error is not None:
+        return None, None
+    director, obj = _entry(user_data)
+    if obj is None:
+        raise RuntimeError(
+            f"a C++ virtual method was called after its director was released (user_data {user_data})"
+        )
+    method = getattr(obj, name)
+    if not callable(method):
+        raise TypeError(f"{type(obj).__name__}.{name} is not callable: it is {_type_name(method)}")
+    return method, _start_running(director)
+
+
+def _start_running(director, lent=False):
+    """The token of an override that C++ runs now on an object of ``director`` (or that
+    uses it, if ``lent``): it ends with whoever keeps it."""
+    token = _Active()
+    token.ident = threading.get_ident()
+    token.lent = lent
+    running = director.running
+    running[id(token)] = weakref.ref(token, functools.partial(running.pop, id(token)))
+    return token
+
+
+def fail_director(error):
+    """Give the exception of an override to the call that runs it, which raises it
+    when it returns; False if there is none (a thread of C++), and the exception goes to
+    sys.unraisablehook. Only the first one of a call is kept."""
+    stack = getattr(_scopes, "stack", None)
+    if stack and stack[-1].fail(error):
+        return True
+    if _is_foreign_thread():
+        return False
+    # check() raises it as soon as the C function that ran the override returns.
+    if getattr(_scopes, "interrupt", None) is None:
+        _scopes.interrupt = error
+    return True
+
+
+def sink_set(sink, value, name):
+    """Give the string that an override returns to the sink of the vtable function."""
+    if not isinstance(value, (str, bytes, bytearray, memoryview)):
+        raise TypeError(
+            f"the result of the override {name!r} must be str or bytes, not {_type_name(value)}"
+        )
+    try:
+        data = to_bytes(value, name)
+    except UnicodeEncodeError as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
+    _library.keep_string_sink_set(sink, data, len(data))
+
+
+class Lend:
+    """What C++ lends to an override for the duration of the call: the owner of the objects
+    that it takes by reference or pointer, which are valid until the thunk ends it."""
+
+    __slots__ = ("__weakref__", "_owned", "_owners", "_retained", "_tokens")
+
+    def __init__(self):
+        self._owned = [(None, None)]
+        self._owners = ()
+        # What the lent objects retain lives as long as the C++ objects, whose lifetime is
+        # not this call's: as for any borrowed object that has no single owner.
+        self._retained = forever
+        self._tokens = []
+
+    def _collected(self):
+        return False
+
+    def end(self):
+        self._owned = []
+        # The director objects that were lent can be closed again.
+        self._tokens = []
+
+
+_by_address = weakref.WeakValueDictionary()
+"""The objects of the classes that have a director, by the address of the C++ object as each
+class it may be passed as (a base class is not at the same address with several bases): an
+override that C++ gives such an object to gets the Python object, not a new one."""
+
+
+def register_object(obj):
+    """Let the thunks find ``obj`` (a director object) from the pointers that C++ gives."""
+    _by_address[(_address(obj._handle), obj._cxx_class)] = obj
+    for name in type(obj)._ancestors:
+        _by_address[(_address(getattr(obj, name)()), name.removeprefix("_ptr_"))] = obj
+
+
+def _class_of(c_type, stem):
+    cls = _classes.get(c_type)
+    if cls is None:
+        # The module of the class has not been imported yet (an override can take an
+        # object of a header that nobody imported).
+        importlib.import_module(f"{__package__}.{stem}")
+        cls = _classes[c_type]
+    return cls
+
+
+def callback_object(c_type, stem, pointer, readonly, lend):
+    """The object for a pointer or reference that C++ lends to an override: None for NULL,
+    the Python object if the pointer is that of one of a class that derives from a wrapped
+    one, else a borrowed object that is valid until the call of the override ends."""
+    if not pointer:
+        return None
+    known = _by_address.get((_address(pointer), c_type))
+    # A director object that Python owns is itself the object of that address (an open one:
+    # when C++ owns it Python gave it up, and it is closed for every method, so the override
+    # gets a new object of the class, whose virtual methods are those of the director).
+    if known is not None and known._owned and not known._collected():
+        # C++ is using it: it cannot be closed until the override returns.
+        lend._tokens.append(_start_running(known._director, lent=True))
+        return known
+    return borrow(_class_of(c_type, stem), pointer, (lend,), readonly)
+
+
+def callback_owned(c_type, stem, pointer):
+    """The object for a std::unique_ptr that C++ gives to an override, which owns it from
+    now on (it destroys the C++ object): a plain object of the class."""
+    if not pointer:
+        return None
+    cls = _class_of(c_type, stem)
+    obj = cls.__new__(cls)
+    handle = obj._watch()
+    ctypes.pointer(handle)[0] = pointer
+    obj._adopt(handle)
+    return obj
+
+
+def give_object(value, c_type, stem, name, view, exact):
+    """The handle of the object that an override gives to C++ as a std::unique_ptr: Python
+    gives it up for good (None is a NULL pointer)."""
+    if value is None:
+        return None
+    cls = _class_of(c_type, stem)
+    if not isinstance(value, cls):
+        raise TypeError(
+            f"the result of the override {name!r} must be {cls.__qualname__} or None, "
+            f"not {_type_name(value)}"
+        )
+    if exact:
+        check_exact(value, cls, name)
+    try:
+        (handle,) = take(forever, (value, name, view) if view else (value, name))
+    except (TypeError, ValueError) as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
+    return handle
+
+
+def override_result(name, make):
+    """What ``make()`` builds from the result of an override; its errors say whose
+    result it was."""
+    try:
+        return make()
+    except (TypeError, ValueError, OverflowError) as error:
+        error.add_note(f"(the result of the override {name!r})")
+        raise
+
+
+def sink_container(sink, array, length=None, name=""):
+    """Give the container that an override returns to the sink of the vtable function:
+    a ctypes array of C elements, or of strings (``length``: the size of a std::array)."""
+    if length is not None and len(array) != length:
+        raise ValueError(
+            f"the result of the override {name!r} must have {length} elements, got {len(array)}"
+        )
+    if getattr(array, "_type_", None) is StringIn:
+        _library.keep_vector_sink_set_strings(sink, array, len(array))
+    else:
+        _library.keep_vector_sink_set(sink, array, len(array), ctypes.sizeof(array._type_))
 
 
 def _disable_callbacks():

@@ -7,6 +7,7 @@
 // the bytes of its texts again), and a Gate or a text that the collector had freed shows.
 
 using System.Runtime.CompilerServices;
+using Keep;
 using Keep.Kept;
 
 static void Check(bool condition, string what)
@@ -87,7 +88,7 @@ static void SetTemporaryTexts(Label label)
 }
 
 [MethodImpl(MethodImplOptions.NoInlining)]
-static Label LabelOfTemporaryTitle() => new Label("a title that is a temporary " + new string('t', 20));
+static Label LabelOfTemporaryTitle() => Label.CreateCstr("a title that is a temporary " + new string('t', 20));
 
 // `this = "retain"`: the object that the method returns keeps the object it was called on.
 var latch = LatchOfForgottenGate();
@@ -156,7 +157,7 @@ Churn();
 // releases it).
 try
 {
-    _ = new Label("a title with a NUL \0 inside");
+    _ = Label.CreateCstr("a title with a NUL \0 inside");
     Check(false, "a text with a NUL is refused");
 }
 catch (ArgumentException)
@@ -174,4 +175,56 @@ other.SetCopy("copied");
 Check(other.Intact(), "a copy is intact");
 other.Dispose();
 
+// A call that stores the pointer and then throws: what it stored is kept all the same.
+var thrower = new Label();
+try
+{
+    thrower.SetRawThrow("a text that is stored and then C++ throws " + new string('z', 20));
+    Check(false, "C++ throws");
+}
+catch (BridgefexException error)
+{
+    Check(error.Message.Contains("stored, then failed"), "the message of the exception");
+}
+Churn();
+Check(thrower.Intact(), "kept although the call threw");
+thrower.Dispose();
+
+// Two constructors that C# cannot tell by their arguments are told by name: each keeps its text.
+var titled = Label.CreateStringView("a title that is a view and a temporary " + new string('q', 20));
+Churn();
+Check(titled.Intact() && titled.Kept() == "a title that is a view and a temporary ".Length + 20, "a view title");
+titled.Dispose();
+
+// An override that calls the implementation of the class keeps what the class keeps too.
+[MethodImpl(MethodImplOptions.NoInlining)]
+static Stamp StampOfForgottenPen()
+{
+    var pen = new Mine();
+    pen.Note("a note that is a temporary " + new string('n', 30));
+    pen.NoteView("a view that is a temporary " + new string('w', 40));
+    Churn();
+    Check(pen.NotesIntact(), "the notes of the Pen");
+    return pen.Stamp()!;
+}
+
+var stamp = StampOfForgottenPen();
+Churn();
+Check(stamp.Open() && Pen.Live() == 1, "the Stamp keeps its Pen alive");
+stamp.Dispose();
+Check(Eventually(() => Stamp.Live() == 0 && Pen.Live() == 0), "both went");
+
+// What the destructors of the objects read was still there when they ran.
+Collect();
+Check(Label.BadDestructions() == 0, "no destructor found what it points to gone");
+
 Console.WriteLine("keeping: C# round trip OK");
+
+class Mine : Pen
+{
+    public override global::Keep.Kept.Stamp? Stamp() => base.Stamp();
+
+    public override void Note(string? text) => base.Note(text);
+
+    public override void NoteView(string text) => base.NoteView(text);
+}

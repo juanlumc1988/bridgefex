@@ -22,6 +22,12 @@ typedef struct keep_Latch keep_Latch;
 /* Opaque handle of keep::Label. */
 typedef struct keep_Label keep_Label;
 
+/* Opaque handle of keep::Pen. */
+typedef struct keep_Pen keep_Pen;
+
+/* Opaque handle of keep::Stamp. */
+typedef struct keep_Stamp keep_Stamp;
+
 #pragma pack(pop)
 
 #endif /* KEEP_TYPES_H */

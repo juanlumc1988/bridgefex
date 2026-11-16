@@ -305,7 +305,11 @@ class _Lowerer:
         are given, by the object that keeps them (this one, or the new one of a constructor), or
         for ever; and the object itself, if the library keeps it."""
         plan = self.plan
-        keeper = plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
+        keeper = plan.kind in (
+            CallableKind.METHOD,
+            CallableKind.CONSTRUCTOR,
+            CallableKind.DIRECTOR_BASE,
+        )
         target = "Retain" if keeper else "BridgefexObject.RetainForever"
         text_target = "RetainText" if keeper else "BridgefexObject.RetainTextForever"
         lines = [f"{target}({name});" for name in self.retained]

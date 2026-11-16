@@ -37,10 +37,12 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_create")]
     public Gate() : base(new GateHandle())
     {
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.keep_Gate_create(&__result);
+        __scope.Returned();
         Handle.Assign(__result);
-        Runtime.Check(__status);
+        __scope.Check(__status);
     }
 
     internal static Gate? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
@@ -63,12 +65,15 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_latch")]
     public global::Keep.Kept.Latch? Latch()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         nint __result;
         var __o = new global::Keep.Kept.LatchHandle();
         int __status = Native.keep_Gate_latch(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
         __o.Assign(__result);
-        Runtime.Check(__status);
+        __scope.Check(__status);
         if (__o.IsInvalid) return null;
         var __made = new global::Keep.Kept.Latch(__o);
         __made.Retain(this);
@@ -81,9 +86,13 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_pin")]
     public void Pin()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         BridgefexObject.RetainForever(this);
-        Runtime.Check(Native.keep_Gate_pin(__self.Pointer));
+        int __status = Native.keep_Gate_pin(__self.Pointer);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
     }
 
     /// <summary>
@@ -92,9 +101,13 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_latches")]
     public int Latches()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
-        Runtime.Check(Native.keep_Gate_latches(__self.Pointer, &__result));
+        int __status = Native.keep_Gate_latches(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
         return __result;
     }
 
@@ -104,8 +117,11 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_live")]
     public static int Live()
     {
+        using var __scope = CallScope.Begin();
         int __result;
-        Runtime.Check(Native.keep_Gate_live(&__result));
+        int __status = Native.keep_Gate_live(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
         return __result;
     }
 
@@ -115,8 +131,11 @@ public unsafe partial class Gate : BridgefexObject
     [BridgefexFunction("keep_Gate_pinnedAlive")]
     public static bool PinnedAlive()
     {
+        using var __scope = CallScope.Begin();
         byte __result;
-        Runtime.Check(Native.keep_Gate_pinnedAlive(&__result));
+        int __status = Native.keep_Gate_pinnedAlive(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
         return (__result != 0);
     }
 }
@@ -152,13 +171,15 @@ public unsafe partial class Latch : BridgefexObject
     [BridgefexFunction("keep_Latch_create")]
     public Latch(global::Keep.Kept.Gate gate, int number) : base(new LatchHandle())
     {
+        using var __scope = CallScope.Begin();
         global::System.ArgumentNullException.ThrowIfNull(gate);
         using var __t1 = gate.Hold(false);
         nint __h1 = __t1.Pointer;
         nint __result;
         int __status = Native.keep_Latch_create(&__result, __h1, number);
+        __scope.Returned();
         Handle.Assign(__result);
-        Runtime.Check(__status);
+        __scope.Check(__status);
         Retain(gate);
     }
 
@@ -182,9 +203,13 @@ public unsafe partial class Latch : BridgefexObject
     [BridgefexFunction("keep_Latch_open")]
     public bool Open()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         byte __result;
-        Runtime.Check(Native.keep_Latch_open(__self.Pointer, &__result));
+        int __status = Native.keep_Latch_open(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
         return (__result != 0);
     }
 
@@ -194,9 +219,13 @@ public unsafe partial class Latch : BridgefexObject
     [BridgefexFunction("keep_Latch_number")]
     public int Number()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
-        Runtime.Check(Native.keep_Latch_number(__self.Pointer, &__result));
+        int __status = Native.keep_Latch_number(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
         return __result;
     }
 
@@ -206,8 +235,11 @@ public unsafe partial class Latch : BridgefexObject
     [BridgefexFunction("keep_Latch_live")]
     public static int Live()
     {
+        using var __scope = CallScope.Begin();
         int __result;
-        Runtime.Check(Native.keep_Latch_live(&__result));
+        int __status = Native.keep_Latch_live(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
         return __result;
     }
 }
@@ -243,25 +275,52 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_create_void")]
     public Label() : base(new LabelHandle())
     {
+        using var __scope = CallScope.Begin();
         nint __result;
         int __status = Native.keep_Label_create_void(&__result);
+        __scope.Returned();
         Handle.Assign(__result);
-        Runtime.Check(__status);
+        __scope.Check(__status);
     }
 
     /// <summary>
     /// keep::Label::Label(const char* title)
     /// </summary>
     [BridgefexFunction("keep_Label_create_cstr")]
-    public Label(string title) : base(new LabelHandle())
+    public static Label CreateCstr(string title)
     {
+        using var __scope = CallScope.Begin();
         KeptText __k1 = new KeptText(Runtime.Utf8Z(title, "title"));
         byte* __p1 = __k1.Pointer;
         nint __result;
+        var __o = new LabelHandle();
         int __status = Native.keep_Label_create_cstr(&__result, __p1);
-        Handle.Assign(__result);
-        Runtime.Check(__status);
-        RetainText(__k1);
+        __scope.Returned();
+        __o.Assign(__result);
+        __scope.Check(__status);
+        var __new = new Label(__o);
+        __new.RetainText(__k1);
+        return __new;
+    }
+
+    /// <summary>
+    /// keep::Label::Label(std::string_view title)
+    /// </summary>
+    [BridgefexFunction("keep_Label_create_string_view")]
+    public static Label CreateStringView(string title)
+    {
+        using var __scope = CallScope.Begin();
+        KeptText __k1 = new KeptText(Runtime.Utf8(title, "title"));
+        byte* __p1 = __k1.Pointer;
+        nint __result;
+        var __o = new LabelHandle();
+        int __status = Native.keep_Label_create_string_view(&__result, __p1, (nuint)__k1.Length);
+        __scope.Returned();
+        __o.Assign(__result);
+        __scope.Check(__status);
+        var __new = new Label(__o);
+        __new.RetainText(__k1);
+        return __new;
     }
 
     internal static Label? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
@@ -284,11 +343,15 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_setRaw")]
     public void SetRaw(string text)
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         KeptText __k1 = new KeptText(Runtime.Utf8Z(text, "text"));
         byte* __p1 = __k1.Pointer;
         RetainText(__k1);
-        Runtime.Check(Native.keep_Label_setRaw(__self.Pointer, __p1));
+        int __status = Native.keep_Label_setRaw(__self.Pointer, __p1);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
     }
 
     /// <summary>
@@ -297,11 +360,15 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_setView")]
     public void SetView(string text)
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         KeptText __k1 = new KeptText(Runtime.Utf8(text, "text"));
         byte* __p1 = __k1.Pointer;
         RetainText(__k1);
-        Runtime.Check(Native.keep_Label_setView(__self.Pointer, __p1, (nuint)__k1.Length));
+        int __status = Native.keep_Label_setView(__self.Pointer, __p1, (nuint)__k1.Length);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
     }
 
     /// <summary>
@@ -310,11 +377,32 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_setMaybe")]
     public void SetMaybe(string? text)
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         KeptText? __k1 = text is null ? null : new KeptText(Runtime.Utf8Z(text, "text"));
         byte* __p1 = __k1 is null ? null : __k1.Pointer;
         RetainText(__k1);
-        Runtime.Check(Native.keep_Label_setMaybe(__self.Pointer, __p1));
+        int __status = Native.keep_Label_setMaybe(__self.Pointer, __p1);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
+    }
+
+    /// <summary>
+    /// void keep::Label::setRawThrow(const char* text)
+    /// </summary>
+    [BridgefexFunction("keep_Label_setRawThrow")]
+    public void SetRawThrow(string text)
+    {
+        using var __scope = CallScope.Begin();
+        using var __self = Hold(true);
+        KeptText __k1 = new KeptText(Runtime.Utf8Z(text, "text"));
+        byte* __p1 = __k1.Pointer;
+        RetainText(__k1);
+        int __status = Native.keep_Label_setRawThrow(__self.Pointer, __p1);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
     }
 
     /// <summary>
@@ -323,11 +411,15 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_setCopy")]
     public void SetCopy(string text)
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(true);
         byte[] __b1 = Runtime.Utf8(text, "text");
         fixed (byte* __p1 = __b1)
         {
-            Runtime.Check(Native.keep_Label_setCopy(__self.Pointer, __p1, (nuint)__b1.Length));
+            int __status = Native.keep_Label_setCopy(__self.Pointer, __p1, (nuint)__b1.Length);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
         }
     }
 
@@ -337,9 +429,13 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_intact")]
     public bool Intact()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         byte __result;
-        Runtime.Check(Native.keep_Label_intact(__self.Pointer, &__result));
+        int __status = Native.keep_Label_intact(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
         return (__result != 0);
     }
 
@@ -349,9 +445,13 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_kept")]
     public int Kept()
     {
+        using var __scope = CallScope.Begin();
         using var __self = Hold(false);
         int __result;
-        Runtime.Check(Native.keep_Label_kept(__self.Pointer, &__result));
+        int __status = Native.keep_Label_kept(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
         return __result;
     }
 
@@ -361,10 +461,13 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_keepView")]
     public static void KeepView(string text)
     {
+        using var __scope = CallScope.Begin();
         KeptText __k1 = new KeptText(Runtime.Utf8(text, "text"));
         byte* __p1 = __k1.Pointer;
         BridgefexObject.RetainTextForever(__k1);
-        Runtime.Check(Native.keep_Label_keepView(__p1, (nuint)__k1.Length));
+        int __status = Native.keep_Label_keepView(__p1, (nuint)__k1.Length);
+        __scope.Returned();
+        __scope.Check(__status);
     }
 
     /// <summary>
@@ -373,8 +476,11 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_keptIntact")]
     public static bool KeptIntact()
     {
+        using var __scope = CallScope.Begin();
         byte __result;
-        Runtime.Check(Native.keep_Label_keptIntact(&__result));
+        int __status = Native.keep_Label_keptIntact(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
         return (__result != 0);
     }
 
@@ -384,6 +490,419 @@ public unsafe partial class Label : BridgefexObject
     [BridgefexFunction("keep_Label_scribble")]
     public static void Scribble()
     {
-        Runtime.Check(Native.keep_Label_scribble());
+        using var __scope = CallScope.Begin();
+        int __status = Native.keep_Label_scribble();
+        __scope.Returned();
+        __scope.Check(__status);
+    }
+
+    /// <summary>
+    /// static int32_t keep::Label::badDestructions()
+    /// </summary>
+    [BridgefexFunction("keep_Label_badDestructions")]
+    public static int BadDestructions()
+    {
+        using var __scope = CallScope.Begin();
+        int __result;
+        int __status = Native.keep_Label_badDestructions(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
+        return __result;
+    }
+}
+
+internal sealed class PenHandle : ObjectHandle
+{
+    public PenHandle() : base(true)
+    {
+    }
+    public PenHandle(bool owns) : base(owns)
+    {
+    }
+    protected override void Destroy()
+    {
+        Native.keep_Pen_destroy(handle);
+    }
+}
+
+/// <summary>
+/// keep::Pen
+/// </summary>
+[global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)]
+public unsafe partial class Pen : BridgefexObject
+{
+    internal Pen(ObjectHandle handle) : base(handle)
+    {
+    }
+
+    internal override global::System.Type CppType => typeof(Pen);
+
+    /// <summary>
+    /// keep::Pen::Pen()
+    /// </summary>
+    [BridgefexFunction("keep_Pen_create")]
+    public Pen() : base(new PenHandle())
+    {
+        bool[]? __over = DirectorOverrides.Of(GetType(), false);
+        if (__over is null)
+        {
+            using var __scope = CallScope.Begin();
+            nint __result;
+            int __status = Native.keep_Pen_create(&__result);
+            __scope.Returned();
+            Handle.Assign(__result);
+            __scope.Check(__status);
+        }
+        else
+        {
+            using var __scope = CallScope.Begin();
+            var __box = __scope.BeginDirector(this, 3);
+            Native.keep_Pen_vtable __vt = default;
+            __vt.user_data = __box.Key;
+            __vt.release = CallbackBox.ReleaseAddress;
+            if (__over[0]) __vt.stamp = Thunks.Address_D_keep_Pen_stamp;
+            if (__over[1]) __vt.note = Thunks.Address_D_keep_Pen_note;
+            if (__over[2]) __vt.noteView = Thunks.Address_D_keep_Pen_noteView;
+            nint __result;
+            nint __director;
+            int __status = Native.keep_Pen_director_create(&__result, &__director, &__vt);
+            __scope.Returned();
+            Handle.Assign(__result);
+            __box.Pointer = __director;
+            __box.Publish(__result);
+            SetDirector(__box);
+            __scope.Check(__status);
+        }
+    }
+
+    internal static Pen? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new PenHandle(false);
+        handle.Assign(pointer);
+        var result = new Pen(handle);
+        result.ReadOnly = readOnly;
+        result.Attach(owners);
+        return result;
+    }
+
+    /// <summary>
+    /// std::unique_ptr&lt;keep::Stamp&gt; keep::Pen::stamp()
+    /// </summary>
+    [BridgefexFunction("keep_Pen_stamp")]
+    public virtual global::Keep.Kept.Stamp? Stamp()
+    {
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 3:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(true);
+                    nint __result;
+                    var __o = new global::Keep.Kept.StampHandle();
+                    int __status = Native.keep_Pen_director_base_stamp(__self.Pointer, &__result);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __o.Assign(__result);
+                    __scope.Check(__status);
+                    if (__o.IsInvalid) return null;
+                    var __made = new global::Keep.Kept.Stamp(__o);
+                    __made.Retain(this);
+                    return __made;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold(true);
+            nint __result;
+            var __o = new global::Keep.Kept.StampHandle();
+            int __status = Native.keep_Pen_stamp(__self.Pointer, &__result);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __o.Assign(__result);
+            __scope.Check(__status);
+            if (__o.IsInvalid) return null;
+            var __made = new global::Keep.Kept.Stamp(__o);
+            __made.Retain(this);
+            return __made;
+        }
+    }
+
+    /// <summary>
+    /// void keep::Pen::note(const char* text)
+    /// </summary>
+    [BridgefexFunction("keep_Pen_note")]
+    public virtual void Note(string? text)
+    {
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 3:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(true);
+                    KeptText __k1 = new KeptText(Runtime.Utf8Z(text, "text"));
+                    byte* __p1 = __k1.Pointer;
+                    RetainText(__k1);
+                    int __status = Native.keep_Pen_director_base_note(__self.Pointer, __p1);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold(true);
+            KeptText __k1 = new KeptText(Runtime.Utf8Z(text, "text"));
+            byte* __p1 = __k1.Pointer;
+            RetainText(__k1);
+            int __status = Native.keep_Pen_note(__self.Pointer, __p1);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+        }
+    }
+
+    /// <summary>
+    /// void keep::Pen::noteView(std::string_view text)
+    /// </summary>
+    [BridgefexFunction("keep_Pen_noteView")]
+    public virtual void NoteView(string text)
+    {
+        if (Director is { } __d)
+        {
+            switch (__d.Kind)
+            {
+                case 3:
+                {
+                    using var __scope = CallScope.Begin();
+                    using var __self = HoldDirector(true);
+                    KeptText __k1 = new KeptText(Runtime.Utf8(text, "text"));
+                    byte* __p1 = __k1.Pointer;
+                    RetainText(__k1);
+                    int __status = Native.keep_Pen_director_base_noteView(__self.Pointer, __p1, (nuint)__k1.Length);
+                    __scope.Returned();
+                    global::System.GC.KeepAlive(this);
+                    __scope.Check(__status);
+                    return;
+                }
+            }
+        }
+        {
+            using var __scope = CallScope.Begin();
+            using var __self = Hold(true);
+            KeptText __k1 = new KeptText(Runtime.Utf8(text, "text"));
+            byte* __p1 = __k1.Pointer;
+            RetainText(__k1);
+            int __status = Native.keep_Pen_noteView(__self.Pointer, __p1, (nuint)__k1.Length);
+            __scope.Returned();
+            global::System.GC.KeepAlive(this);
+            __scope.Check(__status);
+        }
+    }
+
+    /// <summary>
+    /// bool keep::Pen::notesIntact() const
+    /// </summary>
+    [BridgefexFunction("keep_Pen_notesIntact")]
+    public bool NotesIntact()
+    {
+        using var __scope = CallScope.Begin();
+        using var __self = Hold(false);
+        byte __result;
+        int __status = Native.keep_Pen_notesIntact(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
+        return (__result != 0);
+    }
+
+    /// <summary>
+    /// static int32_t keep::Pen::live()
+    /// </summary>
+    [BridgefexFunction("keep_Pen_live")]
+    public static int Live()
+    {
+        using var __scope = CallScope.Begin();
+        int __result;
+        int __status = Native.keep_Pen_live(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
+        return __result;
+    }
+
+    private static class DirectorOverrides
+    {
+        private static readonly global::System.Collections.Concurrent.ConcurrentDictionary<global::System.Type, bool[]> s_found = new();
+
+        private static bool[] Read([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type)
+        {
+            if (s_found.TryGetValue(type, out bool[]? known))
+            {
+                return known;
+            }
+            bool[] found = new bool[]
+            {
+                DirectorBox.Overrides(type, typeof(global::Keep.Kept.Pen), "Stamp", new global::System.Type[] {  }, new global::System.Type[] { typeof(global::Keep.Kept.Pen) }),
+                DirectorBox.Overrides(type, typeof(global::Keep.Kept.Pen), "Note", new global::System.Type[] { typeof(string) }, new global::System.Type[] { typeof(global::Keep.Kept.Pen) }),
+                DirectorBox.Overrides(type, typeof(global::Keep.Kept.Pen), "NoteView", new global::System.Type[] { typeof(string) }, new global::System.Type[] { typeof(global::Keep.Kept.Pen) }),
+            };
+            return s_found.GetOrAdd(type, found);
+        }
+
+        internal static bool[]? Of([global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | global::System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods)] global::System.Type type, bool always)
+        {
+            bool[] found = Read(type);
+            if (!always && (type == typeof(Pen) || !global::System.Array.Exists(found, x => x)))
+            {
+                return null;
+            }
+            return found;
+        }
+    }
+}
+
+internal sealed class StampHandle : ObjectHandle
+{
+    public StampHandle() : base(true)
+    {
+    }
+    public StampHandle(bool owns) : base(owns)
+    {
+    }
+    protected override void Destroy()
+    {
+        Native.keep_Stamp_destroy(handle);
+    }
+}
+
+/// <summary>
+/// keep::Stamp
+/// </summary>
+public unsafe partial class Stamp : BridgefexObject
+{
+    internal Stamp(ObjectHandle handle) : base(handle)
+    {
+    }
+
+    internal override global::System.Type CppType => typeof(Stamp);
+
+    /// <summary>
+    /// keep::Stamp::Stamp(const keep::Pen&amp; pen)
+    /// </summary>
+    [BridgefexFunction("keep_Stamp_create")]
+    public Stamp(global::Keep.Kept.Pen pen) : base(new StampHandle())
+    {
+        using var __scope = CallScope.Begin();
+        global::System.ArgumentNullException.ThrowIfNull(pen);
+        using var __t1 = pen.Hold(false);
+        nint __h1 = __t1.Pointer;
+        nint __result;
+        int __status = Native.keep_Stamp_create(&__result, __h1);
+        __scope.Returned();
+        Handle.Assign(__result);
+        __scope.Check(__status);
+        Retain(pen);
+    }
+
+    internal static Stamp? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new StampHandle(false);
+        handle.Assign(pointer);
+        var result = new Stamp(handle);
+        result.ReadOnly = readOnly;
+        result.Attach(owners);
+        return result;
+    }
+
+    /// <summary>The object that C++ lends to an override: the C# object that it is, if C# owns one, else a wrapper that is closed when the override returns.</summary>
+    internal static Stamp? LendToOverride(nint pointer, bool readOnly, Lent lent)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        Stamp? known = lent.Known<Stamp>(pointer);
+        if (known is not null)
+        {
+            return known;
+        }
+        Stamp? borrowed = Borrow(pointer, null, readOnly);
+        return borrowed is null ? null : lent.Borrowed(borrowed);
+    }
+
+    /// <summary>The object that C++ gives to an override (a std::unique_ptr): it is destroyed when it is closed or collected.</summary>
+    internal static Stamp? AdoptFromCpp(nint pointer)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new StampHandle();
+        handle.Assign(pointer);
+        return new Stamp(handle);
+    }
+
+    /// <summary>The object that an override returns (a std::unique_ptr): C# gives it up, as a call that takes the object gives it.</summary>
+    internal static nint GiveToCpp(Stamp value, string what)
+    {
+        Lease lease;
+        try
+        {
+            lease = value.Hold(true, true);
+        }
+        catch (global::System.InvalidOperationException inner)
+        {
+            throw new global::System.InvalidOperationException("the override " + what + " returned an object that cannot be given to C++: " + inner.Message, inner);
+        }
+        using (lease)
+        {
+            nint pointer = lease.Give();
+            value.Surrender();
+            return pointer;
+        }
+    }
+
+    /// <summary>
+    /// bool keep::Stamp::open() const
+    /// </summary>
+    [BridgefexFunction("keep_Stamp_open")]
+    public bool Open()
+    {
+        using var __scope = CallScope.Begin();
+        using var __self = Hold(false);
+        byte __result;
+        int __status = Native.keep_Stamp_open(__self.Pointer, &__result);
+        __scope.Returned();
+        global::System.GC.KeepAlive(this);
+        __scope.Check(__status);
+        return (__result != 0);
+    }
+
+    /// <summary>
+    /// static int32_t keep::Stamp::live()
+    /// </summary>
+    [BridgefexFunction("keep_Stamp_live")]
+    public static int Live()
+    {
+        using var __scope = CallScope.Begin();
+        int __result;
+        int __status = Native.keep_Stamp_live(&__result);
+        __scope.Returned();
+        __scope.Check(__status);
+        return __result;
     }
 }

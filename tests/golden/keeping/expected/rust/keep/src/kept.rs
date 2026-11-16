@@ -190,6 +190,23 @@ impl Label {
         unsafe { crate::runtime::adopt(__object) }
     }
 
+    /// `keep::Label::Label(std::string_view title)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `title`, which must stay valid for as long as the new object uses it, and must not change.
+    pub unsafe fn new_string_view(title: &str) -> crate::Result<crate::Owned<Self>> {
+        crate::runtime::ensure()?;
+        let mut __object: *mut Self = ::core::ptr::null_mut();
+        let __status = unsafe {
+            crate::native::keep_Label_create_string_view(
+                &mut __object,
+                title.as_ptr().cast(),
+                title.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        unsafe { crate::runtime::adopt(__object) }
+    }
+
     /// `void keep::Label::setRaw(const char* text)`
     ///
     /// Unsafe: C++ keeps a pointer to `text`, which must stay valid for as long as `self` uses it, and must not change.
@@ -230,6 +247,16 @@ impl Label {
                 text.map_or(::core::ptr::null(), |text| text.as_ptr()),
             )
         };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void keep::Label::setRawThrow(const char* text)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `text`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn set_raw_throw(&mut self, text: &::core::ffi::CStr) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe { crate::native::keep_Label_setRawThrow(self, text.as_ptr()) };
         crate::runtime::check(__status)?;
         Ok(())
     }
@@ -296,5 +323,155 @@ impl Label {
         let __status = unsafe { crate::native::keep_Label_scribble() };
         crate::runtime::check(__status)?;
         Ok(())
+    }
+
+    /// `static int32_t keep::Label::badDestructions()`
+    pub fn bad_destructions() -> crate::Result<i32> {
+        crate::runtime::ensure()?;
+        let mut __result: i32 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::keep_Label_badDestructions(&mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+}
+
+/// `keep::Pen`
+#[repr(C)]
+pub struct Pen {
+    _data: [u8; 0],
+    _marker: ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
+}
+
+impl crate::runtime::sealed::Sealed for Pen {}
+
+impl ::core::fmt::Debug for Pen {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Pen").finish_non_exhaustive()
+    }
+}
+
+impl crate::runtime::Class for Pen {
+    unsafe fn destroy(object: *mut Pen) {
+        unsafe { crate::native::keep_Pen_destroy(object) }
+    }
+}
+
+impl Pen {
+    /// `keep::Pen::Pen()`
+    pub fn new() -> crate::Result<crate::Owned<Self>> {
+        crate::runtime::ensure()?;
+        let mut __object: *mut Self = ::core::ptr::null_mut();
+        let __status = unsafe { crate::native::keep_Pen_create(&mut __object) };
+        crate::runtime::check(__status)?;
+        unsafe { crate::runtime::adopt(__object) }
+    }
+
+    /// `std::unique_ptr<keep::Stamp> keep::Pen::stamp()`
+    ///
+    /// Unsafe: the object that it returns keeps a pointer to `self`, which must stay valid (not dropped or moved) for as long as that object is used.
+    pub unsafe fn stamp(
+        &mut self,
+    ) -> crate::Result<::core::option::Option<crate::Owned<crate::kept::Stamp>>> {
+        crate::runtime::ensure()?;
+        let mut __object: *mut crate::kept::Stamp = ::core::ptr::null_mut();
+        let __status = unsafe { crate::native::keep_Pen_stamp(self, &mut __object) };
+        crate::runtime::check(__status)?;
+        Ok(unsafe { crate::Owned::from_raw(__object) })
+    }
+
+    /// `void keep::Pen::note(const char* text)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `text`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn note(&mut self, text: &::core::ffi::CStr) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe { crate::native::keep_Pen_note(self, text.as_ptr()) };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void keep::Pen::noteView(std::string_view text)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `text`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn note_view(&mut self, text: &str) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::keep_Pen_noteView(
+                self,
+                text.as_ptr().cast(),
+                text.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `bool keep::Pen::notesIntact() const`
+    pub fn notes_intact(&self) -> crate::Result<bool> {
+        crate::runtime::ensure()?;
+        let mut __result: bool = ::core::default::Default::default();
+        let __status = unsafe { crate::native::keep_Pen_notesIntact(self, &mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `static int32_t keep::Pen::live()`
+    pub fn live() -> crate::Result<i32> {
+        crate::runtime::ensure()?;
+        let mut __result: i32 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::keep_Pen_live(&mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+}
+
+/// `keep::Stamp`
+#[repr(C)]
+pub struct Stamp {
+    _data: [u8; 0],
+    _marker: ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
+}
+
+impl crate::runtime::sealed::Sealed for Stamp {}
+
+impl ::core::fmt::Debug for Stamp {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Stamp").finish_non_exhaustive()
+    }
+}
+
+impl crate::runtime::Class for Stamp {
+    unsafe fn destroy(object: *mut Stamp) {
+        unsafe { crate::native::keep_Stamp_destroy(object) }
+    }
+}
+
+impl Stamp {
+    /// `keep::Stamp::Stamp(const keep::Pen& pen)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `pen`, which must stay valid for as long as the new object uses it, and nobody else may use it meanwhile.
+    pub unsafe fn new(pen: &crate::kept::Pen) -> crate::Result<crate::Owned<Self>> {
+        crate::runtime::ensure()?;
+        let mut __object: *mut Self = ::core::ptr::null_mut();
+        let __status = unsafe { crate::native::keep_Stamp_create(&mut __object, pen) };
+        crate::runtime::check(__status)?;
+        unsafe { crate::runtime::adopt(__object) }
+    }
+
+    /// `bool keep::Stamp::open() const`
+    pub fn open(&self) -> crate::Result<bool> {
+        crate::runtime::ensure()?;
+        let mut __result: bool = ::core::default::Default::default();
+        let __status = unsafe { crate::native::keep_Stamp_open(self, &mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `static int32_t keep::Stamp::live()`
+    pub fn live() -> crate::Result<i32> {
+        crate::runtime::ensure()?;
+        let mut __result: i32 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::keep_Stamp_live(&mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
     }
 }

@@ -42,6 +42,14 @@ internal static unsafe partial class Native
 
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_enable_callbacks(nint release);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_disable_callbacks(nint release);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int keep_Gate_create(nint* out_self);
 
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
@@ -98,6 +106,10 @@ internal static unsafe partial class Native
 
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Label_create_string_view(nint* out_self, byte* title, nuint title_size);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial void keep_Label_destroy(nint self);
 
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
@@ -111,6 +123,10 @@ internal static unsafe partial class Native
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int keep_Label_setMaybe(nint self, byte* text);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Label_setRawThrow(nint self, byte* text);
 
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
@@ -135,4 +151,94 @@ internal static unsafe partial class Native
     [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
     [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
     internal static partial int keep_Label_scribble();
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Label_badDestructions(int* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_create(nint* out_self);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_Pen_destroy(nint self);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_stamp(nint self, nint* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_note(nint self, byte* text);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_noteView(nint self, byte* text, nuint text_size);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_notesIntact(nint self, byte* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_live(int* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Stamp_create(nint* out_self, nint pen);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_Stamp_destroy(nint self);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Stamp_open(nint self, byte* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Stamp_live(int* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_string_sink_set(nint sink, byte* data, nuint size);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_vector_sink_set(nint sink, void* data, nuint count, nuint element_size);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial void keep_vector_sink_set_strings(nint sink, Native.StringIn* items, nuint count);
+
+    [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
+    internal struct keep_Pen_vtable
+    {
+        public nint user_data;
+        public nint release;
+        public nint stamp;
+        public nint note;
+        public nint noteView;
+    }
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_director_create(nint* out_object, nint* out_director, Native.keep_Pen_vtable* vtable);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial nint keep_Pen_director_object(nint director);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_director_base_stamp(nint director, nint* out_result);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_director_base_note(nint director, byte* text);
+
+    [global::System.Runtime.InteropServices.LibraryImport(Runtime.Library)]
+    [global::System.Runtime.InteropServices.UnmanagedCallConv(CallConvs = new[] { typeof(global::System.Runtime.CompilerServices.CallConvCdecl) })]
+    internal static partial int keep_Pen_director_base_noteView(nint director, byte* text, nuint text_size);
 }

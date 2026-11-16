@@ -6,8 +6,8 @@
 // pointer to is something that Rust cannot see how long: the functions that do are `unsafe`, and
 // the caller says why it is sound (it declares the object before what keeps it, or leaks it).
 
-use keep::kept::{Gate, Label, Latch};
-use keep::Owned;
+use keep::kept::{Gate, Label, Latch, Pen};
+use keep::{ErrorKind, Owned};
 use std::ffi::CStr;
 
 fn check(condition: bool, what: &str) {
@@ -68,6 +68,34 @@ fn main() -> keep::Result<()> {
     let mut other = Label::new_void()?;
     other.set_copy("copied")?;
     check(other.intact()?, "a copy is intact");
+
+    // A call that stores the pointer and then throws: it is kept all the same.
+    let storing = CStr::from_bytes_with_nul(b"stored, then C++ throws\0").unwrap();
+    let mut thrower = Label::new_void()?;
+    let error = unsafe { thrower.set_raw_throw(storing) }.expect_err("C++ throws");
+    check(error.kind() == ErrorKind::Exception, "an exception");
+    check(error.message().contains("stored, then failed"), "its message");
+    check(thrower.intact()?, "kept although the call threw");
+
+    // A constructor with a view: unsafe too, and it keeps the caller's text.
+    let titled = unsafe { Label::new_string_view("a title that is a view")? };
+    check(titled.intact()? && titled.kept()? == "a title that is a view".len() as i32, "a view title");
+
+    // A class with a director has the same API as any other here: what is kept is `unsafe`.
+    let mut pen = Pen::new()?;
+    unsafe {
+        pen.note(raw)?;
+        pen.note_view(view)?;
+    }
+    check(pen.notes_intact()?, "the notes of the Pen");
+    {
+        let stamp = unsafe { pen.stamp()? }.expect("a stamp");
+        check(stamp.open()? && Pen::live()? == 1, "the Stamp reads its Pen");
+    }
+    drop(pen);
+    check(Pen::live()? == 0, "the Pen is gone");
+    drop((thrower, titled));
+    check(Label::bad_destructions()? == 0, "no destructor found what it points to gone");
 
     println!("round trip OK");
     Ok(())

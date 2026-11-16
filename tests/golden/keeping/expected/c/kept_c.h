@@ -8,6 +8,37 @@
 extern "C" {
 #endif
 
+/*
+ * The director of keep::Pen: an object of a class derived from it, whose virtual
+ * methods call the functions of a vtable, which code of another language provides.
+ * A NULL member of the vtable keeps the implementation of the class; the
+ * members of its pure virtual methods must be set. The functions run on whatever
+ * thread C++ calls the method, may be called many times and must not throw nor
+ * longjmp. A number, enum or struct result is written through the last parameter, which is
+ * value-initialized beforehand; a string or a container is given to the sink that is the last
+ * parameter (see the runtime header). An argument that is a pointer to an object of a class
+ * (a reference or a pointer in C++) is lent: it is valid during the call, and the function must
+ * not keep it nor destroy it. A std::unique_ptr argument is given to the function, which destroys
+ * it with the destroy function of its class (NULL if it was empty); a std::unique_ptr result is a
+ * pointer to a handle, NULL beforehand, and C++ owns the object that the function writes there.
+ * user_data is passed to every function; release(user_data) is called once, when
+ * the director is destroyed (with keep_Pen_destroy() of its object).
+ */
+typedef struct keep_Pen_director keep_Pen_director;
+
+#pragma pack(push, 8)
+typedef struct keep_Pen_vtable {
+    void* user_data;
+    void (*release)(void* user_data);
+    /* std::unique_ptr<keep::Stamp> keep::Pen::stamp() */
+    void (*stamp)(void*, keep_Stamp**);
+    /* void keep::Pen::note(const char* text) */
+    void (*note)(void*, const char*);
+    /* void keep::Pen::noteView(std::string_view text) */
+    void (*noteView)(void*, const char*, size_t);
+} keep_Pen_vtable;
+#pragma pack(pop)
+
 /* keep::Gate::Gate() */
 KEEP_NODISCARD KEEP_API keep_status keep_Gate_create(keep_Gate** out_self);
 
@@ -55,6 +86,10 @@ KEEP_NODISCARD KEEP_API keep_status keep_Label_create_void(keep_Label** out_self
  * title: the new object keeps a pointer to it; it must stay valid as long as it is used. */
 KEEP_NODISCARD KEEP_API keep_status keep_Label_create_cstr(keep_Label** out_self, const char* title);
 
+/* keep::Label::Label(std::string_view title)
+ * title: the new object keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Label_create_string_view(keep_Label** out_self, const char* title, size_t title_size);
+
 /* keep::Label::~Label() */
 KEEP_API void keep_Label_destroy(keep_Label* self);
 
@@ -70,6 +105,10 @@ KEEP_NODISCARD KEEP_API keep_status keep_Label_setView(keep_Label* self, const c
  * text: may be NULL.
  * text: self keeps a pointer to it; it must stay valid as long as it is used. */
 KEEP_NODISCARD KEEP_API keep_status keep_Label_setMaybe(keep_Label* self, const char* text);
+
+/* void keep::Label::setRawThrow(const char* text)
+ * text: self keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Label_setRawThrow(keep_Label* self, const char* text);
 
 /* void keep::Label::setCopy(const std::string& text) */
 KEEP_NODISCARD KEEP_API keep_status keep_Label_setCopy(keep_Label* self, const char* text, size_t text_size);
@@ -89,6 +128,70 @@ KEEP_NODISCARD KEEP_API keep_status keep_Label_keptIntact(bool* out_result);
 
 /* static void keep::Label::scribble() */
 KEEP_NODISCARD KEEP_API keep_status keep_Label_scribble(void);
+
+/* static int32_t keep::Label::badDestructions() */
+KEEP_NODISCARD KEEP_API keep_status keep_Label_badDestructions(int32_t* out_result);
+
+/* keep::Pen::Pen() */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_create(keep_Pen** out_self);
+
+/* keep::Pen::~Pen() */
+KEEP_API void keep_Pen_destroy(keep_Pen* self);
+
+/* std::unique_ptr<keep::Stamp> keep::Pen::stamp()
+ * this: the object that it returns keeps a pointer to it; it must stay valid as long as it is used.
+ * *out_result: owned by the caller (may be NULL); destroy it with keep_Stamp_destroy. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_stamp(keep_Pen* self, keep_Stamp** out_result);
+
+/* void keep::Pen::note(const char* text)
+ * text: self keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_note(keep_Pen* self, const char* text);
+
+/* void keep::Pen::noteView(std::string_view text)
+ * text: self keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_noteView(keep_Pen* self, const char* text, size_t text_size);
+
+/* bool keep::Pen::notesIntact() const */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_notesIntact(const keep_Pen* self, bool* out_result);
+
+/* static int32_t keep::Pen::live() */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_live(int32_t* out_result);
+
+/* keep::Stamp::Stamp(const keep::Pen& pen)
+ * pen: the new object keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Stamp_create(keep_Stamp** out_self, const keep_Pen* pen);
+
+/* keep::Stamp::~Stamp() */
+KEEP_API void keep_Stamp_destroy(keep_Stamp* self);
+
+/* bool keep::Stamp::open() const */
+KEEP_NODISCARD KEEP_API keep_status keep_Stamp_open(const keep_Stamp* self, bool* out_result);
+
+/* static int32_t keep::Stamp::live() */
+KEEP_NODISCARD KEEP_API keep_status keep_Stamp_live(int32_t* out_result);
+
+/* keep::Pen::Pen() of the director
+ * the vtable is copied; its release function is called once, when the director is destroyed (or now, if this function fails) */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_director_create(keep_Pen** out_object, keep_Pen_director** out_director, const keep_Pen_vtable* vtable);
+
+/* keep::Pen: the object of its director */
+KEEP_NODISCARD KEEP_API keep_Pen* keep_Pen_director_object(keep_Pen_director* director);
+
+/* std::unique_ptr<keep::Stamp> keep::Pen::stamp()
+ * calls the implementation of the class, without going through the vtable
+ * this: the object that it returns keeps a pointer to it; it must stay valid as long as it is used.
+ * *out_result: owned by the caller (may be NULL); destroy it with keep_Stamp_destroy. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_director_base_stamp(keep_Pen_director* director, keep_Stamp** out_result);
+
+/* void keep::Pen::note(const char* text)
+ * calls the implementation of the class, without going through the vtable
+ * text: the director keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_director_base_note(keep_Pen_director* director, const char* text);
+
+/* void keep::Pen::noteView(std::string_view text)
+ * calls the implementation of the class, without going through the vtable
+ * text: the director keeps a pointer to it; it must stay valid as long as it is used. */
+KEEP_NODISCARD KEEP_API keep_status keep_Pen_director_base_noteView(keep_Pen_director* director, const char* text, size_t text_size);
 
 #ifdef __cplusplus
 }

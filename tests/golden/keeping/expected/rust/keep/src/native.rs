@@ -20,14 +20,28 @@ extern "C" {
     pub(crate) fn keep_Latch_live(out_result: *mut i32) -> i32;
     pub(crate) fn keep_Label_create_void(out_self: *mut *mut crate::kept::Label) -> i32;
     pub(crate) fn keep_Label_create_cstr(out_self: *mut *mut crate::kept::Label, title: *const ::core::ffi::c_char) -> i32;
+    pub(crate) fn keep_Label_create_string_view(out_self: *mut *mut crate::kept::Label, title: *const ::core::ffi::c_char, title_size: usize) -> i32;
     pub(crate) fn keep_Label_destroy(self_: *mut crate::kept::Label);
     pub(crate) fn keep_Label_setRaw(self_: *mut crate::kept::Label, text: *const ::core::ffi::c_char) -> i32;
     pub(crate) fn keep_Label_setView(self_: *mut crate::kept::Label, text: *const ::core::ffi::c_char, text_size: usize) -> i32;
     pub(crate) fn keep_Label_setMaybe(self_: *mut crate::kept::Label, text: *const ::core::ffi::c_char) -> i32;
+    pub(crate) fn keep_Label_setRawThrow(self_: *mut crate::kept::Label, text: *const ::core::ffi::c_char) -> i32;
     pub(crate) fn keep_Label_setCopy(self_: *mut crate::kept::Label, text: *const ::core::ffi::c_char, text_size: usize) -> i32;
     pub(crate) fn keep_Label_intact(self_: *const crate::kept::Label, out_result: *mut bool) -> i32;
     pub(crate) fn keep_Label_kept(self_: *const crate::kept::Label, out_result: *mut i32) -> i32;
     pub(crate) fn keep_Label_keepView(text: *const ::core::ffi::c_char, text_size: usize) -> i32;
     pub(crate) fn keep_Label_keptIntact(out_result: *mut bool) -> i32;
     pub(crate) fn keep_Label_scribble() -> i32;
+    pub(crate) fn keep_Label_badDestructions(out_result: *mut i32) -> i32;
+    pub(crate) fn keep_Pen_create(out_self: *mut *mut crate::kept::Pen) -> i32;
+    pub(crate) fn keep_Pen_destroy(self_: *mut crate::kept::Pen);
+    pub(crate) fn keep_Pen_stamp(self_: *mut crate::kept::Pen, out_result: *mut *mut crate::kept::Stamp) -> i32;
+    pub(crate) fn keep_Pen_note(self_: *mut crate::kept::Pen, text: *const ::core::ffi::c_char) -> i32;
+    pub(crate) fn keep_Pen_noteView(self_: *mut crate::kept::Pen, text: *const ::core::ffi::c_char, text_size: usize) -> i32;
+    pub(crate) fn keep_Pen_notesIntact(self_: *const crate::kept::Pen, out_result: *mut bool) -> i32;
+    pub(crate) fn keep_Pen_live(out_result: *mut i32) -> i32;
+    pub(crate) fn keep_Stamp_create(out_self: *mut *mut crate::kept::Stamp, pen: *const crate::kept::Pen) -> i32;
+    pub(crate) fn keep_Stamp_destroy(self_: *mut crate::kept::Stamp);
+    pub(crate) fn keep_Stamp_open(self_: *const crate::kept::Stamp, out_result: *mut bool) -> i32;
+    pub(crate) fn keep_Stamp_live(out_result: *mut i32) -> i32;
 }

@@ -1827,11 +1827,17 @@ class _Builder:
         *,
         constructor: bool = False,
         method: bool = False,
+        like: str | None = None,
     ) -> Resolved:
         """The policy of a generated C function: its annotations, and what the
         types imply. Reports what is wrong with them. ``method`` says that it is
-        called on an object (the annotations may say what keeps a pointer to it)."""
+        called on an object (the annotations may say what keeps a pointer to it).
+        ``like`` is the function that this one repeats (the base call of a virtual
+        method is the method itself): what the file says of that one applies when it
+        says nothing of this one."""
         self.annotatable.append(c_name)
+        if like is not None and c_name not in self._annotations:
+            c_name = like
         resolved, problems = resolve(
             c_name,
             what,
@@ -3413,6 +3419,20 @@ class _Builder:
                 back = f"{' || '.join(terms)} ? {cpp}() : {back}"
         return cpp, f"{c_type}*", token, [f"{c_type} _result{{}};"], [f"return {back};"]
 
+    def _base_policy(
+        self, name: str, what: str, slot: _Slot, method: Method, location: Location
+    ) -> Resolved:
+        """The policy of the base call of a virtual method: the method itself, so what the
+        annotations say of the public one (a text or the object that C++ keeps) holds for the
+        call that an override makes of it too."""
+        owner = slot.owner
+        public = f"{owner.c_type}_{method.name}" + self._suffix(
+            ("method", *owner.model.namespace, owner.model.name, method.name), method.parameters
+        )
+        return self._policy(
+            name, what, method.parameters, method.result, location, method=True, like=public
+        )
+
     def _director_entry(
         self, info: ClassInfo, slot: _Slot, field: str, impl: str
     ) -> tuple[DirectorEntry, list[str], list[str]] | None:
@@ -3504,7 +3524,7 @@ class _Builder:
             name = f"{director_type}_base_{field}"
             what = f"the base call of '{description}'"
             self._reserve_c_name(name, what, location)
-            policy = self._policy(name, what, method.parameters, method.result, location)
+            policy = self._base_policy(name, what, slot, method, location)
             params = self._lower_params(
                 method.parameters, location, policy, reserved=_DIRECTOR_PARAMETERS
             )
@@ -3537,6 +3557,7 @@ class _Builder:
                 result=lowered_result,
                 location=location,
                 is_const=method.is_const,
+                retains_this=policy.retains_this,
             )
         entry = DirectorEntry(
             field=field,

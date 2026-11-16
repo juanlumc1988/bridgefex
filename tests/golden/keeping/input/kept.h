@@ -59,6 +59,8 @@ class Label {
 public:
     Label();
     explicit Label(const char* title);
+    // Both are a String in C# and Java: the constructors are told apart by name there.
+    explicit Label(std::string_view title);
     ~Label();
     Label(const Label&) = delete;
     Label& operator=(const Label&) = delete;
@@ -66,6 +68,8 @@ public:
     void setRaw(const char* text);
     void setView(std::string_view text);
     void setMaybe(const char* text);
+    // Stores the text, then throws: what it stored is kept all the same.
+    void setRawThrow(const char* text);
     // A copy: there is nothing to keep.
     void setCopy(const std::string& text);
     // Whether every text that it keeps is what it was given (a text that is gone or changed is
@@ -79,6 +83,9 @@ public:
     // A helper for the tests: allocates blocks of many sizes, fills them and frees them, so that
     // memory that was freed is reused and overwritten before something reads it.
     static void scribble();
+    // The number of Label and Latch objects that found, when they were destroyed, that what they
+    // point to was gone or changed (their destructors read it).
+    static std::int32_t badDestructions();
 
 private:
     // Each text that is kept: where it is, how long, and what it added up to when it was given.
@@ -86,6 +93,47 @@ private:
     std::size_t sizes_[4];
     std::uint32_t sums_[4];
     std::string copy_;
+};
+
+class Stamp;
+
+// A class that others derive from (it has a director): an override that calls the implementation
+// of the class keeps what the class keeps too.
+class Pen {
+public:
+    Pen();
+    virtual ~Pen();
+    Pen(const Pen&) = delete;
+    Pen& operator=(const Pen&) = delete;
+
+    // The Stamp keeps a pointer to this Pen.
+    virtual std::unique_ptr<Stamp> stamp();
+    virtual void note(const char* text);
+    virtual void noteView(std::string_view text);
+    // Whether the texts that it keeps are what it was given.
+    bool notesIntact() const;
+    // The number of Pen objects that exist.
+    static std::int32_t live();
+
+private:
+    friend class Stamp;
+    std::uint32_t magic_;
+    const char* data_[2];
+    std::size_t sizes_[2];
+    std::uint32_t sums_[2];
+};
+
+// It reads the Pen that it was made by.
+class Stamp {
+public:
+    explicit Stamp(const Pen& pen);
+    ~Stamp();
+    bool open() const;
+    // The number of Stamp objects that exist.
+    static std::int32_t live();
+
+private:
+    const Pen* pen_;
 };
 
 }  // namespace keep

@@ -22,6 +22,19 @@ public final class BridgefexNative {
     static native int length(long address);
     static native byte[] copyOut(long address, int size);
     static native long sizes();
+    static native void copyIn(long address, byte[] bytes);
+
+    static long callbackAddress(int index) {
+        BridgefexRuntime.ensureLoaded();
+        return n_callbackAddress(index);
+    }
+    private static native long n_callbackAddress(int index);
+
+    static long releaseAddress() {
+        BridgefexRuntime.ensureLoaded();
+        return n_releaseAddress();
+    }
+    private static native long n_releaseAddress();
 
     public static BridgefexSegment keep_last_error() {
         BridgefexRuntime.ensureLoaded();
@@ -125,6 +138,12 @@ public final class BridgefexNative {
     }
     private static native int n_keep_Label_create_cstr(long p_out_self, long p_title);
 
+    public static int keep_Label_create_string_view(BridgefexSegment p_out_self, BridgefexSegment p_title, long p_title_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Label_create_string_view(p_out_self.address(), p_title.address(), p_title_size);
+    }
+    private static native int n_keep_Label_create_string_view(long p_out_self, long p_title, long p_title_size);
+
     public static void keep_Label_destroy(BridgefexSegment p_self) {
         BridgefexRuntime.ensureLoaded();
         n_keep_Label_destroy(p_self.address());
@@ -148,6 +167,12 @@ public final class BridgefexNative {
         return n_keep_Label_setMaybe(p_self.address(), p_text.address());
     }
     private static native int n_keep_Label_setMaybe(long p_self, long p_text);
+
+    public static int keep_Label_setRawThrow(BridgefexSegment p_self, BridgefexSegment p_text) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Label_setRawThrow(p_self.address(), p_text.address());
+    }
+    private static native int n_keep_Label_setRawThrow(long p_self, long p_text);
 
     public static int keep_Label_setCopy(BridgefexSegment p_self, BridgefexSegment p_text, long p_text_size) {
         BridgefexRuntime.ensureLoaded();
@@ -184,4 +209,124 @@ public final class BridgefexNative {
         return n_keep_Label_scribble();
     }
     private static native int n_keep_Label_scribble();
+
+    public static int keep_Label_badDestructions(BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Label_badDestructions(p_out_result.address());
+    }
+    private static native int n_keep_Label_badDestructions(long p_out_result);
+
+    public static int keep_Pen_create(BridgefexSegment p_out_self) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_create(p_out_self.address());
+    }
+    private static native int n_keep_Pen_create(long p_out_self);
+
+    public static void keep_Pen_destroy(BridgefexSegment p_self) {
+        BridgefexRuntime.ensureLoaded();
+        n_keep_Pen_destroy(p_self.address());
+    }
+    private static native void n_keep_Pen_destroy(long p_self);
+
+    public static int keep_Pen_stamp(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_stamp(p_self.address(), p_out_result.address());
+    }
+    private static native int n_keep_Pen_stamp(long p_self, long p_out_result);
+
+    public static int keep_Pen_note(BridgefexSegment p_self, BridgefexSegment p_text) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_note(p_self.address(), p_text.address());
+    }
+    private static native int n_keep_Pen_note(long p_self, long p_text);
+
+    public static int keep_Pen_noteView(BridgefexSegment p_self, BridgefexSegment p_text, long p_text_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_noteView(p_self.address(), p_text.address(), p_text_size);
+    }
+    private static native int n_keep_Pen_noteView(long p_self, long p_text, long p_text_size);
+
+    public static int keep_Pen_notesIntact(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_notesIntact(p_self.address(), p_out_result.address());
+    }
+    private static native int n_keep_Pen_notesIntact(long p_self, long p_out_result);
+
+    public static int keep_Pen_live(BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_live(p_out_result.address());
+    }
+    private static native int n_keep_Pen_live(long p_out_result);
+
+    public static int keep_Stamp_create(BridgefexSegment p_out_self, BridgefexSegment p_pen) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Stamp_create(p_out_self.address(), p_pen.address());
+    }
+    private static native int n_keep_Stamp_create(long p_out_self, long p_pen);
+
+    public static void keep_Stamp_destroy(BridgefexSegment p_self) {
+        BridgefexRuntime.ensureLoaded();
+        n_keep_Stamp_destroy(p_self.address());
+    }
+    private static native void n_keep_Stamp_destroy(long p_self);
+
+    public static int keep_Stamp_open(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Stamp_open(p_self.address(), p_out_result.address());
+    }
+    private static native int n_keep_Stamp_open(long p_self, long p_out_result);
+
+    public static int keep_Stamp_live(BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Stamp_live(p_out_result.address());
+    }
+    private static native int n_keep_Stamp_live(long p_out_result);
+
+    public static void keep_string_sink_set(BridgefexSegment p_sink, BridgefexSegment p_data, long p_size) {
+        BridgefexRuntime.ensureLoaded();
+        n_keep_string_sink_set(p_sink.address(), p_data.address(), p_size);
+    }
+    private static native void n_keep_string_sink_set(long p_sink, long p_data, long p_size);
+
+    public static void keep_vector_sink_set(BridgefexSegment p_sink, BridgefexSegment p_data, long p_count, long p_size) {
+        BridgefexRuntime.ensureLoaded();
+        n_keep_vector_sink_set(p_sink.address(), p_data.address(), p_count, p_size);
+    }
+    private static native void n_keep_vector_sink_set(long p_sink, long p_data, long p_count, long p_size);
+
+    public static void keep_vector_sink_set_strings(BridgefexSegment p_sink, BridgefexSegment p_items, long p_count) {
+        BridgefexRuntime.ensureLoaded();
+        n_keep_vector_sink_set_strings(p_sink.address(), p_items.address(), p_count);
+    }
+    private static native void n_keep_vector_sink_set_strings(long p_sink, long p_items, long p_count);
+
+    public static int keep_Pen_director_create(BridgefexSegment p_out_object, BridgefexSegment p_out_director, BridgefexSegment p_vtable) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_director_create(p_out_object.address(), p_out_director.address(), p_vtable.address());
+    }
+    private static native int n_keep_Pen_director_create(long p_out_object, long p_out_director, long p_vtable);
+
+    public static BridgefexSegment keep_Pen_director_object(BridgefexSegment p_director) {
+        BridgefexRuntime.ensureLoaded();
+        return BridgefexSegment.ofAddress(n_keep_Pen_director_object(p_director.address()));
+    }
+    private static native long n_keep_Pen_director_object(long p_director);
+
+    public static int keep_Pen_director_base_stamp(BridgefexSegment p_director, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_director_base_stamp(p_director.address(), p_out_result.address());
+    }
+    private static native int n_keep_Pen_director_base_stamp(long p_director, long p_out_result);
+
+    public static int keep_Pen_director_base_note(BridgefexSegment p_director, BridgefexSegment p_text) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_director_base_note(p_director.address(), p_text.address());
+    }
+    private static native int n_keep_Pen_director_base_note(long p_director, long p_text);
+
+    public static int keep_Pen_director_base_noteView(BridgefexSegment p_director, BridgefexSegment p_text, long p_text_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_keep_Pen_director_base_noteView(p_director.address(), p_text.address(), p_text_size);
+    }
+    private static native int n_keep_Pen_director_base_noteView(long p_director, long p_text, long p_text_size);
 }

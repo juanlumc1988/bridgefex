@@ -39,7 +39,7 @@ public final class BridgefexRuntime {
     /** The name of the library, without the prefix and the extension of the platform. */
     public static final String LIBRARY = "keep";
     /** The fingerprint of the C API that these bindings were generated for. */
-    public static final String FINGERPRINT = "953182e858b5b37eada8773138eab9c7";
+    public static final String FINGERPRINT = "7455465d644f37e3b3e32f82d6b5d545";
     /** The system property that gives the path of the library. */
     public static final String PROPERTY = "keep.library";
     /** The environment variable that gives the path of the library. */

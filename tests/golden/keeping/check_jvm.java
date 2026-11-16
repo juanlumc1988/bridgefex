@@ -14,11 +14,21 @@ import static checks.Checks.expect;
 
 import java.util.ArrayList;
 import java.util.List;
+import keep.BridgefexException;
 import keep.kept.Gate;
 import keep.kept.Label;
 import keep.kept.Latch;
+import keep.kept.Pen;
+import keep.kept.Stamp;
 
 class Check {
+    // A text of {@code count} times {@code letter} (Java 8 has no String.repeat).
+    static String rep(char letter, int count) {
+        char[] letters = new char[count];
+        java.util.Arrays.fill(letters, letter);
+        return new String(letters);
+    }
+
     // Memory that was freed is reused (and overwritten) before C++ reads it.
     static void churn() {
         List<byte[]> junk = new ArrayList<>();
@@ -58,14 +68,40 @@ class Check {
     }
 
     static void setTemporaryTexts(Label label) {
-        label.setRaw("a raw text that is a temporary " + "r".repeat(30));
-        label.setView("a view that is a temporary " + "v".repeat(40));
-        label.setMaybe("maybe " + "m".repeat(10));
-        label.setCopy("a copy " + "c".repeat(50));
+        label.setRaw("a raw text that is a temporary " + rep('r', 30));
+        label.setView("a view that is a temporary " + rep('v', 40));
+        label.setMaybe("maybe " + rep('m', 10));
+        label.setCopy("a copy " + rep('c', 50));
     }
 
     static Label labelOfTemporaryTitle() {
-        return new Label("a title that is a temporary " + "t".repeat(20));
+        return Label.createCstr("a title that is a temporary " + rep('t', 20));
+    }
+
+    static class Mine extends Pen {
+        @Override
+        public Stamp stamp() {
+            return super.stamp();
+        }
+
+        @Override
+        public void note(String text) {
+            super.note(text);
+        }
+
+        @Override
+        public void noteView(String text) {
+            super.noteView(text);
+        }
+    }
+
+    static Stamp stampOfForgottenPen() {
+        Mine pen = new Mine();
+        pen.note("a note that is a temporary " + rep('n', 30));
+        pen.noteView("a view that is a temporary " + rep('w', 40));
+        churn();
+        check(pen.notesIntact(), "the notes of the Pen");
+        return pen.stamp();
     }
 
     public static void main(String[] args) throws Exception {
@@ -125,7 +161,7 @@ class Check {
 
         // A text that is replaced is still kept: C++ may use the old one until the object is closed.
         for (int number = 0; number < 100; number++) {
-            label.setView("text number " + number + " " + "w".repeat(number % 17));
+            label.setView("text number " + number + " " + rep('w', number % 17));
         }
         churn();
         check(label.intact(), "the replaced texts are intact");
@@ -135,10 +171,10 @@ class Check {
         churn();
 
         // A constructor that fails keeps nothing, and the memory of the text is the collector's.
-        expect(IllegalArgumentException.class, () -> new Label("a title with a NUL \0 inside"), "NUL");
+        expect(IllegalArgumentException.class, () -> Label.createCstr("a title with a NUL \0 inside"), "NUL");
 
         // Without an object, for ever (a function or a static method).
-        Label.keepView("a text for ever " + "f".repeat(30));
+        Label.keepView("a text for ever " + rep('f', 30));
         churn();
         check(Label.keptIntact(), "the text for ever");
 
@@ -147,6 +183,34 @@ class Check {
             other.setCopy("copied");
             check(other.intact(), "a copy is intact");
         }
+
+        // A call that stores the pointer and then throws: what it stored is kept all the same.
+        try (Label thrower = new Label()) {
+            BridgefexException error = expect(BridgefexException.class,
+                () -> thrower.setRawThrow("a text that is stored and then C++ throws " + rep('z', 20)),
+                "stored, then failed");
+            churn();
+            check(thrower.intact(), "kept although the call threw");
+        }
+
+        // Two constructors that Java cannot tell by their arguments are told by name: each keeps its text.
+        try (Label titled = Label.createStringView("a title that is a view and a temporary " + rep('q', 20))) {
+            churn();
+            check(titled.intact() && titled.kept() == "a title that is a view and a temporary ".length() + 20,
+                "a view title");
+        }
+
+        // An override that calls the implementation of the class keeps what the class keeps too.
+        Stamp stamp = stampOfForgottenPen();
+        churn();
+        check(stamp.open() && Pen.live() == 1, "the Stamp keeps its Pen alive");
+        stamp.close();
+        stamp = null;
+        eventually(() -> Stamp.live() == 0 && Pen.live() == 0, "both went");
+
+        // What the destructors of the objects read was still there when they ran.
+        collect();
+        check(Label.badDestructions() == 0, "no destructor found what it points to gone");
 
         System.out.println("keeping: Java round trip OK");
     }

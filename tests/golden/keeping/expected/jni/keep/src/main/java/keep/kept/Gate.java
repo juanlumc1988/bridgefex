@@ -11,6 +11,8 @@ import keep.BridgefexUnsigned;
 import keep.BridgefexSegment;
 import keep.BridgefexArena;
 import keep.BridgefexStruct;
+import keep.BridgefexCallbacks;
+import keep.BridgefexDirectors;
 
 /**
  * keep::Gate
@@ -44,11 +46,12 @@ public class Gate extends BridgefexObject {
     @BridgefexFunction("keep_Gate_create")
     public Gate() {
         super(new BridgefexHandle(BridgefexNative::keep_Gate_destroy, true));
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.keep_Gate_create(__result);
+            __scope.returned();
             this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
-            BridgefexRuntime.check(__status);
+            __scope.check(__status);
         }
     }
 
@@ -71,13 +74,14 @@ public class Gate extends BridgefexObject {
      */
     @BridgefexFunction("keep_Gate_latch")
     public keep.kept.Latch latch() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(true, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             BridgefexHandle __h = new BridgefexHandle(BridgefexNative::keep_Latch_destroy, true);
             keep.kept.Latch __new = keep.kept.Latch.wrap(__h);
             int __status = BridgefexNative.keep_Gate_latch(__self.pointer(), __result);
+            __scope.returned();
             __h.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
-            BridgefexRuntime.check(__status);
+            __scope.check(__status);
             if (__h.isInvalid()) return null;
             __new.retain(this);
             return __new;
@@ -89,9 +93,11 @@ public class Gate extends BridgefexObject {
      */
     @BridgefexFunction("keep_Gate_pin")
     public void pin() {
-        try (BridgefexLease __self = hold(true, false)) {
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             BridgefexObject.retainForever(this);
-            BridgefexRuntime.check(BridgefexNative.keep_Gate_pin(__self.pointer()));
+            int __status = BridgefexNative.keep_Gate_pin(__self.pointer());
+            __scope.returned();
+            __scope.check(__status);
         }
     }
 
@@ -100,9 +106,11 @@ public class Gate extends BridgefexObject {
      */
     @BridgefexFunction("keep_Gate_latches")
     public int latches() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.keep_Gate_latches(__self.pointer(), __result));
+            int __status = BridgefexNative.keep_Gate_latches(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }
@@ -112,9 +120,11 @@ public class Gate extends BridgefexObject {
      */
     @BridgefexFunction("keep_Gate_live")
     public static int live() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.keep_Gate_live(__result));
+            int __status = BridgefexNative.keep_Gate_live(__result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }
@@ -124,9 +134,11 @@ public class Gate extends BridgefexObject {
      */
     @BridgefexFunction("keep_Gate_pinnedAlive")
     public static boolean pinnedAlive() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BOOL);
-            BridgefexRuntime.check(BridgefexNative.keep_Gate_pinnedAlive(__result));
+            int __status = BridgefexNative.keep_Gate_pinnedAlive(__result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_BOOL, 0);
         }
     }

@@ -18,6 +18,7 @@ public abstract class BridgefexObject implements AutoCloseable {
     boolean readOnly;
     BridgefexKeep retained;
     BridgefexObject origin;
+    private volatile BridgefexCallbacks.DirectorBox director;
 
     @SuppressWarnings("this-escape") // the cleaner keeps a phantom reference only
     protected BridgefexObject(BridgefexHandle handle) {
@@ -91,7 +92,7 @@ public abstract class BridgefexObject implements AutoCloseable {
             releaseAll(held);
             throw refusal(result, give);
         }
-        return new BridgefexLease(leased, handle.pointer(), held);
+        return new BridgefexLease(leased, handle.pointer(), held, this);
     }
 
     private IllegalStateException refusal(BridgefexHandle.LeaseResult result, boolean give) {
@@ -206,9 +207,46 @@ public abstract class BridgefexObject implements AutoCloseable {
         origin = whole;
     }
 
+    /** Set if C++ calls the overrides of this object (it derives from a class with a director). For the generated code. */
+    public final BridgefexCallbacks.DirectorBox director() {
+        return director;
+    }
+
+    /** This object is the one of a director. For the generated code. */
+    public final void setDirector(BridgefexCallbacks.DirectorBox box) {
+        director = box;
+        handle.setDirector(box);
+    }
+
+    /**
+     * The hold on the object for a base call: its director is what the call uses. An object that was given to C++
+     * is closed for Java, and its director lives as long as C++ holds it: a base call that C++ runs (from an
+     * override on this thread) is the only one that can use it. For the generated code.
+     */
+    public final BridgefexLease holdDirector(boolean mutable) {
+        BridgefexCallbacks.DirectorBox box = director;
+        if (box == null) {
+            throw new IllegalStateException(getClass().getSimpleName() + " object has no director");
+        }
+        if (box.pointer().address() == 0L) {
+            throw closed();
+        }
+        if (!isClosed() && !handle.isGone()) {
+            return hold(mutable, false).as(box.pointer());
+        }
+        if (box.isRunning()) {
+            return BridgefexLease.unheld(box.pointer());
+        }
+        throw closed();
+    }
+
     /** The object was given to C++: what it retained is kept for ever. For the generated code. */
     public final void surrender() {
         BridgefexObject target = origin != null ? origin : this;
+        BridgefexCallbacks.DirectorBox given = target.director;
+        if (given != null) {
+            given.give();
+        }
         BridgefexKeep kept = target.retained;
         if (kept != null && kept != BridgefexKeep.FOREVER) {
             kept.moveTo(BridgefexKeep.FOREVER);

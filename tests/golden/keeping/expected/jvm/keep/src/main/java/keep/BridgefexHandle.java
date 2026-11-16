@@ -174,6 +174,10 @@ public final class BridgefexHandle implements Runnable {
         synchronized (GATE) {
             pins++;
         }
+        BridgefexCallbacks.DirectorBox box = director;
+        if (box != null) {
+            box.pin();
+        }
     }
 
     /** The C++ object that pointed to this one is gone. For the generated code. */
@@ -181,7 +185,18 @@ public final class BridgefexHandle implements Runnable {
         synchronized (GATE) {
             pins--;
         }
+        BridgefexCallbacks.DirectorBox box = director;
+        if (box != null) {
+            box.unpin();
+        }
         settle();
+    }
+
+    private volatile BridgefexCallbacks.DirectorBox director;
+
+    /** The object of this handle is a director: the Java object stays alive while a C++ object points to it. */
+    void setDirector(BridgefexCallbacks.DirectorBox box) {
+        director = box;
     }
 
     /**

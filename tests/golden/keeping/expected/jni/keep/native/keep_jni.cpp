@@ -144,6 +144,13 @@ jint JNICALL glue_keep_Label_create_cstr(JNIEnv* env, jclass cls, jlong a0, jlon
     return static_cast<jint>(keep_Label_create_cstr((keep_Label**) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1)));
 }
 
+jint JNICALL glue_keep_Label_create_string_view(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Label_create_string_view((keep_Label**) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
 void JNICALL glue_keep_Label_destroy(JNIEnv* env, jclass cls, jlong a0)
 {
     (void) env;
@@ -170,6 +177,13 @@ jint JNICALL glue_keep_Label_setMaybe(JNIEnv* env, jclass cls, jlong a0, jlong a
     (void) env;
     (void) cls;
     return static_cast<jint>(keep_Label_setMaybe((keep_Label*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Label_setRawThrow(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Label_setRawThrow((keep_Label*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1)));
 }
 
 jint JNICALL glue_keep_Label_setCopy(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
@@ -212,6 +226,146 @@ jint JNICALL glue_keep_Label_scribble(JNIEnv* env, jclass cls)
     (void) env;
     (void) cls;
     return static_cast<jint>(keep_Label_scribble());
+}
+
+jint JNICALL glue_keep_Label_badDestructions(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Label_badDestructions((int32_t*) static_cast<uintptr_t>(a0)));
+}
+
+jint JNICALL glue_keep_Pen_create(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_create((keep_Pen**) static_cast<uintptr_t>(a0)));
+}
+
+void JNICALL glue_keep_Pen_destroy(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    keep_Pen_destroy((keep_Pen*) static_cast<uintptr_t>(a0));
+}
+
+jint JNICALL glue_keep_Pen_stamp(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_stamp((keep_Pen*) static_cast<uintptr_t>(a0), (keep_Stamp**) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Pen_note(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_note((keep_Pen*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Pen_noteView(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_noteView((keep_Pen*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_keep_Pen_notesIntact(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_notesIntact((const keep_Pen*) static_cast<uintptr_t>(a0), (bool*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Pen_live(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_live((int32_t*) static_cast<uintptr_t>(a0)));
+}
+
+jint JNICALL glue_keep_Stamp_create(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Stamp_create((keep_Stamp**) static_cast<uintptr_t>(a0), (const keep_Pen*) static_cast<uintptr_t>(a1)));
+}
+
+void JNICALL glue_keep_Stamp_destroy(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    keep_Stamp_destroy((keep_Stamp*) static_cast<uintptr_t>(a0));
+}
+
+jint JNICALL glue_keep_Stamp_open(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Stamp_open((const keep_Stamp*) static_cast<uintptr_t>(a0), (bool*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Stamp_live(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Stamp_live((int32_t*) static_cast<uintptr_t>(a0)));
+}
+
+void JNICALL glue_keep_string_sink_set(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    keep_string_sink_set((keep_string_sink*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1), (size_t) a2);
+}
+
+void JNICALL glue_keep_vector_sink_set(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2, jlong a3)
+{
+    (void) env;
+    (void) cls;
+    keep_vector_sink_set((keep_vector_sink*) static_cast<uintptr_t>(a0), (const void*) static_cast<uintptr_t>(a1), (size_t) a2, (size_t) a3);
+}
+
+void JNICALL glue_keep_vector_sink_set_strings(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    keep_vector_sink_set_strings((keep_vector_sink*) static_cast<uintptr_t>(a0), (const keep_string*) static_cast<uintptr_t>(a1), (size_t) a2);
+}
+
+jint JNICALL glue_keep_Pen_director_create(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_director_create((keep_Pen**) static_cast<uintptr_t>(a0), (keep_Pen_director**) static_cast<uintptr_t>(a1), (const keep_Pen_vtable*) static_cast<uintptr_t>(a2)));
+}
+
+jlong JNICALL glue_keep_Pen_director_object(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(keep_Pen_director_object((keep_Pen_director*) static_cast<uintptr_t>(a0))));
+}
+
+jint JNICALL glue_keep_Pen_director_base_stamp(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_director_base_stamp((keep_Pen_director*) static_cast<uintptr_t>(a0), (keep_Stamp**) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Pen_director_base_note(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_director_base_note((keep_Pen_director*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_keep_Pen_director_base_noteView(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(keep_Pen_director_base_noteView((keep_Pen_director*) static_cast<uintptr_t>(a0), (const char*) static_cast<uintptr_t>(a1), (size_t) a2));
 }
 
 // What the runtime of the bindings needs: the address of a direct buffer, the length of a C string,
@@ -262,6 +416,189 @@ jbyteArray JNICALL glue_copyOut(JNIEnv* env, jclass cls, jlong address, jint siz
     return result;
 }
 
+// The result of an override that is a struct: C++ gives the address where it goes.
+void JNICALL glue_copyIn(JNIEnv* env, jclass cls, jlong address, jbyteArray bytes)
+{
+    (void) cls;
+    if (address == 0 || bytes == nullptr) {
+        throw_new(env, "java/lang/NullPointerException", "the address or the bytes of the result are NULL");
+        return;
+    }
+    env->GetByteArrayRegion(bytes, 0, env->GetArrayLength(bytes),
+                            reinterpret_cast<jbyte*>(static_cast<uintptr_t>(address)));
+}
+
+// The callbacks: C++ calls a function of this file, on the thread that it is on, and it calls the thunk
+// of the bindings (a static method of BridgefexCallbacks) with what Java carries. The class is held
+// weakly: a class loader of the bindings that is not used any more can be collected, and the library
+// goes with it.
+JavaVM* g_vm = nullptr;
+jweak g_callbacks = nullptr;
+jmethodID g_thunks[3];
+jmethodID g_release = nullptr;
+
+// The process is exiting: C++ may still run callbacks (the destructor of a global), and joins its threads.
+volatile bool g_exiting = false;
+
+// Set when the thread has been detached for good: a destructor of C++ that runs after that one must not
+// attach it again (nothing would detach it). Trivially destructible, so it can still be read.
+thread_local bool t_detached = false;
+
+// A thread that C++ started is attached to the JVM while it runs a callback, and detached when it ends,
+// unless the process is exiting: the JVM does not let a thread detach then, and C++ may be joining it.
+struct Detacher {
+    bool attached = false;
+    ~Detacher()
+    {
+        t_detached = true;
+        if (attached && !g_exiting && g_vm != nullptr) {
+            g_vm->DetachCurrentThread();
+        }
+    }
+};
+
+JNIEnv* callback_env()
+{
+    if (g_vm == nullptr || g_exiting) {
+        return nullptr;
+    }
+    JNIEnv* env = nullptr;
+    const jint status = g_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+    if (status == JNI_OK) {
+        return env;
+    }
+    if (status != JNI_EDETACHED || t_detached) {
+        return nullptr;
+    }
+    static thread_local Detacher detacher;
+#ifdef __ANDROID__
+    if (g_vm->AttachCurrentThreadAsDaemon(&env, nullptr) != JNI_OK) {
+#else
+    if (g_vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) {
+#endif
+        return nullptr;
+    }
+    detacher.attached = true;
+    return env;
+}
+
+void glue_callback_0(void* a0, keep_Stamp** out)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_thunks[0], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(out)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_1(void* a0, const char* a1)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_thunks[1], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+void glue_callback_2(void* a0, const char* a1, size_t a2)
+{
+    JNIEnv* env = callback_env();
+    jclass callbacks = env == nullptr
+        ? nullptr
+        : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks == nullptr) {
+        return;
+    }
+    env->CallStaticVoidMethod(callbacks, g_thunks[2], static_cast<jlong>(reinterpret_cast<uintptr_t>(a0)), static_cast<jlong>(reinterpret_cast<uintptr_t>(a1)), static_cast<jlong>(a2));
+    if (env->ExceptionCheck()) {
+        // Nothing in Java caught it (a stack overflow where it starts): it is shown.
+        env->ExceptionDescribe();
+    }
+    env->DeleteLocalRef(callbacks);
+}
+
+// C++ is done with a callback. A destructor of C++ that runs when its thread ends can come after the
+// detaching of the thread (a thread_local that the library made before it first ran a callback): the
+// release still has to reach Java, or the callback and the object it belongs to stay for ever. The
+// thread is attached for that call alone. Not on Windows: the destructors of the thread_locals of a
+// library run while the thread is detached from the library (DLL_THREAD_DETACH, with the loader lock
+// held), and attaching a thread to the JVM there blocks for ever.
+void glue_release(void* user_data)
+{
+    JNIEnv* env = callback_env();
+    bool temporary = false;
+#ifndef _WIN32
+    if (env == nullptr && t_detached && !g_exiting && g_vm != nullptr) {
+        JNIEnv* attached = nullptr;
+#ifdef __ANDROID__
+        temporary = g_vm->AttachCurrentThreadAsDaemon(&attached, nullptr) == JNI_OK;
+#else
+        temporary = g_vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&attached), nullptr) == JNI_OK;
+#endif
+        env = temporary ? attached : nullptr;
+    }
+#endif
+    jclass callbacks = env == nullptr ? nullptr : static_cast<jclass>(env->NewLocalRef(g_callbacks));
+    if (callbacks != nullptr) {
+        env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+        }
+        env->DeleteLocalRef(callbacks);
+    }
+    if (temporary) {
+        g_vm->DetachCurrentThread();
+    }
+}
+
+// The process exits (or the library is unloaded): C++ calls and releases no callback of this library from
+// now on, and the JVM is not asked for anything. This runs before the destructors of the globals of the
+// library that were made before the library was registered, and not on the JVM's shutdown hooks, which
+// halt() skips and which would keep the class loader of the bindings alive.
+void glue_at_exit()
+{
+    g_exiting = true;
+    keep_disable_callbacks(&glue_release);
+}
+
+jlong JNICALL glue_callbackAddress(JNIEnv* env, jclass cls, jint index)
+{
+    (void) env;
+    (void) cls;
+    static const uintptr_t addresses[] = {
+        reinterpret_cast<uintptr_t>(&glue_callback_0),
+        reinterpret_cast<uintptr_t>(&glue_callback_1),
+        reinterpret_cast<uintptr_t>(&glue_callback_2),
+    };
+    if (index < 0 || static_cast<size_t>(index) >= sizeof(addresses) / sizeof(addresses[0])) {
+        return 0;
+    }
+    return static_cast<jlong>(addresses[index]);
+}
+
+jlong JNICALL glue_releaseAddress(JNIEnv* env, jclass cls)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jlong>(reinterpret_cast<uintptr_t>(&glue_release));
+}
+
 // Where a struct of C puts a 64-bit value: the alignment that it has as a member, which is not that of
 // the value alone on every platform (a double and a long long are aligned to 4 in a struct on i386).
 struct DoubleMember {
@@ -299,6 +636,9 @@ extern "C" JNIEXPORT jint bridgefex_keep_jni_register(JNIEnv* env)
         {const_cast<char*>("length"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_length)},
         {const_cast<char*>("copyOut"), const_cast<char*>("(JI)[B"), reinterpret_cast<void*>(glue_copyOut)},
         {const_cast<char*>("sizes"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_sizes)},
+        {const_cast<char*>("copyIn"), const_cast<char*>("(J[B)V"), reinterpret_cast<void*>(glue_copyIn)},
+        {const_cast<char*>("n_callbackAddress"), const_cast<char*>("(I)J"), reinterpret_cast<void*>(glue_callbackAddress)},
+        {const_cast<char*>("n_releaseAddress"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_releaseAddress)},
         {const_cast<char*>("n_keep_last_error"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_keep_last_error)},
         {const_cast<char*>("n_keep_api_fingerprint"), const_cast<char*>("()J"), reinterpret_cast<void*>(glue_keep_api_fingerprint)},
         {const_cast<char*>("n_keep_free"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_keep_free)},
@@ -316,16 +656,38 @@ extern "C" JNIEXPORT jint bridgefex_keep_jni_register(JNIEnv* env)
         {const_cast<char*>("n_keep_Latch_live"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Latch_live)},
         {const_cast<char*>("n_keep_Label_create_void"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Label_create_void)},
         {const_cast<char*>("n_keep_Label_create_cstr"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_create_cstr)},
+        {const_cast<char*>("n_keep_Label_create_string_view"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Label_create_string_view)},
         {const_cast<char*>("n_keep_Label_destroy"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_keep_Label_destroy)},
         {const_cast<char*>("n_keep_Label_setRaw"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_setRaw)},
         {const_cast<char*>("n_keep_Label_setView"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Label_setView)},
         {const_cast<char*>("n_keep_Label_setMaybe"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_setMaybe)},
+        {const_cast<char*>("n_keep_Label_setRawThrow"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_setRawThrow)},
         {const_cast<char*>("n_keep_Label_setCopy"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Label_setCopy)},
         {const_cast<char*>("n_keep_Label_intact"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_intact)},
         {const_cast<char*>("n_keep_Label_kept"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_kept)},
         {const_cast<char*>("n_keep_Label_keepView"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Label_keepView)},
         {const_cast<char*>("n_keep_Label_keptIntact"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Label_keptIntact)},
         {const_cast<char*>("n_keep_Label_scribble"), const_cast<char*>("()I"), reinterpret_cast<void*>(glue_keep_Label_scribble)},
+        {const_cast<char*>("n_keep_Label_badDestructions"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Label_badDestructions)},
+        {const_cast<char*>("n_keep_Pen_create"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Pen_create)},
+        {const_cast<char*>("n_keep_Pen_destroy"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_keep_Pen_destroy)},
+        {const_cast<char*>("n_keep_Pen_stamp"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Pen_stamp)},
+        {const_cast<char*>("n_keep_Pen_note"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Pen_note)},
+        {const_cast<char*>("n_keep_Pen_noteView"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Pen_noteView)},
+        {const_cast<char*>("n_keep_Pen_notesIntact"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Pen_notesIntact)},
+        {const_cast<char*>("n_keep_Pen_live"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Pen_live)},
+        {const_cast<char*>("n_keep_Stamp_create"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Stamp_create)},
+        {const_cast<char*>("n_keep_Stamp_destroy"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_keep_Stamp_destroy)},
+        {const_cast<char*>("n_keep_Stamp_open"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Stamp_open)},
+        {const_cast<char*>("n_keep_Stamp_live"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_keep_Stamp_live)},
+        {const_cast<char*>("n_keep_string_sink_set"), const_cast<char*>("(JJJ)V"), reinterpret_cast<void*>(glue_keep_string_sink_set)},
+        {const_cast<char*>("n_keep_vector_sink_set"), const_cast<char*>("(JJJJ)V"), reinterpret_cast<void*>(glue_keep_vector_sink_set)},
+        {const_cast<char*>("n_keep_vector_sink_set_strings"), const_cast<char*>("(JJJ)V"), reinterpret_cast<void*>(glue_keep_vector_sink_set_strings)},
+        {const_cast<char*>("n_keep_Pen_director_create"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Pen_director_create)},
+        {const_cast<char*>("n_keep_Pen_director_object"), const_cast<char*>("(J)J"), reinterpret_cast<void*>(glue_keep_Pen_director_object)},
+        {const_cast<char*>("n_keep_Pen_director_base_stamp"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Pen_director_base_stamp)},
+        {const_cast<char*>("n_keep_Pen_director_base_note"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_keep_Pen_director_base_note)},
+        {const_cast<char*>("n_keep_Pen_director_base_noteView"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_keep_Pen_director_base_noteView)},
     };
     // One at a time: bindings that lack a function that this library has (or the other way round) are
     // told apart by the check of the C API when the library is loaded, not by a method that is not
@@ -335,6 +697,30 @@ extern "C" JNIEXPORT jint bridgefex_keep_jni_register(JNIEnv* env)
         if (env->RegisterNatives(native_class, &methods[index], 1) != JNI_OK) {
             env->ExceptionClear();
         }
+    }
+    // The thunks of the callbacks: the class is held weakly, and a bindings that lack it only fail when
+    // C++ calls a callback (which it cannot, as the bindings give none).
+    if (env->GetJavaVM(&g_vm) != JNI_OK) {
+        return JNI_ERR;
+    }
+    jclass callbacks_class = env->FindClass("keep/BridgefexCallbacks");
+    if (callbacks_class == nullptr) {
+        env->ExceptionClear();
+        return JNI_OK;
+    }
+    g_thunks[0] = env->GetStaticMethodID(callbacks_class, "thunk0", "(JJ)V");
+    g_thunks[1] = env->GetStaticMethodID(callbacks_class, "thunk1", "(JJ)V");
+    g_thunks[2] = env->GetStaticMethodID(callbacks_class, "thunk2", "(JJJ)V");
+    g_release = env->GetStaticMethodID(callbacks_class, "release", "(J)V");
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        return JNI_OK;
+    }
+    g_callbacks = env->NewWeakGlobalRef(callbacks_class);
+    static bool exit_registered = false;
+    if (!exit_registered) {
+        exit_registered = true;
+        atexit(glue_at_exit);
     }
     return JNI_OK;
 }

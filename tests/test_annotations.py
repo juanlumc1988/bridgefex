@@ -487,10 +487,28 @@ def test_this_is_only_the_object_of_a_method(
     assert "annotations.toml:" in error
 
 
-@pytest.mark.parametrize("word", ["call", "transfer", "nullable"])
+@pytest.mark.parametrize("word", ["call", "transfer", "nullable", "bogus"])
 def test_only_retain_applies_to_this(tmp_path: Path, word: str) -> None:
-    (error,) = policy(f'[f]\nthis = "{word}"\n', tmp_path, [], None, method=True)[1]
-    assert f"'this': '{word}' does not apply to the object itself (only 'retain' does)" in error
+    """The file says so when it is read: ``retain`` is the only word that ``this`` expects."""
+    message = config_error(tmp_path, f'[f]\nthis = "{word}"\n')
+    assert f"[f] this: unknown annotation '{word}' (expected: retain)" in message
+
+
+def test_this_cannot_keep_a_result_that_is_borrowed_from_it(tmp_path: Path) -> None:
+    """A reference, or a pointer that is borrowed, keeps the object it comes from alive."""
+    for kind, extra in (
+        (Kind.OBJECT_REFERENCE, ""),
+        (Kind.OBJECT_POINTER, 'return = "borrowed"\n'),
+    ):
+        (error,) = policy(f'[f]\nthis = "retain"\n{extra}', tmp_path, [], kind, method=True)[1]
+        assert (
+            "'this': the result is borrowed from the object, which it keeps alive already" in error
+        )
+    # What is owned is what keeps it.
+    resolved, errors = policy(
+        '[f]\nthis = "retain"\n', tmp_path, [], Kind.OBJECT_VALUE, method=True
+    )
+    assert (errors, resolved.retains_this) == ([], True)
 
 
 def test_a_parameter_can_be_called_self_and_this_is_still_the_object(tmp_path: Path) -> None:

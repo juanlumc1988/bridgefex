@@ -193,10 +193,8 @@ def load(paths: Sequence[Path]) -> Annotations:
                         "table of the file (a key after a table belongs to it)"
                     )
                 else:
-                    parameters[key] = (
-                        _words(value, PARAMETER_WORDS, f"{here} {key}", problems),
-                        line,
-                    )
+                    allowed = THIS_WORDS if key == THIS else PARAMETER_WORDS
+                    parameters[key] = (_words(value, allowed, f"{here} {key}", problems), line)
             table[function] = FunctionAnnotations(
                 str(path), header, result, parameters, result_line
             )
@@ -371,6 +369,13 @@ def resolve(
         resolved.append(frozenset(effective))
 
     policy, result_bytes = _resolve_result(c_name, result, entry, error)
+    if retains_this and policy == "borrowed":
+        error(
+            f"'{THIS}': the result is borrowed from the object, which it keeps alive already: "
+            "remove the annotation",
+            entry.parameters[THIS][1] if entry is not None else 0,
+        )
+        retains_this = False
     return Resolved(policy, result_bytes, tuple(resolved), retains_this), errors
 
 

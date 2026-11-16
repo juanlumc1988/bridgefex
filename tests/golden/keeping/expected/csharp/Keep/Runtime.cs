@@ -113,7 +113,7 @@ internal readonly unsafe ref struct StringBlock
 internal static unsafe partial class Runtime
 {
     internal const string Library = "keep";
-    internal const string Fingerprint = "953182e858b5b37eada8773138eab9c7";
+    internal const string Fingerprint = "7455465d644f37e3b3e32f82d6b5d545";
 
     internal const string Variable = "KEEP_LIBRARY";
     private static readonly object Gate = new();
@@ -122,6 +122,7 @@ internal static unsafe partial class Runtime
     /// <summary>Tells .NET where the library is (the first use of the C API, before it loads it).</summary>
     internal static void Initialize()
     {
+        CallbackBox.Watch();
         System.Reflection.Assembly assembly = typeof(Runtime).Assembly;
         try
         {
@@ -303,6 +304,19 @@ internal static unsafe partial class Runtime
             throw new global::System.ArgumentException(
                 whole.GetType().Name + " cannot be given as " + cppType.Name + ", which the C++ code destroys through "
                 + cppType.Name + " and which has no virtual destructor", name);
+        }
+    }
+
+    /// <summary>The same check for the object that an override gives to C++.</summary>
+    internal static void CheckExactResult(BridgefexObject value, global::System.Type cppType, string what)
+    {
+        BridgefexObject whole = value.Origin ?? value;
+        if (whole.CppType != cppType)
+        {
+            throw new global::System.InvalidOperationException(
+                "the override " + what + " returned " + whole.GetType().Name + ", which cannot be given as "
+                + cppType.Name + ": the C++ code destroys it through " + cppType.Name
+                + ", which has no virtual destructor");
         }
     }
 }

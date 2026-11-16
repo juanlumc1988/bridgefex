@@ -10,6 +10,8 @@ __all__ = [
     "Gate",
     "Latch",
     "Label",
+    "Pen",
+    "Stamp",
 ]
 
 _lib = None
@@ -55,6 +57,8 @@ def _bind():
             lib.keep_Label_create_void.restype = _runtime.Status
             lib.keep_Label_create_cstr.argtypes = [ctypes.POINTER(_types._keep_Label__p), ctypes.c_char_p]
             lib.keep_Label_create_cstr.restype = _runtime.Status
+            lib.keep_Label_create_string_view.argtypes = [ctypes.POINTER(_types._keep_Label__p), ctypes.c_char_p, ctypes.c_size_t]
+            lib.keep_Label_create_string_view.restype = _runtime.Status
             lib.keep_Label_destroy.argtypes = [_types._keep_Label__p]
             lib.keep_Label_destroy.restype = None
             lib.keep_Label_setRaw.argtypes = [_types._keep_Label__p, ctypes.c_char_p]
@@ -63,6 +67,8 @@ def _bind():
             lib.keep_Label_setView.restype = _runtime.Status
             lib.keep_Label_setMaybe.argtypes = [_types._keep_Label__p, ctypes.c_char_p]
             lib.keep_Label_setMaybe.restype = _runtime.Status
+            lib.keep_Label_setRawThrow.argtypes = [_types._keep_Label__p, ctypes.c_char_p]
+            lib.keep_Label_setRawThrow.restype = _runtime.Status
             lib.keep_Label_setCopy.argtypes = [_types._keep_Label__p, ctypes.c_char_p, ctypes.c_size_t]
             lib.keep_Label_setCopy.restype = _runtime.Status
             lib.keep_Label_intact.argtypes = [_types._keep_Label__p, ctypes.POINTER(ctypes.c_bool)]
@@ -75,6 +81,40 @@ def _bind():
             lib.keep_Label_keptIntact.restype = _runtime.Status
             lib.keep_Label_scribble.argtypes = []
             lib.keep_Label_scribble.restype = _runtime.Status
+            lib.keep_Label_badDestructions.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.keep_Label_badDestructions.restype = _runtime.Status
+            lib.keep_Pen_create.argtypes = [ctypes.POINTER(_types._keep_Pen__p)]
+            lib.keep_Pen_create.restype = _runtime.Status
+            lib.keep_Pen_destroy.argtypes = [_types._keep_Pen__p]
+            lib.keep_Pen_destroy.restype = None
+            lib.keep_Pen_stamp.argtypes = [_types._keep_Pen__p, ctypes.POINTER(_types._keep_Stamp__p)]
+            lib.keep_Pen_stamp.restype = _runtime.Status
+            lib.keep_Pen_note.argtypes = [_types._keep_Pen__p, ctypes.c_char_p]
+            lib.keep_Pen_note.restype = _runtime.Status
+            lib.keep_Pen_noteView.argtypes = [_types._keep_Pen__p, ctypes.c_char_p, ctypes.c_size_t]
+            lib.keep_Pen_noteView.restype = _runtime.Status
+            lib.keep_Pen_notesIntact.argtypes = [_types._keep_Pen__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.keep_Pen_notesIntact.restype = _runtime.Status
+            lib.keep_Pen_live.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.keep_Pen_live.restype = _runtime.Status
+            lib.keep_Stamp_create.argtypes = [ctypes.POINTER(_types._keep_Stamp__p), _types._keep_Pen__p]
+            lib.keep_Stamp_create.restype = _runtime.Status
+            lib.keep_Stamp_destroy.argtypes = [_types._keep_Stamp__p]
+            lib.keep_Stamp_destroy.restype = None
+            lib.keep_Stamp_open.argtypes = [_types._keep_Stamp__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.keep_Stamp_open.restype = _runtime.Status
+            lib.keep_Stamp_live.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.keep_Stamp_live.restype = _runtime.Status
+            lib.keep_Pen_director_create.argtypes = [ctypes.POINTER(_types._keep_Pen__p), ctypes.POINTER(_types._keep_Pen_director__p), ctypes.POINTER(_types._keep_Pen_vtable)]
+            lib.keep_Pen_director_create.restype = _runtime.Status
+            lib.keep_Pen_director_object.argtypes = [_types._keep_Pen_director__p]
+            lib.keep_Pen_director_object.restype = _types._keep_Pen__p
+            lib.keep_Pen_director_base_stamp.argtypes = [_types._keep_Pen_director__p, ctypes.POINTER(_types._keep_Stamp__p)]
+            lib.keep_Pen_director_base_stamp.restype = _runtime.Status
+            lib.keep_Pen_director_base_note.argtypes = [_types._keep_Pen_director__p, ctypes.c_char_p]
+            lib.keep_Pen_director_base_note.restype = _runtime.Status
+            lib.keep_Pen_director_base_noteView.argtypes = [_types._keep_Pen_director__p, ctypes.c_char_p, ctypes.c_size_t]
+            lib.keep_Pen_director_base_noteView.restype = _runtime.Status
             _lib = lib
     return _lib
 
@@ -114,6 +154,7 @@ class Gate(_runtime.Object):
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
         self._retained = {}
+        self._director = None
         self._finalizer = _runtime.watch(self, handle, _bind().keep_Gate_destroy)
         return handle
 
@@ -159,6 +200,13 @@ class Gate(_runtime.Object):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Gate")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -271,6 +319,7 @@ class Latch(_runtime.Object):
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
         self._retained = {}
+        self._director = None
         self._finalizer = _runtime.watch(self, handle, _bind().keep_Latch_destroy)
         return handle
 
@@ -316,6 +365,13 @@ class Latch(_runtime.Object):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Latch")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -390,7 +446,7 @@ class Label(_runtime.Object):
     def __init__(self, *args, **kwargs):
         raise _builtins.TypeError(
             "Label has several constructors; use "
-            "Label.create_void(), Label.create_cstr()"
+            "Label.create_void(), Label.create_cstr(), Label.create_string_view()"
         )
 
     @_builtins.classmethod
@@ -413,6 +469,18 @@ class Label(_runtime.Object):
         _self._adopt(_handle)
         return _self
 
+    @_builtins.classmethod
+    def create_string_view(cls, title):
+        """Wraps ``keep::Label::Label(std::string_view title)``."""
+        title = _runtime.to_bytes(title, "title")
+        title_size = _builtins.len(title)
+        _self = cls.__new__(cls)
+        _handle = _self._watch()
+        _runtime.retain(_self._retained, title)
+        _runtime.check(_bind().keep_Label_create_string_view(_handle, title, title_size))
+        _self._adopt(_handle)
+        return _self
+
     def _watch(self):
         """Return the handle for a constructor to write, already watched.
 
@@ -427,6 +495,7 @@ class Label(_runtime.Object):
         self._readonly = False
         # What the C++ object keeps pointers to (see _runtime.retain).
         self._retained = {}
+        self._director = None
         self._finalizer = _runtime.watch(self, handle, _bind().keep_Label_destroy)
         return handle
 
@@ -472,6 +541,13 @@ class Label(_runtime.Object):
         does nothing."""
         # Only self and builtins: in a __del__ at interpreter exit, the globals
         # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Label")
         try:
             destroy, null = self._owned.pop()
         except (AttributeError, IndexError):
@@ -529,6 +605,12 @@ class Label(_runtime.Object):
         _runtime.retain(self._retained, text)
         _runtime.check(_bind().keep_Label_setMaybe(self._mptr(), text))
 
+    def setRawThrow(self, text):
+        """Wraps ``void keep::Label::setRawThrow(const char* text)``."""
+        text = _runtime.to_c_string(text, "text")
+        _runtime.retain(self._retained, text)
+        _runtime.check(_bind().keep_Label_setRawThrow(self._mptr(), text))
+
     def setCopy(self, text):
         """Wraps ``void keep::Label::setCopy(const std::string& text)``."""
         text = _runtime.to_bytes(text, "text")
@@ -566,3 +648,389 @@ class Label(_runtime.Object):
     def scribble():
         """Wraps ``static void keep::Label::scribble()``."""
         _runtime.check(_bind().keep_Label_scribble())
+
+    @_builtins.staticmethod
+    def badDestructions():
+        """Wraps ``static int32_t keep::Label::badDestructions()``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().keep_Label_badDestructions(_out))
+        return _out.value
+
+
+class Pen(_runtime.Object):
+    """Wraps ``keep::Pen``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "keep_Pen"
+    _virtual_names = ("note", "noteView", "stamp",)
+    # The virtual methods that a subclass may override: (method, member of the vtable,
+    # pure, thunk). A subclass that overrides some makes objects that C++ calls back.
+    _director_slots = _runtime.DirectorSlots(
+        "keep_Pen",
+        "keep::Pen",
+        _types._keep_Pen_vtable,
+        (
+            ("stamp", "stamp", False, _types._director__keep_Pen__stamp),
+            ("note", "note", False, _types._director__keep_Pen__note),
+            ("noteView", "noteView", False, _types._director__keep_Pen__noteView),
+        ),
+    )
+
+    def __init__(self):
+        """Wraps ``keep::Pen::Pen()``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Pen object is already initialized")
+        _found = self._director_slots.overrides(_builtins.type(self))
+        if _found:
+            self._init_director(_found)
+            return
+        _handle = self._watch()
+        _runtime.check(_bind().keep_Pen_create(_handle))
+        self._adopt(_handle)
+
+    def _init_director(self, _found):
+        """Wraps ``keep::Pen::Pen() of the director``."""
+        _handle, _director = self._watch_director()
+        _vtable, _record = self._director_slots.make(self, _found)
+        _runtime.check(_bind().keep_Pen_director_create(
+            _handle,
+            _director,
+            _record.register(_vtable),
+        ))
+        self._adopt_director(_handle, _director, _record)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._keep_Pen__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._director = None
+        self._finalizer = _runtime.watch(self, handle, _bind().keep_Pen_destroy)
+        return handle
+
+    def _watch_director(self):
+        """Like _watch(), and the handle for the create function to write the director to."""
+        return self._watch(), _types._keep_Pen_director__p()
+
+    def _adopt_director(self, handle, director, record):
+        self._adopt(handle)
+        record.pointer = director
+        self._director = record
+        _runtime.register_object(self)
+
+    def _dptr(self):
+        """The handle of the director, for the calls of the implementation of the class."""
+        return _runtime.director_pointer(self._director, "Pen")
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "keep::Pen: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().keep_Pen_destroy, _types._keep_Pen__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Pen object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Pen object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Pen object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Pen")
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Pen objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Pen objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Pen objects cannot be pickled")
+
+    def _base_stamp(self):
+        """Calls the implementation of ``std::unique_ptr<keep::Stamp> keep::Pen::stamp()`` in C++: not the
+        override of an object, which would call this one again."""
+        _result = Stamp.__new__(Stamp)
+        _out = _result._watch()
+        _runtime.retain(_result._retained, self)
+        _runtime.check(_bind().keep_Pen_director_base_stamp(self._dptr(), _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+    def _base_note(self, text):
+        """Calls the implementation of ``void keep::Pen::note(const char* text)`` in C++: not the
+        override of an object, which would call this one again."""
+        text = _runtime.to_c_string(text, "text")
+        _runtime.retain(self._retained, text)
+        _runtime.check(_bind().keep_Pen_director_base_note(self._dptr(), text))
+
+    def _base_noteView(self, text):
+        """Calls the implementation of ``void keep::Pen::noteView(std::string_view text)`` in C++: not the
+        override of an object, which would call this one again."""
+        text = _runtime.to_bytes(text, "text")
+        text_size = _builtins.len(text)
+        _runtime.retain(self._retained, text)
+        _runtime.check(_bind().keep_Pen_director_base_noteView(self._dptr(), text, text_size))
+
+    def stamp(self):
+        """Wraps ``std::unique_ptr<keep::Stamp> keep::Pen::stamp()``."""
+        if self._director is not None:
+            return self._base_stamp()
+        _result = Stamp.__new__(Stamp)
+        _out = _result._watch()
+        _runtime.retain(_result._retained, self)
+        _runtime.check(_bind().keep_Pen_stamp(self._mptr(), _out))
+        if _out:
+            _result._adopt(_out)
+        return _result if _out else None
+
+    def note(self, text):
+        """Wraps ``void keep::Pen::note(const char* text)``."""
+        if self._director is not None:
+            return self._base_note(text)
+        text = _runtime.to_c_string(text, "text")
+        _runtime.retain(self._retained, text)
+        _runtime.check(_bind().keep_Pen_note(self._mptr(), text))
+
+    def noteView(self, text):
+        """Wraps ``void keep::Pen::noteView(std::string_view text)``."""
+        if self._director is not None:
+            return self._base_noteView(text)
+        text = _runtime.to_bytes(text, "text")
+        text_size = _builtins.len(text)
+        _runtime.retain(self._retained, text)
+        _runtime.check(_bind().keep_Pen_noteView(self._mptr(), text, text_size))
+
+    def notesIntact(self):
+        """Wraps ``bool keep::Pen::notesIntact() const``."""
+        _out = ctypes.c_bool()
+        _runtime.check(_bind().keep_Pen_notesIntact(self._ptr(), _out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def live():
+        """Wraps ``static int32_t keep::Pen::live()``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().keep_Pen_live(_out))
+        return _out.value
+
+
+class Stamp(_runtime.Object):
+    """Wraps ``keep::Stamp``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "keep_Stamp"
+
+    def __init__(self, pen):
+        """Wraps ``keep::Stamp::Stamp(const keep::Pen& pen)``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Stamp object is already initialized")
+        _runtime.check_object(pen, Pen, "pen")
+        _handle = self._watch()
+        _runtime.retain(self._retained, pen)
+        _runtime.check(_bind().keep_Stamp_create(_handle, pen._ptr()))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._keep_Stamp__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._director = None
+        self._finalizer = _runtime.watch(self, handle, _bind().keep_Stamp_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "keep::Stamp: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().keep_Stamp_destroy, _types._keep_Stamp__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Stamp object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Stamp object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Stamp object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            director = self._director
+        except AttributeError:
+            director = None
+        if director is not None and director.running:
+            # C++ is running a method on the object: destroying it would free what it uses.
+            director.cannot_close("Stamp")
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Stamp objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Stamp objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Stamp objects cannot be pickled")
+
+    def open(self):
+        """Wraps ``bool keep::Stamp::open() const``."""
+        _out = ctypes.c_bool()
+        _runtime.check(_bind().keep_Stamp_open(self._ptr(), _out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def live():
+        """Wraps ``static int32_t keep::Stamp::live()``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().keep_Stamp_live(_out))
+        return _out.value

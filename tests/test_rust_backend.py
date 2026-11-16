@@ -850,3 +850,16 @@ def test_without_the_annotation_a_string_is_a_safe_str(tmp_path: Path) -> None:
     assert "pub fn set_raw(&mut self, text: &str)" in api
     assert "pub fn set_view(&mut self, text: &str)" in api
     assert "pub fn lock(" in api
+
+
+def test_a_base_class_that_is_called_base_is_not_the_first_one(tmp_path: Path, cargo: None) -> None:
+    """The first base is `into_base`, and a second one that is called `Base` cannot be too."""
+    code = """
+class Other { public: Other(); virtual ~Other(); };
+class Base { public: Base(); virtual ~Base(); };
+class Derived : public Other, public Base { public: Derived(); };
+"""
+    api = flat(source(generate(tmp_path, code, verify=True)))
+    assert "pub fn into_base(self) -> crate::Owned<crate::api::Other>" in api
+    assert "pub fn into_base_(self) -> crate::Owned<crate::api::Base>" in api
+    assert "pub fn as_base(&self) -> &crate::api::Base" in api

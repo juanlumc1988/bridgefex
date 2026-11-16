@@ -10,7 +10,7 @@ adds up the bytes of its texts again), and a Gate or a text that Python had free
 import gc
 
 import keep
-from keep.kept import Gate, Label, Latch
+from keep.kept import Gate, Label, Latch, Pen, Stamp
 
 
 def churn():
@@ -111,6 +111,54 @@ gc.collect()
 churn()
 assert Label.keptIntact()
 assert len(keep._runtime.forever) == kept + 1
+
+# A call that stores the pointer and then throws: what it stored is kept all the same.
+thrower = Label.create_void()
+try:
+    thrower.setRawThrow("a text that is stored and then C++ throws " + "z" * 20)
+    raise AssertionError("C++ throws")
+except keep.Error as error:
+    assert "stored, then failed" in str(error)
+churn()
+assert thrower.intact()
+thrower.close()
+
+# Two constructors that Python cannot tell by their arguments are told by name: each keeps its text.
+titled = Label.create_string_view("a title that is a view and a temporary " + "q" * 20)
+churn()
+assert titled.intact() and titled.kept() == len("a title that is a view and a temporary ") + 20
+titled.close()
+
+
+# An override that calls the implementation of the class keeps what the class keeps too.
+class Mine(Pen):
+    def stamp(self):
+        return super().stamp()
+
+    def note(self, text):
+        super().note(text)
+
+    def noteView(self, text):
+        super().noteView(text)
+
+
+pen = Mine()
+pen.note("a note that is a temporary " + "n" * 30)
+pen.noteView("a view that is a temporary " + "w" * 40)
+churn()
+assert pen.notesIntact()
+stamp = pen.stamp()
+del pen
+gc.collect()
+churn()
+assert stamp.open() and Pen.live() == 1  # the Pen is still there: the Stamp keeps it alive
+del stamp
+gc.collect()
+assert Stamp.live() == 0 and Pen.live() == 0
+
+# What the destructors of the objects read was still there when they ran.
+gc.collect()
+assert Label.badDestructions() == 0
 
 assert keep is not None
 print("keeping: Python round trip OK")

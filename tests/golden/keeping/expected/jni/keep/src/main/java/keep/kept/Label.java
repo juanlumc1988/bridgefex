@@ -11,6 +11,8 @@ import keep.BridgefexUnsigned;
 import keep.BridgefexSegment;
 import keep.BridgefexArena;
 import keep.BridgefexStruct;
+import keep.BridgefexCallbacks;
+import keep.BridgefexDirectors;
 
 /**
  * keep::Label
@@ -44,11 +46,12 @@ public class Label extends BridgefexObject {
     @BridgefexFunction("keep_Label_create_void")
     public Label() {
         super(new BridgefexHandle(BridgefexNative::keep_Label_destroy, true));
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.keep_Label_create_void(__result);
+            __scope.returned();
             this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
-            BridgefexRuntime.check(__status);
+            __scope.check(__status);
         }
     }
 
@@ -56,16 +59,40 @@ public class Label extends BridgefexObject {
      * keep::Label::Label(const char* title)
      */
     @BridgefexFunction("keep_Label_create_cstr")
-    public Label(java.lang.String title) {
-        super(new BridgefexHandle(BridgefexNative::keep_Label_destroy, true));
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+    public static Label createCstr(java.lang.String title) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __k1 = BridgefexRuntime.keptBytes(BridgefexRuntime.utf8z(title, "title"));
             BridgefexSegment __p1 = __k1;
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
+            BridgefexHandle __h = new BridgefexHandle(BridgefexNative::keep_Label_destroy, true);
+            Label __new = Label.wrap(__h);
             int __status = BridgefexNative.keep_Label_create_cstr(__result, __p1);
-            this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
-            BridgefexRuntime.check(__status);
-            retainText(__k1);
+            __scope.returned();
+            __h.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            __scope.check(__status);
+            __new.retainText(__k1);
+            return __new;
+        }
+    }
+
+    /**
+     * keep::Label::Label(std::string_view title)
+     */
+    @BridgefexFunction("keep_Label_create_string_view")
+    public static Label createStringView(java.lang.String title) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
+            byte[] __b1 = BridgefexRuntime.utf8(title, "title");
+            BridgefexSegment __k1 = BridgefexRuntime.keptBytes(__b1);
+            BridgefexSegment __p1 = __k1;
+            BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
+            BridgefexHandle __h = new BridgefexHandle(BridgefexNative::keep_Label_destroy, true);
+            Label __new = Label.wrap(__h);
+            int __status = BridgefexNative.keep_Label_create_string_view(__result, __p1, (long) __b1.length);
+            __scope.returned();
+            __h.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
+            __scope.check(__status);
+            __new.retainText(__k1);
+            return __new;
         }
     }
 
@@ -86,11 +113,13 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_setRaw")
     public void setRaw(java.lang.String text) {
-        try (BridgefexLease __self = hold(true, false)) {
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             BridgefexSegment __k1 = BridgefexRuntime.keptBytes(BridgefexRuntime.utf8z(text, "text"));
             BridgefexSegment __p1 = __k1;
             retainText(__k1);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_setRaw(__self.pointer(), __p1));
+            int __status = BridgefexNative.keep_Label_setRaw(__self.pointer(), __p1);
+            __scope.returned();
+            __scope.check(__status);
         }
     }
 
@@ -99,12 +128,14 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_setView")
     public void setView(java.lang.String text) {
-        try (BridgefexLease __self = hold(true, false)) {
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             byte[] __b1 = BridgefexRuntime.utf8(text, "text");
             BridgefexSegment __k1 = BridgefexRuntime.keptBytes(__b1);
             BridgefexSegment __p1 = __k1;
             retainText(__k1);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_setView(__self.pointer(), __p1, (long) __b1.length));
+            int __status = BridgefexNative.keep_Label_setView(__self.pointer(), __p1, (long) __b1.length);
+            __scope.returned();
+            __scope.check(__status);
         }
     }
 
@@ -115,11 +146,28 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_setMaybe")
     public void setMaybe(java.lang.String text) {
-        try (BridgefexLease __self = hold(true, false)) {
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             BridgefexSegment __k1 = text == null ? null : BridgefexRuntime.keptBytes(BridgefexRuntime.utf8z(text, "text"));
             BridgefexSegment __p1 = __k1 == null ? BridgefexSegment.NULL : __k1;
             retainText(__k1);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_setMaybe(__self.pointer(), __p1));
+            int __status = BridgefexNative.keep_Label_setMaybe(__self.pointer(), __p1);
+            __scope.returned();
+            __scope.check(__status);
+        }
+    }
+
+    /**
+     * void keep::Label::setRawThrow(const char* text)
+     */
+    @BridgefexFunction("keep_Label_setRawThrow")
+    public void setRawThrow(java.lang.String text) {
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
+            BridgefexSegment __k1 = BridgefexRuntime.keptBytes(BridgefexRuntime.utf8z(text, "text"));
+            BridgefexSegment __p1 = __k1;
+            retainText(__k1);
+            int __status = BridgefexNative.keep_Label_setRawThrow(__self.pointer(), __p1);
+            __scope.returned();
+            __scope.check(__status);
         }
     }
 
@@ -128,10 +176,12 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_setCopy")
     public void setCopy(java.lang.String text) {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(true, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(true, false)) {
             byte[] __b1 = BridgefexRuntime.utf8(text, "text");
             BridgefexSegment __p1 = BridgefexRuntime.bytes(__arena, __b1);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_setCopy(__self.pointer(), __p1, (long) __b1.length));
+            int __status = BridgefexNative.keep_Label_setCopy(__self.pointer(), __p1, (long) __b1.length);
+            __scope.returned();
+            __scope.check(__status);
         }
     }
 
@@ -140,9 +190,11 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_intact")
     public boolean intact() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BOOL);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_intact(__self.pointer(), __result));
+            int __status = BridgefexNative.keep_Label_intact(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_BOOL, 0);
         }
     }
@@ -152,9 +204,11 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_kept")
     public int kept() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_kept(__self.pointer(), __result));
+            int __status = BridgefexNative.keep_Label_kept(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }
@@ -164,11 +218,15 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_keepView")
     public static void keepView(java.lang.String text) {
-        byte[] __b1 = BridgefexRuntime.utf8(text, "text");
-        BridgefexSegment __k1 = BridgefexRuntime.keptBytes(__b1);
-        BridgefexSegment __p1 = __k1;
-        BridgefexObject.retainTextForever(__k1);
-        BridgefexRuntime.check(BridgefexNative.keep_Label_keepView(__p1, (long) __b1.length));
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
+            byte[] __b1 = BridgefexRuntime.utf8(text, "text");
+            BridgefexSegment __k1 = BridgefexRuntime.keptBytes(__b1);
+            BridgefexSegment __p1 = __k1;
+            BridgefexObject.retainTextForever(__k1);
+            int __status = BridgefexNative.keep_Label_keepView(__p1, (long) __b1.length);
+            __scope.returned();
+            __scope.check(__status);
+        }
     }
 
     /**
@@ -176,9 +234,11 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_keptIntact")
     public static boolean keptIntact() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BOOL);
-            BridgefexRuntime.check(BridgefexNative.keep_Label_keptIntact(__result));
+            int __status = BridgefexNative.keep_Label_keptIntact(__result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_BOOL, 0);
         }
     }
@@ -188,6 +248,24 @@ public class Label extends BridgefexObject {
      */
     @BridgefexFunction("keep_Label_scribble")
     public static void scribble() {
-        BridgefexRuntime.check(BridgefexNative.keep_Label_scribble());
+        try (BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
+            int __status = BridgefexNative.keep_Label_scribble();
+            __scope.returned();
+            __scope.check(__status);
+        }
+    }
+
+    /**
+     * static int32_t keep::Label::badDestructions()
+     */
+    @BridgefexFunction("keep_Label_badDestructions")
+    public static int badDestructions() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
+            BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
+            int __status = BridgefexNative.keep_Label_badDestructions(__result);
+            __scope.returned();
+            __scope.check(__status);
+            return __result.get(BridgefexRuntime.C_INT, 0);
+        }
     }
 }

@@ -2677,9 +2677,6 @@ drc_status drc_Shape_director_base_same(drc_Shape_director* director, const drc_
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_same: 'director' is NULL");
     }
-    if (other == nullptr) {
-        return drc_detail::null_argument("drc_Shape_director_base_same: 'other' is NULL");
-    }
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Shape_director_base_same: 'out_result' is NULL");
     }
@@ -3101,9 +3098,6 @@ drc_status drc_Circle_director_base_same(drc_Circle_director* director, const dr
 {
     if (director == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_same: 'director' is NULL");
-    }
-    if (other == nullptr) {
-        return drc_detail::null_argument("drc_Circle_director_base_same: 'other' is NULL");
     }
     if (out_result == nullptr) {
         return drc_detail::null_argument("drc_Circle_director_base_same: 'out_result' is NULL");

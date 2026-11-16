@@ -213,8 +213,16 @@ def generated_names(cls: ClassPlan) -> frozenset[str]:
         if position:
             names.update((f"as_{word}", f"as_{word}_mut"))
         if base.model.virtual_destructor:
-            names.add("into_base" if position == 0 else f"into_{word}")
+            names.add(into_name(position, word))
     return frozenset(names)
+
+
+def into_name(position: int, word: str) -> str:
+    """The method of ``Owned`` that gives the object as a base class: ``into_base`` for the
+    first, ``into_<base>`` for the others (a base that is called ``Base`` is not the first)."""
+    if position == 0:
+        return "into_base"
+    return "into_base_" if word == "base" else f"into_{word}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,7 +374,7 @@ def _inheritance(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) ->
             src.line()
             src.open(f"impl crate::Owned<{name}>")
             src.prose(f"This object, owned as a `{base.model.qualified_name}`.")
-            word = "into_base" if position == 0 else f"into_{snake(base.model.name)}"
+            word = into_name(position, snake(base.model.name))
             src.open(f"pub fn {word}(self) -> crate::Owned<{base_path}>")
             src.line("let object = crate::Owned::into_raw(self);")
             src.line(f"let base = unsafe {{ crate::native::{view.upcast.name}(object) }};")

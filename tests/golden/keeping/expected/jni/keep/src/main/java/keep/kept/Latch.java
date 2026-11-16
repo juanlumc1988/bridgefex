@@ -11,6 +11,8 @@ import keep.BridgefexUnsigned;
 import keep.BridgefexSegment;
 import keep.BridgefexArena;
 import keep.BridgefexStruct;
+import keep.BridgefexCallbacks;
+import keep.BridgefexDirectors;
 
 /**
  * keep::Latch
@@ -45,12 +47,13 @@ public class Latch extends BridgefexObject {
     public Latch(keep.kept.Gate gate, int number) {
         super(new BridgefexHandle(BridgefexNative::keep_Latch_destroy, true));
         BridgefexRuntime.nonNull(gate, "gate");
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __t1 = gate.hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __t1 = gate.hold(false, false)) {
             BridgefexSegment __h1 = __t1.pointer();
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.ADDRESS);
             int __status = BridgefexNative.keep_Latch_create(__result, __h1, number);
+            __scope.returned();
             this.handle.assign(__result.get(BridgefexRuntime.ADDRESS, 0));
-            BridgefexRuntime.check(__status);
+            __scope.check(__status);
             retain(gate);
         }
     }
@@ -72,9 +75,11 @@ public class Latch extends BridgefexObject {
      */
     @BridgefexFunction("keep_Latch_open")
     public boolean open() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_BOOL);
-            BridgefexRuntime.check(BridgefexNative.keep_Latch_open(__self.pointer(), __result));
+            int __status = BridgefexNative.keep_Latch_open(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_BOOL, 0);
         }
     }
@@ -84,9 +89,11 @@ public class Latch extends BridgefexObject {
      */
     @BridgefexFunction("keep_Latch_number")
     public int number() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexLease __self = hold(false, false)) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.keep_Latch_number(__self.pointer(), __result));
+            int __status = BridgefexNative.keep_Latch_number(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }
@@ -96,9 +103,11 @@ public class Latch extends BridgefexObject {
      */
     @BridgefexFunction("keep_Latch_live")
     public static int live() {
-        try (BridgefexArena __arena = BridgefexRuntime.arena()) {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin()) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-            BridgefexRuntime.check(BridgefexNative.keep_Latch_live(__result));
+            int __status = BridgefexNative.keep_Latch_live(__result);
+            __scope.returned();
+            __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
         }
     }

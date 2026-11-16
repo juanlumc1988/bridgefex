@@ -289,7 +289,7 @@ class _Lowerer:
         # fails has kept it all the same. A constructor that fails has kept nothing.
         constructor = plan.kind is CallableKind.CONSTRUCTOR
         if not constructor:
-            keeper = "" if plan.kind is CallableKind.METHOD else None
+            keeper = "" if plan.kind in (CallableKind.METHOD, CallableKind.DIRECTOR_BASE) else None
             self.statements.extend(self.retains(keeper))
         if not self.callbacks and self.names.has_callbacks:
             # A callback that C++ stored and runs now is not one of the callbacks of this call.

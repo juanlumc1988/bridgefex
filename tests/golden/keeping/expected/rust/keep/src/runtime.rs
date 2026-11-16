@@ -160,7 +160,7 @@ impl Drop for Text {
     }
 }
 
-const FINGERPRINT: &str = "953182e858b5b37eada8773138eab9c7";
+const FINGERPRINT: &str = "7455465d644f37e3b3e32f82d6b5d545";
 
 static STATE: AtomicU8 = AtomicU8::new(0);
 

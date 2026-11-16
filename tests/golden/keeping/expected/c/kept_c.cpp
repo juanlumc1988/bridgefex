@@ -36,12 +36,13 @@
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#pragma GCC diagnostic ignored "-Woverloaded-virtual"
 #if !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 #endif
 #elif defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable : 4996)
+#pragma warning(disable : 4996 4263 4264)
 #endif
 
 #if !defined(__cpp_aligned_new)
@@ -52,7 +53,72 @@ static_assert(alignof(::keep::Latch) <= keep_detail::new_alignment,
               "keep::Latch is over-aligned: compile this file as C++17 or later");
 static_assert(alignof(::keep::Label) <= keep_detail::new_alignment,
               "keep::Label is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::keep::Pen) <= keep_detail::new_alignment,
+              "keep::Pen is over-aligned: compile this file as C++17 or later");
+static_assert(alignof(::keep::Stamp) <= keep_detail::new_alignment,
+              "keep::Stamp is over-aligned: compile this file as C++17 or later");
 #endif
+
+// The directors: classes derived from the wrapped ones, whose virtual methods call the
+// functions of a vtable.
+namespace keep_detail {
+
+class keep_Pen_director_impl final : public ::keep::Pen {
+public:
+    template <typename... Args>
+    keep_Pen_director_impl(keep_detail::callback_owner& owner, const keep_Pen_vtable& vtable, Args&&... args)
+        : ::keep::Pen(static_cast<Args&&>(args)...), vt_(vtable), ref_(owner) {}
+
+    ::std::unique_ptr<::keep::Stamp> stamp() override
+    {
+        if (vt_.stamp == nullptr || ref_.disabled()) {
+            return ::keep::Pen::stamp();
+        }
+        keep_Stamp* _result = nullptr;
+        vt_.stamp(ref_.user_data(), &_result);
+        return ::std::unique_ptr<::keep::Stamp>(reinterpret_cast<::keep::Stamp*>(_result));
+    }
+
+    void note(const char* _arg1) override
+    {
+        if (vt_.note == nullptr || ref_.disabled()) {
+            return ::keep::Pen::note(_arg1);
+        }
+        vt_.note(ref_.user_data(), _arg1);
+    }
+
+    void noteView(::std::string_view _arg1) override
+    {
+        if (vt_.noteView == nullptr || ref_.disabled()) {
+            return ::keep::Pen::noteView(_arg1);
+        }
+        vt_.noteView(ref_.user_data(), _arg1.data(), _arg1.size());
+    }
+
+    template <typename... Args>
+    ::std::unique_ptr<::keep::Stamp> bridgefex_base_stamp(Args&&... args)
+    {
+        return this->::keep::Pen::stamp(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    void bridgefex_base_note(Args&&... args)
+    {
+        return this->::keep::Pen::note(static_cast<Args&&>(args)...);
+    }
+
+    template <typename... Args>
+    void bridgefex_base_noteView(Args&&... args)
+    {
+        return this->::keep::Pen::noteView(static_cast<Args&&>(args)...);
+    }
+
+private:
+    keep_Pen_vtable vt_;
+    keep_detail::callback_ref ref_;
+};
+
+}  // namespace keep_detail
 
 extern "C" {
 
@@ -203,6 +269,19 @@ keep_status keep_Label_create_cstr(keep_Label** out_self, const char* title)
     return keep_detail::guard([&]() { *out_self = reinterpret_cast<keep_Label*>(new ::keep::Label(title)); });
 }
 
+// keep::Label::Label(std::string_view title)
+keep_status keep_Label_create_string_view(keep_Label** out_self, const char* title, size_t title_size)
+{
+    if (out_self == nullptr) {
+        return keep_detail::null_argument("keep_Label_create_string_view: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (title == nullptr && title_size != 0) {
+        return keep_detail::null_argument("keep_Label_create_string_view: 'title' is NULL and 'title_size' is not 0");
+    }
+    return keep_detail::guard([&]() { *out_self = reinterpret_cast<keep_Label*>(new ::keep::Label(std::string_view(keep_detail::string_data(title), title_size))); });
+}
+
 // keep::Label::~Label()
 void keep_Label_destroy(keep_Label* self)
 {
@@ -242,6 +321,18 @@ keep_status keep_Label_setMaybe(keep_Label* self, const char* text)
         return keep_detail::null_argument("keep_Label_setMaybe: 'self' is NULL");
     }
     return keep_detail::guard([&]() { reinterpret_cast<::keep::Label*>(self)->setMaybe(text); });
+}
+
+// void keep::Label::setRawThrow(const char* text)
+keep_status keep_Label_setRawThrow(keep_Label* self, const char* text)
+{
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Label_setRawThrow: 'self' is NULL");
+    }
+    if (text == nullptr) {
+        return keep_detail::null_argument("keep_Label_setRawThrow: 'text' is NULL");
+    }
+    return keep_detail::guard([&]() { reinterpret_cast<::keep::Label*>(self)->setRawThrow(text); });
 }
 
 // void keep::Label::setCopy(const std::string& text)
@@ -304,6 +395,194 @@ keep_status keep_Label_keptIntact(bool* out_result)
 keep_status keep_Label_scribble(void)
 {
     return keep_detail::guard([&]() { ::keep::Label::scribble(); });
+}
+
+// static int32_t keep::Label::badDestructions()
+keep_status keep_Label_badDestructions(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Label_badDestructions: 'out_result' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = ::keep::Label::badDestructions(); });
+}
+
+// keep::Pen::Pen()
+keep_status keep_Pen_create(keep_Pen** out_self)
+{
+    if (out_self == nullptr) {
+        return keep_detail::null_argument("keep_Pen_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    return keep_detail::guard([&]() { *out_self = reinterpret_cast<keep_Pen*>(new ::keep::Pen()); });
+}
+
+// keep::Pen::~Pen()
+void keep_Pen_destroy(keep_Pen* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    keep_detail::guard_silently([&]() { delete reinterpret_cast<::keep::Pen*>(self); });
+}
+
+// std::unique_ptr<keep::Stamp> keep::Pen::stamp()
+keep_status keep_Pen_stamp(keep_Pen* self, keep_Stamp** out_result)
+{
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Pen_stamp: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Pen_stamp: 'self' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = reinterpret_cast<keep_Stamp*>(reinterpret_cast<::keep::Pen*>(self)->stamp().release()); });
+}
+
+// void keep::Pen::note(const char* text)
+keep_status keep_Pen_note(keep_Pen* self, const char* text)
+{
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Pen_note: 'self' is NULL");
+    }
+    if (text == nullptr) {
+        return keep_detail::null_argument("keep_Pen_note: 'text' is NULL");
+    }
+    return keep_detail::guard([&]() { reinterpret_cast<::keep::Pen*>(self)->note(text); });
+}
+
+// void keep::Pen::noteView(std::string_view text)
+keep_status keep_Pen_noteView(keep_Pen* self, const char* text, size_t text_size)
+{
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Pen_noteView: 'self' is NULL");
+    }
+    if (text == nullptr && text_size != 0) {
+        return keep_detail::null_argument("keep_Pen_noteView: 'text' is NULL and 'text_size' is not 0");
+    }
+    return keep_detail::guard([&]() { reinterpret_cast<::keep::Pen*>(self)->noteView(std::string_view(keep_detail::string_data(text), text_size)); });
+}
+
+// bool keep::Pen::notesIntact() const
+keep_status keep_Pen_notesIntact(const keep_Pen* self, bool* out_result)
+{
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Pen_notesIntact: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Pen_notesIntact: 'out_result' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = reinterpret_cast<const ::keep::Pen*>(self)->notesIntact(); });
+}
+
+// static int32_t keep::Pen::live()
+keep_status keep_Pen_live(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Pen_live: 'out_result' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = ::keep::Pen::live(); });
+}
+
+// keep::Stamp::Stamp(const keep::Pen& pen)
+keep_status keep_Stamp_create(keep_Stamp** out_self, const keep_Pen* pen)
+{
+    if (out_self == nullptr) {
+        return keep_detail::null_argument("keep_Stamp_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (pen == nullptr) {
+        return keep_detail::null_argument("keep_Stamp_create: 'pen' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_self = reinterpret_cast<keep_Stamp*>(new ::keep::Stamp(*reinterpret_cast<const ::keep::Pen*>(pen))); });
+}
+
+// keep::Stamp::~Stamp()
+void keep_Stamp_destroy(keep_Stamp* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    keep_detail::guard_silently([&]() { delete reinterpret_cast<::keep::Stamp*>(self); });
+}
+
+// bool keep::Stamp::open() const
+keep_status keep_Stamp_open(const keep_Stamp* self, bool* out_result)
+{
+    if (self == nullptr) {
+        return keep_detail::null_argument("keep_Stamp_open: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Stamp_open: 'out_result' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = reinterpret_cast<const ::keep::Stamp*>(self)->open(); });
+}
+
+// static int32_t keep::Stamp::live()
+keep_status keep_Stamp_live(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Stamp_live: 'out_result' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = ::keep::Stamp::live(); });
+}
+
+// keep::Pen::Pen() of the director
+keep_status keep_Pen_director_create(keep_Pen** out_object, keep_Pen_director** out_director, const keep_Pen_vtable* vtable)
+{
+    keep_detail::callback_owner _vtable_owner(vtable != nullptr ? vtable->release : nullptr, vtable != nullptr ? vtable->user_data : nullptr);
+    if (out_object == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_create: 'out_object' is NULL");
+    }
+    *out_object = nullptr;
+    if (out_director == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_create: 'out_director' is NULL");
+    }
+    *out_director = nullptr;
+    if (vtable == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_create: 'vtable' is NULL");
+    }
+    return keep_detail::guard([&]() { keep_detail::keep_Pen_director_impl* _created = new keep_detail::keep_Pen_director_impl(_vtable_owner, *vtable); *out_director = reinterpret_cast<keep_Pen_director*>(_created); *out_object = reinterpret_cast<keep_Pen*>(static_cast<::keep::Pen*>(_created)); });
+}
+
+// keep::Pen: the object of its director
+keep_Pen* keep_Pen_director_object(keep_Pen_director* director)
+{
+    return reinterpret_cast<keep_Pen*>(static_cast<::keep::Pen*>(reinterpret_cast<keep_detail::keep_Pen_director_impl*>(director)));
+}
+
+// std::unique_ptr<keep::Stamp> keep::Pen::stamp()
+keep_status keep_Pen_director_base_stamp(keep_Pen_director* director, keep_Stamp** out_result)
+{
+    if (out_result == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_base_stamp: 'out_result' is NULL");
+    }
+    *out_result = nullptr;
+    if (director == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_base_stamp: 'director' is NULL");
+    }
+    return keep_detail::guard([&]() { *out_result = reinterpret_cast<keep_Stamp*>(reinterpret_cast<keep_detail::keep_Pen_director_impl*>(director)->bridgefex_base_stamp().release()); });
+}
+
+// void keep::Pen::note(const char* text)
+keep_status keep_Pen_director_base_note(keep_Pen_director* director, const char* text)
+{
+    if (director == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_base_note: 'director' is NULL");
+    }
+    if (text == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_base_note: 'text' is NULL");
+    }
+    return keep_detail::guard([&]() { reinterpret_cast<keep_detail::keep_Pen_director_impl*>(director)->bridgefex_base_note(text); });
+}
+
+// void keep::Pen::noteView(std::string_view text)
+keep_status keep_Pen_director_base_noteView(keep_Pen_director* director, const char* text, size_t text_size)
+{
+    if (director == nullptr) {
+        return keep_detail::null_argument("keep_Pen_director_base_noteView: 'director' is NULL");
+    }
+    if (text == nullptr && text_size != 0) {
+        return keep_detail::null_argument("keep_Pen_director_base_noteView: 'text' is NULL and 'text_size' is not 0");
+    }
+    return keep_detail::guard([&]() { reinterpret_cast<keep_detail::keep_Pen_director_impl*>(director)->bridgefex_base_noteView(std::string_view(keep_detail::string_data(text), text_size)); });
 }
 
 }  // extern "C"
