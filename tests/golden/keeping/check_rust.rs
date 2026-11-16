@@ -6,7 +6,7 @@
 // pointer to is something that Rust cannot see how long: the functions that do are `unsafe`, and
 // the caller says why it is sound (it declares the object before what keeps it, or leaks it).
 
-use keep::keep::{Gate, Label, Latch};
+use keep::kept::{Gate, Label, Latch};
 use keep::Owned;
 use std::ffi::CStr;
 

@@ -3,6 +3,6 @@
 
 mod native;
 mod runtime;
-pub mod keep;
+pub mod kept;
 
 pub use runtime::{Class, Error, ErrorKind, Owned, Result};

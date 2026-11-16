@@ -76,6 +76,9 @@ public:
     // The text that is kept for ever (see keepView).
     static void keepView(std::string_view text);
     static bool keptIntact();
+    // A helper for the tests: allocates blocks of many sizes, fills them and frees them, so that
+    // memory that was freed is reused and overwritten before something reads it.
+    static void scribble();
 
 private:
     // Each text that is kept: where it is, how long, and what it added up to when it was given.

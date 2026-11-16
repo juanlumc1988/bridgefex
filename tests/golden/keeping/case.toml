@@ -1,7 +1,7 @@
 # Options passed to bridgefex for this case.
 module = "keep"
-headers = ["keep.h"]
+headers = ["kept.h"]
 std = "c++17"
 min_cxx = "c++17"
 annotations = ["annotations.toml"]
-languages = ["python", "rust"]
+languages = ["python", "csharp", "rust"]

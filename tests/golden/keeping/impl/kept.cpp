@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include "keep.h"
+#include "kept.h"
 
 #include <cstring>
 #include <vector>
@@ -141,5 +141,20 @@ void Label::keepView(std::string_view text)
 }
 
 bool Label::keptIntact() { return g_data == nullptr || hash(g_data, g_size) == g_sum; }
+
+void Label::scribble()
+{
+    std::vector<char*> blocks;
+    for (std::size_t size = 1; size < 600; ++size) {
+        for (int copy = 0; copy < 8; ++copy) {
+            char* block = new char[size];
+            std::memset(block, 0xEE, size);
+            blocks.push_back(block);
+        }
+    }
+    for (char* block : blocks) {
+        delete[] block;
+    }
+}
 
 }  // namespace keep

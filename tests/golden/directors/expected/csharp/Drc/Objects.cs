@@ -294,6 +294,46 @@ internal readonly ref struct Lease
     }
 }
 
+/// <summary>A text that C++ keeps a pointer to: a copy in native memory (a managed array can move, and is gone when
+/// nothing refers to it). It lives as long as the object that keeps it (see <see cref="Keep"/>), or for ever; a copy that
+/// no object took (a call that failed first) is released by the collector.</summary>
+internal sealed unsafe class KeptText
+{
+    private nint _memory;
+
+    internal KeptText(byte[] bytes)
+    {
+        Length = bytes.Length;
+        _memory = (nint)NativeMemory.Alloc((nuint)(bytes.Length == 0 ? 1 : bytes.Length));
+        bytes.AsSpan().CopyTo(new global::System.Span<byte>((void*)_memory, bytes.Length));
+    }
+
+    internal byte* Pointer => (byte*)_memory;
+
+    /// <summary>The number of bytes that were copied (a <c>const char*</c> ends with a NUL that is one of them).</summary>
+    internal int Length { get; }
+
+    /// <summary>A <see cref="Keep"/> has it: it releases it, not the collector.</summary>
+    internal void Taken()
+    {
+        global::System.GC.SuppressFinalize(this);
+    }
+
+    internal void Free()
+    {
+        nint memory = global::System.Threading.Interlocked.Exchange(ref _memory, 0);
+        if (memory != 0)
+        {
+            NativeMemory.Free((void*)memory);
+        }
+    }
+
+    ~KeptText()
+    {
+        Free();
+    }
+}
+
 /// <summary>The objects that a C++ object keeps pointers to. Their C++ objects are not destroyed by the
 /// collector (they are pinned) until the C++ object has been destroyed: the collector does not order
 /// finalizers, and a destructor may use what it points to. Closing an object destroys it all the same.
@@ -304,6 +344,7 @@ internal sealed class Keep
 
     private readonly ObjectHandle? _owner;
     private readonly HashSet<ObjectHandle> _pinned = new(global::System.Collections.Generic.ReferenceEqualityComparer.Instance);
+    private readonly List<KeptText> _texts = new();
 
     internal Keep(ObjectHandle? owner)
     {
@@ -327,19 +368,33 @@ internal sealed class Keep
         }
     }
 
+    /// <summary>Keep a text as long as the C++ object may use it: it is released with this one.</summary>
+    internal void AddText(KeptText text)
+    {
+        lock (this)
+        {
+            _texts.Add(text);
+        }
+        text.Taken();
+    }
+
     /// <summary>What was kept goes to <paramref name="other"/>: it is not released with this one.</summary>
     internal void MoveTo(Keep other)
     {
         ObjectHandle[] pinned;
+        KeptText[] texts;
         lock (this)
         {
             pinned = new ObjectHandle[_pinned.Count];
             _pinned.CopyTo(pinned);
             _pinned.Clear();
+            texts = _texts.ToArray();
+            _texts.Clear();
         }
         var duplicated = new List<ObjectHandle>();
         lock (other)
         {
+            other._texts.AddRange(texts);
 
             foreach (ObjectHandle handle in pinned)
             {
@@ -358,11 +413,19 @@ internal sealed class Keep
     internal void Release()
     {
         ObjectHandle[] pinned;
+        KeptText[] texts;
         lock (this)
         {
             pinned = new ObjectHandle[_pinned.Count];
             _pinned.CopyTo(pinned);
             _pinned.Clear();
+            texts = _texts.ToArray();
+            _texts.Clear();
+        }
+        // The C++ object is destroyed by now: nothing reads its texts any more.
+        foreach (KeptText text in texts)
+        {
+            text.Free();
         }
         foreach (ObjectHandle handle in pinned)
         {
@@ -604,6 +667,23 @@ public abstract class BridgefexObject : global::System.IDisposable
         if (value is not null)
         {
             Keep.Forever.Add(value);
+        }
+    }
+
+    /// <summary>Keep a text as long as the C++ object may use it.</summary>
+    internal void RetainText(KeptText? text)
+    {
+        if (text is not null)
+        {
+            KeepOf().AddText(text);
+        }
+    }
+
+    internal static void RetainTextForever(KeptText? text)
+    {
+        if (text is not null)
+        {
+            Keep.Forever.AddText(text);
         }
     }
 

@@ -10,7 +10,7 @@ adds up the bytes of its texts again), and a Gate or a text that Python had free
 import gc
 
 import keep
-from keep.keep import Gate, Label, Latch
+from keep.kept import Gate, Label, Latch
 
 
 def churn():
@@ -19,6 +19,7 @@ def churn():
     junk = [bytes([index % 251]) * size for size in range(1, 300) for index in range(40)]
     del junk
     gc.collect()
+    Label.scribble()  # and the memory of C++
 
 
 # `this = "retain"`: the object that the method returns keeps the object it was called on.

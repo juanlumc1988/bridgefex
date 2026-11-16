@@ -156,7 +156,7 @@ extern "C" const char* keep_last_error(void)
 
 extern "C" const char* keep_api_fingerprint(void)
 {
-    return "07b95c1d46cb8b83b81b690dd6da6bd8";
+    return "953182e858b5b37eada8773138eab9c7";
 }
 
 extern "C" void keep_free(void* memory)

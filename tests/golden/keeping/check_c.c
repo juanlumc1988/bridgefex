@@ -4,7 +4,7 @@
  * tests/test_roundtrip.py builds it against the generated library and runs it. In C the caller
  * keeps what the library points to: the comments of the C header say what that is.
  */
-#include "keep_c.h"
+#include "kept_c.h"
 
 #include <stdbool.h>
 #include <stdio.h>

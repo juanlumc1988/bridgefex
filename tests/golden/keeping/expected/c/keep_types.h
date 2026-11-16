@@ -11,7 +11,7 @@
  */
 #pragma pack(push, 8)
 
-/* From "keep.h". */
+/* From "kept.h". */
 
 /* Opaque handle of keep::Gate. */
 typedef struct keep_Gate keep_Gate;
