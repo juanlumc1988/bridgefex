@@ -865,7 +865,7 @@ def _director_call(
         arena = names.flavor.declare(names.flavor.arena)
         body += [
             f"if ({L}value != null) {{",
-            f'    byte[] {L}bytes = {R}.utf8({L}value, "result");',
+            f"    byte[] {L}bytes = {R}.utf8({L}value, {label});",
             f"    try ({arena} {L}arena = {R}.arena()) {{",
             f"        BridgefexNative.{thunk.sink}({sink}, {R}.bytes({L}arena, {L}bytes), "
             f"(long) {L}bytes.length);",

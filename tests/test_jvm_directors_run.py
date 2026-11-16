@@ -236,6 +236,23 @@ class Runtime1 {
                 check(left == 0, "the release did not reach Java: " + left + " left");
                 break;
             }
+            case "signature": {
+                // A method of the name with other parameters overrides nothing, and the message
+                // says it was found.
+                class Wrong extends Item {
+                    @SuppressWarnings("unused")
+                    public int pure(double other) { return 1; }
+                }
+                try {
+                    new Wrong();
+                    check(false, "a pure virtual method was not overridden");
+                } catch (IllegalStateException expected) {
+                    String message = expected.getMessage();
+                    check(message.contains("Item.pure"), message);
+                    check(message.contains("other parameters"), message);
+                }
+                break;
+            }
             case "anonymous": {
                 // An anonymous class has no simple name: the message names it all the same.
                 try {
@@ -341,7 +358,7 @@ def _run(
     assert "OK" in completed.stdout, completed.stdout + completed.stderr
 
 
-@pytest.mark.parametrize("scenario", ["adopt", "pad", "thread", "anonymous"])
+@pytest.mark.parametrize("scenario", ["adopt", "pad", "thread", "anonymous", "signature"])
 def test_what_the_runtime_review_found_of_the_overrides(
     runtime: tuple[Case, Path, Path], tmp_path: Path, language: str, scenario: str
 ) -> None:

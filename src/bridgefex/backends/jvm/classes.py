@@ -255,6 +255,7 @@ class _Class:
             cls.model.qualified_name,
             "The C++ object is destroyed by close(), or when the object is collected, unless "
             "C++ owns it (it was returned by reference or pointer, or it was given to C++).",
+            *self.director_notes(),
         )
         # The constructors use the object (to keep what C++ keeps), and subclasses are the code
         # of the user.
@@ -553,12 +554,21 @@ class _Class:
                 returns=lowered.returns,
                 arguments=[parameter.rsplit(" ", 1)[1] for parameter in lowered.parameters],
             )
+        final = member.kind is not CallableKind.STATIC and slot is None and self.derivable_family()
+        remarks = list(lowered.remarks)
+        if slot is not None:
+            remarks.append(
+                "Virtual: a class of yours can override it, and C++ calls the override"
+                + (" (it is pure virtual: it has to be overridden)." if slot.entry.is_pure else ".")
+            )
+        elif final:
+            remarks.append("Final: C++ would not call an override of it.")
         src.line()
-        src.doc(member.function.description, *lowered.remarks)
+        src.doc(member.function.description, *remarks)
         src.line(f'@BridgefexFunction("{member.function.name}")')
         src.lines_of(lowered.annotations)
         keyword = "public static " if member.kind is CallableKind.STATIC else "public "
-        if member.kind is not CallableKind.STATIC and slot is None and self.derivable_family():
+        if final:
             # C++ would not call an override of it: Java says so when the class is compiled.
             keyword += "final "
         src.open(f"{keyword}{lowered.returns} {name}({', '.join(lowered.parameters)})")
@@ -572,6 +582,58 @@ class _Class:
         for helper in helpers:
             src.line()
             src.lines_of(helper)
+
+    def director_notes(self) -> list[str]:
+        """What the documentation of the class says of deriving from it, in a module with
+        directors."""
+        c_type = self.cls.c_type
+        if c_type in self.names.directors:
+            if self.subclassable():
+                return [
+                    "A class of yours can derive from it: it overrides the virtual methods that "
+                    "are not final, and C++ calls the overrides."
+                ]
+            return [
+                "Java cannot derive from it: C++ tells its constructors apart by types that Java "
+                "cannot, so they are static create... methods and a subclass has none to call."
+            ]
+        if c_type in self.names.guarded:
+            return [
+                "Java cannot derive from it with effect: C++ would not call the overrides of "
+                "its methods (it has no director, or the one it has cannot be used), so they "
+                "are final."
+            ]
+        return []
+
+    def subclassable(self) -> bool:
+        """True if a class of the user can call a constructor of the class: one that Java tells
+        apart from the others, or a protected one."""
+        cls = self.cls
+        signatures: Counter[tuple[str, ...]] = Counter()
+        for ctor in cls.constructors:
+            try:
+                signatures[
+                    _signature(
+                        lower_callable(ctor, self.names, self.plan, declaring=cls).parameters
+                    )
+                ] += 1
+            except Unsupported:
+                continue
+        if any(count == 1 for count in signatures.values()):
+            return True
+        if cls.director is None:
+            return False
+        plain = {ctor.source for ctor in cls.constructors}
+        for director_ctor in cls.director.constructors:
+            if director_ctor.source in plain:
+                continue
+            try:
+                made = lower_callable(director_ctor, self.names, self.plan, declaring=cls)
+            except Unsupported:
+                continue
+            if _signature(made.parameters) not in signatures:
+                return True
+        return False
 
     def derivable_family(self) -> bool:
         """True for a class that others derive from, and for those below one that cannot be."""

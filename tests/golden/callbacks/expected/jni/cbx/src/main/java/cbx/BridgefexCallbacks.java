@@ -142,7 +142,7 @@ public final class BridgefexCallbacks {
         try {
             Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
-                System.err.println("Unobserved exception in a C++ callback: " + error);
+                System.err.println("Unobserved exception in a C++ callback or override: " + error);
                 error.printStackTrace();
                 return;
             }

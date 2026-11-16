@@ -316,7 +316,9 @@ methods with a few neutral behaviors (give a value, call the implementation of t
 base, give an argument back, fail), so that every language shows the same: C++ runs the
 overrides, a base call does not call the override again, the types cross in both
 directions, and the failure of an override reaches the call that made C++ run it
-(`tests/golden/directors/scenarios.toml`).
+(`tests/golden/directors/scenarios.toml`). Only the Python runner plays them (`SUPPORTED` of
+`tests/test_conformance.py`): the Java and C# runners cannot derive a class, and their directors
+are checked by the golden case `directors` and by the binding cases `directors_*`.
 
 A runner decides how the neutral names reach its language: the Python one finds a
 header as a module, a constructor overload as `Class.create<overload>`, a struct

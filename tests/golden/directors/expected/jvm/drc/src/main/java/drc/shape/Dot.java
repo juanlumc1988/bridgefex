@@ -15,6 +15,8 @@ import drc.BridgefexDirectors;
  * drc::Dot
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * Java cannot derive from it with effect: C++ would not call the overrides of its methods (it has no director, or the one it has cannot be used), so they are final.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Dot extends drc.shape.Shape {
@@ -79,6 +81,8 @@ public class Dot extends drc.shape.Shape {
 
     /**
      * double drc::Dot::area() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Dot_area")
     public final double area() {

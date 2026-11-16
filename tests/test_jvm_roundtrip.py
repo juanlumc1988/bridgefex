@@ -25,7 +25,7 @@ from tests.support.toolchain import Toolchain
 
 # The golden cases that have a check, and the cases of the bindings alone (tests/binding_cases).
 EXTRA_DIR = Path(__file__).parent / "binding_cases"
-EXTRA_NAMES = {"lifetime", "wire"}
+EXTRA_NAMES = {"lifetime", "wire", "directors_edge", "directors_containers", "directors_objects"}
 """The cases of the bindings alone: they ask for no language in their case.toml (the check is
 what they are for), and have both Java bindings."""
 CASES = [

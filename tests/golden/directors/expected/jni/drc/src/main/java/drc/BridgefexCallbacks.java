@@ -137,7 +137,7 @@ public final class BridgefexCallbacks {
         try {
             Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
-                System.err.println("Unobserved exception in a C++ callback: " + error);
+                System.err.println("Unobserved exception in a C++ callback or override: " + error);
                 error.printStackTrace();
                 return;
             }
@@ -663,7 +663,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Shape.name returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Shape.name'");
                     try (BridgefexArena __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__slot, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }
@@ -966,7 +966,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Shape.greet returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Shape.greet'");
                     try (BridgefexArena __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__slot, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }
@@ -1719,7 +1719,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Stage.step returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Stage.step'");
                     try (BridgefexArena __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__slot, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }

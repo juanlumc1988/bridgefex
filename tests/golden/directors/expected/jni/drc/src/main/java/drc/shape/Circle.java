@@ -18,6 +18,8 @@ import drc.BridgefexDirectors;
  * drc::Circle
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Circle extends drc.shape.Shape {
@@ -126,6 +128,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * double drc::Circle::area() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Circle_area")
     public double area() {
@@ -160,6 +164,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * std::string drc::Circle::name() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Circle_name")
     public java.lang.String name() {
@@ -210,6 +216,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * int32_t drc::Circle::add(int32_t a, int32_t b) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Circle_add")
     public final int add(int a, int b) {
@@ -224,6 +232,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * double drc::Circle::radius() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Circle_radius")
     public final double radius() {

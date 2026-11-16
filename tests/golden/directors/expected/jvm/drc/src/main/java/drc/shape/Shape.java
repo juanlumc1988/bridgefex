@@ -15,6 +15,8 @@ import drc.BridgefexDirectors;
  * drc::Shape
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Shape extends BridgefexObject {
@@ -156,6 +158,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::area() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override (it is pure virtual: it has to be overridden).
      */
     @BridgefexFunction("drc_Shape_area")
     public double area() {
@@ -173,6 +177,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::string drc::Shape::name() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_name")
     public java.lang.String name() {
@@ -244,6 +250,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::sides() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_sides")
     public int sides() {
@@ -291,6 +299,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Point drc::Shape::center() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_center")
     public drc.shape.Point center() {
@@ -338,6 +348,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Point drc::Shape::move(drc::Point by, const drc::Point&amp; other) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_move")
     public drc.shape.Point move(drc.shape.Point by, drc.shape.Point other) {
@@ -397,6 +409,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Mode drc::Shape::mode(drc::Mode requested) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_mode")
     public drc.shape.Mode mode(drc.shape.Mode requested) {
@@ -447,6 +461,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * void drc::Shape::scale(double factor)
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_scale")
     public void scale(double factor) {
@@ -490,6 +506,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::add(int32_t a, int32_t b) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_add_int32_int32")
     public int addInt32Int32(int a, int b) {
@@ -537,6 +555,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::add(double a, double b) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_add_double_double")
     public double addDoubleDouble(double a, double b) {
@@ -584,6 +604,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::string drc::Shape::greet(const std::string&amp; who, std::string_view tag, const char* mark) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_greet")
     public java.lang.String greet(java.lang.String who, java.lang.String tag, java.lang.String mark) {
@@ -670,6 +692,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::quiet() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_quiet")
     public int quiet() {
@@ -717,6 +741,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::total(const std::vector&lt;int32_t&gt;&amp; values) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_total")
     public int total(int[] values) {
@@ -782,6 +808,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;int32_t&gt; drc::Shape::numbers(const std::vector&lt;int32_t&gt;&amp; values) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_numbers")
     public int[] numbers(int[] values) {
@@ -892,6 +920,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;std::string&gt; drc::Shape::words(std::vector&lt;std::string&gt; input) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_words")
     public java.lang.String[] words(java.lang.String[] input) {
@@ -1011,6 +1041,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;drc::Mode&gt; drc::Shape::modes(const std::vector&lt;drc::Mode&gt;&amp; wanted) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_modes")
     public drc.shape.Mode[] modes(drc.shape.Mode[] wanted) {
@@ -1121,6 +1153,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;drc::Point&gt; drc::Shape::points(const std::vector&lt;drc::Point&gt;&amp; list) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_points")
     public drc.shape.Point[] points(drc.shape.Point[] list) {
@@ -1231,6 +1265,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;bool&gt; drc::Shape::flags(const std::vector&lt;bool&gt;&amp; input) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_flags")
     public boolean[] flags(boolean[] input) {
@@ -1341,6 +1377,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::array&lt;double, 3&gt; drc::Shape::triple(const std::array&lt;double, 3&gt;&amp; values) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_triple")
     public double[] triple(double[] values) {
@@ -1433,6 +1471,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::peek(const drc::Holder&amp; holder) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_peek")
     public int peek(drc.shape.Holder holder) {
@@ -1486,6 +1526,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::compare(const drc::Shape&amp; other) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_compare")
     public double compare(drc.shape.Shape other) {
@@ -1541,6 +1583,8 @@ public class Shape extends BridgefexObject {
      * bool drc::Shape::same(const drc::Shape* other) const
      * <p>
      * other may be null.
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_same")
     public boolean same(drc.shape.Shape other) {
@@ -1593,6 +1637,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::grow(drc::Beam&amp; beam) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_grow")
     public int grow(drc.shape.Beam beam) {
@@ -1646,6 +1692,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::adopt(std::unique_ptr&lt;drc::Beam&gt; beam) const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_adopt")
     public int adopt(drc.shape.Beam beam) {
@@ -1711,6 +1759,8 @@ public class Shape extends BridgefexObject {
      * std::unique_ptr&lt;drc::Beam&gt; drc::Shape::make_beam(int32_t length) const
      * <p>
      * The result is null if C++ gives a NULL pointer.
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Shape_make_beam")
     public drc.shape.Beam makeBeam(int length) {
@@ -1767,6 +1817,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::by_value(drc::Beam beam) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_by_value")
     public final int byValue(drc.shape.Beam beam) {
@@ -1783,6 +1835,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::fixed() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_fixed")
     public final int fixed() {
@@ -1797,6 +1851,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::string drc::Shape::describe() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_describe")
     public final java.lang.String describe() {
@@ -1819,6 +1875,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::scaled_area(double factor)
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_scaled_area")
     public final double scaledArea(double factor) {
@@ -1833,6 +1891,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Point drc::Shape::middle(const drc::Point&amp; other) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_middle")
     public final drc.shape.Point middle(drc.shape.Point other) {
@@ -1849,6 +1909,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Point drc::Shape::call_move(drc::Point by) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_move")
     public final drc.shape.Point callMove(drc.shape.Point by) {
@@ -1865,6 +1927,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::call_total(const std::vector&lt;int32_t&gt;&amp; values) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_total")
     public final int callTotal(int[] values) {
@@ -1885,6 +1949,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;int32_t&gt; drc::Shape::call_numbers(const std::vector&lt;int32_t&gt;&amp; values) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_numbers")
     public final int[] callNumbers(int[] values) {
@@ -1920,6 +1986,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;std::string&gt; drc::Shape::call_words(const std::vector&lt;std::string&gt;&amp; input) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_words")
     public final java.lang.String[] callWords(java.lang.String[] input) {
@@ -1958,6 +2026,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;drc::Mode&gt; drc::Shape::call_modes(const std::vector&lt;drc::Mode&gt;&amp; wanted) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_modes")
     public final drc.shape.Mode[] callModes(drc.shape.Mode[] wanted) {
@@ -1993,6 +2063,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;drc::Point&gt; drc::Shape::call_points(const std::vector&lt;drc::Point&gt;&amp; list) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_points")
     public final drc.shape.Point[] callPoints(drc.shape.Point[] list) {
@@ -2028,6 +2100,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::vector&lt;bool&gt; drc::Shape::call_flags(const std::vector&lt;bool&gt;&amp; input) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_flags")
     public final boolean[] callFlags(boolean[] input) {
@@ -2063,6 +2137,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::array&lt;double, 3&gt; drc::Shape::call_triple(const std::array&lt;double, 3&gt;&amp; values) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_triple")
     public final double[] callTriple(double[] values) {
@@ -2092,6 +2168,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::call_peek(const drc::Holder&amp; holder) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_peek")
     public final int callPeek(drc.shape.Holder holder) {
@@ -2108,6 +2186,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::call_compare(const drc::Shape&amp; other) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_compare")
     public final double callCompare(drc.shape.Shape other) {
@@ -2126,6 +2206,8 @@ public class Shape extends BridgefexObject {
      * bool drc::Shape::call_same(const drc::Shape* other) const
      * <p>
      * other may be null.
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_same")
     public final boolean callSame(drc.shape.Shape other) {
@@ -2141,6 +2223,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::call_grow(drc::Beam&amp; beam) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_grow")
     public final int callGrow(drc.shape.Beam beam) {
@@ -2157,6 +2241,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::call_adopt(std::unique_ptr&lt;drc::Beam&gt; beam) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_adopt")
     public final int callAdopt(drc.shape.Beam beam) {
@@ -2181,6 +2267,8 @@ public class Shape extends BridgefexObject {
      * std::unique_ptr&lt;drc::Beam&gt; drc::Shape::call_make_beam(int32_t length) const
      * <p>
      * The result is null if C++ gives a NULL pointer.
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_make_beam")
     public final drc.shape.Beam callMakeBeam(int length) {
@@ -2198,6 +2286,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::call_by_value(const drc::Beam&amp; beam) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_call_by_value")
     public final int callByValue(drc.shape.Beam beam) {
@@ -2214,6 +2304,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * drc::Mode drc::Shape::choose(drc::Mode requested) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_choose")
     public final drc.shape.Mode choose(drc.shape.Mode requested) {
@@ -2229,6 +2321,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::string drc::Shape::welcome(const std::string&amp; who) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_welcome")
     public final java.lang.String welcome(java.lang.String who) {
@@ -2253,6 +2347,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::sum(int32_t a, int32_t b) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_sum")
     public final int sum(int a, int b) {
@@ -2267,6 +2363,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * double drc::Shape::sum_double(double a, double b) const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_sum_double")
     public final double sumDouble(double a, double b) {
@@ -2281,6 +2379,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::total_of_three() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_total_of_three")
     public final int totalOfThree() {
@@ -2295,6 +2395,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::how_quiet() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_how_quiet")
     public final int howQuiet() {
@@ -2309,6 +2411,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * void drc::Shape::notify(int32_t reason)
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_notify")
     public final void notify_(int reason) {
@@ -2321,6 +2425,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * int32_t drc::Shape::last_reason() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_last_reason")
     public final int lastReason() {
@@ -2335,6 +2441,8 @@ public class Shape extends BridgefexObject {
 
     /**
      * std::string drc::Shape::label() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Shape_label")
     public final java.lang.String label() {
@@ -2467,7 +2575,7 @@ public class Shape extends BridgefexObject {
                 return null;
             }
             if (!found[0]) {
-                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Shape.area");
+                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Shape.area" + (BridgefexDirectors.declares(type, GENERATED, "area") ? " (a method of that name with other parameters was found: it overrides nothing)" : ""));
             }
             return found;
         }

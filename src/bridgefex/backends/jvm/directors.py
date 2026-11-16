@@ -465,7 +465,9 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
                 "throw new java.lang.IllegalStateException("
                 "(type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + "
                 f'" must override the pure virtual method {slot.root.model.name}.'
-                f'{slot.root_entry.name}");'
+                f'{slot.root_entry.name}" + (BridgefexDirectors.declares(type, GENERATED, '
+                f'"{slot.name}") ? " (a method of that name with other parameters was found: it '
+                'overrides nothing)" : ""));'
             )
             src.close()
     src.line("return found;")

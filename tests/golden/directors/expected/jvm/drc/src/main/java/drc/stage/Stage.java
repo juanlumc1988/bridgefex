@@ -15,6 +15,8 @@ import drc.BridgefexDirectors;
  * drc::Stage
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Stage extends BridgefexObject {
@@ -101,6 +103,8 @@ public class Stage extends BridgefexObject {
 
     /**
      * std::string drc::Stage::run(drc::Mode mode)
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Stage_run")
     public final java.lang.String run(drc.shape.Mode mode) {
@@ -124,6 +128,8 @@ public class Stage extends BridgefexObject {
 
     /**
      * int32_t drc::Stage::steps() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Stage_steps")
     public final int steps() {
@@ -217,7 +223,7 @@ public class Stage extends BridgefexObject {
                 return null;
             }
             if (!found[0]) {
-                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Stage.step");
+                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Stage.step" + (BridgefexDirectors.declares(type, GENERATED, "step") ? " (a method of that name with other parameters was found: it overrides nothing)" : ""));
             }
             return found;
         }

@@ -382,3 +382,45 @@ class Base { public: enum class DirectorOverrides { A }; Base(); virtual ~Base()
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, code, ("Base",), language=language)
     assert "'Base::DirectorOverrides' gets the Java name 'DirectorOverrides'" in str(raised.value)
+
+
+def test_what_a_class_below_inherits_and_privately_implements_is_final_in_it(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """C++ implements the method where it cannot be overridden (a private override, not part of
+    the API): the class has no wrapper for it, and Java must not accept an override either."""
+    code = """
+class Base2 { public: Base2(); virtual ~Base2(); virtual int v() const; virtual int w() const; };
+class Priv : public Base2 { public: Priv(); private: int v() const override; };
+"""
+    files = generate(tmp_path, code, ("Base2", "Priv"), language=language, verify=True)
+    priv = source(files, language, "Priv")
+    assert "    public final int v() {" in priv
+    assert "return super.v();" in priv
+    assert "    public int w() {" not in priv
+
+
+def test_the_documentation_of_the_classes_and_methods_says_what_can_be_overridden(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    files = generate(tmp_path, BASE, language=language)
+    base = source(files, language, "Base")
+    assert "A class of yours can derive from it" in base
+    assert "Virtual: a class of yours can override it, and C++ calls the override." in base
+    assert "it is pure virtual: it has to be overridden" in base
+    assert "Final: C++ would not call an override of it." in base
+    leaf = source(files, language, "Leaf")
+    assert "Java cannot derive from it with effect" in leaf
+
+
+def test_a_class_whose_constructors_java_cannot_tell_apart_says_it_cannot_be_derived_from(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    code = """
+class Dup { public: Dup(const std::string& a); Dup(const char* b); virtual ~Dup();
+    virtual int f() const; };
+"""
+    files = generate(tmp_path, code, ("Dup",), language=language, verify=True)
+    dup = source(files, language, "Dup")
+    assert "Java cannot derive from it" in dup
+    assert "A class of yours can derive from it" not in dup
