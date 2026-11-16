@@ -133,7 +133,7 @@ def _declare(src: Source, function: CFunction, handles: dict[str, str]) -> None:
         parameters = ", ".join(
             f"{identifier(param.name)}: {native_type(param, handles)}" for param in function.params
         )
-        returns = restype(function.ffi_restype)
+        returns = restype(function, handles)
     except Unsupported as error:
         raise Unsupported(f"'{function.description}': {error}") from error
     src.line(f"pub(crate) fn {function.name}({parameters}){returns};")
@@ -252,7 +252,65 @@ def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
         first = False
         _function(src, plan, member, names, taken, declaring=cls, receiver_ok=True)
     src.close()
+    _inheritance(src, plan, cls, names)
     _nested(src, cls)
+
+
+def _inheritance(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
+    """The class derefs to its first base class (so the methods of the base are its own, and a
+    reference to the class goes where a reference to the base is expected); the other bases are
+    reached with ``as_<base>``. The pointer to a base is not always the pointer to the object, so
+    the conversions are those of the C API."""
+    name = pascal(cls.model.name)
+    by_view = {view.c_type: view for view in cls.views}
+    for position, base in enumerate(cls.bases):
+        view = by_view.get(base.c_type)
+        if view is None:
+            continue
+        base_path = names.classes[base.c_type]
+        if position == 0:
+            src.line()
+            src.open(f"impl ::core::ops::Deref for {name}")
+            src.line(f"type Target = {base_path};")
+            src.line()
+            src.open(f"fn deref(&self) -> &{base_path}")
+            src.line(f"unsafe {{ &*crate::native::{view.const_upcast.name}(self) }}")
+            src.close()
+            src.close()
+            src.line()
+            src.open(f"impl ::core::ops::DerefMut for {name}")
+            src.open(f"fn deref_mut(&mut self) -> &mut {base_path}")
+            src.line(f"unsafe {{ &mut *crate::native::{view.upcast.name}(self) }}")
+            src.close()
+            src.close()
+        else:
+            word = snake(base.model.name)
+            src.line()
+            src.open(f"impl {name}")
+            src.doc(f"This object as a {base.model.qualified_name}, which is part of it.")
+            src.open(f"pub fn as_{word}(&self) -> &{base_path}")
+            src.line(f"unsafe {{ &*crate::native::{view.const_upcast.name}(self) }}")
+            src.close()
+            src.line()
+            src.doc(f"This object as a {base.model.qualified_name}, which is part of it.")
+            src.open(f"pub fn as_{word}_mut(&mut self) -> &mut {base_path}")
+            src.line(f"unsafe {{ &mut *crate::native::{view.upcast.name}(self) }}")
+            src.close()
+            src.close()
+        if base.model.virtual_destructor:
+            # C++ destroys the object through the base class: it can be owned as one.
+            src.line()
+            src.open(f"impl crate::Owned<{name}>")
+            src.doc(f"This object, owned as a {base.model.qualified_name}.")
+            word = "into_base" if position == 0 else f"into_{snake(base.model.name)}"
+            src.open(f"pub fn {word}(self) -> crate::Owned<{base_path}>")
+            src.line("let object = crate::Owned::into_raw(self);")
+            src.line(f"let base = unsafe {{ crate::native::{view.upcast.name}(object) }};")
+            src.line(
+                'unsafe { crate::Owned::from_raw(base) }.expect("a base of an object is not NULL")'
+            )
+            src.close()
+            src.close()
 
 
 def _nested(src: Source, owner: ClassPlan | StructPlan) -> None:
@@ -391,11 +449,13 @@ def _function(
     lowered = lower_callable(call, names, plan, declaring=declaring)
     parameters = ([lowered.receiver] if lowered.receiver else []) + lowered.parameters
     src.doc(call.function.description, *lowered.remarks)
-    one = f"pub fn {name}({', '.join(parameters)}) -> {lowered.returns} {{"
+    keyword = "pub unsafe fn" if lowered.unsafe else "pub fn"
+    head = f"{keyword} {name}{lowered.generics}"
+    one = f"{head}({', '.join(parameters)}) -> {lowered.returns} {{"
     if len(one) + 4 <= 100:
         src.open(one.removesuffix(" {"))
     else:
-        src.line(f"pub fn {name}(")
+        src.line(f"{head}(")
         for parameter in parameters:
             src.line(f"    {parameter},")
         src.open(f") -> {lowered.returns}")
@@ -405,9 +465,9 @@ def _function(
 
 __all__ = [
     "FfiKind",
-    "field_names",
     "Target",
     "build_names",
+    "field_names",
     "header_module",
     "header_source",
     "native_source",

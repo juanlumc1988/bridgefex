@@ -221,12 +221,17 @@ impl<T: Class> Owned<T> {
     }
 }
 
+/// A reference that C++ gave and that is NULL: the C layer does not do that.
+#[cold]
+#[allow(dead_code)]
+pub(crate) fn null_object() -> Error {
+    Error::new(ErrorKind::NullArgument, "the C layer gave a NULL object")
+}
+
 /// The object that a C function made (and that Rust owns from now on).
 #[allow(dead_code)]
 pub(crate) unsafe fn adopt<T: Class>(object: *mut T) -> Result<Owned<T>> {
-    unsafe { Owned::from_raw(object) }.ok_or_else(|| {
-        Error::new(ErrorKind::NullArgument, "the C layer gave a NULL object")
-    })
+    unsafe { Owned::from_raw(object) }.ok_or_else(null_object)
 }
 
 impl<T: Class> Drop for Owned<T> {

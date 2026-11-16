@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ...model import EnumRef, ScalarType, StringType, StructRef, Type
+from ...model import ClassForm, ClassRef, EnumRef, ScalarType, StringType, StructRef, Type
 from ...naming import unique_name
 from ...plan import (
     CallableKind,
@@ -61,6 +61,14 @@ class Lowering:
     remarks: list[str] = field(default_factory=list)
     """What the signature does not say (for the documentation comment)."""
 
+    generics: str = ""
+    """The lifetimes of the function (``<'a>``): that of the objects that a borrowed result
+    comes from."""
+
+    unsafe: bool = False
+    """The function is ``unsafe``: it gives a ``&mut`` to an object that nobody owns, and the
+    caller must not hold two."""
+
 
 def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
     """The type that the Rust API shows for a C++ type."""
@@ -79,6 +87,18 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
     if isinstance(type_, StructRef) and spec.struct is not None:
         return names.structs[spec.struct.c_type]
     raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+
+def is_borrowed(spec: ResultSpec, ref: ClassRef) -> bool:
+    """A result that is an object that C++ keeps owning: a reference, or a pointer that the
+    annotations say is borrowed."""
+    return ref.form in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE) or (
+        spec.ownership == "borrowed"
+    )
+
+
+def is_constant(ref: ClassRef) -> bool:
+    return ref.form in (ClassForm.VALUE, ClassForm.CONST_REFERENCE, ClassForm.CONST_POINTER)
 
 
 def lower_callable(
@@ -108,6 +128,7 @@ class _Lowerer:
 
         self.before: list[str] = []
         self.taken: set[str] = set()
+        self.lifetime = ""
 
     def run(self) -> Lowering:
         plan = self.plan
@@ -117,6 +138,9 @@ class _Lowerer:
             self.arguments["self"] = "self"
         elif plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
             raise Unsupported("directors are not supported in Rust yet")
+        self.lifetime = self.borrowed_lifetime()
+        if self.lifetime == "'a":
+            lowering.generics = "<'a>"
         for spec in plan.params:
             self.param(spec)
         returns, after = self.result()
@@ -130,6 +154,29 @@ class _Lowerer:
             *after,
         ]
         return lowering
+
+    def borrowed_lifetime(self) -> str:
+        """The lifetime that the objects of a call share with the borrowed object that it gives
+        back. A method gives it from ``self``, which the elision of Rust does by itself; a
+        function gives it from the objects that it takes, all of them for one lifetime."""
+        plan = self.plan
+        spec = plan.result
+        if (
+            spec is None
+            or not isinstance(spec.type, ClassRef)
+            or not is_borrowed(spec, spec.type)
+            or plan.kind is CallableKind.METHOD
+        ):
+            return ""
+        owners = [
+            param
+            for param in plan.params
+            if isinstance(param.type, ClassRef)
+            and "transfer" not in param.words
+            and param.type.form is not ClassForm.UNIQUE
+        ]
+        # An object that nobody owns lives until the program ends.
+        return "'a" if owners else "'static"
 
     def argument(self, name: str) -> str:
         try:
@@ -145,7 +192,10 @@ class _Lowerer:
         type_ = spec.type
         name = unique_name(parameter(spec.name), frozenset(self.taken))
         self.taken.add(name)
-        self.lowering.parameters.append(f"{name}: {public_type(type_, self.names, spec)}")
+        if isinstance(type_, ClassRef):
+            self.lowering.parameters.append(f"{name}: {self.object_type(spec, type_)}")
+        else:
+            self.lowering.parameters.append(f"{name}: {public_type(type_, self.names, spec)}")
         if isinstance(type_, ScalarType) and not type_.is_void:
             self.arguments[spec.name] = name
         elif isinstance(type_, EnumRef):
@@ -154,11 +204,57 @@ class _Lowerer:
             self.arguments[spec.name] = f"&{name}"
         elif isinstance(type_, StringType):
             self.string_param(spec, name)
+        elif isinstance(type_, ClassRef):
+            self.object_param(spec, type_, name)
         else:
             raise Unsupported(
                 f"the parameter '{spec.name}' of type '{type_.cpp_spelling}' is not supported in "
                 "Rust yet"
             )
+
+    def object_type(self, spec: ParamSpec, ref: ClassRef) -> str:
+        """The Rust type of an object that a function takes."""
+        assert spec.cls is not None
+        path = self.names.classes[spec.cls.c_type]
+        nullable = "nullable" in spec.words
+        if "transfer" in spec.words or ref.form is ClassForm.UNIQUE:
+            owned = f"crate::Owned<{path}>"
+            return f"::core::option::Option<{owned}>" if nullable else owned
+        lifetime = f"{self.lifetime} " if self.lifetime else ""
+        borrowed = f"&{lifetime}{path}" if is_constant(ref) else f"&{lifetime}mut {path}"
+        if ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER) and nullable:
+            return f"::core::option::Option<{borrowed}>"
+        return borrowed
+
+    def object_param(self, spec: ParamSpec, ref: ClassRef, name: str) -> None:
+        nullable = "nullable" in spec.words
+        if "retain" in spec.words and "transfer" not in spec.words:
+            # C++ keeps a pointer to the object: Rust cannot see until when, so the caller says it.
+            self.lowering.unsafe = True
+            holder = "`self`" if self.plan.kind is CallableKind.METHOD else "the new object"
+            if self.plan.kind in (CallableKind.STATIC, CallableKind.FUNCTION):
+                holder = "the program"
+            self.lowering.remarks.append(
+                f"Unsafe: C++ keeps a pointer to `{spec.name}`, which must stay valid for as long "
+                f"as {holder} uses it, and nobody else may use it meanwhile."
+            )
+        if "transfer" in spec.words or ref.form is ClassForm.UNIQUE:
+            # C++ takes the object, whatever the status: it is not Rust's any more.
+            if nullable:
+                self.arguments[spec.name] = (
+                    f"{name}.map_or(::core::ptr::null_mut(), crate::Owned::into_raw)"
+                )
+            else:
+                self.arguments[spec.name] = f"crate::Owned::into_raw({name})"
+            return
+        if ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER) and nullable:
+            null = "null" if is_constant(ref) else "null_mut"
+            cast = "*const _" if is_constant(ref) else "*mut _"
+            self.arguments[spec.name] = (
+                f"{name}.map_or(::core::ptr::{null}(), |object| object as {cast})"
+            )
+            return
+        self.arguments[spec.name] = name
 
     def enum_param(self, spec: ParamSpec, name: str) -> None:
         assert spec.enum is not None
@@ -209,6 +305,8 @@ class _Lowerer:
         if spec is None:
             return "crate::Result<()>", ["Ok(())"]
         type_ = spec.type
+        if isinstance(type_, ClassRef):
+            return self.object_result(type_, spec)
         public = public_type(type_, self.names, spec)
         if isinstance(type_, ScalarType) and not type_.is_void:
             self.before.append(
@@ -229,6 +327,46 @@ class _Lowerer:
         if isinstance(type_, StringType):
             return self.string_result(type_, spec, public)
         raise Unsupported(f"the result of type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+    def object_result(self, ref: ClassRef, spec: ResultSpec) -> tuple[str, list[str]]:
+        assert spec.cls is not None
+        path = self.names.classes[spec.cls.c_type]
+        nullable = ref.form not in (
+            ClassForm.VALUE,
+            ClassForm.REFERENCE,
+            ClassForm.CONST_REFERENCE,
+        )
+        self.before.append(f"let mut {L}object: *mut {path} = ::core::ptr::null_mut();")
+        self.arguments["out_result"] = f"&mut {L}object"
+        if is_borrowed(spec, ref):
+            # The object belongs to C++, and to what it is part of: Rust borrows it from what the
+            # call took it from (``self``, or the objects of a function).
+            lifetime = f"{self.lifetime} " if self.lifetime else ""
+            constant = is_constant(ref)
+            public = f"&{lifetime}{path}" if constant else f"&{lifetime}mut {path}"
+            view = "as_ref" if constant else "as_mut"
+            if self.lifetime == "'static" and not constant:
+                self.lowering.unsafe = True
+                self.lowering.remarks.append(
+                    "Unsafe: the object belongs to nobody in particular, and every call gives "
+                    "a `&mut` to it: do not keep two."
+                )
+            if nullable:
+                return (
+                    f"crate::Result<::core::option::Option<{public}>>",
+                    [f"Ok(unsafe {{ {L}object.{view}() }})"],
+                )
+            return (
+                f"crate::Result<{public}>",
+                [f"unsafe {{ {L}object.{view}() }}.ok_or_else({RUNTIME}::null_object)"],
+            )
+        owned = f"crate::Owned<{path}>"
+        if nullable:
+            return (
+                f"crate::Result<::core::option::Option<{owned}>>",
+                [f"Ok(unsafe {{ crate::Owned::from_raw({L}object) }})"],
+            )
+        return f"crate::Result<{owned}>", [f"unsafe {{ {RUNTIME}::adopt({L}object) }}"]
 
     def string_result(
         self, type_: StringType, spec: ResultSpec, public: str
@@ -263,4 +401,4 @@ def _call(prefix: str, function: str, arguments: list[str]) -> list[str]:
     ]
 
 
-__all__ = ["Lowering", "Names", "lower_callable", "public_type"]
+__all__ = ["Lowering", "Names", "is_borrowed", "is_constant", "lower_callable", "public_type"]

@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ...errors import Location
-from ...plan import CParam, Ffi, FfiKind
+from ...plan import CFunction, CParam, Ffi, FfiKind
 
 CORE = "::core::ffi"
 
@@ -64,6 +64,10 @@ def native_type(param: CParam, names: Mapping[str, str]) -> str:
     if kind is FfiKind.SCALAR:
         return scalar(ffi.name)
     if kind is FfiKind.POINTER and ffi.inner is not None:
+        if ffi.inner.kind is FfiKind.HANDLE:
+            # A pointer to the pointer of a class (the object that a function makes or gives):
+            # a const in its C type is the one of the class, not of the pointer.
+            return f"*mut *mut {names[ffi.inner.name]}"
         return pointer(param, _pointee(param, ffi.inner, names))
     if kind is FfiKind.HANDLE:
         return pointer(param, names[ffi.name])
@@ -86,10 +90,15 @@ def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:
     raise Unsupported(f"the C type of kind '{ffi.kind.value}' is not supported in Rust yet")
 
 
-def restype(ffi: Ffi) -> str:
-    """The result of an ``extern "C"`` declaration: the status, or nothing."""
+def restype(function: CFunction, names: Mapping[str, str]) -> str:
+    """The result of an ``extern "C"`` declaration: the status, nothing, or the pointer that a
+    plain function (the conversion to a base class) gives."""
+    ffi = function.ffi_restype
     if ffi.kind is FfiKind.STATUS:
         return " -> i32"
     if ffi.kind is FfiKind.VOID:
         return ""
+    if ffi.kind is FfiKind.HANDLE:
+        constant = function.c_return.lstrip().startswith("const ")
+        return f" -> {'*const' if constant else '*mut'} {names[ffi.name]}"
     raise Unsupported(f"the C result of kind '{ffi.kind.value}' is not supported in Rust yet")

@@ -27,10 +27,19 @@ import pytest
 
 import bridgefex
 from bridgefex.backends.rust.check import cargo
+from bridgefex.backends.rust.lower import is_borrowed
 from bridgefex.backends.rust.module import Target, build_names, field_names, targets
-from bridgefex.backends.rust.naming import upper_snake
-from bridgefex.model import EnumRef, ScalarType, StringType, StructRef, TypeCategory
-from bridgefex.plan import CallableKind, CallablePlan, ModulePlan
+from bridgefex.backends.rust.naming import snake, upper_snake
+from bridgefex.model import (
+    ClassForm,
+    ClassRef,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+    TypeCategory,
+)
+from bridgefex.plan import CallableKind, CallablePlan, ClassPlan, ModulePlan
 from tests.conformance import scenarios
 from tests.support.cases import Case
 from tests.support.plans import plan_of
@@ -196,11 +205,24 @@ class _Program:
         self.names = build_names(plan)
         self.enums = scenarios.enum_types(plan)
         self.structs = scenarios.struct_types(plan)
+        self.classes = {
+            item.c_type: item
+            for header in plan.headers
+            for item in header.items
+            if isinstance(item, ClassPlan)
+        }
         self.scenarios: list[tuple[str, list[str]]] = []
+        self.kinds: dict[str, str] = {}
+        """The C type of the class of each variable."""
+
+        self.parents: dict[str, list[str]] = {}
+        """The variables that a borrowed one comes from: it is closed with them."""
 
     def scenario(self, scenario: dict[str, object]) -> None:
         lines: list[str] = []
         variables: dict[str, str] = {}
+        self.kinds = {}
+        self.parents = {}
         closed: set[str] = set()
         steps = scenario["steps"]
         assert isinstance(steps, list)
@@ -232,7 +254,7 @@ class _Program:
         used = [str(arg["ref"]) for arg in args if isinstance(arg, dict) and "ref" in arg]
         owner = str(step["call"]).split(".")[0] if "call" in step else ""
         if error == "closed":
-            if owner in closed or any(name in closed for name in used):
+            if self.gone(owner, closed) or any(self.gone(name, closed) for name in used):
                 return  # a closed object cannot be used in a program that compiles
             lines.append(
                 f'return Err(({number}, "nothing was closed: the call is possible".into()));'
@@ -261,19 +283,86 @@ class _Program:
             text = "None" if message is None else f"Some({_string(str(message))})"
             lines.append(f"fails({number}, {expression}, {kind}, {text})?;")
             return
+        self.after_call(step, target, args, closed)
         if "new" in step:
             variable = _identifier(str(step["as"]))
             variables[str(step["as"])] = variable
+            self.kinds[str(step["as"])] = target.class_type or ""
             lines.append(f"let mut {variable} = ok({number}, {expression})?;")
             return
         if call.result is None:
             lines.append(f"ok({number}, {expression})?;")
             return
+        if isinstance(call.result.type, ClassRef):
+            self.object_result(number, step, call, expression, lines, variables)
+            return
         lines.append(f"let value = ok({number}, {expression})?;")
         if "expect" in step:
             lines.extend(self.compare(number, step, call))
-        if "as" in step:
-            raise NotImplementedError("a result that is an object is not played yet")
+
+    def gone(self, name: str, closed: set[str]) -> bool:
+        """The object of a variable was closed, or it is borrowed from one that was."""
+        return name in closed or any(
+            self.gone(parent, closed) for parent in self.parents.get(name, [])
+        )
+
+    def after_call(
+        self, step: dict[str, object], target: Target, args: list[object], closed: set[str]
+    ) -> None:
+        """The objects that the call takes away are gone (closed) from now on."""
+        for value, spec in zip(args, target.call.params, strict=True):
+            if isinstance(value, dict) and "ref" in value and self.transfers(spec):
+                closed.add(str(value["ref"]))
+
+    @staticmethod
+    def transfers(spec: object) -> bool:
+        words: frozenset[str] = getattr(spec, "words", frozenset())
+        ref = getattr(spec, "type", None)
+        return "transfer" in words or (isinstance(ref, ClassRef) and ref.form is ClassForm.UNIQUE)
+
+    def object_result(
+        self,
+        number: int,
+        step: dict[str, object],
+        call: CallablePlan,
+        expression: str,
+        lines: list[str],
+        variables: dict[str, str],
+    ) -> None:
+        """An object that a call gives: a variable, or a NULL that the scenario expects."""
+        assert call.result is not None
+        ref = call.result.type
+        assert isinstance(ref, ClassRef)
+        nullable = ref.form not in (ClassForm.VALUE, ClassForm.REFERENCE, ClassForm.CONST_REFERENCE)
+        expected = step.get("expect")
+        if isinstance(expected, dict) and expected.get("null") is True:
+            lines.append(f"let value = ok({number}, {expression})?;")
+            lines.append("if value.is_some() {")
+            lines.append(f'    return Err(({number}, "expected NULL, got an object".into()));')
+            lines.append("}")
+            return
+        if "as" not in step:
+            lines.append(f"ok({number}, {expression})?;")
+            return
+        variable = _identifier(str(step["as"]))
+        variables[str(step["as"])] = variable
+        assert call.result.cls is not None
+        self.kinds[str(step["as"])] = call.result.cls.c_type
+        if is_borrowed(call.result, ref):
+            owners = [str(step["call"]).split(".")[0]] if call.kind is CallableKind.METHOD else []
+            for argument in step.get("args", []):  # type: ignore[attr-defined]
+                if isinstance(argument, dict) and "ref" in argument:
+                    owners.append(str(argument["ref"]))
+            self.parents[str(step["as"])] = owners
+        if nullable:
+            lines.append(f"let mut {variable} = match ok({number}, {expression})? {{")
+            lines.append("    Some(object) => object,")
+            lines.append(
+                f'    None => return Err(({number}, "an object was expected: NULL".into())),'
+            )
+            lines.append("};")
+        else:
+            lines.append(f"let mut {variable} = ok({number}, {expression})?;")
 
     def expression(
         self, step: dict[str, object], target: Target, args: list[object], variables: dict[str, str]
@@ -281,16 +370,95 @@ class _Program:
         call = target.call
         rendered = []
         for value, spec in zip(args, call.params, strict=True):
-            problem = scenarios._kind_problem(value, spec.type, self.index, {}, result=False)  # type: ignore[arg-type]
+            problem = scenarios._kind_problem(
+                value, spec.type, self.index, self.owners(), result=False
+            )  # type: ignore[arg-type]
             if problem is not None:
                 raise _Unplayable(problem)
             nullable = "nullable" in spec.words
-            rendered.append(self.render(value, spec.type, spec_enum=spec, nullable=nullable))
+            if isinstance(spec.type, ClassRef):
+                rendered.append(self.object_argument(value, spec, nullable, variables))
+            else:
+                rendered.append(self.render(value, spec.type, spec_enum=spec, nullable=nullable))
         arguments = ", ".join(rendered)
         if call.kind is CallableKind.METHOD:
-            variable = variables[str(step["call"]).split(".")[0]]
-            return f"{variable}.{target.path}({arguments})"
+            name = str(step["call"]).split(".")[0]
+            receiver = self.convert(
+                variables[name],
+                self.kinds[name],
+                target.class_type or "",
+                mutable=not call.is_const,
+            )
+            return f"{receiver}.{target.path}({arguments})"
         return f"{target.path}({arguments})"
+
+    def owners(self) -> dict[str, ClassPlan | None]:
+        """The class of each variable, as the checks of the scenarios want it."""
+        return {name: self.classes.get(kind) for name, kind in self.kinds.items()}
+
+    def object_argument(
+        self, value: object, spec: object, nullable: bool, variables: dict[str, str]
+    ) -> str:
+        """An object that a function takes: a reference to the variable (or the variable, if the
+        call takes it away) seen as the class of the parameter."""
+        table = value if isinstance(value, dict) else {}
+        if table.get("null") is True:
+            return "None"
+        name = str(table["ref"])
+        parameter = getattr(spec, "cls", None)
+        assert parameter is not None
+        ref = getattr(spec, "type", None)
+        assert isinstance(ref, ClassRef)
+        if self.transfers(spec):
+            owned = self.convert_owned(variables[name], self.kinds[name], parameter.c_type)
+            return f"Some({owned})" if nullable else owned
+        constant = ref.form in (
+            ClassForm.VALUE,
+            ClassForm.CONST_REFERENCE,
+            ClassForm.CONST_POINTER,
+        )
+        view = self.convert(
+            variables[name], self.kinds[name], parameter.c_type, mutable=not constant
+        )
+        borrowed = (
+            view
+            if "." in view
+            else (f"&{variables[name]}" if constant else f"&mut {variables[name]}")
+        )
+        return f"Some({borrowed})" if nullable else borrowed
+
+    def chain(self, source: str, target: str) -> list[tuple[int, str]] | None:
+        """The classes from ``source`` down to ``target`` by bases (``None``: not related)."""
+        if source == target:
+            return []
+        plan = self.classes[source]
+        for position, base in enumerate(plan.bases):
+            rest = self.chain(base.c_type, target)
+            if rest is not None:
+                return [(position, base.c_type), *rest]
+        return None
+
+    def convert(self, variable: str, source: str, target: str, *, mutable: bool) -> str:
+        """The expression that sees the object of ``variable`` (a class ``source``) as a
+        ``target``: the first base is reached by deref, the others by ``as_<base>``."""
+        found = self.chain(source, target)
+        assert found is not None, (source, target)
+        expression = variable
+        for position, base in found:
+            if position != 0:
+                word = snake(self.classes[base].model.name)
+                expression = f"{expression}.as_{word}{'_mut' if mutable else ''}()"
+        return expression
+
+    def convert_owned(self, variable: str, source: str, target: str) -> str:
+        """The object of ``variable`` owned as a ``target`` (C++ destroys it through it)."""
+        found = self.chain(source, target)
+        assert found is not None, (source, target)
+        expression = variable
+        for position, base in found:
+            word = "into_base" if position == 0 else f"into_{snake(self.classes[base].model.name)}"
+            expression = f"{expression}.{word}()"
+        return expression
 
     def path(self, path: str) -> str:
         """A path of the crate, from outside it."""

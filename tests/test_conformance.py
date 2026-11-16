@@ -79,7 +79,7 @@ SUPPORTED: dict[str, frozenset[str] | None] = {
     "jni": frozenset(
         {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
     ),
-    "rust": frozenset({"scalars", "demo", "enums", "structs", "strings"}),
+    "rust": frozenset({"scalars", "demo", "enums", "structs", "strings", "inherit"}),
 }
 
 
