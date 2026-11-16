@@ -483,3 +483,93 @@ fn main() -> calc::Result<()> {
         assert completed.returncode == 0, completed.stdout + completed.stderr
         results.append(completed.stdout.strip())
     assert results == ["42", "63"]
+
+
+def _run(case: Case, library: Path, output: Path, name: str, program: str) -> str:
+    """The output of ``program``, built against the crate of ``case`` and run with ``library``."""
+    executable = runner_rust.build_program(case, library, output, name, program)
+    completed = subprocess.run(
+        [str(executable)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=runner_rust.environment(case, output, library),
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    return completed.stdout
+
+
+def test_an_enum_without_a_fixed_type_is_checked_in_rust_before_the_call(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """A value that no enumerator's bits can make is refused: below and above the range."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "enum Mode { Off, On, Auto = 5 };\nnamespace calc { int f(Mode m); }\n",
+        "namespace calc { int f(Mode m) { return static_cast<int>(m); } }\n",
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+use calc::{ErrorKind, Result};
+use calc::calc::{f, Mode};
+
+fn main() -> Result<()> {
+    for value in [0, 1, 5, 7] {
+        assert_eq!(f(Mode(value))?, value, "{value} is a value of the enum");
+    }
+    for value in [-1, 8, i32::MAX, i32::MIN] {
+        let error = f(Mode(value)).expect_err("a value out of the range");
+        assert_eq!(error.kind(), ErrorKind::InvalidArgument);
+        assert!(error.message().contains("is not a value of the enum"), "{error}");
+        assert!(error.message().contains("0..7"), "{error}");
+    }
+    println!("checked");
+    Ok(())
+}
+"""
+    assert "checked" in _run(case, library, output, "enum_range", program)
+
+
+def test_a_library_that_is_not_the_one_of_the_crate_is_refused_on_the_first_call(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """The fingerprint of the API is compared: the same C names with other types (a function that
+    took an ``int``) are not the library that the crate was generated for."""
+    old = adhoc_case(
+        tmp_path / "old",
+        "calc",
+        "namespace calc { int f(int x); }\n",
+        "namespace calc { int f(int x) { return x + 1; } }\n",
+    )
+    new = adhoc_case(
+        tmp_path / "new",
+        "calc",
+        "namespace calc { long long f(long long x); }\n",
+        "namespace calc { long long f(long long x) { return x + 1; } }\n",
+    )
+    library, output = build(old, toolchain, tmp_path / "build_old")
+    other, _ = build(new, toolchain, tmp_path / "build_new")
+    program = """\
+use calc::ErrorKind;
+
+fn main() {
+    for _ in 0..2 {
+        let error = calc::calc::f(1).expect_err("the library of another API");
+        assert_eq!(error.kind(), ErrorKind::StaleLibrary, "{error}");
+        assert!(error.message().contains("fingerprint"), "{error}");
+    }
+    println!("refused");
+}
+"""
+    assert "refused" in _run(old, other, output, "stale", program)
+    # The library that the crate was generated for is accepted.
+    good = """\
+fn main() -> calc::Result<()> {
+    assert_eq!(calc::calc::f(1)?, 2);
+    println!("accepted");
+    Ok(())
+}
+"""
+    assert "accepted" in _run(old, library, output, "fresh", good)
