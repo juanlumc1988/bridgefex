@@ -93,4 +93,196 @@ public class Dot extends drc.shape.Shape {
             return __result.get(BridgefexRuntime.C_DOUBLE, 0);
         }
     }
+
+    /**
+     * std::string drc::Shape::name() const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final java.lang.String name() {
+        return super.name();
+    }
+
+    /**
+     * int32_t drc::Shape::sides() const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int sides() {
+        return super.sides();
+    }
+
+    /**
+     * drc::Point drc::Shape::center() const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Point center() {
+        return super.center();
+    }
+
+    /**
+     * drc::Point drc::Shape::move(drc::Point by, const drc::Point&amp; other) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Point move(drc.shape.Point by, drc.shape.Point other) {
+        return super.move(by, other);
+    }
+
+    /**
+     * drc::Mode drc::Shape::mode(drc::Mode requested) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Mode mode(drc.shape.Mode requested) {
+        return super.mode(requested);
+    }
+
+    /**
+     * void drc::Shape::scale(double factor): C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final void scale(double factor) {
+        super.scale(factor);
+    }
+
+    /**
+     * int32_t drc::Shape::add(int32_t a, int32_t b) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int addInt32Int32(int a, int b) {
+        return super.addInt32Int32(a, b);
+    }
+
+    /**
+     * double drc::Shape::add(double a, double b) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final double addDoubleDouble(double a, double b) {
+        return super.addDoubleDouble(a, b);
+    }
+
+    /**
+     * std::string drc::Shape::greet(const std::string&amp; who, std::string_view tag, const char* mark) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final java.lang.String greet(java.lang.String who, java.lang.String tag, java.lang.String mark) {
+        return super.greet(who, tag, mark);
+    }
+
+    /**
+     * int32_t drc::Shape::quiet() const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int quiet() {
+        return super.quiet();
+    }
+
+    /**
+     * int32_t drc::Shape::total(const std::vector&lt;int32_t&gt;&amp; values) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int total(int[] values) {
+        return super.total(values);
+    }
+
+    /**
+     * std::vector&lt;int32_t&gt; drc::Shape::numbers(const std::vector&lt;int32_t&gt;&amp; values) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int[] numbers(int[] values) {
+        return super.numbers(values);
+    }
+
+    /**
+     * std::vector&lt;std::string&gt; drc::Shape::words(std::vector&lt;std::string&gt; input) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final java.lang.String[] words(java.lang.String[] input) {
+        return super.words(input);
+    }
+
+    /**
+     * std::vector&lt;drc::Mode&gt; drc::Shape::modes(const std::vector&lt;drc::Mode&gt;&amp; wanted) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Mode[] modes(drc.shape.Mode[] wanted) {
+        return super.modes(wanted);
+    }
+
+    /**
+     * std::vector&lt;drc::Point&gt; drc::Shape::points(const std::vector&lt;drc::Point&gt;&amp; list) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Point[] points(drc.shape.Point[] list) {
+        return super.points(list);
+    }
+
+    /**
+     * std::vector&lt;bool&gt; drc::Shape::flags(const std::vector&lt;bool&gt;&amp; input) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final boolean[] flags(boolean[] input) {
+        return super.flags(input);
+    }
+
+    /**
+     * std::array&lt;double, 3&gt; drc::Shape::triple(const std::array&lt;double, 3&gt;&amp; values) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final double[] triple(double[] values) {
+        return super.triple(values);
+    }
+
+    /**
+     * int32_t drc::Shape::peek(const drc::Holder&amp; holder) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int peek(drc.shape.Holder holder) {
+        return super.peek(holder);
+    }
+
+    /**
+     * double drc::Shape::compare(const drc::Shape&amp; other) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final double compare(drc.shape.Shape other) {
+        return super.compare(other);
+    }
+
+    /**
+     * bool drc::Shape::same(const drc::Shape* other) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final boolean same(drc.shape.Shape other) {
+        return super.same(other);
+    }
+
+    /**
+     * int32_t drc::Shape::grow(drc::Beam&amp; beam) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int grow(drc.shape.Beam beam) {
+        return super.grow(beam);
+    }
+
+    /**
+     * int32_t drc::Shape::adopt(std::unique_ptr&lt;drc::Beam&gt; beam) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final int adopt(drc.shape.Beam beam) {
+        return super.adopt(beam);
+    }
+
+    /**
+     * std::unique_ptr&lt;drc::Beam&gt; drc::Shape::make_beam(int32_t length) const: C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    public final drc.shape.Beam makeBeam(int length) {
+        return super.makeBeam(length);
+    }
+
+    /**
+     * void drc::Shape::changed(int32_t reason): C++ calls the overrides of this method only for the classes that have a director, which this one does not, so it cannot be overridden from Java.
+     */
+    @java.lang.Override
+    protected final void changed(int reason) {
+        super.changed(reason);
+    }
 }

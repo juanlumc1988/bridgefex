@@ -174,9 +174,11 @@ def build(plan: ModulePlan) -> dict[str, DirectorClass]:
 
 
 def guarded(plan: ModulePlan, derivable: dict[str, DirectorClass]) -> frozenset[str]:
-    """The classes that have a class that can be derived from above them in their chain of first
-    bases, and are not derivable themselves: C++ would never call the overrides of a class of the
-    user that derives from one of them, so their methods are ``final``."""
+    """The classes that Java cannot derive from and whose methods are ``final`` because of it: C++
+    would never call an override of them. They are those that have a class that can be derived
+    from among their bases, at any depth (a class of the user that derives from one of them has
+    nothing that C++ could call), and those that the annotations give a director that Java cannot
+    use (a base class without one, several bases): their overrides would be ignored as well."""
     by_type = {
         item.c_type: item
         for header in plan.headers
@@ -184,20 +186,22 @@ def guarded(plan: ModulePlan, derivable: dict[str, DirectorClass]) -> frozenset[
         if isinstance(item, ClassPlan)
     }
 
-    def below(cls: ClassPlan) -> bool:
-        seen: set[str] = set()
-        while cls.bases and cls.bases[0].c_type not in seen:
-            seen.add(cls.bases[0].c_type)
-            if cls.bases[0].c_type in derivable:
+    def below(cls: ClassPlan, seen: set[str]) -> bool:
+        for base in cls.bases:
+            if base.c_type in seen:
+                continue
+            seen.add(base.c_type)
+            if base.c_type in derivable:
                 return True
-            parent = by_type.get(cls.bases[0].c_type)
-            if parent is None:
-                return False
-            cls = parent
+            parent = by_type.get(base.c_type)
+            if parent is not None and (parent.director is not None or below(parent, seen)):
+                return True
         return False
 
     return frozenset(
-        c_type for c_type, cls in by_type.items() if c_type not in derivable and below(cls)
+        c_type
+        for c_type, cls in by_type.items()
+        if c_type not in derivable and (cls.director is not None or below(cls, set()))
     )
 
 
@@ -285,11 +289,18 @@ def virtual_body(
     normal: list[str] | None,
     *,
     returns: str,
-) -> list[str]:
+    arguments: list[str],
+) -> tuple[list[str], list[list[str]]]:
     """The body of the Java method of a virtual method: on an object that is a director, the
     implementation of the C++ class (through the director that the object has); else the call of
-    the wrapper, or an error if the method is not part of the API."""
+    the wrapper, or an error if the method is not part of the API. ``arguments`` are the names of
+    the parameters of the method.
+
+    The implementation of each director is a private method of its own, with the names of the
+    parameters that its own class gives them (an override may name them as it likes): the body
+    calls it. They are the second result, as the lines of methods, for the class to declare."""
     lines: list[str] = []
+    helpers: list[list[str]] = []
     what = f"{cls.model.name}.{entry.name}"
     if entry.is_pure:
         lines += [
@@ -313,8 +324,19 @@ def virtual_body(
                     'implementation to call");'
                 ]
             else:
-                body = lower_callable(other.base, names, plan).body
-                lines += _indent(body, 12)
+                lowered = lower_callable(other.base, names, plan)
+                helper = f"{L}base{d.kind}_{_sanitize(entry.field)}"
+                helpers.append(
+                    [
+                        f"private {lowered.returns} {helper}({', '.join(lowered.parameters)}) {{",
+                        *_indent(lowered.body, 4),
+                        "}",
+                    ]
+                )
+                call = f"{helper}({', '.join(arguments)})"
+                lines += [
+                    f"            {call};" if returns == "void" else f"            return {call};"
+                ]
                 if returns == "void":
                     lines.append("            return;")
             lines.append("        }")
@@ -326,7 +348,7 @@ def virtual_body(
         )
     else:
         lines += normal
-    return lines
+    return lines, helpers
 
 
 def vtable_prelude(names: Names, d: DirectorClass) -> list[str]:
@@ -362,21 +384,27 @@ def director_constructor(cls: ClassPlan, ctor: CallablePlan) -> CallablePlan | N
 
 
 def dropped(names: Names, cls: ClassPlan) -> list[Slot]:
-    """The slots of the classes above ``cls`` that its own director lacks: C++ declares the method
+    """The slots of the class above ``cls`` that its own director lacks: C++ declares the method
     in ``cls`` in a way that cannot be overridden (a private implementation), so Java must not
-    override it either."""
+    override it either. What an ancestor further up dropped is ``final`` in its class already."""
     d = names.directors.get(cls.c_type)
-    if d is None:
+    if d is None or len(d.chain) < 2:
         return []
     own = {slot.entry.key for slot in d.slots}
-    found: dict[str, Slot] = {}
-    for ancestor in d.chain[:-1]:
-        above = names.directors[ancestor.c_type]
-        for slot in above.slots:
-            key = slot.entry.key
-            if key not in own and slot.ok and key not in found and slot.root is ancestor:
-                found[key] = slot
-    return list(found.values())
+    above = names.directors[d.chain[-2].c_type]
+    return [slot for slot in above.slots if slot.ok and slot.entry.key not in own]
+
+
+def inherited(names: Names, cls: ClassPlan) -> list[Slot]:
+    """The methods that a class that Java cannot derive from has from the class it extends, which
+    can be derived from: C++ would not call an override of them in this class, so they are made
+    ``final`` here. (What is below such a class inherits them as ``final``.)"""
+    if cls.c_type not in names.guarded or not cls.bases:
+        return []
+    d = names.directors.get(cls.bases[0].c_type)
+    if d is None:
+        return []
+    return [slot for slot in d.slots if slot.ok and emits(names, slot.root, slot.root_entry)]
 
 
 def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
@@ -434,7 +462,8 @@ def overrides_helper(src: Source, names: Names, d: DirectorClass) -> None:
         if slot.entry.is_pure and slot.ok:
             src.open(f"if (!found[{position}])")
             src.line(
-                "throw new java.lang.IllegalStateException(type.getSimpleName() + "
+                "throw new java.lang.IllegalStateException("
+                "(type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + "
                 f'" must override the pure virtual method {slot.root.model.name}.'
                 f'{slot.root_entry.name}");'
             )

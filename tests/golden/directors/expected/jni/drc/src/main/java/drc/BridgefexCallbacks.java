@@ -800,12 +800,12 @@ public final class BridgefexCallbacks {
     private static void thunk7(long __userData, long __r1, long __r2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            BridgefexSegment __c2 = BridgefexSegment.ofAddress(__r2);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
-            BridgefexSegment __c2 = BridgefexSegment.ofAddress(__r2);
             BridgefexSegment __slot = BridgefexSegment.ofAddress(__out);
             drc.shape.Shape __target = (drc.shape.Shape) __box.target();
             if (__target == null) {
@@ -946,13 +946,13 @@ public final class BridgefexCallbacks {
     private static void thunk11(long __userData, long __r1, long __c2, long __r3, long __c4, long __r5, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
+            BridgefexSegment __c3 = BridgefexSegment.ofAddress(__r3);
+            BridgefexSegment __c5 = BridgefexSegment.ofAddress(__r5);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
-            BridgefexSegment __c3 = BridgefexSegment.ofAddress(__r3);
-            BridgefexSegment __c5 = BridgefexSegment.ofAddress(__r5);
             BridgefexSegment __slot = BridgefexSegment.ofAddress(__out);
             drc.shape.Shape __target = (drc.shape.Shape) __box.target();
             if (__target == null) {
@@ -1029,11 +1029,11 @@ public final class BridgefexCallbacks {
     private static int thunk13(long __userData, long __r1, long __c2) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.C_INT.byteSize());
             int[] __v1 = new int[__n1];
@@ -1072,11 +1072,11 @@ public final class BridgefexCallbacks {
     private static void thunk14(long __userData, long __r1, long __c2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.C_INT.byteSize());
             int[] __v1 = new int[__n1];
@@ -1124,11 +1124,11 @@ public final class BridgefexCallbacks {
     private static void thunk15(long __userData, long __r1, long __c2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.STRING_SIZE);
             java.lang.String[] __v1 = new java.lang.String[__n1];
@@ -1179,11 +1179,11 @@ public final class BridgefexCallbacks {
     private static void thunk16(long __userData, long __r1, long __c2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.C_BYTE.byteSize());
             drc.shape.Mode[] __v1 = new drc.shape.Mode[__n1];
@@ -1231,11 +1231,11 @@ public final class BridgefexCallbacks {
     private static void thunk17(long __userData, long __r1, long __c2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * drc.shape.Point.LAYOUT.byteSize());
             drc.shape.Point[] __v1 = new drc.shape.Point[__n1];
@@ -1283,11 +1283,11 @@ public final class BridgefexCallbacks {
     private static void thunk18(long __userData, long __r1, long __c2, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = BridgefexRuntime.count(__c2);
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.C_BOOL.byteSize());
             boolean[] __v1 = new boolean[__n1];
@@ -1335,11 +1335,11 @@ public final class BridgefexCallbacks {
     private static void thunk19(long __userData, long __r1, long __out) {
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             int __n1 = 3;
             BridgefexSegment __b1 = BridgefexRuntime.view(__c1, (long) __n1 * BridgefexRuntime.C_DOUBLE.byteSize());
             double[] __v1 = new double[__n1];
@@ -1391,11 +1391,11 @@ public final class BridgefexCallbacks {
         Lent __lent = new Lent();
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             drc.shape.Holder __v1 = __lent.known(__c1.address(), drc.shape.Holder.class);
             if (__v1 == null) {
                 __v1 = __lent.borrowed(drc.shape.Holder.borrow(__c1, null, true));
@@ -1436,11 +1436,11 @@ public final class BridgefexCallbacks {
         Lent __lent = new Lent();
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             drc.shape.Shape __v1 = __lent.known(__c1.address(), drc.shape.Shape.class);
             if (__v1 == null) {
                 __v1 = __lent.borrowed(drc.shape.Shape.borrow(__c1, null, true));
@@ -1481,11 +1481,11 @@ public final class BridgefexCallbacks {
         Lent __lent = new Lent();
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return false;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             drc.shape.Shape __v1 = __lent.known(__c1.address(), drc.shape.Shape.class);
             if (__v1 == null) {
                 __v1 = __lent.borrowed(drc.shape.Shape.borrow(__c1, null, true));
@@ -1526,11 +1526,11 @@ public final class BridgefexCallbacks {
         Lent __lent = new Lent();
         DirectorBox __box = null;
         try {
+            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             __box = (DirectorBox) of(__userData);
             if (__box.skip()) {
                 return 0;
             }
-            BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             drc.shape.Beam __v1 = __lent.known(__c1.address(), drc.shape.Beam.class);
             if (__v1 == null) {
                 __v1 = __lent.borrowed(drc.shape.Beam.borrow(__c1, null, false));
@@ -1572,15 +1572,15 @@ public final class BridgefexCallbacks {
         boolean __passed = false;
         DirectorBox __box = null;
         try {
-            __box = (DirectorBox) of(__userData);
-            if (__box.skip()) {
-                return 0;
-            }
             BridgefexSegment __c1 = BridgefexSegment.ofAddress(__r1);
             if (__c1.address() != 0L) {
                 BridgefexHandle __h1 = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
                 __h1.assign(__c1);
                 __v1 = drc.shape.Beam.wrap(__h1);
+            }
+            __box = (DirectorBox) of(__userData);
+            if (__box.skip()) {
+                return 0;
             }
             drc.shape.Shape __target = (drc.shape.Shape) __box.target();
             if (__target == null) {

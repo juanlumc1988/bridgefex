@@ -247,7 +247,12 @@ calls the thunk with what JNI carries (a pointer is a `long`) and writes what it
 weakly: a strong reference would keep the class loader of the bindings from being collected.
 
 The directors (`directors.py`) follow the C# ones with the model of Java: its methods are virtual, so a class that can be
-derived from keeps the virtual methods that an override can have and makes every other one `final`. The vtable members are
+derived from keeps the virtual methods that an override can have and makes every other one `final` (also those that a class
+below it, or one that has a director that Java cannot use, inherits: it declares them again as `final` delegators, `guarded`
+and `inherited`). The base call of each director is a private method of the class that declares the virtual method, with the
+names that its own class gives the parameters. The lease of a call holds the Java object of the call (`BridgefexLease.target`,
+fenced when the lease is closed): nothing else refers to a receiver while C++ runs its overrides, and the collector would
+clear the weak reference that the thunk finds it by. The vtable members are
 thunks of `BridgefexCallbacks` too (one for each virtual method and the class that declares it), which find the Java object
 by the `user_data` (a `DirectorBox`, weak while Java owns the object and strong while C++ owns it or points to it), and call the
 method of the class that declares it: the override of the class of the object runs. The constructors read by reflection

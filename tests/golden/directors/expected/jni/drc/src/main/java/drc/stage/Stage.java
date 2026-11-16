@@ -165,19 +165,23 @@ public class Stage extends BridgefexObject {
         if (__d != null) {
             switch (__d.kind()) {
                 case 6: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __result = __arena.allocate(drc.shape.Point.LAYOUT);
-                        int __status = BridgefexNative.drc_Stage_director_base_origin(__self.pointer(), __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return drc.shape.Point.read(__result);
-                    }
+                    return __base6_origin();
                 }
                 default:
                     break;
             }
         }
         throw new java.lang.IllegalStateException("Stage.origin is not part of the API: only an override of it can call it");
+    }
+
+    private drc.shape.Point __base6_origin() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
+            BridgefexSegment __result = __arena.allocate(drc.shape.Point.LAYOUT);
+            int __status = BridgefexNative.drc_Stage_director_base_origin(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
+            return drc.shape.Point.read(__result);
+        }
     }
 
     /**
@@ -216,7 +220,7 @@ public class Stage extends BridgefexObject {
                 return null;
             }
             if (!found[0]) {
-                throw new java.lang.IllegalStateException(type.getSimpleName() + " must override the pure virtual method Stage.step");
+                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Stage.step");
             }
             return found;
         }

@@ -23,7 +23,12 @@ on:
       - src/bridgefex/backends/jvm/jni.py
       - src/bridgefex/backends/jvm/callbacks.py
       - src/bridgefex/backends/jvm/directors.py
+      - src/bridgefex/backends/jvm/lower.py
+      - src/bridgefex/backends/jvm/module.py
       - src/bridgefex/backends/jvm/templates/jni/glue.cpp.j2
+      # What the C layer and the glue are built from.
+      - src/bridgefex/plan.py
+      - src/bridgefex/templates/**
   workflow_dispatch:
 
 permissions:

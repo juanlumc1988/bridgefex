@@ -146,13 +146,7 @@ public class Beam extends BridgefexObject {
         if (__d != null) {
             switch (__d.kind()) {
                 case 0: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-                        int __status = BridgefexNative.drc_Beam_director_base_length(__self.pointer(), __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return __result.get(BridgefexRuntime.C_INT, 0);
-                    }
+                    return __base0_length();
                 }
                 default:
                     break;
@@ -161,6 +155,16 @@ public class Beam extends BridgefexObject {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.drc_Beam_length(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
+            return __result.get(BridgefexRuntime.C_INT, 0);
+        }
+    }
+
+    private int __base0_length() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
+            BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
+            int __status = BridgefexNative.drc_Beam_director_base_length(__self.pointer(), __result);
             __scope.returned();
             __scope.check(__status);
             return __result.get(BridgefexRuntime.C_INT, 0);
