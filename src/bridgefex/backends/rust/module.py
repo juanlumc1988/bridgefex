@@ -4,8 +4,11 @@ header with its classes and functions."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ...errors import Diagnostic, GenerationError
 from ...plan import (
+    CallableKind,
     CallablePlan,
     CFunction,
     ClassPlan,
@@ -51,6 +54,19 @@ def build_names(plan: ModulePlan) -> Names:
     if errors:
         raise GenerationError(errors)
     return Names(classes)
+
+
+def refuse_what_is_not_done(plan: ModulePlan) -> None:
+    """What the Rust bindings do not have yet is refused first, with the declaration that has
+    it (the C functions that it needs would be refused with a worse message)."""
+    for header in plan.headers:
+        for item in header.items:
+            if isinstance(item, EnumPlan | StructPlan):
+                kind = "enum" if isinstance(item, EnumPlan) else "struct"
+                raise Unsupported(
+                    f"the {kind} '{item.model.qualified_name}' is not supported in Rust yet",
+                    item.model.location,
+                )
 
 
 # native.rs -----------------------------------------------------------------------------------
@@ -113,6 +129,52 @@ def header_source(plan: ModulePlan, header: HeaderPlan, names: Names) -> str:
     return src.text()
 
 
+def callable_name(call: CallablePlan, constructors: int = 0) -> str:
+    """The Rust name of a function, method or constructor: the C++ name in snake case and the
+    overload suffix of the C API; a constructor is ``new`` (and its suffix, if the class has
+    several)."""
+    if call.kind is CallableKind.CONSTRUCTOR:
+        return identifier("new" + ("" if constructors == 1 else call.suffix))
+    return identifier(snake(call.name) + call.suffix)
+
+
+@dataclass(frozen=True, slots=True)
+class Target:
+    """Where a function of the C API is in the crate, for what calls the crate by name (the
+    runner of the conformance scenarios)."""
+
+    call: CallablePlan
+    path: str
+    """For a free function, a static method or a constructor: its path from the root of the
+    crate; for a method: its name."""
+
+    class_type: str | None = None
+    """The C type of the class that the function belongs to."""
+
+
+def targets(plan: ModulePlan) -> dict[str, Target]:
+    """Every function of the C API that the crate wraps, by the name of its C function."""
+    found: dict[str, Target] = {}
+    for header in plan.headers:
+        module = f"{plan.name}::{header_module(header)}"
+        for item in header.items:
+            if isinstance(item, FunctionPlan):
+                call = item.callable
+                found[call.function.name] = Target(call, f"{module}::{callable_name(call)}")
+            elif isinstance(item, ClassPlan):
+                owner = f"{module}::{pascal(item.model.name)}"
+                for ctor in item.constructors:
+                    name = callable_name(ctor, len(item.constructors))
+                    found[ctor.function.name] = Target(ctor, f"{owner}::{name}", item.c_type)
+                for member in item.members:
+                    name = callable_name(member)
+                    static = member.kind is CallableKind.STATIC
+                    found[member.function.name] = Target(
+                        member, f"{owner}::{name}" if static else name, item.c_type
+                    )
+    return found
+
+
 def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
     name = pascal(cls.model.name)
     src.doc(cls.model.qualified_name)
@@ -137,9 +199,15 @@ def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
         if not first:
             src.line()
         first = False
-        suffix = "" if len(cls.constructors) == 1 else ctor.suffix
         _function(
-            src, plan, ctor, names, taken, declaring=cls, receiver_ok=True, called=f"new{suffix}"
+            src,
+            plan,
+            ctor,
+            names,
+            taken,
+            declaring=cls,
+            receiver_ok=True,
+            called=callable_name(ctor, len(cls.constructors)),
         )
     for member in cls.members:
         if not first:
@@ -160,7 +228,7 @@ def _function(
     receiver_ok: bool,
     called: str | None = None,
 ) -> None:
-    name = identifier(called if called is not None else snake(call.name) + call.suffix)
+    name = called if called is not None else callable_name(call)
     if name in taken:
         raise GenerationError(
             [
@@ -187,4 +255,13 @@ def _function(
     src.close()
 
 
-__all__ = ["FfiKind", "build_names", "header_module", "header_source", "native_source"]
+__all__ = [
+    "FfiKind",
+    "refuse_what_is_not_done",
+    "Target",
+    "build_names",
+    "header_module",
+    "header_source",
+    "native_source",
+    "targets",
+]
