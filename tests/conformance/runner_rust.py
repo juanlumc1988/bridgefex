@@ -617,6 +617,7 @@ def _cargo_program(
     source: str | Path,
     command: str,
     cross: Cross | None = None,
+    variables: dict[str, str] | None = None,
 ) -> Path:
     """Run ``cargo command`` (``build`` or ``check``) on a crate whose ``main.rs`` is ``source``
     (a text, or a file) and that depends on the crate of ``case``: the path of the executable
@@ -646,7 +647,11 @@ def _cargo_program(
         capture_output=True,
         text=True,
         check=False,
-        env={**environment(case, output, library), **(cross.variables() if cross else {})},
+        env={
+            **environment(case, output, library),
+            **(cross.variables() if cross else {}),
+            **(variables or {}),
+        },
         timeout=900,
     )
     if completed.returncode != 0:
@@ -663,11 +668,12 @@ def build_program(
     name: str,
     source: str | Path,
     cross: Cross | None = None,
+    variables: dict[str, str] | None = None,
 ) -> Path:
     """The program ``source`` (the text of a ``main.rs``, or a file with one) built against the
-    crate of ``case`` (for the target ``cross`` if given): the executable. Raises RuntimeError if
-    it does not build."""
-    return _cargo_program(case, library, output, name, source, "build", cross)
+    crate of ``case`` (for the target ``cross`` if given, with the environment ``variables`` added):
+    the executable. Raises RuntimeError if it does not build."""
+    return _cargo_program(case, library, output, name, source, "build", cross, variables)
 
 
 def check_program(case: Case, library: Path, output: Path, name: str, source: str | Path) -> None:

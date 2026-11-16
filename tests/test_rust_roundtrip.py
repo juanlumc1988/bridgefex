@@ -10,7 +10,10 @@ bindings), and what the types promise.
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
 
@@ -108,6 +111,58 @@ def test_the_round_trip_is_clean_under_asan(asan_build: tuple[Case, Path, Path, 
     assert "Sanitizer" not in completed.stderr, completed.stderr
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
+
+
+def test_a_static_library_is_linked_with_the_runtime_of_cpp(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """With ``<MODULE>_LIB_KIND=static`` the build script also links the C++ runtime that the
+    library needs: the program is then run without the library on its path."""
+    if toolchain.kind != "gnu" or not sys.platform.startswith("linux") or not shutil.which("ar"):
+        pytest.skip("needs GCC or Clang on Linux, and ar")
+    case = next(case for case in CASES if case.name == "ownership")
+    shared, output = build(case, toolchain, tmp_path / "shared")
+    directory = tmp_path / "static"
+    directory.mkdir()
+    objects = []
+    sources = [*sorted((output / "c").glob("*.cpp")), *case.impl_sources]
+    for source in sources:
+        target = directory / f"{source.stem}.o"
+        completed = subprocess.run(
+            [
+                toolchain.cxx,
+                "-std=c++17",
+                "-fPIC",
+                "-c",
+                f"-I{output / 'c'}",
+                f"-I{case.input_dir}",
+                str(source),
+                "-o",
+                str(target),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
+        objects.append(str(target))
+    archive = directory / "libown.a"
+    subprocess.run(["ar", "rcs", str(archive), *objects], check=True)
+    executable = runner_rust.build_program(
+        case,
+        archive,
+        output,
+        "check_static",
+        case.check_rust,
+        variables={"OWN_LIB_KIND": "static"},
+    )
+    clean = {key: value for key, value in os.environ.items() if key != "LD_LIBRARY_PATH"}
+    completed = subprocess.run(
+        [str(executable)], capture_output=True, text=True, check=False, env=clean, timeout=600
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+    assert shared.exists()
 
 
 # What the compiler refuses ----------------------------------------------------------------------

@@ -61,6 +61,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "rust_version": RUST_VERSION,
         "lib_dir": f"{env}_LIB_DIR",
         "lib_kind": f"{env}_LIB_KIND",
+        "lib_cxx": f"{env}_LIB_CXX",
         "fingerprint": fingerprint,
         "last_error": plan.last_error,
         "api_fingerprint": plan.api_fingerprint_function,
