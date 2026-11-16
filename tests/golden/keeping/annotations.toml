@@ -1,0 +1,26 @@
+# What C++ keeps a pointer to, and the header does not say.
+
+# The object itself: the Latch that the method returns keeps a pointer to its Gate...
+[keep_Gate_latch]
+this = "retain"
+
+# ...or the library keeps it for ever (there is no object to tie it to).
+[keep_Gate_pin]
+this = "retain"
+
+# A text that is stored, not copied: a const char* and a std::string_view.
+[keep_Label_create_cstr]
+title = "retain"
+
+[keep_Label_setRaw]
+text = "retain"
+
+[keep_Label_setView]
+text = "retain"
+
+[keep_Label_setMaybe]
+text = ["retain", "nullable"]
+
+# Without an object, for ever.
+[keep_Label_keepView]
+text = "retain"

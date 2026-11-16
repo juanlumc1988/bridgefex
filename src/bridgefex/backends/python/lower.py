@@ -513,6 +513,7 @@ def build_callable(
     kind: str = "static",
     module: str,
     header_stem: str | None,
+    retains_this: bool = False,
 ) -> PyCallable:
     """The Python function that calls a C function.
 
@@ -562,4 +563,22 @@ def build_callable(
         transfers=tuple(transfers),
         retained=retained,
         keep=keep,
+        keeps_this=_keeps_this(result) if retains_this else "",
+    )
+
+
+def _keeps_this(result: ResultSpec | None) -> str:
+    """The statement that keeps the object of a method alive, because C++ keeps a pointer to it:
+    as long as the object that the method returns (it exists before the call, and its
+    ``_retained`` is what its C++ object keeps), else for ever."""
+    owned = (
+        result is not None
+        and isinstance(result.type, ClassRef)
+        and result.type.form not in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE)
+        and result.ownership != "borrowed"
+    )
+    return (
+        "_runtime.retain(_result._retained, {owner})"
+        if owned
+        else "_runtime.retain(_runtime.forever, {owner})"
     )

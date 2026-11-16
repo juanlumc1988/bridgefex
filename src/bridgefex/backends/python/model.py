@@ -120,6 +120,11 @@ class PyCallable:
     keep: str | None = None
     """The object that must not be one of those taken."""
 
+    keeps_this: str = ""
+    """The statement that keeps the object that a method is called on alive, if the annotations
+    say that something keeps a pointer to it: for as long as the object that the method returns
+    lives, or for ever."""
+
     prelude: tuple[str, ...] = ()
     """Statements at the start of the body of a method (a virtual method of a class that
     has a director: what it does on an object that is one)."""
@@ -144,7 +149,11 @@ class PyCallable:
         pointer to (in the list of ``owner``, ``self`` or ``_self``, or ``forever``),
         before the call: on failure the C++ code may already have stored them."""
         retained = self.retained.format(owner=owner)
-        return tuple(f"_runtime.retain({retained}, {arg.name})" for arg in self.args if arg.retain)
+        kept = (self.keeps_this.format(owner=owner),) if self.keeps_this else ()
+        return (
+            *kept,
+            *(f"_runtime.retain({retained}, {arg.name})" for arg in self.args if arg.retain),
+        )
 
     def check_call(
         self,
