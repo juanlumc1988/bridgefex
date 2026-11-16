@@ -140,6 +140,7 @@ pub struct Owned<T: Class> {
 }
 
 impl<T: Class> Owned<T> {
+    #[allow(dead_code)]
     pub(crate) unsafe fn from_raw(object: *mut T) -> Option<Owned<T>> {
         NonNull::new(object).map(|object| Owned { object, _marker: PhantomData })
     }
@@ -153,6 +154,7 @@ impl<T: Class> Owned<T> {
 }
 
 /// The object that a C function made (and that Rust owns from now on).
+#[allow(dead_code)]
 pub(crate) unsafe fn adopt<T: Class>(object: *mut T) -> Result<Owned<T>> {
     unsafe { Owned::from_raw(object) }.ok_or_else(|| {
         Error::new(ErrorKind::NullArgument, "the C layer gave a NULL object")

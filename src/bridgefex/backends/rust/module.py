@@ -257,11 +257,11 @@ def _function(
 
 __all__ = [
     "FfiKind",
-    "refuse_what_is_not_done",
     "Target",
     "build_names",
     "header_module",
     "header_source",
     "native_source",
+    "refuse_what_is_not_done",
     "targets",
 ]
