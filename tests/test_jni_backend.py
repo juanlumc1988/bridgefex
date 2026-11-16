@@ -311,10 +311,10 @@ enum class Wide : std::uint64_t { A = 1, B = 5000000000ULL };
 enum Plain { P, Q };
 struct Pad { std::int32_t n; std::uint8_t u8; double d; long l; };
 class Peer { public: Peer(); virtual ~Peer(); };
-class Wide_ {
+class Matrix {
 public:
-    Wide_();
-    virtual ~Wide_();
+    Matrix();
+    virtual ~Matrix();
     virtual bool b(bool x) const;
     virtual std::int8_t i8(std::int8_t x) const;
     virtual std::uint8_t u8(std::uint8_t x) const;
@@ -352,7 +352,7 @@ def test_the_glue_of_directors_of_every_kind_of_type_compiles_for_32_and_64_bit_
     header.parent.mkdir()
     header.write_text(DIRECTOR_TYPES, encoding="utf-8")
     annotations = tmp_path / "wide.toml"
-    annotations.write_text('directors = ["wide_Wide_"]\n', encoding="utf-8")
+    annotations.write_text('directors = ["wide_Matrix"]\n', encoding="utf-8")
     options = bridgefex.Options(
         "wide", std="c++17", languages=("jni",), verify=False, annotations=(annotations,)
     )
