@@ -8,6 +8,7 @@ JVM on the native code of the glue."""
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -365,6 +366,8 @@ def test_what_the_runtime_review_found_of_the_overrides(
     """An object that C++ gives up is destroyed when its override is skipped; a struct result that
     fails its checks writes nothing; the release of a director that C++ destroys when its thread
     ends reaches Java."""
+    if scenario == "thread" and language == "jni" and sys.platform == "win32":
+        pytest.skip("a thread cannot attach to the JVM from the destructor of a library on Windows")
     _run(runtime, tmp_path, language, "Runtime1", _RUNTIME, scenario)
 
 

@@ -1770,11 +1770,14 @@ void glue_callback_28(void* a0, drc_Point* out)
 // C++ is done with a callback. A destructor of C++ that runs when its thread ends can come after the
 // detaching of the thread (a thread_local that the library made before it first ran a callback): the
 // release still has to reach Java, or the callback and the object it belongs to stay for ever. The
-// thread is attached for that call alone.
+// thread is attached for that call alone. Not on Windows: the destructors of the thread_locals of a
+// library run while the thread is detached from the library (DLL_THREAD_DETACH, with the loader lock
+// held), and attaching a thread to the JVM there blocks for ever.
 void glue_release(void* user_data)
 {
     JNIEnv* env = callback_env();
     bool temporary = false;
+#ifndef _WIN32
     if (env == nullptr && t_detached && !g_exiting && g_vm != nullptr) {
         JNIEnv* attached = nullptr;
 #ifdef __ANDROID__
@@ -1784,6 +1787,7 @@ void glue_release(void* user_data)
 #endif
         env = temporary ? attached : nullptr;
     }
+#endif
     jclass callbacks = env == nullptr ? nullptr : static_cast<jclass>(env->NewLocalRef(g_callbacks));
     if (callbacks != nullptr) {
         env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
