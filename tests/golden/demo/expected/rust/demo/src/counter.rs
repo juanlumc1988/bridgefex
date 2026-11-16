@@ -9,6 +9,12 @@ pub struct Counter {
 
 impl crate::runtime::sealed::Sealed for Counter {}
 
+impl ::core::fmt::Debug for Counter {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Counter").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Counter {
     unsafe fn destroy(object: *mut Counter) {
         unsafe { crate::native::demo_Counter_destroy(object) }

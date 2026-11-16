@@ -228,6 +228,12 @@ pub struct Path {
 
 impl crate::runtime::sealed::Sealed for Path {}
 
+impl ::core::fmt::Debug for Path {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Path").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Path {
     unsafe fn destroy(object: *mut Path) {
         unsafe { crate::native::geo_Path_destroy(object) }

@@ -9,6 +9,12 @@ pub struct Circle {
 
 impl crate::runtime::sealed::Sealed for Circle {}
 
+impl ::core::fmt::Debug for Circle {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Circle").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Circle {
     unsafe fn destroy(object: *mut Circle) {
         unsafe { crate::native::inh_Circle_destroy(object) }
@@ -100,6 +106,12 @@ pub struct Square {
 
 impl crate::runtime::sealed::Sealed for Square {}
 
+impl ::core::fmt::Debug for Square {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Square").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Square {
     unsafe fn destroy(object: *mut Square) {
         unsafe { crate::native::inh_Square_destroy(object) }
@@ -181,6 +193,12 @@ pub struct Ring {
 }
 
 impl crate::runtime::sealed::Sealed for Ring {}
+
+impl ::core::fmt::Debug for Ring {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Ring").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Ring {
     unsafe fn destroy(object: *mut Ring) {

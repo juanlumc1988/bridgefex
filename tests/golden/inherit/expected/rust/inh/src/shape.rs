@@ -9,6 +9,12 @@ pub struct Named {
 
 impl crate::runtime::sealed::Sealed for Named {}
 
+impl ::core::fmt::Debug for Named {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Named").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Named {
     unsafe fn destroy(object: *mut Named) {
         unsafe { crate::native::inh_Named_destroy(object) }
@@ -49,6 +55,12 @@ pub struct Shape {
 }
 
 impl crate::runtime::sealed::Sealed for Shape {}
+
+impl ::core::fmt::Debug for Shape {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Shape").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Shape {
     unsafe fn destroy(object: *mut Shape) {

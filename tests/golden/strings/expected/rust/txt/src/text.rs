@@ -9,6 +9,12 @@ pub struct Person {
 
 impl crate::runtime::sealed::Sealed for Person {}
 
+impl ::core::fmt::Debug for Person {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Person").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Person {
     unsafe fn destroy(object: *mut Person) {
         unsafe { crate::native::text_Person_destroy(object) }

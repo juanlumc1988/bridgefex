@@ -9,6 +9,12 @@ pub struct Sleeper {
 
 impl crate::runtime::sealed::Sealed for Sleeper {}
 
+impl ::core::fmt::Debug for Sleeper {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Sleeper").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Sleeper {
     unsafe fn destroy(object: *mut Sleeper) {
         unsafe { crate::native::demo_Sleeper_destroy(object) }

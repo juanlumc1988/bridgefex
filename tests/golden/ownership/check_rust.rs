@@ -36,6 +36,14 @@ fn main() -> own::Result<()> {
     let mut b = Node::new(4)?;
     let mut tree = Tree::new()?;
 
+    // A class is `Debug` (it has no state to show), so what holds an `Owned` can derive it.
+    #[derive(Debug)]
+    #[allow(dead_code)]
+    struct Holder {
+        node: Owned<Node>,
+    }
+    check(format!("{:?}", Holder { node: Node::new(1)? }) == "Holder { node: Node { .. } }", "Debug");
+
     // References and pointers.
     check(tree.sum(&a, &b)? == 7, "sum");
     tree.bump(&mut a)?;

@@ -216,6 +216,12 @@ pub struct Lamp {
 
 impl crate::runtime::sealed::Sealed for Lamp {}
 
+impl ::core::fmt::Debug for Lamp {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Lamp").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Lamp {
     unsafe fn destroy(object: *mut Lamp) {
         unsafe { crate::native::colors_Lamp_destroy(object) }

@@ -687,3 +687,40 @@ def test_the_build_script_links_a_library_again_when_it_is_rebuilt(tmp_path: Pat
         assert f'"{name}"' in build
     assert "cargo:rerun-if-changed=" in build
     assert "cargo:warning=no library of `bind` in" in build
+
+
+def test_every_declaration_that_is_not_supported_yet_is_reported_once(tmp_path: Path) -> None:
+    code = """
+#include <functional>
+#include <span>
+#include <vector>
+class Bag {
+public:
+    Bag();
+    ~Bag();
+    std::vector<int> items() const;
+    void each(const std::function<void (int)>& visit);
+    int fine() const;
+};
+void spans(std::span<const int> values);
+std::vector<int> make();
+"""
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options("bind", std="c++20", languages=("rust",), verify=False)
+    with pytest.raises(GenerationError) as raised:
+        bridgefex.generate([path], options)
+    lines = str(raised.value).splitlines()
+    assert len(lines) == 4, lines
+    for name in ("Bag::items", "Bag::each", "spans", "make"):
+        assert sum(name in line for line in lines) == 1, (name, lines)
+    assert all("api.h:" in line and "Rust:" in line for line in lines)
+
+
+def test_a_class_is_debug_so_that_what_holds_an_owned_object_can_be(
+    tmp_path: Path, cargo: None
+) -> None:
+    code = "class Counter { public: Counter(); ~Counter(); int get() const; };\n"
+    api = source(generate(tmp_path, code, verify=True))
+    assert "impl ::core::fmt::Debug for Counter" in api
+    assert 'f.debug_struct("Counter").finish_non_exhaustive()' in api

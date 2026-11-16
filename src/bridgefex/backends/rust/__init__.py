@@ -11,7 +11,6 @@ from ...plan import ModulePlan
 from ...rendering import Renderer
 from ..base import Backend
 from .check import check
-from .mapping import Unsupported
 from .module import (
     build_names,
     header_module,
@@ -70,12 +69,23 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     renderer.put(f"{base}/Cargo.toml", "Cargo.toml.j2", **context)
     renderer.put(f"{base}/build.rs", "build.rs.j2", **context)
     renderer.put(f"{base}/src/runtime.rs", "runtime.rs.j2", **context)
-    try:
-        files[f"{base}/src/native.rs"] = native_source(plan, names)
-        for header in plan.headers:
-            files[f"{base}/src/{header_module(header)}.rs"] = header_source(plan, header, names)
-    except Unsupported as error:
-        raise GenerationError([Diagnostic(f"Rust: {error}", error.location)]) from error
+    problems: list[Diagnostic] = []
+    files[f"{base}/src/native.rs"] = native_source(plan, names, problems)
+    for header in plan.headers:
+        files[f"{base}/src/{header_module(header)}.rs"] = header_source(
+            plan, header, names, problems
+        )
+    if problems:
+        # The declaration of a C function and the function that wraps it can both say that it is
+        # not supported: once for each place in the header.
+        raise GenerationError(
+            [
+                problem
+                for position, problem in enumerate(problems)
+                if problem.location is None
+                or problem.location not in [other.location for other in problems[:position]]
+            ]
+        )
     files[f"{base}/src/lib.rs"] = _lib_source(plan)
     return files
 

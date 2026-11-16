@@ -9,6 +9,12 @@ pub struct Circle {
 
 impl crate::runtime::sealed::Sealed for Circle {}
 
+impl ::core::fmt::Debug for Circle {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Circle").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Circle {
     unsafe fn destroy(object: *mut Circle) {
         unsafe { crate::native::demo_geometry_Circle_destroy(object) }

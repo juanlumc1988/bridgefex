@@ -9,6 +9,12 @@ pub struct Node {
 
 impl crate::runtime::sealed::Sealed for Node {}
 
+impl ::core::fmt::Debug for Node {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Node").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Node {
     unsafe fn destroy(object: *mut Node) {
         unsafe { crate::native::own_Node_destroy(object) }
@@ -78,6 +84,12 @@ pub struct Item {
 }
 
 impl crate::runtime::sealed::Sealed for Item {}
+
+impl ::core::fmt::Debug for Item {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Item").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Item {
     unsafe fn destroy(object: *mut Item) {

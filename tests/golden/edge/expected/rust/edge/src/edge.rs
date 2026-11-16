@@ -9,6 +9,12 @@ pub struct Registry {
 
 impl crate::runtime::sealed::Sealed for Registry {}
 
+impl ::core::fmt::Debug for Registry {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Registry").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Registry {
     unsafe fn destroy(object: *mut Registry) {
         unsafe { crate::native::edge_Registry_destroy(object) }

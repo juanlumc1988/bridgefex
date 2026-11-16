@@ -9,6 +9,12 @@ pub struct Accumulator {
 
 impl crate::runtime::sealed::Sealed for Accumulator {}
 
+impl ::core::fmt::Debug for Accumulator {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Accumulator").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Accumulator {
     unsafe fn destroy(object: *mut Accumulator) {
         unsafe { crate::native::scalars_Accumulator_destroy(object) }

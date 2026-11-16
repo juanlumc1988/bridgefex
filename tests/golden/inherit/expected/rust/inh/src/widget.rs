@@ -9,6 +9,12 @@ pub struct Counter {
 
 impl crate::runtime::sealed::Sealed for Counter {}
 
+impl ::core::fmt::Debug for Counter {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Counter").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Counter {
     unsafe fn destroy(object: *mut Counter) {
         unsafe { crate::native::inh_Counter_destroy(object) }
@@ -52,6 +58,12 @@ pub struct Labeled {
 }
 
 impl crate::runtime::sealed::Sealed for Labeled {}
+
+impl ::core::fmt::Debug for Labeled {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Labeled").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Labeled {
     unsafe fn destroy(object: *mut Labeled) {
@@ -122,6 +134,12 @@ pub struct Widget {
 }
 
 impl crate::runtime::sealed::Sealed for Widget {}
+
+impl ::core::fmt::Debug for Widget {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Widget").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Widget {
     unsafe fn destroy(object: *mut Widget) {
@@ -208,6 +226,12 @@ pub struct Tagged {
 
 impl crate::runtime::sealed::Sealed for Tagged {}
 
+impl ::core::fmt::Debug for Tagged {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Tagged").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Tagged {
     unsafe fn destroy(object: *mut Tagged) {
         unsafe { crate::native::inh_Tagged_destroy(object) }
@@ -242,6 +266,12 @@ pub struct Observer {
 }
 
 impl crate::runtime::sealed::Sealed for Observer {}
+
+impl ::core::fmt::Debug for Observer {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Observer").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Observer {
     unsafe fn destroy(object: *mut Observer) {
@@ -324,6 +354,12 @@ pub struct Shelf {
 
 impl crate::runtime::sealed::Sealed for Shelf {}
 
+impl ::core::fmt::Debug for Shelf {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Shelf").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Shelf {
     unsafe fn destroy(object: *mut Shelf) {
         unsafe { crate::native::inh_Shelf_destroy(object) }
@@ -369,6 +405,12 @@ pub struct Plain {
 
 impl crate::runtime::sealed::Sealed for Plain {}
 
+impl ::core::fmt::Debug for Plain {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Plain").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Plain {
     unsafe fn destroy(object: *mut Plain) {
         unsafe { crate::native::inh_Plain_destroy(object) }
@@ -403,6 +445,12 @@ pub struct PlainDerived {
 }
 
 impl crate::runtime::sealed::Sealed for PlainDerived {}
+
+impl ::core::fmt::Debug for PlainDerived {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PlainDerived").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for PlainDerived {
     unsafe fn destroy(object: *mut PlainDerived) {

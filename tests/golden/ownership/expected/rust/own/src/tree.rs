@@ -9,6 +9,12 @@ pub struct Tree {
 
 impl crate::runtime::sealed::Sealed for Tree {}
 
+impl ::core::fmt::Debug for Tree {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Tree").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Tree {
     unsafe fn destroy(object: *mut Tree) {
         unsafe { crate::native::own_Tree_destroy(object) }
@@ -485,6 +491,12 @@ pub struct Driver {
 
 impl crate::runtime::sealed::Sealed for Driver {}
 
+impl ::core::fmt::Debug for Driver {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Driver").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Driver {
     unsafe fn destroy(object: *mut Driver) {
         unsafe { crate::native::own_Driver_destroy(object) }
@@ -521,6 +533,12 @@ pub struct Pair {
 }
 
 impl crate::runtime::sealed::Sealed for Pair {}
+
+impl ::core::fmt::Debug for Pair {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Pair").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Pair {
     unsafe fn destroy(object: *mut Pair) {
@@ -563,6 +581,12 @@ pub struct Pipeline {
 }
 
 impl crate::runtime::sealed::Sealed for Pipeline {}
+
+impl ::core::fmt::Debug for Pipeline {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Pipeline").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Pipeline {
     unsafe fn destroy(object: *mut Pipeline) {
@@ -624,6 +648,12 @@ pub struct Box {
 
 impl crate::runtime::sealed::Sealed for Box {}
 
+impl ::core::fmt::Debug for Box {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Box").finish_non_exhaustive()
+    }
+}
+
 impl crate::runtime::Class for Box {
     unsafe fn destroy(object: *mut Box) {
         unsafe { crate::native::own_Box_destroy(object) }
@@ -668,6 +698,12 @@ pub struct Peek {
 }
 
 impl crate::runtime::sealed::Sealed for Peek {}
+
+impl ::core::fmt::Debug for Peek {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Peek").finish_non_exhaustive()
+    }
+}
 
 impl crate::runtime::Class for Peek {
     unsafe fn destroy(object: *mut Peek) {
