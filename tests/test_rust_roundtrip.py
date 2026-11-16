@@ -290,6 +290,24 @@ REFUSED = [
         id="an-owned-object-is-not-sync",
     ),
     pytest.param(
+        "fn send<T: Send>(_: T) {} let mut node = Node::new(1)?; send(&mut *node);",
+        "fn send<T>(_: T) {} let mut node = Node::new(1)?; send(&mut *node);",
+        "E0277",
+        id="a-mutable-reference-is-not-send",
+    ),
+    pytest.param(
+        "fn send<T: Send>(_: T) {} let node = Node::new(1)?; send(&*node);",
+        "fn send<T>(_: T) {} let node = Node::new(1)?; send(&*node);",
+        "E0277",
+        id="a-shared-reference-is-not-send",
+    ),
+    pytest.param(
+        "fn share<T: Sync>(_: &T) {} let node = Node::new(1)?; share(&*node);",
+        "fn share<T>(_: &T) {} let node = Node::new(1)?; share(&*node);",
+        "E0277",
+        id="a-class-is-not-sync",
+    ),
+    pytest.param(
         "let node: Node = Node { _data: [], _marker: ::core::marker::PhantomData };",
         "let node = Node::new(1)?;",
         "E0451",
@@ -573,3 +591,45 @@ fn main() -> calc::Result<()> {
 }
 """
     assert "accepted" in _run(old, library, output, "fresh", good)
+
+
+def test_an_object_that_may_be_null_is_an_option_and_a_default_is_what_cpp_makes(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """``Option<Owned<T>>`` for a ``std::unique_ptr`` or an annotated ``transfer`` pointer that
+    may be NULL: ``None`` is NULL, and ``Some`` is given up (destroyed once); and ``defaults()``
+    is the value that C++ makes of ``T{}`` (not zeros)."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "#include <memory>\nstruct Config { int level = 7; double scale = 2.5; };\n"
+        "namespace calc {\n"
+        "class Item { public: explicit Item(int id); ~Item(); int id() const; "
+        "static int live(); private: int id_; };\n"
+        "int eat(std::unique_ptr<Item> item);\nint take(Item* item);\n}\n",
+        "namespace calc {\nstatic int g_live = 0;\n"
+        "Item::Item(int id) : id_(id) { ++g_live; }\nItem::~Item() { --g_live; }\n"
+        "int Item::id() const { return id_; }\nint Item::live() { return g_live; }\n"
+        "int eat(std::unique_ptr<Item> item) { return item ? item->id() : -1; }\n"
+        "int take(Item* item) {\n    std::unique_ptr<Item> own(item);\n"
+        "    return own ? own->id() : -1;\n}\n}\n",
+        annotations='[calc_eat]\nitem = "nullable"\n[calc_take]\nitem = ["transfer", "nullable"]\n',
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+use calc::calc::{eat, take, Config, Item};
+
+fn main() -> calc::Result<()> {
+    assert_eq!(eat(Some(Item::new(5)?))?, 5);
+    assert_eq!(Item::live()?, 0, "the object that was given is destroyed once");
+    assert_eq!(eat(None)?, -1);
+    assert_eq!(take(Some(Item::new(6)?))?, 6);
+    assert_eq!(Item::live()?, 0);
+    assert_eq!(take(None)?, -1);
+    let config = Config::defaults()?;
+    assert_eq!((config.level, config.scale), (7, 2.5));
+    println!("checked");
+    Ok(())
+}
+"""
+    assert "checked" in _run(case, library, output, "options", program)

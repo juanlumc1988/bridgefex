@@ -123,10 +123,17 @@ def load_case(directory: Path) -> Case:
 
 
 def adhoc_case(
-    directory: Path, module: str, header: str, implementation: str, *, std: str = "c++17"
+    directory: Path,
+    module: str,
+    header: str,
+    implementation: str,
+    *,
+    std: str = "c++17",
+    annotations: str = "",
 ) -> Case:
     """A case of one header (``<module>.h``, in the namespace ``module``) and its implementation,
-    for the tests that need a library that no golden case has. ``directory`` must be empty."""
+    for the tests that need a library that no golden case has (``annotations`` is the text of its
+    annotations file). ``directory`` must be empty."""
     (directory / "input").mkdir(parents=True)
     (directory / "impl").mkdir()
     path = directory / "input" / f"{module}.h"
@@ -134,6 +141,9 @@ def adhoc_case(
     (directory / "impl" / f"{module}.cpp").write_text(
         f'#include "{module}.h"\n' + implementation, encoding="utf-8"
     )
+    table = directory / "annotations.toml"
+    if annotations:
+        table.write_text(annotations, encoding="utf-8")
     return Case(
         name=module,
         directory=directory,
@@ -141,6 +151,7 @@ def adhoc_case(
         headers=(path,),
         std=std,
         min_cxx="c++11",
+        annotations=(table,) if annotations else (),
         languages=("python", "rust"),
     )
 

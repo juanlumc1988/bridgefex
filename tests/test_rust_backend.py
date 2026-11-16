@@ -724,3 +724,31 @@ def test_a_class_is_debug_so_that_what_holds_an_owned_object_can_be(
     api = source(generate(tmp_path, code, verify=True))
     assert "impl ::core::fmt::Debug for Counter" in api
     assert 'f.debug_struct("Counter").finish_non_exhaustive()' in api
+
+
+def test_a_borrowed_result_does_not_come_from_an_object_that_the_function_takes(
+    tmp_path: Path,
+) -> None:
+    """An object that is given up (a ``std::unique_ptr``, a ``transfer`` pointer) is not what the
+    result borrows from, and nothing else is: ``'static`` and ``unsafe``, not a lifetime that
+    nothing bounds."""
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_keep]\nnode = "transfer"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(
+        PRELUDE + "#include <memory>\nclass Node { public: Node(); ~Node(); };\n"
+        "Node& store(std::unique_ptr<Node> node);\nNode& keep(Node* node);\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    api = flat(source(bridgefex.generate([path], options).files))
+    assert (
+        "pub unsafe fn store(node: crate::Owned<crate::api::Node>) "
+        "-> crate::Result<&'static mut crate::api::Node>"
+    ) in api
+    assert (
+        "pub unsafe fn keep(node: crate::Owned<crate::api::Node>) "
+        "-> crate::Result<&'static mut crate::api::Node>"
+    ) in api

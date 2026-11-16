@@ -295,7 +295,7 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
 `Cargo.toml` and `build.rs`. What Rust gives and the plan assumes the target has to provide:
 
 - **A class is an opaque type behind a reference.** It is a `#[repr(C)]` struct with no fields that can be named, a
-  `PhantomData<(*mut u8, PhantomPinned)>` (so it is neither `Send`, `Sync` nor `Unpin`) and a private marker: there is no
+  `PhantomData<(*mut u8, PhantomPinned)>` (so `&T` and `&mut T` are not `Send` and `&T` is not `Sync`: the header does not say whether C++ may use the object from another thread) and a private marker: there is no
   value of it, only `&T`, `&mut T` and `Owned<T>`, which owns the C++ object and calls its `destroy` when dropped. The
   borrow checker then does the work that the other backends do at run time: `const` is `&self`, the rest `&mut self`, a
   result borrowed has the lifetime of all the objects of the call (`'a` shared by `self` and by the arguments that are not given up or copied: C++ does not say which one it comes from) and, if it is not `const`, they are all borrowed exclusively (a `const` method that gives a `&mut` takes `&mut self`),
@@ -303,7 +303,7 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
 - **Ownership is the one of the plan.** A transfer is an `Owned<T>` taken by value and given up with `Owned::into_raw`
   after the checks; there is no claim, no lease and no registry, because the compiler guarantees what they check. What it
   cannot guarantee is `retain` (C++ keeps a pointer, for how long Rust cannot see): the function is `unsafe`, and
-  `Owned::leak` is the way to give an object up for good. A non-`const` result borrowed from nothing is `'static`, hence `unsafe` too.
+  `Owned::leak` is the way to give an object up for good. A result borrowed from nothing is `'static`, hence `unsafe` too, `const` or not (C++ may destroy the object through another function). What the guarantee rests on is the annotations: a function that keeps a pointer and is not annotated `retain` is safe in Rust and wrong, and `self`, or a string that C++ keeps, cannot be annotated (README, "What the safety rests on").
 - **Inheritance** is `Deref` to the first base (so the methods of every ancestor are one list and a `&Derived` coerces to a
   `&Base` where a function takes one), `as_<base>()` for the other bases (the view functions of the plan adjust the
   pointer), and `Owned<Derived>::into_base()` where the plan says the base has a virtual destructor (the object is destroyed
