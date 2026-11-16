@@ -35,7 +35,7 @@ def _cargo() -> None:
 
 
 def test_there_are_checks() -> None:
-    assert {case.name for case in CASES} >= {"ownership", "inherit"}
+    assert {case.name for case in CASES} >= {"edge", "ownership", "inherit"}
 
 
 @pytest.fixture(scope="module", params=CASES, ids=lambda case: case.name)
