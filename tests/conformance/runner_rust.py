@@ -63,7 +63,7 @@ def skip_without_rust() -> None:
 
 _CARGO = """\
 [package]
-name = "runner"
+name = "{name}"
 version = "0.0.0"
 edition = "2021"
 publish = false
@@ -579,44 +579,79 @@ def _identifier(name: str) -> str:
     return "v_" + re.sub(r"[^A-Za-z0-9_]", "_", name)
 
 
-def build_runner(case: Case, library: Path, output: Path, path: Path) -> Path:
-    """The program that plays ``path`` against the crate of ``case``: the executable.
-    Raises RuntimeError if it does not build."""
-    plan = plan_of(case)
-    work = output / f"rust-{path.parent.name}-{path.stem}"
+def _crate(case: Case, output: Path) -> Path:
+    """The directory of the generated crate of ``case`` (generated once per output)."""
     crate_dir = output / "rust-crate"
     if not crate_dir.exists():
         options = dataclasses.replace(case.options(("rust",)), verify=False)
         result = bridgefex.generate(case.headers, options)
         bridgefex.write_files(result.files, crate_dir)
-    index = scenarios._Index.of(plan)
-    program = _Program(case.module, plan, targets(plan), index)
-    for scenario in scenarios.resolve(scenarios.load(path), plan):
-        program.scenario(scenario)
+    return crate_dir / "rust" / case.module
+
+
+def _cargo_program(
+    case: Case, library: Path, output: Path, name: str, source: str | Path, command: str
+) -> Path:
+    """Run ``cargo command`` (``build`` or ``check``) on a crate whose ``main.rs`` is ``source``
+    (a text, or a file) and that depends on the crate of ``case``: the path of the executable
+    that ``build`` makes. Raises RuntimeError with the messages of cargo if it fails."""
+    package = "p_" + re.sub(r"[^A-Za-z0-9_]", "_", name)
+    work = output / f"rust-{name}"
     shutil.rmtree(work, ignore_errors=True)
     (work / "src").mkdir(parents=True)
-    crate_path = (crate_dir / "rust" / case.module).as_posix()
     (work / "Cargo.toml").write_text(
-        _CARGO.format(crate=case.module, path=crate_path), encoding="utf-8"
+        _CARGO.format(crate=case.module, path=_crate(case, output).as_posix(), name=package),
+        encoding="utf-8",
     )
-    (work / "src" / "main.rs").write_text(program.source(), encoding="utf-8")
-    command = cargo()
-    assert command is not None
+    text = source.read_text(encoding="utf-8") if isinstance(source, Path) else source
+    (work / "src" / "main.rs").write_text(text, encoding="utf-8")
+    cargo_command = cargo()
+    assert cargo_command is not None
     completed = subprocess.run(
-        [command, "build", "--offline", "--quiet", "--manifest-path", str(work / "Cargo.toml")],
+        [
+            cargo_command,
+            command,
+            "--offline",
+            "--quiet",
+            "--manifest-path",
+            str(work / "Cargo.toml"),
+        ],
         capture_output=True,
         text=True,
         check=False,
-        env=_environment(case, output, library),
+        env=environment(case, output, library),
         timeout=900,
     )
     if completed.returncode != 0:
         raise RuntimeError(completed.stdout + completed.stderr)
-    name = "runner.exe" if sys.platform == "win32" else "runner"
-    return output / "rust-target" / "debug" / name
+    suffix = ".exe" if sys.platform == "win32" else ""
+    return output / "rust-target" / "debug" / (package + suffix)
 
 
-def _environment(case: Case, output: Path, library: Path) -> dict[str, str]:
+def build_program(case: Case, library: Path, output: Path, name: str, source: str | Path) -> Path:
+    """The program ``source`` (the text of a ``main.rs``, or a file with one) built against the
+    crate of ``case``: the executable. Raises RuntimeError if it does not build."""
+    return _cargo_program(case, library, output, name, source, "build")
+
+
+def check_program(case: Case, library: Path, output: Path, name: str, source: str | Path) -> None:
+    """Compile ``source`` against the crate of ``case`` without linking it. Raises RuntimeError
+    with the messages of the compiler if it is refused."""
+    _cargo_program(case, library, output, name, source, "check")
+
+
+def build_runner(case: Case, library: Path, output: Path, path: Path) -> Path:
+    """The program that plays ``path`` against the crate of ``case``: the executable.
+    Raises RuntimeError if it does not build."""
+    plan = plan_of(case)
+    index = scenarios._Index.of(plan)
+    program = _Program(case.module, plan, targets(plan), index)
+    for scenario in scenarios.resolve(scenarios.load(path), plan):
+        program.scenario(scenario)
+    return build_program(case, library, output, f"{path.parent.name}-{path.stem}", program.source())
+
+
+def environment(case: Case, output: Path, library: Path) -> dict[str, str]:
     environment = {
         **os.environ,
         "CARGO_TARGET_DIR": str(output / "rust-target"),
@@ -643,6 +678,6 @@ def run(case: Case, library: Path, output: Path, path: Path) -> subprocess.Compl
         capture_output=True,
         text=True,
         check=False,
-        env=_environment(case, output, library),
+        env=environment(case, output, library),
         timeout=600,
     )

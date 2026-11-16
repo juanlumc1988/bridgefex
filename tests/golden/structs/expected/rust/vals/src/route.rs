@@ -10,7 +10,7 @@ pub struct Leg {
 }
 
 impl Leg {
-    /// `The value of a default-constructed route::Leg.`
+    /// The value of a default-constructed `route::Leg`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();

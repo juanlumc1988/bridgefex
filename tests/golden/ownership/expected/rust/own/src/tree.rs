@@ -270,7 +270,7 @@ impl Tree {
     /// `static int32_t own::Tree::labelLength(const char* label)`
     pub fn label_length(label: ::core::option::Option<&str>) -> crate::Result<i32> {
         crate::runtime::ensure()?;
-        let __c_label = match label { Some(text) => Some(crate::runtime::c_string(text, "label")?), None => None };
+        let __c_label = label.map(|text| crate::runtime::c_string(text, "label")).transpose()?;
         let mut __result: i32 = ::core::default::Default::default();
         let __status = unsafe {
             crate::native::own_Tree_labelLength(

@@ -179,19 +179,19 @@ impl ::core::ops::DerefMut for Widget {
 }
 
 impl Widget {
-    /// `This object as a inh::Labeled, which is part of it.`
+    /// This object as a `inh::Labeled`, which is part of it.
     pub fn as_labeled(&self) -> &crate::widget::Labeled {
         unsafe { &*crate::native::inh_Widget_as_inh_Labeled_const(self) }
     }
 
-    /// `This object as a inh::Labeled, which is part of it.`
+    /// This object as a `inh::Labeled`, which is part of it.
     pub fn as_labeled_mut(&mut self) -> &mut crate::widget::Labeled {
         unsafe { &mut *crate::native::inh_Widget_as_inh_Labeled(self) }
     }
 }
 
 impl crate::Owned<Widget> {
-    /// `This object, owned as a inh::Labeled.`
+    /// This object, owned as a `inh::Labeled`.
     pub fn into_labeled(self) -> crate::Owned<crate::widget::Labeled> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Widget_as_inh_Labeled(object) };
@@ -286,7 +286,7 @@ impl ::core::ops::DerefMut for Observer {
 }
 
 impl crate::Owned<Observer> {
-    /// `This object, owned as a inh::Tagged.`
+    /// This object, owned as a `inh::Tagged`.
     pub fn into_base(self) -> crate::Owned<crate::widget::Tagged> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Observer_as_inh_Tagged(object) };
@@ -295,19 +295,19 @@ impl crate::Owned<Observer> {
 }
 
 impl Observer {
-    /// `This object as a inh::Labeled, which is part of it.`
+    /// This object as a `inh::Labeled`, which is part of it.
     pub fn as_labeled(&self) -> &crate::widget::Labeled {
         unsafe { &*crate::native::inh_Observer_as_inh_Labeled_const(self) }
     }
 
-    /// `This object as a inh::Labeled, which is part of it.`
+    /// This object as a `inh::Labeled`, which is part of it.
     pub fn as_labeled_mut(&mut self) -> &mut crate::widget::Labeled {
         unsafe { &mut *crate::native::inh_Observer_as_inh_Labeled(self) }
     }
 }
 
 impl crate::Owned<Observer> {
-    /// `This object, owned as a inh::Labeled.`
+    /// This object, owned as a `inh::Labeled`.
     pub fn into_labeled(self) -> crate::Owned<crate::widget::Labeled> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Observer_as_inh_Labeled(object) };

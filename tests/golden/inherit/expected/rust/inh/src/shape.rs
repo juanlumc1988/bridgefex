@@ -124,7 +124,7 @@ impl ::core::ops::DerefMut for Shape {
 }
 
 impl crate::Owned<Shape> {
-    /// `This object, owned as a inh::Named.`
+    /// This object, owned as a `inh::Named`.
     pub fn into_base(self) -> crate::Owned<crate::shape::Named> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Shape_as_inh_Named(object) };

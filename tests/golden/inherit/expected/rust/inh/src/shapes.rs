@@ -83,7 +83,7 @@ impl ::core::ops::DerefMut for Circle {
 }
 
 impl crate::Owned<Circle> {
-    /// `This object, owned as a inh::Shape.`
+    /// This object, owned as a `inh::Shape`.
     pub fn into_base(self) -> crate::Owned<crate::shape::Shape> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Circle_as_inh_Shape(object) };
@@ -165,7 +165,7 @@ impl ::core::ops::DerefMut for Square {
 }
 
 impl crate::Owned<Square> {
-    /// `This object, owned as a inh::Shape.`
+    /// This object, owned as a `inh::Shape`.
     pub fn into_base(self) -> crate::Owned<crate::shape::Shape> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Square_as_inh_Shape(object) };
@@ -232,7 +232,7 @@ impl ::core::ops::DerefMut for Ring {
 }
 
 impl crate::Owned<Ring> {
-    /// `This object, owned as a inh::Circle.`
+    /// This object, owned as a `inh::Circle`.
     pub fn into_base(self) -> crate::Owned<crate::shapes::Circle> {
         let object = crate::Owned::into_raw(self);
         let base = unsafe { crate::native::inh_Ring_as_inh_Circle(object) };

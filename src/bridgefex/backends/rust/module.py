@@ -287,12 +287,12 @@ def _inheritance(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) ->
             word = snake(base.model.name)
             src.line()
             src.open(f"impl {name}")
-            src.doc(f"This object as a {base.model.qualified_name}, which is part of it.")
+            src.prose(f"This object as a `{base.model.qualified_name}`, which is part of it.")
             src.open(f"pub fn as_{word}(&self) -> &{base_path}")
             src.line(f"unsafe {{ &*crate::native::{view.const_upcast.name}(self) }}")
             src.close()
             src.line()
-            src.doc(f"This object as a {base.model.qualified_name}, which is part of it.")
+            src.prose(f"This object as a `{base.model.qualified_name}`, which is part of it.")
             src.open(f"pub fn as_{word}_mut(&mut self) -> &mut {base_path}")
             src.line(f"unsafe {{ &mut *crate::native::{view.upcast.name}(self) }}")
             src.close()
@@ -301,7 +301,7 @@ def _inheritance(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) ->
             # C++ destroys the object through the base class: it can be owned as one.
             src.line()
             src.open(f"impl crate::Owned<{name}>")
-            src.doc(f"This object, owned as a {base.model.qualified_name}.")
+            src.prose(f"This object, owned as a `{base.model.qualified_name}`.")
             word = "into_base" if position == 0 else f"into_{snake(base.model.name)}"
             src.open(f"pub fn {word}(self) -> crate::Owned<{base_path}>")
             src.line("let object = crate::Owned::into_raw(self);")
@@ -318,7 +318,7 @@ def _nested(src: Source, owner: ClassPlan | StructPlan) -> None:
     if not owner.enums:
         return
     src.line()
-    src.doc(f"The enums that {owner.model.qualified_name} declares.")
+    src.prose(f"The enums that `{owner.model.qualified_name}` declares.")
     src.open(f"pub mod {class_module(owner)}")
     for position, enum in enumerate(owner.enums):
         if position:
@@ -387,7 +387,7 @@ def _struct(src: Source, struct: StructPlan, names: Names) -> None:
     src.close()
     src.line()
     src.open(f"impl {name}")
-    src.doc(f"The value of a default-constructed {struct.model.qualified_name}.")
+    src.prose(f"The value of a default-constructed `{struct.model.qualified_name}`.")
     src.open("pub fn defaults() -> crate::Result<Self>")
     src.line("crate::runtime::ensure()?;")
     src.line("let mut __result = Self::zeroed();")

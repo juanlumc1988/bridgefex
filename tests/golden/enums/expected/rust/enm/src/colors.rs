@@ -273,7 +273,7 @@ impl Lamp {
     }
 }
 
-/// `The enums that colors::Lamp declares.`
+/// The enums that `colors::Lamp` declares.
 pub mod lamp {
     /// `enum class colors::Lamp::State : uint8_t`
     #[repr(transparent)]

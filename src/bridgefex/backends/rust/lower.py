@@ -278,8 +278,8 @@ class _Lowerer:
         local = f"{L}c_{name}"
         if nullable:
             self.before.append(
-                f"let {local} = match {name} {{ Some(text) => "
-                f'Some({RUNTIME}::c_string(text, "{spec.name}")?), None => None }};'
+                f'let {local} = {name}.map(|text| {RUNTIME}::c_string(text, "{spec.name}"))'
+                ".transpose()?;"
             )
             self.arguments[spec.name] = (
                 f"{local}.as_ref().map_or(::core::ptr::null(), |text| text.as_ptr())"

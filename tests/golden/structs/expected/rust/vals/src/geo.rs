@@ -9,7 +9,7 @@ pub struct Point {
 }
 
 impl Point {
-    /// `The value of a default-constructed geo::Point.`
+    /// The value of a default-constructed `geo::Point`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -76,7 +76,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// `The value of a default-constructed geo::Config.`
+    /// The value of a default-constructed `geo::Config`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -104,7 +104,7 @@ pub struct Msg {
 }
 
 impl Msg {
-    /// `The value of a default-constructed geo::Msg.`
+    /// The value of a default-constructed `geo::Msg`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -132,7 +132,7 @@ pub struct Wide {
 }
 
 impl Wide {
-    /// `The value of a default-constructed geo::Wide.`
+    /// The value of a default-constructed `geo::Wide`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -157,7 +157,7 @@ pub struct Names {
 }
 
 impl Names {
-    /// `The value of a default-constructed geo::Names.`
+    /// The value of a default-constructed `geo::Names`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -181,7 +181,7 @@ pub struct Tagged {
 }
 
 impl Tagged {
-    /// `The value of a default-constructed geo::Tagged.`
+    /// The value of a default-constructed `geo::Tagged`.
     pub fn defaults() -> crate::Result<Self> {
         crate::runtime::ensure()?;
         let mut __result = Self::zeroed();
@@ -196,7 +196,7 @@ impl Tagged {
     }
 }
 
-/// `The enums that geo::Tagged declares.`
+/// The enums that `geo::Tagged` declares.
 pub mod tagged {
     /// `enum class geo::Tagged::Mode : int8_t`
     #[repr(transparent)]

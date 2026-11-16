@@ -219,6 +219,17 @@ impl<T: Class> Owned<T> {
         ::core::mem::forget(this);
         object
     }
+
+    /// Gives the object up for ever: C++ never destroys it, and the reference lasts as long as
+    /// the program does, like `Box::leak`. It is what a C++ function that keeps its argument
+    /// needs when nothing in Rust owns that argument for as long as the function uses it.
+    #[allow(dead_code)]
+    pub fn leak<'a>(this: Owned<T>) -> &'a mut T
+    where
+        T: 'a,
+    {
+        unsafe { &mut *Owned::into_raw(this) }
+    }
 }
 
 /// A reference that C++ gave and that is NULL: the C layer does not do that.

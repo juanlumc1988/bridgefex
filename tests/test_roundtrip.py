@@ -23,7 +23,7 @@ import pytest
 import bridgefex
 from tests.support.build import build
 from tests.support.cases import Case, all_cases
-from tests.support.toolchain import Toolchain
+from tests.support.toolchain import Toolchain, asan_runtime
 
 CASES = [case for case in all_cases() if case.impl_sources]
 
@@ -656,38 +656,12 @@ _OWNERSHIP_SIGNALS = (
 _SIGNAL_ROUNDS = 200
 
 
-def _asan_runtime(toolchain: Toolchain) -> str | None:
-    """Path of GCC's ASan runtime, to preload into Python.
-
-    GCC only: Clang does not link its runtime into shared libraries, and its
-    own runtime is a separate package.
-    """
-    if toolchain.kind != "gnu" or not sys.platform.startswith("linux"):
-        return None
-    macros = subprocess.run(
-        [toolchain.cxx, "-dM", "-E", "-x", "c++", os.devnull],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if macros.returncode != 0 or "__clang__" in macros.stdout:
-        return None
-    completed = subprocess.run(
-        [toolchain.cxx, "-print-file-name=libasan.so"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    path = completed.stdout.strip()
-    return path if completed.returncode == 0 and os.path.isabs(path) else None
-
-
 @pytest.fixture(scope="module")
 def demo_asan_build(
     toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
 ) -> tuple[Path, Path, str]:
     """The demo case built with AddressSanitizer: (library, output dir, runtime)."""
-    runtime = _asan_runtime(toolchain)
+    runtime = asan_runtime(toolchain)
     if runtime is None:
         pytest.skip("needs GCC with AddressSanitizer on Linux")
     case = next(case for case in CASES if case.name == "demo")
@@ -782,7 +756,7 @@ def ownership_asan_build(
     toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
 ) -> tuple[Path, Path, str]:
     """The ownership case built with AddressSanitizer: (library, output dir, runtime)."""
-    runtime = _asan_runtime(toolchain)
+    runtime = asan_runtime(toolchain)
     if runtime is None:
         pytest.skip("needs GCC with AddressSanitizer on Linux")
     case = next(case for case in CASES if case.name == "ownership")
@@ -796,7 +770,7 @@ def inherit_asan_build(
     toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
 ) -> tuple[Path, Path, str]:
     """The inherit case built with AddressSanitizer: (library, output dir, runtime)."""
-    runtime = _asan_runtime(toolchain)
+    runtime = asan_runtime(toolchain)
     if runtime is None:
         pytest.skip("needs GCC with AddressSanitizer on Linux")
     case = next(case for case in CASES if case.name == "inherit")
@@ -810,7 +784,7 @@ def directors_asan_build(
     toolchain: Toolchain, tmp_path_factory: pytest.TempPathFactory
 ) -> tuple[Path, Path, str]:
     """The directors case built with AddressSanitizer: (library, output dir, runtime)."""
-    runtime = _asan_runtime(toolchain)
+    runtime = asan_runtime(toolchain)
     if runtime is None:
         pytest.skip("needs GCC with AddressSanitizer on Linux")
     case = next(case for case in CASES if case.name == "directors")

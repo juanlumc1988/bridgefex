@@ -35,6 +35,11 @@ class Source:
             self.line("///")
             self.line(f"/// {_one_line(remark)}")
 
+    def prose(self, text: str) -> None:
+        """A documentation comment that is plain text (what the generator says, or what the header
+        says), not a declaration."""
+        self.line(f"/// {_one_line(text)}")
+
     def text(self) -> str:
         return "\n".join(self.lines).rstrip("\n") + "\n"
 
