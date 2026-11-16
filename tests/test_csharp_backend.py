@@ -290,7 +290,17 @@ def test_enums_with_an_underlying_type_of_c_long_compile(tmp_path: Path) -> None
 
 @pytest.mark.parametrize(
     "name",
-    ["Runtime", "Native", "Lease", "Block", "StringBlock", "Keep", "Functions", "BridgefexObject"],
+    [
+        "Runtime",
+        "Native",
+        "Lease",
+        "Block",
+        "StringBlock",
+        "Keep",
+        "KeptText",
+        "Functions",
+        "BridgefexObject",
+    ],
 )
 def test_a_class_cannot_hide_a_type_of_the_generated_code(tmp_path: Path, name: str) -> None:
     message = error_of(tmp_path, f"class {name} {{ public: {name}(); ~{name}(); }};")

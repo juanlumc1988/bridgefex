@@ -293,8 +293,9 @@ internal sealed unsafe class KeptText
     internal KeptText(byte[] bytes)
     {
         Length = bytes.Length;
-        _memory = (nint)NativeMemory.Alloc((nuint)(bytes.Length == 0 ? 1 : bytes.Length));
-        bytes.AsSpan().CopyTo(new global::System.Span<byte>((void*)_memory, bytes.Length));
+        _memory = (nint)global::System.Runtime.InteropServices.NativeMemory.Alloc(
+            (nuint)(bytes.Length == 0 ? 1 : bytes.Length));
+        global::System.Runtime.InteropServices.Marshal.Copy(bytes, 0, _memory, bytes.Length);
     }
 
     internal byte* Pointer => (byte*)_memory;
@@ -313,7 +314,7 @@ internal sealed unsafe class KeptText
         nint memory = global::System.Threading.Interlocked.Exchange(ref _memory, 0);
         if (memory != 0)
         {
-            NativeMemory.Free((void*)memory);
+            global::System.Runtime.InteropServices.NativeMemory.Free((void*)memory);
         }
     }
 
