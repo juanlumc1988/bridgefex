@@ -59,7 +59,13 @@ is a tree of frozen dataclasses:
   struct or class it refers to, the annotation words `nullable`, `transfer`,
   `retain` and `call`, the C parameters that hold its size, user data and release
   function), `CallableKind` says whether it is a free function, a static method,
-  a method or a constructor.
+  a method or a constructor. `retains_this` is the annotation `this = "retain"` of a
+  method: what it returns keeps a pointer to the object it is called on (a guard, an
+  iterator), or the library does for ever if it returns none; `retain` on a `const char*`
+  or a `std::string_view` says that a text is what C++ keeps. Each backend keeps what is
+  kept the way its language allows (a result that holds the object, a copy of the text
+  that the object that stores it holds, for ever for a function), and Rust makes the
+  function `unsafe`.
 - `ClassPlan` also has `bases` and `views`: the C API converts a derived pointer
   to each ancestor (`<class>_as_<ancestor>`), because with several bases the
   address changes.
@@ -303,7 +309,7 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
 - **Ownership is the one of the plan.** A transfer is an `Owned<T>` taken by value and given up with `Owned::into_raw`
   after the checks; there is no claim, no lease and no registry, because the compiler guarantees what they check. What it
   cannot guarantee is `retain` (C++ keeps a pointer, for how long Rust cannot see): the function is `unsafe`, and
-  `Owned::leak` is the way to give an object up for good. A result borrowed from nothing is `'static`, hence `unsafe` too, `const` or not (C++ may destroy the object through another function). What the guarantee rests on is the annotations: a function that keeps a pointer and is not annotated `retain` is safe in Rust and wrong, and `self`, or a string that C++ keeps, cannot be annotated (README, "What the safety rests on").
+  `Owned::leak` is the way to give an object up for good. A result borrowed from nothing is `'static`, hence `unsafe` too, `const` or not (C++ may destroy the object through another function). What the guarantee rests on is the annotations: a function that keeps a pointer and is not annotated `retain` is safe in Rust and wrong (`this = "retain"` says that the object of a method is what is kept, `retain` on a `const char*` or a `std::string_view` that a text is; both are `unsafe` in Rust: README, "What the safety rests on").
 - **Inheritance** is `Deref` to the first base (so the methods of every ancestor are one list and a `&Derived` coerces to a
   `&Base` where a function takes one), `as_<base>()` for the other bases (the view functions of the plan adjust the
   pointer), and `Owned<Derived>::into_base()` where the plan says the base has a virtual destructor (the object is destroyed
