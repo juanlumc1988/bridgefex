@@ -21,6 +21,7 @@ from tests.conformance import runner_jvm
 from tests.support.build import build
 from tests.support.cases import Case
 from tests.support.toolchain import Toolchain
+from tests.test_conformance import supports
 from tests.test_jvm_roundtrip import CASES
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -120,6 +121,10 @@ def test_the_scenarios_run_on_an_older_java_that_can_run_the_runner(
     case, library, output = built
     if not case.scenarios.exists() or "jni" not in case.languages:
         pytest.skip("the case has no scenarios, or no JNI bindings")
+    if not supports("jni", case):
+        # The runner plays the scenarios by reflection: it cannot derive a class (the directors
+        # of Java are checked by the check of the case).
+        pytest.skip("the runner of Java does not play the scenarios of this case")
     completed = runner_jvm.run(
         case,
         library,

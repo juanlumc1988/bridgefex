@@ -29,7 +29,7 @@ from tests.test_jvm_backend import (
     OVERRIDES,
     SMALL,
     generate,
-    refused_directors,
+    refused_declarations,
 )
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -128,9 +128,9 @@ def test_what_the_jni_bindings_do_not_have_is_refused_saying_what_to_leave_out(
     tmp_path: Path,
 ) -> None:
     with pytest.raises(GenerationError) as raised:
-        refused_directors(tmp_path, languages=LANGUAGES)
+        refused_declarations(tmp_path, languages=LANGUAGES)
     [diagnostic, advice] = raised.value.diagnostics
-    assert "not supported in Java yet" in diagnostic.message
+    assert "a callback with 65 arguments" in diagnostic.message
     assert diagnostic.location is not None
     assert "leave 'jni' out" in advice.message
 

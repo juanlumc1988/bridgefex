@@ -76,7 +76,7 @@ public final class BridgefexArena implements AutoCloseable {
         return allocate(size, 8);
     }
 
-    private BridgefexSegment allocate(long size, long alignment) {
+    public BridgefexSegment allocate(long size, long alignment) {
         if (closed) {
             throw new IllegalStateException("the arena is closed");
         }

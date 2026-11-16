@@ -91,6 +91,49 @@ def _functions(plan: ModulePlan, *, callbacks: bool) -> list[_Function]:
     ]
     for header in plan.headers:
         functions.extend(_function(f) for f in header.c_functions)
+    if any(header.directors for header in plan.headers):
+        # What the thunk of an override calls to give a string to C++, and the functions of the
+        # directors (the constructors, the conversion and the base calls).
+        functions.append(
+            _Function(
+                plan.string_sink_set,
+                "void",
+                [
+                    (JNI.segment, "p_sink", f"{plan.string_sink_set.removesuffix('_set')}*"),
+                    (JNI.segment, "p_data", "const char*"),
+                    ("long", "p_size", "size_t"),
+                ],
+                False,
+            )
+        )
+        sink = f"{plan.name}_vector_sink"
+        functions.append(
+            _Function(
+                plan.vector_sink_set,
+                "void",
+                [
+                    (JNI.segment, "p_sink", f"{sink}*"),
+                    (JNI.segment, "p_data", "const void*"),
+                    ("long", "p_count", "size_t"),
+                    ("long", "p_size", "size_t"),
+                ],
+                False,
+            )
+        )
+        functions.append(
+            _Function(
+                plan.vector_sink_set_strings,
+                "void",
+                [
+                    (JNI.segment, "p_sink", f"{sink}*"),
+                    (JNI.segment, "p_items", f"const {plan.name}_string*"),
+                    ("long", "p_count", "size_t"),
+                ],
+                False,
+            )
+        )
+        for header in plan.headers:
+            functions.extend(_function(f) for f in header.director_functions)
     return functions
 
 
@@ -126,6 +169,9 @@ def native_source(plan: ModulePlan, names: Names) -> str:
         "static native long sizes();",
     ):
         src.line(declaration)
+    if names.has_directors:
+        # The result of an override that is a struct goes where C++ says.
+        src.line("static native void copyIn(long address, byte[] bytes);")
     if names.has_callbacks:
         # The addresses of what C++ calls: asked for before any other call may have loaded the
         # library.
@@ -188,6 +234,7 @@ def glue_parts(plan: ModulePlan) -> dict[str, object]:
         "module": plan.name,
         "macro": plan.macro_prefix,
         "disable_function": plan.disable_callbacks,
+        "directors": names.has_directors,
         "callbacks": [
             {
                 "lines": callbacks.trampoline(thunk, names),

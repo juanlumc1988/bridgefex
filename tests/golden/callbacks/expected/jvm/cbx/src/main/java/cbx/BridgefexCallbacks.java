@@ -64,7 +64,7 @@ public final class BridgefexCallbacks {
     private static boolean WATCHING;
 
     /** A callback that C++ holds. C++ names it by its key (the {@code user_data}), never by an address. */
-    private static final class Box {
+    static class Box {
         final Object function;
         final String name;
         final Scope scope;
@@ -82,10 +82,18 @@ public final class BridgefexCallbacks {
 
         /** An enum without a fixed type holds only some values, and C++ would not. */
         void checkResult(long value, long low, long high) {
+            checkResult(value, low, high, "the callback '" + name + "'");
+        }
+
+        void checkResult(long value, long low, long high, String what) {
             if (value < low || value > high) {
-                throw new IllegalStateException("the callback '" + name + "' returned " + value
+                throw new IllegalStateException(what + " returned " + value
                     + ", which is not a value of the enum (" + low + ".." + high + ")");
             }
+        }
+
+        /** C++ holds the callback (or the director) no more. */
+        void released() {
         }
     }
 
@@ -110,7 +118,10 @@ public final class BridgefexCallbacks {
 
     /** C++ holds the callback no more. */
     private static void release(MemorySegment userData) {
-        TABLE.remove(userData.address());
+        Box box = TABLE.remove(userData.address());
+        if (box != null) {
+            box.released();
+        }
     }
 
     /** The module starts: its callbacks are disabled when the JVM exits, so that C++ neither calls nor

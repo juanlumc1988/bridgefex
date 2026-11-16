@@ -246,6 +246,15 @@ C++ says; over JNI the glue has a C++ function with that C signature for each th
 calls the thunk with what JNI carries (a pointer is a `long`) and writes what it returns. The glue holds the class of the thunks
 weakly: a strong reference would keep the class loader of the bindings from being collected.
 
+The directors (`directors.py`) follow the C# ones with the model of Java: its methods are virtual, so a class that can be
+derived from keeps the virtual methods that an override can have and makes every other one `final`. The vtable members are
+thunks of `BridgefexCallbacks` too (one for each virtual method and the class that declares it), which find the Java object
+by the `user_data` (a `DirectorBox`, weak while Java owns the object and strong while C++ owns it or points to it), and call the
+method of the class that declares it: the override of the class of the object runs. The constructors read by reflection
+(`BridgefexDirectors.overrides`) which methods the class of the object overrides and fill the vtable with the thunks of those. A
+result that is a struct, a string, a container or an object is written where C++ says: through the memory (FFM) or through
+natives of the glue (JNI, which cannot write memory that C++ gave).
+
 The parts of the backend are these. `mapping.py` maps `Ffi` to the layouts and the `MethodHandle` types of the downcalls
 (`BridgefexNative` has a static method for each function of the C API over a handle in a nested class of its own,
 which is initialised on the first call of the function, after the library was loaded: a failed load can be retried,
