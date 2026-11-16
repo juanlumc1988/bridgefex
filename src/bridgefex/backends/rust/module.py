@@ -7,6 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ...errors import Diagnostic, GenerationError
+from ...model import EnumRef, ScalarType, StructRef
+from ...naming import unique_name
 from ...plan import (
     CallableKind,
     CallablePlan,
@@ -20,8 +22,8 @@ from ...plan import (
     StructPlan,
 )
 from .lower import Names, lower_callable
-from .mapping import Unsupported, native_type, restype
-from .naming import identifier, pascal, snake
+from .mapping import Unsupported, native_type, restype, scalar
+from .naming import identifier, pascal, snake, upper_snake
 from .source import Source
 
 
@@ -30,50 +32,84 @@ def header_module(header: HeaderPlan) -> str:
     return identifier(snake(header.stem))
 
 
+def class_module(cls: ClassPlan | StructPlan) -> str:
+    """The module that holds the enums that a class or a struct declares."""
+    return identifier(snake(cls.model.name))
+
+
 def build_names(plan: ModulePlan) -> Names:
     classes: dict[str, str] = {}
+    enums: dict[str, str] = {}
+    structs: dict[str, str] = {}
+    enum_plans: dict[str, EnumPlan] = {}
+    struct_plans: dict[str, StructPlan] = {}
     errors: list[Diagnostic] = []
     for header in plan.headers:
         prefix = f"crate::{header_module(header)}"
         taken: dict[str, str] = {}
-        for item in header.items:
-            if not isinstance(item, ClassPlan | EnumPlan | StructPlan):
-                continue
-            name = pascal(item.model.name)
+        modules: dict[str, str] = {}
+
+        def claim(
+            name: str,
+            what: str,
+            location: object,
+            header: HeaderPlan = header,
+            taken: dict[str, str] = taken,
+        ) -> None:
             if name in taken:
                 errors.append(
                     Diagnostic(
-                        f"'{item.model.qualified_name}' and '{taken[name]}' get the Rust name "
-                        f"'{name}' in {header.stem}.h",
-                        item.model.location,
+                        f"'{what}' and '{taken[name]}' get the Rust name '{name}' in "
+                        f"{header.stem}.h",
+                        location,  # type: ignore[arg-type]
                     )
                 )
-            taken[name] = item.model.qualified_name
+            taken[name] = what
+
+        def nested(
+            owner: ClassPlan | StructPlan,
+            prefix: str = prefix,
+            modules: dict[str, str] = modules,
+        ) -> None:
+            if not owner.enums:
+                return
+            module = class_module(owner)
+            other = modules.setdefault(module, owner.model.qualified_name)
+            if other != owner.model.qualified_name:
+                errors.append(
+                    Diagnostic(
+                        f"'{owner.model.qualified_name}' and '{other}' get the Rust module "
+                        f"'{module}' for their enums",
+                        owner.model.location,
+                    )
+                )
+            for item in owner.enums:
+                enums[item.c_type] = f"{prefix}::{module}::{pascal(item.model.name)}"
+                enum_plans[item.model.usr] = item
+
+        for item in header.items:
+            if isinstance(item, ClassPlan | EnumPlan | StructPlan):
+                claim(pascal(item.model.name), item.model.qualified_name, item.model.location)
             if isinstance(item, ClassPlan):
-                classes[item.c_type] = f"{prefix}::{name}"
+                classes[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                nested(item)
+            elif isinstance(item, EnumPlan):
+                enums[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                enum_plans[item.model.usr] = item
+            elif isinstance(item, StructPlan):
+                structs[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                struct_plans[item.model.usr] = item
+                nested(item)
     if errors:
         raise GenerationError(errors)
-    return Names(classes)
-
-
-def refuse_what_is_not_done(plan: ModulePlan) -> None:
-    """What the Rust bindings do not have yet is refused first, with the declaration that has
-    it (the C functions that it needs would be refused with a worse message)."""
-    for header in plan.headers:
-        for item in header.items:
-            if isinstance(item, EnumPlan | StructPlan):
-                kind = "enum" if isinstance(item, EnumPlan) else "struct"
-                raise Unsupported(
-                    f"the {kind} '{item.model.qualified_name}' is not supported in Rust yet",
-                    item.model.location,
-                )
+    return Names(classes, enums, structs, enum_plans, struct_plans)
 
 
 # native.rs -----------------------------------------------------------------------------------
 
 
 def native_source(plan: ModulePlan, names: Names) -> str:
-    handles = dict(names.classes)
+    handles = names.types
     src = Source()
     src.line("// Generated by bridgefex. Do not edit.")
     src.line("//! The declarations of the functions of the C API.")
@@ -116,12 +152,12 @@ def header_source(plan: ModulePlan, header: HeaderPlan, names: Names) -> str:
             _class(src, plan, item, names)
         elif isinstance(item, FunctionPlan):
             functions.append(item)
+        elif isinstance(item, EnumPlan):
+            src.line()
+            _enum(src, item)
         else:
-            kind = "enum" if isinstance(item, EnumPlan) else "struct"
-            raise Unsupported(
-                f"the {kind} '{item.model.qualified_name}' is not supported in Rust yet",
-                item.model.location,
-            )
+            src.line()
+            _struct(src, item, names)
     taken: dict[str, str] = {}
     for item in functions:
         src.line()
@@ -133,9 +169,10 @@ def callable_name(call: CallablePlan, constructors: int = 0) -> str:
     """The Rust name of a function, method or constructor: the C++ name in snake case and the
     overload suffix of the C API; a constructor is ``new`` (and its suffix, if the class has
     several)."""
+    suffix = snake(call.suffix) if call.suffix else ""
     if call.kind is CallableKind.CONSTRUCTOR:
-        return identifier("new" + ("" if constructors == 1 else call.suffix))
-    return identifier(snake(call.name) + call.suffix)
+        return identifier("new" + ("" if constructors == 1 else suffix))
+    return identifier(snake(call.name) + suffix)
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +252,117 @@ def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
         first = False
         _function(src, plan, member, names, taken, declaring=cls, receiver_ok=True)
     src.close()
+    _nested(src, cls)
+
+
+def _nested(src: Source, owner: ClassPlan | StructPlan) -> None:
+    """The enums declared inside a class or a struct, in a module that has its name."""
+    if not owner.enums:
+        return
+    src.line()
+    src.doc(f"The enums that {owner.model.qualified_name} declares.")
+    src.open(f"pub mod {class_module(owner)}")
+    for position, enum in enumerate(owner.enums):
+        if position:
+            src.line()
+        _enum(src, enum)
+    src.close()
+
+
+def _enum(src: Source, enum: EnumPlan) -> None:
+    """An enum is a type that holds the integer: C++ may give a value that no enumerator has (a
+    flag, a value of the range of an enum without a fixed type), which an ``enum`` of Rust cannot
+    hold."""
+    name = pascal(enum.model.name)
+    raw = scalar(enum.model.underlying.c_name)
+    src.doc(enum.comment)
+    src.line("#[repr(transparent)]")
+    src.line("#[derive(Clone, Copy, PartialEq, Eq, Hash)]")
+    src.line(f"pub struct {name}(pub {raw});")
+    src.line()
+    src.open(f"impl {name}")
+    constants: dict[str, str] = {}
+    for item in enum.enumerators:
+        constant = upper_snake(item.model_name)
+        if constant in constants:
+            raise GenerationError(
+                [
+                    Diagnostic(
+                        f"the enumerators '{constants[constant]}' and '{item.model_name}' of "
+                        f"'{enum.model.qualified_name}' get the Rust name '{constant}'",
+                        enum.model.location,
+                    )
+                ]
+            )
+        constants[constant] = item.model_name
+        src.line(f"pub const {constant}: {name} = {name}({item.value});")
+    src.close()
+    src.line()
+    src.open(f"impl ::core::fmt::Debug for {name}")
+    src.open("fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result")
+    src.open("match self.0")
+    seen: set[int] = set()
+    for item in enum.enumerators:
+        if item.value in seen:
+            continue  # an alias: the first enumerator with the value names it
+        seen.add(item.value)
+        src.line(f'{item.value} => f.write_str("{name}::{upper_snake(item.model_name)}"),')
+    src.line(f'other => write!(f, "{name}({{}})", other),')
+    src.close()
+    src.close()
+    src.close()
+
+
+def _struct(src: Source, struct: StructPlan, names: Names) -> None:
+    """A value struct is the mirror of the C struct: it crosses the boundary as it is."""
+    name = pascal(struct.model.name)
+    src.doc(struct.model.qualified_name)
+    src.line("#[repr(C)]")
+    src.line("#[derive(Clone, Copy, Debug, PartialEq)]")
+    src.open(f"pub struct {name}")
+    for member, field_name in zip(struct.fields, field_names(struct), strict=True):
+        model = member.model
+        type_ = _field_type(model.type, names)
+        if model.length is not None:
+            type_ = f"[{type_}; {model.length}]"
+        src.line(f"pub {field_name}: {type_},")
+    src.close()
+    src.line()
+    src.open(f"impl {name}")
+    src.doc(f"The value of a default-constructed {struct.model.qualified_name}.")
+    src.open("pub fn defaults() -> crate::Result<Self>")
+    src.line("crate::runtime::ensure()?;")
+    src.line("let mut __result = Self::zeroed();")
+    src.line(f"let __status = unsafe {{ crate::native::{struct.init.name}(&mut __result) }};")
+    src.line("crate::runtime::check(__status)?;")
+    src.line("Ok(__result)")
+    src.close()
+    src.line()
+    src.line("#[allow(dead_code)]")
+    src.open("pub(crate) fn zeroed() -> Self")
+    src.line("unsafe { ::core::mem::zeroed() }")
+    src.close()
+    src.close()
+    _nested(src, struct)
+
+
+def field_names(struct: StructPlan) -> list[str]:
+    """The Rust names of the members of a struct, in order."""
+    taken: set[str] = set()
+    names = []
+    for member in struct.fields:
+        name = unique_name(identifier(snake(member.model.name)), frozenset(taken))
+        taken.add(name)
+        names.append(name)
+    return names
+
+
+def _field_type(type_: ScalarType | EnumRef | StructRef, names: Names) -> str:
+    if isinstance(type_, ScalarType):
+        return scalar(type_.c_name)
+    if isinstance(type_, EnumRef):
+        return names.enums[names.enum_plans[type_.usr].c_type]
+    return names.structs[names.struct_plans[type_.usr].c_type]
 
 
 def _function(
@@ -257,11 +405,11 @@ def _function(
 
 __all__ = [
     "FfiKind",
+    "field_names",
     "Target",
     "build_names",
     "header_module",
     "header_source",
     "native_source",
-    "refuse_what_is_not_done",
     "targets",
 ]

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from ...errors import Location
 from ...plan import CParam, Ffi, FfiKind
 
@@ -54,29 +56,33 @@ def pointer(param: CParam, inner: str) -> str:
     return f"*const {inner}" if param.c_type.lstrip().startswith("const ") else f"*mut {inner}"
 
 
-def native_type(param: CParam, handles: dict[str, str]) -> str:
-    """The type of a parameter of an ``extern "C"`` declaration. ``handles`` has the Rust path of
-    the type of each class, by the C type."""
+def native_type(param: CParam, names: Mapping[str, str]) -> str:
+    """The type of a parameter of an ``extern "C"`` declaration. ``names`` has the Rust path of
+    the type of each class and struct, by the C type."""
     ffi = param.ffi
     kind = ffi.kind
     if kind is FfiKind.SCALAR:
         return scalar(ffi.name)
     if kind is FfiKind.POINTER and ffi.inner is not None:
-        return pointer(param, _pointee(ffi.inner, handles))
+        return pointer(param, _pointee(param, ffi.inner, names))
     if kind is FfiKind.HANDLE:
-        return pointer(param, handles[ffi.name])
+        return pointer(param, names[ffi.name])
+    if kind is FfiKind.CHAR_POINTER:
+        return pointer(param, f"{CORE}::c_char")
     raise Unsupported(f"the C type of kind '{kind.value}' is not supported in Rust yet")
 
 
-def _pointee(ffi: Ffi, handles: dict[str, str]) -> str:
+def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:
     if ffi.kind is FfiKind.SCALAR:
         return scalar(ffi.name)
-    if ffi.kind is FfiKind.POINTER and ffi.inner is not None:
-        # A pointer to a pointer: the ``out_self`` of a constructor.
-        return f"*mut {_pointee(ffi.inner, handles)}"
     if ffi.kind is FfiKind.HANDLE:
         # The handle of a class is itself a pointer to it.
-        return f"*mut {handles[ffi.name]}"
+        return f"*mut {names[ffi.name]}"
+    if ffi.kind is FfiKind.STRUCT:
+        return names[ffi.name]
+    if ffi.kind is FfiKind.VOID_POINTER and param.c_type.replace(" ", "") == "char**":
+        # The text of a result: the library allocates it.
+        return f"*mut {CORE}::c_char"
     raise Unsupported(f"the C type of kind '{ffi.kind.value}' is not supported in Rust yet")
 
 

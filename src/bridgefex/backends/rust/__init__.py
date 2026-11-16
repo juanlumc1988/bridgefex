@@ -17,7 +17,6 @@ from .module import (
     header_module,
     header_source,
     native_source,
-    refuse_what_is_not_done,
 )
 from .naming import header_problem, module_problem
 from .source import Source
@@ -53,10 +52,6 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
     if reasons:
         raise GenerationError([Diagnostic(reason) for reason in reasons])
     names = build_names(plan)
-    try:
-        refuse_what_is_not_done(plan)
-    except Unsupported as error:
-        raise GenerationError([Diagnostic(f"Rust: {error}", error.location)]) from error
     files: dict[str, str] = {}
     renderer = Renderer(_TEMPLATES, plan, files)
     base = f"rust/{plan.name}"
@@ -69,6 +64,7 @@ def render(plan: ModulePlan, fingerprint: str) -> dict[str, str]:
         "fingerprint": fingerprint,
         "last_error": plan.last_error,
         "api_fingerprint": plan.api_fingerprint_function,
+        "free": plan.free_function,
     }
     renderer.put(f"{base}/Cargo.toml", "Cargo.toml.j2", **context)
     renderer.put(f"{base}/build.rs", "build.rs.j2", **context)

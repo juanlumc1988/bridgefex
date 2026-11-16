@@ -91,6 +91,74 @@ pub(crate) fn check(status: i32) -> Result<()> {
     }
 }
 
+/// An argument of an enum whose value is not one that C++ defines.
+#[allow(dead_code)]
+pub(crate) fn check_enum(value: i128, low: i128, high: i128, name: &str) -> Result<()> {
+    if value < low || value > high {
+        Err(Error::new(
+            ErrorKind::InvalidArgument,
+            format!("{name}: {value} is not a value of the enum (it has {low}..{high})"),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+/// A text as a C string. C++ reads up to the first NUL: a text that has one is refused.
+#[allow(dead_code)]
+pub(crate) fn c_string(text: &str, name: &str) -> Result<::std::ffi::CString> {
+    ::std::ffi::CString::new(text).map_err(|_| {
+        Error::new(ErrorKind::InvalidArgument, format!("{name}: the text has a NUL"))
+    })
+}
+
+/// The text that C++ allocated for a result: it is released when this is dropped, and the bytes
+/// are copied out of it before.
+#[allow(dead_code)]
+pub(crate) struct Text {
+    data: *mut ::core::ffi::c_char,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl Text {
+    pub(crate) fn new() -> Text {
+        Text { data: ::core::ptr::null_mut(), size: 0 }
+    }
+
+    pub(crate) fn data(&mut self) -> *mut *mut ::core::ffi::c_char {
+        &mut self.data
+    }
+
+    pub(crate) fn size(&mut self) -> *mut usize {
+        &mut self.size
+    }
+
+    pub(crate) fn is_null(&self) -> bool {
+        self.data.is_null()
+    }
+
+    pub(crate) fn into_bytes(self) -> ::std::vec::Vec<u8> {
+        if self.data.is_null() {
+            return ::std::vec::Vec::new();
+        }
+        unsafe { ::core::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }.to_vec()
+    }
+
+    /// The text as UTF-8: what is not valid is replaced by U+FFFD.
+    pub(crate) fn into_string(self) -> ::std::string::String {
+        ::std::string::String::from_utf8_lossy(&self.into_bytes()).into_owned()
+    }
+}
+
+impl Drop for Text {
+    fn drop(&mut self) {
+        if !self.data.is_null() {
+            unsafe { native::demo_free(self.data.cast()) }
+        }
+    }
+}
+
 const FINGERPRINT: &str = "40e3edfbcff24a2332e913c1e9603d6e";
 
 static STATE: AtomicU8 = AtomicU8::new(0);

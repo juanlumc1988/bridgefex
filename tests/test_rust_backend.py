@@ -16,7 +16,7 @@ from tests.conformance import runner_rust
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
 
-PRELUDE = "#pragma once\n#include <cstddef>\n#include <cstdint>\n"
+PRELUDE = "#pragma once\n#include <cstddef>\n#include <cstdint>\n#include <string>\n"
 
 
 def generate(
@@ -158,20 +158,11 @@ def test_the_build_script_links_the_library_from_the_variables_of_the_module(
 # What is refused ---------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("code", "what"),
-    [
-        ("enum class Color { Red };\nint f(Color c);\n", "enum"),
-        ("struct P { int x; };\nint f(P p);\n", "struct"),
-    ],
-)
-def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(
-    tmp_path: Path, code: str, what: str
-) -> None:
+def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(tmp_path: Path) -> None:
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, code)
-    assert f"Rust: the {what}" in str(raised.value)
+        generate(tmp_path, "#include <vector>\nint f(const std::vector<int>& a);\n")
     assert "not supported in Rust yet" in str(raised.value)
+    assert "Rust:" in str(raised.value)
 
 
 def test_two_functions_with_the_same_rust_name_are_refused(tmp_path: Path) -> None:
@@ -254,3 +245,91 @@ def test_unnamed_and_equal_parameters_get_different_names(tmp_path: Path, cargo:
     api = source(generate(tmp_path, code, verify=True))
     assert "arg1: " in api
     assert "x_: " in api
+
+
+# Enums, structs and strings ---------------------------------------------------------------------
+
+
+def test_an_enum_is_a_type_that_holds_the_integer_with_a_constant_for_each_enumerator(
+    tmp_path: Path,
+) -> None:
+    code = "enum class Color : std::uint8_t { Red, Green = 200, kLowLevel = 255, Alias = 200 };\n"
+    api = source(generate(tmp_path, code))
+    assert "#[repr(transparent)]" in api
+    assert "pub struct Color(pub u8);" in api
+    assert "pub const RED: Color = Color(0);" in api
+    assert "pub const K_LOW_LEVEL: Color = Color(255);" in api
+    # An alias has a constant, and the first enumerator names the value.
+    assert "pub const ALIAS: Color = Color(200);" in api
+    assert api.count("200 => f.write_str") == 1
+    assert '200 => f.write_str("Color::GREEN")' in api
+
+
+def test_an_enum_without_a_fixed_type_checks_its_argument(tmp_path: Path) -> None:
+    code = "enum Mode { Off, On, Auto = 5 };\nint f(Mode m);\n"
+    api = source(generate(tmp_path, code))
+    assert 'crate::runtime::check_enum(m.0 as i128, 0, 7, "m")?;' in api
+
+
+def test_two_enumerators_with_the_same_rust_name_are_refused(tmp_path: Path) -> None:
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, "enum Mode { Low_Level, LowLevel };\n")
+    assert "get the Rust name 'LOW_LEVEL'" in str(raised.value)
+
+
+def test_a_struct_is_the_mirror_of_the_c_struct(tmp_path: Path) -> None:
+    code = "struct P { double x; std::uint8_t tag[3]; };\nP twice(P p);\n"
+    api = source(generate(tmp_path, code))
+    assert "#[repr(C)]" in api
+    assert "#[derive(Clone, Copy, Debug, PartialEq)]" in api
+    assert "pub x: f64," in api
+    assert "pub tag: [u8; 3]," in api
+    assert "pub fn defaults() -> crate::Result<Self>" in api
+    assert "pub fn twice(p: crate::api::P) -> crate::Result<crate::api::P>" in api
+
+
+def test_an_enum_nested_in_a_class_is_in_a_module_with_the_name_of_the_class(
+    tmp_path: Path,
+) -> None:
+    code = (
+        "class Lamp { public: enum class State { Off, On }; Lamp(); ~Lamp(); "
+        "State state() const; };\n"
+    )
+    api = source(generate(tmp_path, code))
+    assert "pub mod lamp {" in api
+    assert "-> crate::Result<crate::api::lamp::State>" in api
+
+
+def test_a_string_is_a_str_in_and_a_string_out(tmp_path: Path) -> None:
+    code = "std::string echo(const std::string& s);\nconst char* maybe(const char* s);\n"
+    api = source(generate(tmp_path, code))
+    assert "pub fn echo(s: &str) -> crate::Result<::std::string::String>" in api
+    # A const char* may be NULL, and C++ reads up to a NUL: the text cannot have one.
+    assert "-> crate::Result<::core::option::Option<::std::string::String>>" in api
+    assert 'crate::runtime::c_string(s, "s")?' in api
+
+
+def test_a_nullable_const_char_pointer_is_an_option(tmp_path: Path) -> None:
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_maybe]\ns = "nullable"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + "int maybe(const char* s);\n", encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    api = source(bridgefex.generate([path], options).files)
+    assert "s: ::core::option::Option<&str>" in api
+
+
+def test_enums_structs_and_strings_compile(tmp_path: Path, cargo: None) -> None:
+    code = """
+enum class Color : std::uint8_t { Red, Green = 200 };
+enum Mode { Off, On };
+struct Point { double x; double y; };
+struct Line { Point from; Point to; Color color[2]; };
+class Lamp { public: enum class State { Off, On }; Lamp(); ~Lamp(); State state() const; };
+Line make(Point a, Point type, Mode m, Color c);
+std::string echo(const std::string& s);
+const char* maybe(const char* s);
+"""
+    generate(tmp_path, code, verify=True)
