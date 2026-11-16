@@ -11,6 +11,26 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ENM_LIB_CXX");
     if let Ok(dir) = std::env::var("ENM_LIB_DIR") {
         println!("cargo:rustc-link-search=native={dir}");
+        // A library that is rebuilt is linked again (a static one is part of the crate: cargo
+        // would not see that it changed).
+        let mut found = false;
+        for name in [
+            "libenm.so",
+            "libenm.dylib",
+            "libenm.a",
+            "libenm.dll.a",
+            "enm.dll",
+            "enm.lib",
+        ] {
+            let file = std::path::Path::new(&dir).join(name);
+            if file.exists() {
+                println!("cargo:rerun-if-changed={}", file.display());
+                found = true;
+            }
+        }
+        if !found {
+            println!("cargo:warning=no library of `enm` in {dir} (ENM_LIB_DIR)");
+        }
     }
     let kind = std::env::var("ENM_LIB_KIND").unwrap_or_else(|_| String::from("dylib"));
     println!("cargo:rustc-link-lib={kind}=enm");

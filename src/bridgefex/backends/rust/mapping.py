@@ -51,6 +51,18 @@ def scalar(c_name: str) -> str:
     return SCALARS[c_name]
 
 
+_NOT_YET = {
+    FfiKind.CALLBACK: "a callback (a std::function)",
+    FfiKind.RELEASE: "a callback (a std::function)",
+    FfiKind.POINTER: "a container (std::vector, std::array) or a span",
+}
+
+
+def _not_yet(kind: FfiKind) -> Unsupported:
+    what = _NOT_YET.get(kind, f"the C type of kind '{kind.value}'")
+    return Unsupported(f"{what} is not supported in Rust yet")
+
+
 def pointer(param: CParam, inner: str) -> str:
     """A pointer to ``inner`` as the C declaration of the parameter says it (``const T*``)."""
     return f"*const {inner}" if param.c_type.lstrip().startswith("const ") else f"*mut {inner}"
@@ -73,7 +85,7 @@ def native_type(param: CParam, names: Mapping[str, str]) -> str:
         return pointer(param, names[ffi.name])
     if kind is FfiKind.CHAR_POINTER:
         return pointer(param, f"{CORE}::c_char")
-    raise Unsupported(f"the C type of kind '{kind.value}' is not supported in Rust yet")
+    raise _not_yet(kind)
 
 
 def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:
@@ -87,7 +99,7 @@ def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:
     if ffi.kind is FfiKind.VOID_POINTER and param.c_type.replace(" ", "") == "char**":
         # The text of a result: the library allocates it.
         return f"*mut {CORE}::c_char"
-    raise Unsupported(f"the C type of kind '{ffi.kind.value}' is not supported in Rust yet")
+    raise _not_yet(ffi.kind)
 
 
 def restype(function: CFunction, names: Mapping[str, str]) -> str:
@@ -101,4 +113,4 @@ def restype(function: CFunction, names: Mapping[str, str]) -> str:
     if ffi.kind is FfiKind.HANDLE:
         constant = function.c_return.lstrip().startswith("const ")
         return f" -> {'*const' if constant else '*mut'} {names[ffi.name]}"
-    raise Unsupported(f"the C result of kind '{ffi.kind.value}' is not supported in Rust yet")
+    raise _not_yet(ffi.kind)

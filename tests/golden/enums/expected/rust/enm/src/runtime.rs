@@ -83,6 +83,7 @@ pub type Result<T> = ::core::result::Result<T, Error>;
 
 /// The status of a call: the error that it gave, or nothing.
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn check(status: i32) -> Result<()> {
     if status == 0 {
         Ok(())
@@ -165,6 +166,7 @@ static STATE: AtomicU8 = AtomicU8::new(0);
 
 /// The first call of the bindings checks that the library is the one they were generated for.
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn ensure() -> Result<()> {
     match STATE.load(Ordering::Acquire) {
         1 => Ok(()),

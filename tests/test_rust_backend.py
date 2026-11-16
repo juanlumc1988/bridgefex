@@ -167,6 +167,18 @@ def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(tmp_path: P
     assert "Rust:" in str(raised.value)
 
 
+def test_what_is_not_supported_yet_says_what_it_is_and_where(tmp_path: Path) -> None:
+    code = "#include <functional>\n#include <vector>\nvoid f(std::function<void ()> done);\n"
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code)
+    assert "api.h:" in str(raised.value)
+    assert "a callback (a std::function) is not supported in Rust yet" in str(raised.value)
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, "#include <vector>\nstd::vector<int> make();\n")
+    assert "api.h:" in str(raised.value)
+    assert "a container (std::vector, std::array) or a span is not supported" in str(raised.value)
+
+
 def test_two_functions_with_the_same_rust_name_are_refused(tmp_path: Path) -> None:
     code = "int isZero(int a);\nint is_zero(int a);\n"
     with pytest.raises(GenerationError) as raised:
@@ -182,14 +194,21 @@ def test_a_constructor_and_a_method_cannot_both_be_new(tmp_path: Path, method: s
     assert "gets the Rust name 'new'" in str(raised.value)
 
 
-@pytest.mark.parametrize("name", ["std", "core", "alloc", "test", "crate", "self", "super", "type"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        *["std", "core", "alloc", "test", "crate", "self", "super", "type"],
+        # The libraries that every program links: the module's would be found in their place.
+        *["c", "m", "dl", "rt", "pthread", "gcc_s"],
+    ],
+)
 def test_a_module_that_a_crate_cannot_have_is_refused(tmp_path: Path, name: str) -> None:
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, "int f(int a);\n", module=name)
     assert "Rust: cannot name the module" in str(raised.value)
 
 
-@pytest.mark.parametrize("stem", ["native", "runtime"])
+@pytest.mark.parametrize("stem", ["native", "runtime", "lib", "main"])
 def test_a_header_that_would_be_a_module_of_the_runtime_is_refused(
     tmp_path: Path, stem: str
 ) -> None:
@@ -485,3 +504,186 @@ def test_the_compiler_refuses_what_a_borrowed_result_forbids(
     assert error is not None, "the program was accepted"
     assert f"error[{code}]" in error, error
     assert refused(tmp_path / "good", BORROWING, good) is None
+
+
+# What the reviewers of the first phase found ------------------------------------------------------
+
+
+def test_a_parameter_never_starts_with_the_prefix_of_the_locals() -> None:
+    assert naming.parameter("__result") == "_result"
+    assert naming.parameter("___x") == "_x"
+    assert naming.parameter("__c_x") == "_c_x"
+    assert naming.parameter("_x") == "_x"
+    assert naming.parameter("x") == "x"
+
+
+def test_two_c_string_parameters_get_two_locals(tmp_path: Path, cargo: None) -> None:
+    """``x`` and ``_x`` would both have the local ``__c_x``: the second would hide the first."""
+    api = source(generate(tmp_path, "int f(const char* x, const char* _x);\n", verify=True))
+    assert "let __c_x = " in api
+    assert "let __c_x_ = " in api
+
+
+@pytest.mark.parametrize(
+    ("name", "rust"),
+    [
+        ("Self", "Self_"),
+        ("self", "Self_"),
+        ("Ok", "Ok_"),
+        ("Err", "Err_"),
+        ("Some", "Some_"),
+        ("None", "None_"),
+        ("none", "None_"),
+        ("Option", "Option"),
+        ("Result", "Result"),
+    ],
+)
+@pytest.mark.parametrize("kind", ["enum class {name} {{ A, B }};", "struct {name} {{ int x; }};"])
+def test_a_type_named_like_self_or_a_constructor_of_the_prelude_compiles(
+    tmp_path: Path, cargo: None, name: str, rust: str, kind: str
+) -> None:
+    """An enum is a tuple struct, and its name would hide ``Ok``, ``Some``... in the bodies
+    that use them; ``Self`` cannot name a type."""
+    code = kind.format(name=name) + "\nconst char* maybe(int a);\nint plain(int a);\n"
+    api = source(generate(tmp_path, code, verify=True))
+    assert f"pub struct {rust}" in api
+
+
+@pytest.mark.parametrize(("name", "rust"), [("Self", "Self_"), ("None", "None_"), ("Ok", "Ok_")])
+def test_a_class_named_like_self_or_a_constructor_of_the_prelude_compiles(
+    tmp_path: Path, cargo: None, name: str, rust: str
+) -> None:
+    code = f"class {name} {{ public: {name}(); ~{name}(); int get() const; }};\n"
+    api = source(generate(tmp_path, code, verify=True))
+    assert f"pub struct {rust} " in api
+
+
+@pytest.mark.parametrize("code", ["enum class Color { Red, Green };\n", ""])
+def test_a_module_without_functions_compiles(tmp_path: Path, cargo: None, code: str) -> None:
+    """Nothing calls the check of the library or the error of a status: they are not dead code."""
+    generate(tmp_path, code, verify=True)
+
+
+def test_a_method_named_like_a_conversion_of_the_bindings_is_renamed(
+    tmp_path: Path, cargo: None
+) -> None:
+    """``as_<base>`` and ``into_base`` are what the bindings add for the base classes: a method
+    of the header with one of these names would be a duplicate, or be hidden by the one of
+    ``Owned``."""
+    code = """
+class A { public: A(); virtual ~A(); };
+class B { public: B(); virtual ~B(); };
+class D : public A, public B {
+public:
+    D();
+    int as_b() const;
+    int as_b_mut();
+    int into_base();
+    int into_b();
+};
+"""
+    api = flat(source(generate(tmp_path, code, verify=True)))
+    assert "pub fn as_b_(&self)" in api
+    assert "pub fn as_b_mut_(&mut self)" in api
+    assert "pub fn into_base_(&mut self)" in api
+    assert "pub fn into_b_(&mut self)" in api
+    # What the bindings add is still there, under its name.
+    assert "pub fn as_b(&self) -> &crate::api::B" in api
+    assert "pub fn into_base(self) -> crate::Owned<crate::api::A>" in api
+    assert "pub fn into_b(self) -> crate::Owned<crate::api::B>" in api
+
+
+def test_a_reference_that_borrows_from_nothing_is_unsafe_also_when_it_is_const(
+    tmp_path: Path,
+) -> None:
+    """C++ may destroy the object that nobody in Rust owns (a registry that erases it), and a
+    ``&'static`` would still be there."""
+    code = """
+class W { public: W(); ~W(); int v() const; };
+class Widgets {
+public:
+    static void erase(int id);
+    static const W& get(int id);
+    static W& edit(int id);
+};
+const W& registered(int id);
+"""
+    api = flat(source(generate(tmp_path, code)))
+    assert (
+        "pub unsafe fn get(id: ::core::ffi::c_int) -> crate::Result<&'static crate::api::W>" in api
+    )
+    assert (
+        "pub unsafe fn edit(id: ::core::ffi::c_int) -> crate::Result<&'static mut crate::api::W>"
+    ) in api
+    assert "pub unsafe fn registered(id: ::core::ffi::c_int)" in api
+    assert "C++ may destroy it: the reference must not be used after that." in api
+    assert "pub fn erase(id: ::core::ffi::c_int)" in api
+
+
+def test_a_const_pointer_that_borrows_from_nothing_is_unsafe(tmp_path: Path) -> None:
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_find]\nreturn = "borrowed"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(
+        PRELUDE + "class W { public: W(); ~W(); };\nconst W* find(int id);\n", encoding="utf-8"
+    )
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    api = flat(source(bridgefex.generate([path], options).files))
+    assert (
+        "pub unsafe fn find(id: ::core::ffi::c_int) -> "
+        "crate::Result<::core::option::Option<&'static crate::api::W>>"
+    ) in api
+
+
+def test_a_borrowed_result_that_has_an_owner_stays_safe(tmp_path: Path) -> None:
+    code = (
+        "class W { public: W(); ~W(); };\nclass H { public: H(); ~H(); const W& get() const; };\n"
+    )
+    api = flat(source(generate(tmp_path, code)))
+    assert "pub fn get(&self) -> crate::Result<&crate::api::W>" in api
+
+
+def test_bytes_of_a_const_char_pointer_may_be_none(tmp_path: Path, cargo: None) -> None:
+    """A ``const char*`` result may be NULL, bytes or not: ``Option<Vec<u8>>``."""
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_raw]\nreturn = "bytes"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + "const char* raw();\nstd::string text();\n", encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=True, annotations=(annotations,)
+    )
+    api = flat(source(bridgefex.generate([path], options).files))
+    assert "pub fn raw() -> crate::Result<::core::option::Option<::std::vec::Vec<u8>>>" in api
+    assert "pub fn text() -> crate::Result<::std::string::String>" in api
+
+
+def test_what_a_static_function_that_returns_an_object_keeps_is_kept_by_that_object(
+    tmp_path: Path,
+) -> None:
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text(
+        '[bind_View_of]\nnode = "retain"\n[bind_keep]\nnode = "retain"\n', encoding="utf-8"
+    )
+    path = tmp_path / "api.h"
+    path.write_text(
+        PRELUDE + "#include <memory>\nclass Node { public: Node(); ~Node(); };\n"
+        "class View { public: ~View(); static std::unique_ptr<View> of(Node& node); };\n"
+        "void keep(Node& node);\n",
+        encoding="utf-8",
+    )
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    api = flat(source(bridgefex.generate([path], options).files))
+    assert "for as long as the object that it returns uses it" in api
+    assert "for as long as the program uses it" in api
+
+
+def test_the_build_script_links_a_library_again_when_it_is_rebuilt(tmp_path: Path) -> None:
+    build = generate(tmp_path, "int twice(int value);\n")["rust/bind/build.rs"]
+    for name in ("libbind.so", "libbind.dylib", "libbind.a", "bind.dll", "bind.lib"):
+        assert f'"{name}"' in build
+    assert "cargo:rerun-if-changed=" in build
+    assert "cargo:warning=no library of `bind` in" in build

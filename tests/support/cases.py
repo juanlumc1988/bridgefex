@@ -122,6 +122,29 @@ def load_case(directory: Path) -> Case:
     )
 
 
+def adhoc_case(
+    directory: Path, module: str, header: str, implementation: str, *, std: str = "c++17"
+) -> Case:
+    """A case of one header (``<module>.h``, in the namespace ``module``) and its implementation,
+    for the tests that need a library that no golden case has. ``directory`` must be empty."""
+    (directory / "input").mkdir(parents=True)
+    (directory / "impl").mkdir()
+    path = directory / "input" / f"{module}.h"
+    path.write_text("#pragma once\n" + header, encoding="utf-8")
+    (directory / "impl" / f"{module}.cpp").write_text(
+        f'#include "{module}.h"\n' + implementation, encoding="utf-8"
+    )
+    return Case(
+        name=module,
+        directory=directory,
+        module=module,
+        headers=(path,),
+        std=std,
+        min_cxx="c++11",
+        languages=("python", "rust"),
+    )
+
+
 def all_cases() -> list[Case]:
     return [load_case(path.parent) for path in sorted(GOLDEN_DIR.glob("*/case.toml"))]
 

@@ -426,7 +426,7 @@ impl Tree {
 
     /// `static own::Tree& own::Tree::global()`
     ///
-    /// Unsafe: the object belongs to nobody in particular, and every call gives a `&mut` to it: do not keep two.
+    /// Unsafe: the object belongs to nobody in particular, C++ may destroy it, and every call gives a `&mut` to it: do not keep two.
     pub unsafe fn global() -> crate::Result<&'static mut crate::tree::Tree> {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::tree::Tree = ::core::ptr::null_mut();

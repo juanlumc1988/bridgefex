@@ -66,8 +66,9 @@ class Lowering:
     comes from."""
 
     unsafe: bool = False
-    """The function is ``unsafe``: it gives a ``&mut`` to an object that nobody owns, and the
-    caller must not hold two."""
+    """The function is ``unsafe``: it gives a reference to an object that nobody in Rust owns
+    (valid until C++ destroys it, and for a ``&mut`` the only one), or C++ keeps a pointer to what
+    it is given."""
 
 
 def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
@@ -78,9 +79,7 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
     if isinstance(type_, StringType):
         if isinstance(spec, ParamSpec):
             return "::core::option::Option<&str>" if nullable else "&str"
-        if spec.as_bytes:
-            return "::std::vec::Vec<u8>"
-        text = "::std::string::String"
+        text = "::std::vec::Vec<u8>" if spec.as_bytes else "::std::string::String"
         return text if type_.sized else f"::core::option::Option<{text}>"
     if isinstance(type_, EnumRef) and spec.enum is not None:
         return names.enums[spec.enum.c_type]
@@ -165,6 +164,16 @@ class _Lowerer:
             and isinstance(spec.type, ClassRef)
             and is_borrowed(spec, spec.type)
             and not is_constant(spec.type)
+        )
+
+    def gives_object(self) -> bool:
+        """The result is an object that the caller owns (and that may keep what the function was
+        given)."""
+        spec = self.plan.result
+        return (
+            spec is not None
+            and isinstance(spec.type, ClassRef)
+            and not is_borrowed(spec, spec.type)
         )
 
     def borrowing(self, spec: ParamSpec) -> bool:
@@ -265,7 +274,7 @@ class _Lowerer:
             self.lowering.unsafe = True
             holder = "`self`" if self.plan.kind is CallableKind.METHOD else "the new object"
             if self.plan.kind in (CallableKind.STATIC, CallableKind.FUNCTION):
-                holder = "the program"
+                holder = "the object that it returns" if self.gives_object() else "the program"
             self.lowering.remarks.append(
                 f"Unsafe: C++ keeps a pointer to `{spec.name}`, which must stay valid for as long "
                 f"as {holder} uses it, and nobody else may use it meanwhile."
@@ -307,7 +316,9 @@ class _Lowerer:
             self.arguments[spec.size] = f"{name}.len()"
             return
         # A const char*: C++ reads up to the first NUL, so the text must not have one.
-        local = f"{L}c_{name}"
+        # Not a double underscore in the middle (a lint), and one name for each parameter.
+        local = unique_name(f"{L}c_{name.lstrip('_')}", frozenset(self.taken))
+        self.taken.add(local)
         if nullable:
             self.before.append(
                 f'let {local} = {name}.map(|text| {RUNTIME}::c_string(text, "{spec.name}"))'
@@ -377,11 +388,15 @@ class _Lowerer:
             constant = is_constant(ref)
             public = f"&{lifetime}{path}" if constant else f"&{lifetime}mut {path}"
             view = "as_ref" if constant else "as_mut"
-            if self.lifetime == "'static" and not constant:
+            if self.lifetime == "'static":
+                # Nothing in Rust owns the object, and C++ may destroy it (any function can).
                 self.lowering.unsafe = True
                 self.lowering.remarks.append(
-                    "Unsafe: the object belongs to nobody in particular, and every call gives "
-                    "a `&mut` to it: do not keep two."
+                    "Unsafe: the object belongs to nobody in particular, and C++ may destroy it: "
+                    "the reference must not be used after that."
+                    if constant
+                    else "Unsafe: the object belongs to nobody in particular, C++ may destroy it, "
+                    "and every call gives a `&mut` to it: do not keep two."
                 )
             if nullable:
                 return (

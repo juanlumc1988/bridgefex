@@ -22,7 +22,7 @@ from _pytest.mark.structures import ParameterSet
 
 from tests.conformance import runner_rust
 from tests.support.build import build
-from tests.support.cases import Case, all_cases
+from tests.support.cases import Case, adhoc_case, all_cases
 from tests.support.toolchain import Toolchain, asan_runtime
 
 CASES = [case for case in all_cases() if case.check_rust.exists()]
@@ -113,17 +113,10 @@ def test_the_round_trip_is_clean_under_asan(asan_build: tuple[Case, Path, Path, 
     assert "round trip OK" in completed.stdout
 
 
-def test_a_static_library_is_linked_with_the_runtime_of_cpp(
-    toolchain: Toolchain, tmp_path: Path
-) -> None:
-    """With ``<MODULE>_LIB_KIND=static`` the build script also links the C++ runtime that the
-    library needs: the program is then run without the library on its path."""
-    if toolchain.kind != "gnu" or not sys.platform.startswith("linux") or not shutil.which("ar"):
-        pytest.skip("needs GCC or Clang on Linux, and ar")
-    case = next(case for case in CASES if case.name == "ownership")
-    shared, output = build(case, toolchain, tmp_path / "shared")
-    directory = tmp_path / "static"
-    directory.mkdir()
+def _archive(toolchain: Toolchain, case: Case, output: Path, directory: Path) -> Path:
+    """The library of ``case`` as a static archive (what the C layer in ``output`` and the
+    implementation of the case make), in ``directory``."""
+    directory.mkdir(exist_ok=True)
     objects = []
     sources = [*sorted((output / "c").glob("*.cpp")), *case.impl_sources]
     for source in sources:
@@ -146,8 +139,22 @@ def test_a_static_library_is_linked_with_the_runtime_of_cpp(
         )
         assert completed.returncode == 0, completed.stderr
         objects.append(str(target))
-    archive = directory / "libown.a"
+    archive = directory / f"lib{case.module}.a"
+    archive.unlink(missing_ok=True)
     subprocess.run(["ar", "rcs", str(archive), *objects], check=True)
+    return archive
+
+
+def test_a_static_library_is_linked_with_the_runtime_of_cpp(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """With ``<MODULE>_LIB_KIND=static`` the build script also links the C++ runtime that the
+    library needs: the program is then run without the library on its path."""
+    if toolchain.kind != "gnu" or not sys.platform.startswith("linux") or not shutil.which("ar"):
+        pytest.skip("needs GCC or Clang on Linux, and ar")
+    case = next(case for case in CASES if case.name == "ownership")
+    shared, output = build(case, toolchain, tmp_path / "shared")
+    archive = _archive(toolchain, case, output, tmp_path / "static")
     executable = runner_rust.build_program(
         case,
         archive,
@@ -388,3 +395,91 @@ def test_the_compiler_refuses_it(
     assert f"error[{code}]" in str(refused.value), str(refused.value)
     # The corrected program is accepted: the refusal was of the claim, and of nothing else.
     runner_rust.check_program(case, library, output, f"good_{unique}", _program(case, good))
+
+
+# Libraries that no golden case has ----------------------------------------------------------------
+
+
+def test_a_parameter_named_like_a_local_of_the_bindings_gets_its_argument(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """The bodies call the C function with locals that start with two underscores (``__result``,
+    ``__object``): a parameter of the header that is called so has another name in Rust."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "#include <string>\nnamespace calc {\nint a(int __result, int __object);\n"
+        "int b(int x, int __result);\n"
+        "std::string c(const char* __c_x, const std::string& __text);\n}\n",
+        "namespace calc {\n"
+        "int a(int __result, int __object) { return __result * 10 + __object; }\n"
+        "int b(int x, int __result) { return x * 10 + __result; }\n"
+        "std::string c(const char* __c_x, const std::string& __text) {\n"
+        "    return std::string(__c_x) + __text;\n}\n}\n",
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+fn main() -> calc::Result<()> {
+    assert_eq!(calc::calc::a(7, 3)?, 73);
+    assert_eq!(calc::calc::b(7, 3)?, 73);
+    assert_eq!(calc::calc::c("ab", "cd")?, "abcd");
+    println!("round trip OK");
+    Ok(())
+}
+"""
+    executable = runner_rust.build_program(case, library, output, "names", program)
+    completed = subprocess.run(
+        [str(executable)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=runner_rust.environment(case, output, library),
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "round trip OK" in completed.stdout
+
+
+def test_a_static_library_that_is_rebuilt_is_linked_again(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """A static library is part of the crate that links it: cargo does not see that the file
+    changed unless the build script says so, and the program would keep the old C++ code."""
+    if toolchain.kind != "gnu" or not sys.platform.startswith("linux") or not shutil.which("ar"):
+        pytest.skip("needs GCC or Clang on Linux, and ar")
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "namespace calc { int g(int x); }\n",
+        "namespace calc { int g(int x) { return x * 2; } }\n",
+    )
+    _, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+fn main() -> calc::Result<()> {
+    println!("{}", calc::calc::g(21)?);
+    Ok(())
+}
+"""
+    results = []
+    for factor in (2, 3):
+        implementation = case.directory / "impl" / "calc.cpp"
+        implementation.write_text(
+            f'#include "calc.h"\nnamespace calc {{ int g(int x) {{ return x * {factor}; }} }}\n',
+            encoding="utf-8",
+        )
+        archive = _archive(toolchain, case, output, tmp_path / "static")
+        executable = runner_rust.build_program(
+            case,
+            archive,
+            output,
+            f"static_{factor}",
+            program,
+            variables={"CALC_LIB_KIND": "static"},
+        )
+        clean = {key: value for key, value in os.environ.items() if key != "LD_LIBRARY_PATH"}
+        completed = subprocess.run(
+            [str(executable)], capture_output=True, text=True, check=False, env=clean, timeout=600
+        )
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        results.append(completed.stdout.strip())
+    assert results == ["42", "63"]

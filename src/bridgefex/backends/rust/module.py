@@ -23,7 +23,7 @@ from ...plan import (
 )
 from .lower import Names, lower_callable
 from .mapping import Unsupported, native_type, restype, scalar
-from .naming import identifier, pascal, snake, upper_snake
+from .naming import identifier, snake, type_name, upper_snake
 from .source import Source
 
 
@@ -84,20 +84,20 @@ def build_names(plan: ModulePlan) -> Names:
                     )
                 )
             for item in owner.enums:
-                enums[item.c_type] = f"{prefix}::{module}::{pascal(item.model.name)}"
+                enums[item.c_type] = f"{prefix}::{module}::{type_name(item.model.name)}"
                 enum_plans[item.model.usr] = item
 
         for item in header.items:
             if isinstance(item, ClassPlan | EnumPlan | StructPlan):
-                claim(pascal(item.model.name), item.model.qualified_name, item.model.location)
+                claim(type_name(item.model.name), item.model.qualified_name, item.model.location)
             if isinstance(item, ClassPlan):
-                classes[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                classes[item.c_type] = f"{prefix}::{type_name(item.model.name)}"
                 nested(item)
             elif isinstance(item, EnumPlan):
-                enums[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                enums[item.c_type] = f"{prefix}::{type_name(item.model.name)}"
                 enum_plans[item.model.usr] = item
             elif isinstance(item, StructPlan):
-                structs[item.c_type] = f"{prefix}::{pascal(item.model.name)}"
+                structs[item.c_type] = f"{prefix}::{type_name(item.model.name)}"
                 struct_plans[item.model.usr] = item
                 nested(item)
     if errors:
@@ -135,7 +135,7 @@ def _declare(src: Source, function: CFunction, handles: dict[str, str]) -> None:
         )
         returns = restype(function, handles)
     except Unsupported as error:
-        raise Unsupported(f"'{function.description}': {error}") from error
+        raise Unsupported(f"'{function.description}': {error}", function.location) from error
     src.line(f"pub(crate) fn {function.name}({parameters}){returns};")
 
 
@@ -165,14 +165,34 @@ def header_source(plan: ModulePlan, header: HeaderPlan, names: Names) -> str:
     return src.text()
 
 
-def callable_name(call: CallablePlan, constructors: int = 0) -> str:
+def callable_name(
+    call: CallablePlan, constructors: int = 0, reserved: frozenset[str] = frozenset()
+) -> str:
     """The Rust name of a function, method or constructor: the C++ name in snake case and the
     overload suffix of the C API; a constructor is ``new`` (and its suffix, if the class has
-    several)."""
+    several). A method that has the name of one that the bindings add to the class (``reserved``:
+    ``as_<base>``, ``into_base``) gets a trailing underscore, as a keyword does."""
     suffix = snake(call.suffix) if call.suffix else ""
     if call.kind is CallableKind.CONSTRUCTOR:
         return identifier("new" + ("" if constructors == 1 else suffix))
-    return identifier(snake(call.name) + suffix)
+    name = identifier(snake(call.name) + suffix)
+    return f"{name}_" if name in reserved else name
+
+
+def generated_names(cls: ClassPlan) -> frozenset[str]:
+    """The methods that the bindings add to a class (and to its ``Owned``) for its base classes:
+    a method of the header cannot have these names, or it would hide them (or be hidden)."""
+    views = {view.c_type for view in cls.views}
+    names: set[str] = set()
+    for position, base in enumerate(cls.bases):
+        if base.c_type not in views:
+            continue
+        word = snake(base.model.name)
+        if position:
+            names.update((f"as_{word}", f"as_{word}_mut"))
+        if base.model.virtual_destructor:
+            names.add("into_base" if position == 0 else f"into_{word}")
+    return frozenset(names)
 
 
 @dataclass(frozen=True, slots=True)
@@ -199,12 +219,13 @@ def targets(plan: ModulePlan) -> dict[str, Target]:
                 call = item.callable
                 found[call.function.name] = Target(call, f"{module}::{callable_name(call)}")
             elif isinstance(item, ClassPlan):
-                owner = f"{module}::{pascal(item.model.name)}"
+                owner = f"{module}::{type_name(item.model.name)}"
                 for ctor in item.constructors:
                     name = callable_name(ctor, len(item.constructors))
                     found[ctor.function.name] = Target(ctor, f"{owner}::{name}", item.c_type)
+                reserved = generated_names(item)
                 for member in item.members:
-                    name = callable_name(member)
+                    name = callable_name(member, reserved=reserved)
                     static = member.kind is CallableKind.STATIC
                     found[member.function.name] = Target(
                         member, f"{owner}::{name}" if static else name, item.c_type
@@ -213,7 +234,7 @@ def targets(plan: ModulePlan) -> dict[str, Target]:
 
 
 def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
-    name = pascal(cls.model.name)
+    name = type_name(cls.model.name)
     src.doc(cls.model.qualified_name)
     src.line("#[repr(C)]")
     src.open(f"pub struct {name}")
@@ -246,11 +267,21 @@ def _class(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) -> None:
             receiver_ok=True,
             called=callable_name(ctor, len(cls.constructors)),
         )
+    reserved = generated_names(cls)
     for member in cls.members:
         if not first:
             src.line()
         first = False
-        _function(src, plan, member, names, taken, declaring=cls, receiver_ok=True)
+        _function(
+            src,
+            plan,
+            member,
+            names,
+            taken,
+            declaring=cls,
+            receiver_ok=True,
+            called=callable_name(member, reserved=reserved),
+        )
     src.close()
     _inheritance(src, plan, cls, names)
     _nested(src, cls)
@@ -261,7 +292,7 @@ def _inheritance(src: Source, plan: ModulePlan, cls: ClassPlan, names: Names) ->
     reference to the class goes where a reference to the base is expected); the other bases are
     reached with ``as_<base>``. The pointer to a base is not always the pointer to the object, so
     the conversions are those of the C API."""
-    name = pascal(cls.model.name)
+    name = type_name(cls.model.name)
     by_view = {view.c_type: view for view in cls.views}
     for position, base in enumerate(cls.bases):
         view = by_view.get(base.c_type)
@@ -331,7 +362,7 @@ def _enum(src: Source, enum: EnumPlan) -> None:
     """An enum is a type that holds the integer: C++ may give a value that no enumerator has (a
     flag, a value of the range of an enum without a fixed type), which an ``enum`` of Rust cannot
     hold."""
-    name = pascal(enum.model.name)
+    name = type_name(enum.model.name)
     raw = scalar(enum.model.underlying.c_name)
     src.doc(enum.comment)
     src.line("#[repr(transparent)]")
@@ -373,7 +404,7 @@ def _enum(src: Source, enum: EnumPlan) -> None:
 
 def _struct(src: Source, struct: StructPlan, names: Names) -> None:
     """A value struct is the mirror of the C struct: it crosses the boundary as it is."""
-    name = pascal(struct.model.name)
+    name = type_name(struct.model.name)
     src.doc(struct.model.qualified_name)
     src.line("#[repr(C)]")
     src.line("#[derive(Clone, Copy, Debug, PartialEq)]")
