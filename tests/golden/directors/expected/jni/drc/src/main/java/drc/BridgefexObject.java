@@ -165,6 +165,20 @@ public abstract class BridgefexObject implements AutoCloseable {
         }
     }
 
+    /** Keeps a text that C++ points to (see {@code BridgefexRuntime.keptBytes}) as long as the C++ object may use it. */
+    public final void retainText(Object text) {
+        if (text != null) {
+            keepOf().addText(text);
+        }
+    }
+
+    /** Keeps a text that C++ points to for ever: a function or a static method that stores it. */
+    public static void retainTextForever(Object text) {
+        if (text != null) {
+            BridgefexKeep.FOREVER.addText(text);
+        }
+    }
+
     /**
      * The wrapper of an object that C++ owns: it is valid while {@code owners} are. For the
      * generated code.

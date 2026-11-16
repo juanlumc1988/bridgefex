@@ -4,4 +4,4 @@ headers = ["kept.h"]
 std = "c++17"
 min_cxx = "c++17"
 annotations = ["annotations.toml"]
-languages = ["python", "csharp", "rust"]
+languages = ["python", "csharp", "jvm", "jni", "rust"]

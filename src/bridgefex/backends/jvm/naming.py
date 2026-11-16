@@ -46,7 +46,8 @@ OBJECT_MEMBERS = frozenset(
 RESERVED_MEMBERS = OBJECT_MEMBERS | frozenset(
     """
     close isClosed isReadOnly hold retain attach surrender keepOf borrow borrowed
-    setOrigin retainForever checkExact collectOwning cppType wrap director setDirector holdDirector
+    setOrigin retainForever retainText retainTextForever checkExact collectOwning cppType wrap
+    director setDirector holdDirector
     """.split()
 )
 

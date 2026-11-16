@@ -356,6 +356,16 @@ public final class BridgefexRuntime {
         return bytes;
     }
 
+    /**
+     * The bytes as memory of their own that ends with a NUL, for a text that C++ keeps a pointer to: it
+     * lives as long as something refers to it (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static MemorySegment keptBytes(byte[] bytes) {
+        MemorySegment memory = Arena.ofAuto().allocate(bytes.length + 1L);
+        MemorySegment.copy(bytes, 0, memory, ValueLayout.JAVA_BYTE, 0, bytes.length);
+        return memory;
+    }
+
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */
     public static MemorySegment bytes(Arena arena, byte[] bytes) {
         MemorySegment memory = arena.allocate(bytes.length + 1L);
