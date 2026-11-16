@@ -633,3 +633,68 @@ fn main() -> calc::Result<()> {
 }
 """
     assert "checked" in _run(case, library, output, "options", program)
+
+
+def test_what_cpp_keeps_is_passed_as_the_caller_gave_it(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """A ``const char*`` that C++ keeps is the caller's ``&CStr`` itself (the pointer that the
+    library stores is the one of the text), a ``std::string_view`` the caller's ``&str``, and the
+    guard that keeps ``this`` works as long as ``self`` is there."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "#include <cstdint>\n#include <memory>\n#include <string_view>\nnamespace calc {\n"
+        "class Guard { public: Guard(int level); ~Guard(); int level() const; private: int l_; };\n"
+        "class Mutex { public: Mutex(); ~Mutex(); std::unique_ptr<Guard> lock(); "
+        "private: int locks_; };\n"
+        "class Label { public: Label(); ~Label(); void setRaw(const char* text); "
+        "void setView(std::string_view text); std::uint64_t rawAddress() const; "
+        "std::uint64_t viewAddress() const; int viewLength() const; "
+        "private: const char* raw_; std::string_view view_; };\n}\n",
+        "namespace calc {\n"
+        "Guard::Guard(int level) : l_(level) {}\nGuard::~Guard() {}\n"
+        "int Guard::level() const { return l_; }\n"
+        "Mutex::Mutex() : locks_(0) {}\nMutex::~Mutex() {}\n"
+        "std::unique_ptr<Guard> Mutex::lock() { return std::make_unique<Guard>(++locks_); }\n"
+        "Label::Label() : raw_(nullptr) {}\nLabel::~Label() {}\n"
+        "void Label::setRaw(const char* text) { raw_ = text; }\n"
+        "void Label::setView(std::string_view text) { view_ = text; }\n"
+        "std::uint64_t Label::rawAddress() const {\n"
+        "    return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(raw_));\n}\n"
+        "std::uint64_t Label::viewAddress() const {\n"
+        "    const char* data = view_.data();\n"
+        "    return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(data));\n}\n"
+        "int Label::viewLength() const { return static_cast<int>(view_.size()); }\n}\n",
+        annotations=(
+            '[calc_Mutex_lock]\nthis = "retain"\n'
+            '[calc_Label_setRaw]\ntext = "retain"\n[calc_Label_setView]\ntext = "retain"\n'
+        ),
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+use calc::calc::{Label, Mutex};
+use std::ffi::CStr;
+
+fn main() -> calc::Result<()> {
+    let mut label = Label::new()?;
+    let raw = CStr::from_bytes_with_nul(b"kept\\0").unwrap();
+    let view = "a longer text that C++ views";
+    unsafe {
+        label.set_raw(raw)?;
+        label.set_view(view)?;
+    }
+    assert_eq!(label.raw_address()?, raw.as_ptr() as usize as u64);
+    assert_eq!(label.view_address()?, view.as_ptr() as usize as u64);
+    assert_eq!(label.view_length()?, view.len() as i32);
+
+    let mut mutex = Mutex::new()?;
+    let first = unsafe { mutex.lock()? }.expect("a guard");
+    let second = unsafe { mutex.lock()? }.expect("a guard");
+    assert_eq!((first.level()?, second.level()?), (1, 2));
+    drop((first, second));
+    println!("checked");
+    Ok(())
+}
+"""
+    assert "checked" in _run(case, library, output, "kept", program)

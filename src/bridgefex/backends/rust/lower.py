@@ -78,7 +78,10 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
     nullable = isinstance(spec, ParamSpec) and "nullable" in spec.words
     if isinstance(type_, StringType):
         if isinstance(spec, ParamSpec):
-            return "::core::option::Option<&str>" if nullable else "&str"
+            # A const char* that C++ keeps is the caller's C string: a text that is converted
+            # for the call would be gone when it returns.
+            text = "&::core::ffi::CStr" if kept_text(spec) else "&str"
+            return f"::core::option::Option<{text}>" if nullable else text
         text = "::std::vec::Vec<u8>" if spec.as_bytes else "::std::string::String"
         return text if type_.sized else f"::core::option::Option<{text}>"
     if isinstance(type_, EnumRef) and spec.enum is not None:
@@ -86,6 +89,11 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
     if isinstance(type_, StructRef) and spec.struct is not None:
         return names.structs[spec.struct.c_type]
     raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+
+def kept_text(spec: ParamSpec) -> bool:
+    """A ``const char*`` parameter that C++ keeps a pointer to (the annotation ``retain``)."""
+    return isinstance(spec.type, StringType) and spec.size is None and "retain" in spec.words
 
 
 def is_borrowed(spec: ResultSpec, ref: ClassRef) -> bool:
@@ -138,6 +146,8 @@ class _Lowerer:
         if plan.kind is CallableKind.METHOD:
             lowering.receiver = self.receiver()
             self.arguments["self"] = "self"
+            if plan.retains_this:
+                self.keeps_this()
         elif plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
             raise Unsupported("directors are not supported in Rust yet")
         for spec in plan.params:
@@ -267,18 +277,42 @@ class _Lowerer:
             return f"::core::option::Option<{borrowed}>"
         return borrowed
 
+    def keeps_this(self) -> None:
+        """What the method gives, or the library, keeps a pointer to ``self``."""
+        self.lowering.unsafe = True
+        if self.gives_object():
+            self.lowering.remarks.append(
+                "Unsafe: the object that it returns keeps a pointer to `self`, which must stay "
+                "valid (not dropped or moved) for as long as that object is used."
+            )
+        else:
+            self.lowering.remarks.append(
+                "Unsafe: C++ keeps a pointer to `self` for as long as the program runs: it must "
+                "not be dropped or moved, so give it up for good with `Owned::leak`."
+            )
+
+    def holder(self) -> str:
+        """Who keeps what C++ keeps a pointer to, as the documentation says it."""
+        if self.plan.kind is CallableKind.CONSTRUCTOR:
+            return "the new object"
+        if self.plan.kind is CallableKind.METHOD:
+            return "`self`"
+        return "the object that it returns" if self.gives_object() else "the program"
+
+    def keeps(self, name: str, *, text: bool = False) -> None:
+        """C++ keeps a pointer to a parameter: Rust cannot see until when, so the caller says it
+        (the function is ``unsafe``)."""
+        self.lowering.unsafe = True
+        rest = "and must not change" if text else "and nobody else may use it meanwhile"
+        self.lowering.remarks.append(
+            f"Unsafe: C++ keeps a pointer to `{name}`, which must stay valid for as long as "
+            f"{self.holder()} uses it, {rest}."
+        )
+
     def object_param(self, spec: ParamSpec, ref: ClassRef, name: str) -> None:
         nullable = "nullable" in spec.words
         if "retain" in spec.words and "transfer" not in spec.words:
-            # C++ keeps a pointer to the object: Rust cannot see until when, so the caller says it.
-            self.lowering.unsafe = True
-            holder = "`self`" if self.plan.kind is CallableKind.METHOD else "the new object"
-            if self.plan.kind in (CallableKind.STATIC, CallableKind.FUNCTION):
-                holder = "the object that it returns" if self.gives_object() else "the program"
-            self.lowering.remarks.append(
-                f"Unsafe: C++ keeps a pointer to `{spec.name}`, which must stay valid for as long "
-                f"as {holder} uses it, and nobody else may use it meanwhile."
-            )
+            self.keeps(spec.name)
         if "transfer" in spec.words or ref.form is ClassForm.UNIQUE:
             # C++ takes the object, whatever the status: it is not Rust's any more.
             if nullable:
@@ -310,10 +344,21 @@ class _Lowerer:
 
     def string_param(self, spec: ParamSpec, name: str) -> None:
         nullable = "nullable" in spec.words
+        if "retain" in spec.words:
+            self.keeps(spec.name, text=True)
         if spec.size is not None:
             # A std::string or a std::string_view: the bytes and their number; NUL is text.
             self.arguments[spec.name] = f"{name}.as_ptr().cast()"
             self.arguments[spec.size] = f"{name}.len()"
+            return
+        if kept_text(spec):
+            # The caller's C string itself, which it keeps valid.
+            if nullable:
+                self.arguments[spec.name] = (
+                    f"{name}.map_or(::core::ptr::null(), |text| text.as_ptr())"
+                )
+            else:
+                self.arguments[spec.name] = f"{name}.as_ptr()"
             return
         # A const char*: C++ reads up to the first NUL, so the text must not have one.
         # Not a double underscore in the middle (a lint), and one name for each parameter.

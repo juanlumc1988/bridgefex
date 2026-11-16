@@ -13,6 +13,9 @@ function (the name that the generated C header prints)::
     item = "transfer"             # a parameter, by its C++ name...
     2 = ["nullable", "retain"]    # ...or by its position, counted from 1
 
+    [demo_Mutex_lock]
+    this = "retain"               # the object itself: what the function gives keeps a pointer to it
+
 A class that other languages may derive from, overriding its virtual methods (a
 *director*, see the README), is asked for by name before the first table::
 
@@ -37,6 +40,10 @@ from .errors import ConfigurationError, Diagnostic, Location
 
 RESULT_WORDS = frozenset({"owned", "borrowed", "bytes"})
 PARAMETER_WORDS = frozenset({"nullable", "transfer", "retain", "call"})
+THIS = "this"
+"""The key of the object that a method is called on (a C++ keyword: no parameter has that name).
+The only word that applies to it is ``retain``."""
+THIS_WORDS = frozenset({"retain"})
 
 _POSITION = re.compile(r"[1-9][0-9]*")
 # Python 3.12 only puts the position of a TOML error in its message.
@@ -237,6 +244,7 @@ class Kind(Enum):
     UNIQUE_PTR = "std::unique_ptr"
     C_STRING = "const char*"
     STRING = "string"
+    STRING_VIEW = "std::string_view"
     CALLBACK = "callback"
 
 
@@ -260,6 +268,10 @@ class Resolved:
     parameters: tuple[frozenset[str], ...]
     """Per parameter: ``nullable``, ``transfer``, ``retain``, ``call``."""
 
+    retains_this: bool = False
+    """What the method gives (the object it returns) or the library keeps a pointer to the
+    object that it is called on."""
+
 
 _POINTERS = frozenset({Kind.OBJECT_POINTER, Kind.OBJECT_CONST_POINTER})
 _OBJECTS = frozenset({Kind.OBJECT_REFERENCE}) | _POINTERS
@@ -267,7 +279,7 @@ _OBJECTS = frozenset({Kind.OBJECT_REFERENCE}) | _POINTERS
 _PARAMETER_RULES: dict[str, frozenset[Kind]] = {
     "nullable": _POINTERS | {Kind.UNIQUE_PTR, Kind.C_STRING},
     "transfer": frozenset({Kind.OBJECT_POINTER}),
-    "retain": _OBJECTS,
+    "retain": _OBJECTS | {Kind.C_STRING, Kind.STRING_VIEW},
     "call": _OBJECTS,
 }
 _EXCLUSIVE = (
@@ -286,6 +298,9 @@ _HINTS = {
     ("nullable", Kind.OBJECT_REFERENCE): "a reference is never NULL",
     ("nullable", Kind.CALLBACK): "a callback may always be None (an empty std::function)",
     ("retain", Kind.CALLBACK): "a callback lives as long as the C++ code holds it",
+    ("retain", Kind.STRING): (
+        "a std::string is copied for the call: only a std::string_view or a const char* can be kept"
+    ),
 }
 
 
@@ -298,10 +313,12 @@ def resolve(
     constructor: bool,
     annotations: Mapping[str, FunctionAnnotations],
     location: Location | None,
+    method: bool = False,
 ) -> tuple[Resolved, list[Diagnostic]]:
     """The policy of one generated C function.
 
-    ``what`` names the function in the messages.
+    ``what`` names the function in the messages; ``method`` says that it is called on an object
+    (``this`` can be annotated).
     """
     errors: list[Diagnostic] = []
     entry = annotations.get(c_name)
@@ -312,9 +329,15 @@ def resolve(
 
     words: list[frozenset[str]] = [frozenset()] * len(params)
     lines = [0] * len(params)
+    retains_this = False
     if entry is not None:
         by_name = {param.name: index for index, param in enumerate(params) if param.name}
         for key, (given, line) in entry.parameters.items():
+            if key == THIS:
+                retains_this = _resolve_this(
+                    given, line, error, method=method, constructor=constructor
+                )
+                continue
             index = by_name.get(key)
             if index is None and _POSITION.fullmatch(key) and int(key) <= len(params):
                 index = int(key) - 1
@@ -348,7 +371,27 @@ def resolve(
         resolved.append(frozenset(effective))
 
     policy, result_bytes = _resolve_result(c_name, result, entry, error)
-    return Resolved(policy, result_bytes, tuple(resolved)), errors
+    return Resolved(policy, result_bytes, tuple(resolved), retains_this), errors
+
+
+def _resolve_this(
+    given: frozenset[str],
+    line: int,
+    error: Callable[[str, int], None],
+    *,
+    method: bool,
+    constructor: bool,
+) -> bool:
+    """Whether the annotations say that something keeps a pointer to the object that a method
+    is called on (a guard that unlocks its mutex, an iterator, a child that points to its
+    parent)."""
+    if not method:
+        what = "a constructor has no object yet" if constructor else "only a method has one"
+        error(f"'{THIS}' is the object that the method is called on: {what}", line)
+        return False
+    for word in sorted(given - THIS_WORDS):
+        error(f"'{THIS}': '{word}' does not apply to the object itself (only 'retain' does)", line)
+    return "retain" in given
 
 
 def _resolve_result(
@@ -390,7 +433,7 @@ def _resolve_result(
     else:
         policy = implied
     result_bytes = "bytes" in given
-    if result_bytes and result not in (Kind.STRING, Kind.C_STRING):
+    if result_bytes and result not in (Kind.STRING, Kind.STRING_VIEW, Kind.C_STRING):
         error("'bytes' only applies to a string result", line)
     return policy, result_bytes
 

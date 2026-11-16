@@ -752,3 +752,101 @@ def test_a_borrowed_result_does_not_come_from_an_object_that_the_function_takes(
         "pub unsafe fn keep(node: crate::Owned<crate::api::Node>) "
         "-> crate::Result<&'static mut crate::api::Node>"
     ) in api
+
+
+# What C++ keeps: `this` and the strings (annotation `retain`) ----------------------------------
+
+KEPT = """
+#include <memory>
+#include <string_view>
+class Guard { public: ~Guard(); int level() const; };
+class Mutex { public: Mutex(); ~Mutex(); std::unique_ptr<Guard> lock(); };
+class Registry { public: Registry(); ~Registry(); void register_me(); int size() const; };
+class Label {
+public:
+    Label();
+    ~Label();
+    void setRaw(const char* text);
+    void setView(std::string_view text);
+    void setMaybe(const char* text);
+    void setCopy(const std::string& text);
+    int length() const;
+};
+"""
+
+KEPT_ANNOTATIONS = """
+[bind_Mutex_lock]
+this = "retain"
+[bind_Registry_register_me]
+this = "retain"
+[bind_Label_setRaw]
+text = "retain"
+[bind_Label_setView]
+text = "retain"
+[bind_Label_setMaybe]
+text = ["retain", "nullable"]
+"""
+
+
+def generate_annotated(
+    tmp_path: Path, code: str, annotations: str, *, verify: bool = False
+) -> dict[str, str]:
+    table = tmp_path / "ann.toml"
+    table.write_text(annotations, encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=verify, annotations=(table,)
+    )
+    return bridgefex.generate([path], options).files
+
+
+def test_a_method_whose_result_keeps_its_object_is_unsafe(tmp_path: Path, cargo: None) -> None:
+    api = flat(source(generate_annotated(tmp_path, KEPT, KEPT_ANNOTATIONS, verify=True)))
+    assert (
+        "pub unsafe fn lock(&mut self) -> crate::Result<::core::option::Option<"
+        "crate::Owned<crate::api::Guard>>>"
+    ) in api
+    assert (
+        "Unsafe: the object that it returns keeps a pointer to `self`, which must stay valid "
+        "(not dropped or moved) for as long as that object is used."
+    ) in api
+    # A method that nothing annotates stays safe.
+    assert "pub fn length(&self)" in api
+
+
+def test_a_method_that_the_library_keeps_for_ever_says_how_to_give_it_up(tmp_path: Path) -> None:
+    api = flat(source(generate_annotated(tmp_path, KEPT, KEPT_ANNOTATIONS)))
+    assert "pub unsafe fn register_me(&mut self) -> crate::Result<()>" in api
+    assert (
+        "Unsafe: C++ keeps a pointer to `self` for as long as the program runs: it must not be "
+        "dropped or moved, so give it up for good with `Owned::leak`."
+    ) in api
+    assert "pub fn size(&self)" in api
+
+
+def test_a_string_that_cpp_keeps_is_unsafe_and_the_callers_c_string(
+    tmp_path: Path, cargo: None
+) -> None:
+    api = flat(source(generate_annotated(tmp_path, KEPT, KEPT_ANNOTATIONS, verify=True)))
+    # A const char* is the caller's C string (a text converted for the call would be gone).
+    assert "pub unsafe fn set_raw(&mut self, text: &::core::ffi::CStr)" in api
+    assert (
+        "pub unsafe fn set_maybe(&mut self, text: ::core::option::Option<&::core::ffi::CStr>)"
+    ) in api
+    assert "text.map_or(::core::ptr::null(), |text| text.as_ptr())" in api
+    # A string_view is the caller's str, which is passed as it is.
+    assert "pub unsafe fn set_view(&mut self, text: &str)" in api
+    assert (
+        "Unsafe: C++ keeps a pointer to `text`, which must stay valid for as long as `self` "
+        "uses it, and must not change."
+    ) in api
+    # A std::string is copied for the call: nothing to keep, nothing unsafe.
+    assert "pub fn set_copy(&mut self, text: &str)" in api
+
+
+def test_without_the_annotation_a_string_is_a_safe_str(tmp_path: Path) -> None:
+    api = flat(source(generate(tmp_path, KEPT)))
+    assert "pub fn set_raw(&mut self, text: &str)" in api
+    assert "pub fn set_view(&mut self, text: &str)" in api
+    assert "pub fn lock(" in api
