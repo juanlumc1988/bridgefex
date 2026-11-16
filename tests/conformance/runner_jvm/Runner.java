@@ -640,7 +640,7 @@ public final class Runner {
                 return;
             }
             if (step.containsKey("derive")) {
-                throw new Failure("overriding virtual methods is not supported in Java yet");
+                throw new Failure("this runner cannot derive a class: the Java checks of the cases do");
             }
             List<Object> arguments = step.containsKey("args") ? Json.list(step.get("args")) : List.of();
             Executable member;

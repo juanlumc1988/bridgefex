@@ -18,6 +18,8 @@ import drc.BridgefexDirectors;
  * drc::Circle
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Circle extends drc.shape.Shape {
@@ -126,6 +128,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * double drc::Circle::area() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Circle_area")
     public double area() {
@@ -133,13 +137,7 @@ public class Circle extends drc.shape.Shape {
         if (__d != null) {
             switch (__d.kind()) {
                 case 1: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
-                        int __status = BridgefexNative.drc_Circle_director_base_area(__self.pointer(), __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return __result.get(BridgefexRuntime.C_DOUBLE, 0);
-                    }
+                    return __base1_area();
                 }
                 default:
                     break;
@@ -154,8 +152,20 @@ public class Circle extends drc.shape.Shape {
         }
     }
 
+    private double __base1_area() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
+            BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_DOUBLE);
+            int __status = BridgefexNative.drc_Circle_director_base_area(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
+            return __result.get(BridgefexRuntime.C_DOUBLE, 0);
+        }
+    }
+
     /**
      * std::string drc::Circle::name() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Circle_name")
     public java.lang.String name() {
@@ -163,21 +173,7 @@ public class Circle extends drc.shape.Shape {
         if (__d != null) {
             switch (__d.kind()) {
                 case 1: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __text = __arena.allocate(BridgefexRuntime.ADDRESS);
-                        BridgefexSegment __size = __arena.allocate(BridgefexRuntime.C_SIZE);
-                        try
-                        {
-                            int __status = BridgefexNative.drc_Circle_director_base_name(__self.pointer(), __text, __size);
-                            __scope.returned();
-                            __scope.check(__status);
-                            return BridgefexRuntime.takeText(__text.get(BridgefexRuntime.ADDRESS, 0), BridgefexRuntime.getSize(__size, 0));
-                        }
-                        finally
-                        {
-                            BridgefexNative.drc_free(__text.get(BridgefexRuntime.ADDRESS, 0));
-                        }
-                    }
+                    return __base1_name();
                 }
                 default:
                     break;
@@ -200,27 +196,31 @@ public class Circle extends drc.shape.Shape {
         }
     }
 
-    /**
-     * int32_t drc::Circle::add(int32_t a, int32_t b) const
-     */
-    @BridgefexFunction("drc_Circle_add")
-    public int add(int a, int b) {
-        BridgefexCallbacks.DirectorBox __d = director();
-        if (__d != null) {
-            switch (__d.kind()) {
-                case 1: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
-                        int __status = BridgefexNative.drc_Circle_director_base_add_int32_int32(__self.pointer(), a, b, __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return __result.get(BridgefexRuntime.C_INT, 0);
-                    }
-                }
-                default:
-                    break;
+    private java.lang.String __base1_name() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
+            BridgefexSegment __text = __arena.allocate(BridgefexRuntime.ADDRESS);
+            BridgefexSegment __size = __arena.allocate(BridgefexRuntime.C_SIZE);
+            try
+            {
+                int __status = BridgefexNative.drc_Circle_director_base_name(__self.pointer(), __text, __size);
+                __scope.returned();
+                __scope.check(__status);
+                return BridgefexRuntime.takeText(__text.get(BridgefexRuntime.ADDRESS, 0), BridgefexRuntime.getSize(__size, 0));
+            }
+            finally
+            {
+                BridgefexNative.drc_free(__text.get(BridgefexRuntime.ADDRESS, 0));
             }
         }
+    }
+
+    /**
+     * int32_t drc::Circle::add(int32_t a, int32_t b) const
+     * <p>
+     * Final: C++ would not call an override of it.
+     */
+    @BridgefexFunction("drc_Circle_add")
+    public final int add(int a, int b) {
         try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = hold(false, false)) {
             BridgefexSegment __result = __arena.allocate(BridgefexRuntime.C_INT);
             int __status = BridgefexNative.drc_Circle_add(__self.pointer(), a, b, __result);
@@ -232,6 +232,8 @@ public class Circle extends drc.shape.Shape {
 
     /**
      * double drc::Circle::radius() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Circle_radius")
     public final double radius() {

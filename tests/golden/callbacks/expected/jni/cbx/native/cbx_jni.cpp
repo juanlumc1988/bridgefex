@@ -572,19 +572,38 @@ void glue_callback_12(void* a0, const char* a1, size_t a2, const ev_Point* a3)
     env->DeleteLocalRef(callbacks);
 }
 
-// C++ is done with a callback.
+// C++ is done with a callback. A destructor of C++ that runs when its thread ends can come after the
+// detaching of the thread (a thread_local that the library made before it first ran a callback): the
+// release still has to reach Java, or the callback and the object it belongs to stay for ever. The
+// thread is attached for that call alone. Not on Windows: the destructors of the thread_locals of a
+// library run while the thread is detached from the library (DLL_THREAD_DETACH, with the loader lock
+// held), and attaching a thread to the JVM there blocks for ever.
 void glue_release(void* user_data)
 {
     JNIEnv* env = callback_env();
+    bool temporary = false;
+#ifndef _WIN32
+    if (env == nullptr && t_detached && !g_exiting && g_vm != nullptr) {
+        JNIEnv* attached = nullptr;
+#ifdef __ANDROID__
+        temporary = g_vm->AttachCurrentThreadAsDaemon(&attached, nullptr) == JNI_OK;
+#else
+        temporary = g_vm->AttachCurrentThreadAsDaemon(reinterpret_cast<void**>(&attached), nullptr) == JNI_OK;
+#endif
+        env = temporary ? attached : nullptr;
+    }
+#endif
     jclass callbacks = env == nullptr ? nullptr : static_cast<jclass>(env->NewLocalRef(g_callbacks));
-    if (callbacks == nullptr) {
-        return;
+    if (callbacks != nullptr) {
+        env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+        }
+        env->DeleteLocalRef(callbacks);
     }
-    env->CallStaticVoidMethod(callbacks, g_release, static_cast<jlong>(reinterpret_cast<uintptr_t>(user_data)));
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
+    if (temporary) {
+        g_vm->DetachCurrentThread();
     }
-    env->DeleteLocalRef(callbacks);
 }
 
 // The process exits (or the library is unloaded): C++ calls and releases no callback of this library from

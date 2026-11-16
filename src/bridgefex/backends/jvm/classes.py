@@ -22,6 +22,10 @@ from .source import Source, escape_doc
 OVERRIDE = "@java.lang.Override"
 
 
+def _static(member: CallablePlan) -> bool:
+    return member.kind is CallableKind.STATIC
+
+
 def _virtual(member: CallablePlan) -> bool:
     return isinstance(member.source, Method) and member.source.is_virtual
 
@@ -45,6 +49,10 @@ def _cpp_signature(member: CallablePlan) -> tuple[object, ...] | None:
     source = member.source
     if not isinstance(source, Method):
         return None
+    return _method_signature(source)
+
+
+def _method_signature(source: Method) -> tuple[object, ...]:
     return (
         tuple((parameter.type, parameter.by_reference) for parameter in source.parameters),
         source.is_const,
@@ -63,6 +71,10 @@ class _Member:
 
     cpp: tuple[object, ...] | None = None
     """Its signature in C++ (see ``_cpp_signature``)."""
+
+    final: bool = False
+    """The Java method is ``final``: what a class below declares with the same signature (C++
+    overrides it) is the same, and Java would not let it override."""
 
 
 def primary_chain(cls: ClassPlan, by_type: dict[str, ClassPlan]) -> list[ClassPlan]:
@@ -107,8 +119,9 @@ class _Class:
     # -- what the classes above have -----------------------------------------------------------
 
     def inherited(self) -> dict[tuple[str, tuple[str, ...]], _Member]:
-        """The methods of the classes above, as Java sees them: those they declare, and those that
-        they have of their other bases (the copies)."""
+        """The methods of the classes above, as Java sees it: those they declare, those that they
+        have of their other bases (the copies) and the ``final`` ones that stand for what they
+        inherit and cannot be overridden."""
         if self._inherited is None:
             found: dict[tuple[str, tuple[str, ...]], _Member] = {}
             for above in reversed(self.chain):
@@ -120,19 +133,44 @@ class _Class:
                         lowered = lower_callable(member, self.names, self.plan, declaring=declaring)
                     except Unsupported:
                         continue  # it is refused with the class that declares it
-                    key = (
-                        method_name(member.name + member.suffix, RESERVED_MEMBERS),
-                        _signature(lowered.parameters),
-                    )
-                    found[key] = _Member(
+                    name = method_name(member.name + member.suffix, RESERVED_MEMBERS)
+                    found[(name, _signature(lowered.parameters))] = _Member(
                         member.kind is CallableKind.STATIC,
                         _virtual(member),
                         lowered.returns,
                         declaring.model.qualified_name,
                         _cpp_signature(member),
+                        self._final_in(above, member, name, copied=declaring is not above),
+                    )
+                for slot in [
+                    *directors.dropped(self.names, above),
+                    *directors.inherited(self.names, above),
+                ]:
+                    entry = slot.root_entry
+                    typed = directors.types_of(entry, self.names)
+                    found[(slot.name, _signature([f"{type_} {name}" for type_, name in typed]))] = (
+                        _Member(
+                            False,
+                            True,
+                            directors.result_type(entry, self.names),
+                            above.model.qualified_name,
+                            _method_signature(entry.method),
+                            True,
+                        )
                     )
             self._inherited = found
         return self._inherited
+
+    def _final_in(
+        self, holder: ClassPlan, member: CallablePlan, name: str, *, copied: bool
+    ) -> bool:
+        """True if the Java class ``holder`` has the method as a ``final`` one (see ``member``)."""
+        if member.kind is CallableKind.STATIC:
+            return False
+        if holder.c_type not in self.names.directors and holder.c_type not in self.names.guarded:
+            return False
+        slot = None if copied else directors.slot_of(self.names, holder, member)
+        return slot is None or slot.name != name
 
     def _copies(self, cls: ClassPlan) -> list[tuple[CallablePlan, ClassPlan]]:
         """The methods that ``cls`` has of its bases that are not its first (the ones that
@@ -217,6 +255,7 @@ class _Class:
             cls.model.qualified_name,
             "The C++ object is destroyed by close(), or when the object is collected, unless "
             "C++ owns it (it was returned by reference or pointer, or it was given to C++).",
+            *self.director_notes(),
         )
         # The constructors use the object (to keep what C++ keeps), and subclasses are the code
         # of the user.
@@ -246,6 +285,7 @@ class _Class:
         for member in cls.members:
             self.attempt(self.member, src, member)
         self.attempt(self.director_members, src)
+        self.attempt(self.inherited_members, src)
         for view in cls.views:
             if view.c_type in {above.c_type for above in self.chain} or view.c_type == cls.c_type:
                 continue
@@ -471,6 +511,11 @@ class _Class:
         if not self.check_hiding(member, name, lowered, copied=copied):
             return
         key = (name, _signature(lowered.parameters))
+        above = self.inherited().get(key)
+        if above is not None and above.final and not copied and not _static(member):
+            # The method above is ``final`` and C++ overrides it: calling it runs the override,
+            # and Java would not let this class declare it again.
+            return
         if key in self.signatures:
             if copied:
                 return
@@ -492,28 +537,146 @@ class _Class:
         )
         self.taken.setdefault(name, member.function.description)
         slot = None if copied else directors.slot_of(self.names, cls, member)
+        if slot is not None and slot.name != name:
+            # The class names the method differently from the class that declares it (an overload
+            # that the first one does not have): an override of this name is not what the director
+            # looks for, so it is ``final``. The method of the other name is the one to override.
+            slot = None
         body = lowered.body
+        helpers: list[list[str]] = []
         if slot is not None:
-            body = directors.virtual_body(
-                self.plan, self.names, cls, slot.entry, lowered.body, returns=lowered.returns
+            body, helpers = directors.virtual_body(
+                self.plan,
+                self.names,
+                cls,
+                slot.entry,
+                lowered.body,
+                returns=lowered.returns,
+                arguments=[parameter.rsplit(" ", 1)[1] for parameter in lowered.parameters],
             )
+        final = member.kind is not CallableKind.STATIC and slot is None and self.derivable_family()
+        remarks = list(lowered.remarks)
+        if slot is not None:
+            remarks.append(
+                "Virtual: a class of yours can override it, and C++ calls the override"
+                + (" (it is pure virtual: it has to be overridden)." if slot.entry.is_pure else ".")
+            )
+        elif final:
+            remarks.append("Final: C++ would not call an override of it.")
         src.line()
-        src.doc(member.function.description, *lowered.remarks)
+        src.doc(member.function.description, *remarks)
         src.line(f'@BridgefexFunction("{member.function.name}")')
         src.lines_of(lowered.annotations)
         keyword = "public static " if member.kind is CallableKind.STATIC else "public "
-        if member.kind is not CallableKind.STATIC and slot is None and self.derivable_family():
+        if final:
             # C++ would not call an override of it: Java says so when the class is compiled.
             keyword += "final "
         src.open(f"{keyword}{lowered.returns} {name}({', '.join(lowered.parameters)})")
         src.lines_of(body)
         src.close()
+        self.helpers(src, helpers)
+
+    @staticmethod
+    def helpers(src: Source, helpers: list[list[str]]) -> None:
+        """The private methods that the body of a virtual method calls."""
+        for helper in helpers:
+            src.line()
+            src.lines_of(helper)
+
+    def director_notes(self) -> list[str]:
+        """What the documentation of the class says of deriving from it, in a module with
+        directors."""
+        c_type = self.cls.c_type
+        if c_type in self.names.directors:
+            if self.subclassable():
+                return [
+                    "A class of yours can derive from it: it overrides the virtual methods that "
+                    "are not final, and C++ calls the overrides."
+                ]
+            return [
+                "Java cannot derive from it: C++ tells its constructors apart by types that Java "
+                "cannot, so they are static create... methods and a subclass has none to call."
+            ]
+        if c_type in self.names.guarded:
+            return [
+                "Java cannot derive from it with effect: C++ would not call the overrides of "
+                "its methods (it has no director, or the one it has cannot be used), so they "
+                "are final."
+            ]
+        return []
+
+    def subclassable(self) -> bool:
+        """True if a class of the user can call a constructor of the class: one that Java tells
+        apart from the others, or a protected one."""
+        cls = self.cls
+        signatures: Counter[tuple[str, ...]] = Counter()
+        for ctor in cls.constructors:
+            try:
+                signatures[
+                    _signature(
+                        lower_callable(ctor, self.names, self.plan, declaring=cls).parameters
+                    )
+                ] += 1
+            except Unsupported:
+                continue
+        if any(count == 1 for count in signatures.values()):
+            return True
+        if cls.director is None:
+            return False
+        plain = {ctor.source for ctor in cls.constructors}
+        for director_ctor in cls.director.constructors:
+            if director_ctor.source in plain:
+                continue
+            try:
+                made = lower_callable(director_ctor, self.names, self.plan, declaring=cls)
+            except Unsupported:
+                continue
+            if _signature(made.parameters) not in signatures:
+                return True
+        return False
 
     def derivable_family(self) -> bool:
         """True for a class that others derive from, and for those below one that cannot be."""
         return self.cls.c_type in self.names.directors or self.cls.c_type in self.names.guarded
 
     # -- the director -----------------------------------------------------------------------
+
+    def final_delegator(self, src: Source, slot: directors.Slot, why: str) -> None:
+        """A ``final`` method that does what the one of the class above does: an override of the
+        method would never be called by C++ (``why``), and Java refuses it."""
+        names = self.names
+        typed = directors.types_of(slot.root_entry, names)
+        parameters = ", ".join(f"{type_} {name}" for type_, name in typed)
+        arguments = ", ".join(name for _, name in typed)
+        # Overloads are told apart by the types of the parameters, not by the name.
+        key = (slot.name, _signature([f"{type_} {name}" for type_, name in typed]))
+        if key in self.signatures:
+            return  # the class declares it too (and it is ``final``)
+        above = self.inherited().get(key)
+        if above is not None and above.final:
+            return  # a class above has made it ``final`` already
+        returns = directors.result_type(slot.root_entry, names)
+        access = "public" if slot.root_entry.access is Access.PUBLIC else "protected"
+        self.taken.setdefault(slot.name, slot.root_entry.description)
+        self.signatures[key] = _Member(False, True, returns, self.cls.model.qualified_name, None)
+        src.line()
+        src.doc(f"{slot.root_entry.description}: {why}")
+        src.line(OVERRIDE)
+        src.open(f"{access} final {returns} {slot.name}({parameters})")
+        call = f"super.{slot.name}({arguments})"
+        src.line(call + ";" if returns == "void" else f"return {call};")
+        src.close()
+
+    def inherited_members(self, src: Source) -> None:
+        """A class that Java cannot derive from, below one that it can: what it inherits that C++
+        calls the overrides of is ``final`` in it."""
+        for slot in directors.inherited(self.names, self.cls):
+            self.final_delegator(
+                src,
+                slot,
+                "C++ calls the overrides of this method only for the classes that have a director, "
+                "which this one does not, so it cannot be overridden from Java.",
+            )
 
     def director_members(self, src: Source) -> None:
         """What the class has for its director besides the wrappers: the virtual methods that are
@@ -527,10 +690,9 @@ class _Class:
             entry = slot.entry
             if not directors.emits(names, cls, entry):
                 continue
-            parameters = ", ".join(
-                f"{type_} {name}" for type_, name in directors.types_of(entry, names)
-            )
-            arguments = ", ".join(name for _, name in directors.types_of(entry, names))
+            typed = directors.types_of(entry, names)
+            parameters = ", ".join(f"{type_} {name}" for type_, name in typed)
+            arguments = ", ".join(name for _, name in typed)
             returns = directors.result_type(entry, names)
             if not any(item.source == entry.method for item in cls.members):
                 if slot.name in self.taken:
@@ -544,7 +706,15 @@ class _Class:
                         ]
                     )
                 self.taken[slot.name] = entry.description
-                body = directors.virtual_body(plan, names, cls, entry, None, returns=returns)
+                body, helpers = directors.virtual_body(
+                    plan,
+                    names,
+                    cls,
+                    entry,
+                    None,
+                    returns=returns,
+                    arguments=[name for _, name in typed],
+                )
                 src.line()
                 src.doc(entry.description)
                 if entry.base is not None:
@@ -552,6 +722,7 @@ class _Class:
                 src.open(f"protected {returns} {slot.name}({parameters})")
                 src.lines_of(body)
                 src.close()
+                self.helpers(src, helpers)
             if slot.root is cls and entry.access is not Access.PUBLIC:
                 # The thunks are in another package: they cannot call a protected method.
                 src.line()
@@ -563,25 +734,12 @@ class _Class:
                 src.line(call + ";" if returns == "void" else f"return {call};")
                 src.close()
         for slot in directors.dropped(names, cls):
-            if slot.name in self.taken:
-                continue  # the class declares a method of its own with that name
-            parameters = ", ".join(
-                f"{type_} {name}" for type_, name in directors.types_of(slot.root_entry, names)
+            self.final_delegator(
+                src,
+                slot,
+                "the C++ class implements it where it cannot be overridden, so it cannot be "
+                "overridden from Java either.",
             )
-            arguments = ", ".join(name for _, name in directors.types_of(slot.root_entry, names))
-            returns = directors.result_type(slot.root_entry, names)
-            access = "public" if slot.root_entry.access is Access.PUBLIC else "protected"
-            self.taken[slot.name] = slot.root_entry.description
-            src.line()
-            src.doc(
-                f"{slot.root_entry.description}: the C++ class implements it where it cannot be "
-                "overridden, so it cannot be overridden from Java either."
-            )
-            src.line(OVERRIDE)
-            src.open(f"{access} final {returns} {slot.name}({parameters})")
-            call = f"super.{slot.name}({arguments})"
-            src.line(call + ";" if returns == "void" else f"return {call};")
-            src.close()
         directors.overrides_helper(src, names, d)
 
 

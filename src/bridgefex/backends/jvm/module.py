@@ -22,7 +22,14 @@ from .enums import enum_class
 from .flavor import FFM, Flavor
 from .lower import Names, lower_callable, method_name
 from .mapping import SEGMENT, Unsupported, native_java, native_layout
-from .naming import OBJECT_MEMBERS, RUNTIME_TYPES, file_problem, package_word, pascal
+from .naming import (
+    DIRECTOR_OVERRIDES,
+    OBJECT_MEMBERS,
+    RUNTIME_TYPES,
+    file_problem,
+    package_word,
+    pascal,
+)
 from .source import Source
 from .structs import struct_class
 
@@ -342,7 +349,7 @@ def _nested_problems(
         inner = pascal(nested.model.name)
         where = nested.model.qualified_name
         location = nested.model.location
-        if inner in reserved:
+        if inner in reserved or inner == DIRECTOR_OVERRIDES:
             problems.append(
                 Diagnostic(
                     f"'{where}' gets the Java name '{inner}', which the runtime of the "

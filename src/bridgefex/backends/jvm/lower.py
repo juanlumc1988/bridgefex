@@ -74,7 +74,10 @@ class Names:
 
     @property
     def has_callbacks(self) -> bool:
-        return self.thunks is not None and bool(self.thunks.items)
+        """The module needs the runtime of the callbacks: C++ calls into Java (a director of a
+        class none of whose virtual methods can be overridden still has its object and its
+        release)."""
+        return self.has_directors or (self.thunks is not None and bool(self.thunks.items))
 
     @property
     def has_directors(self) -> bool:

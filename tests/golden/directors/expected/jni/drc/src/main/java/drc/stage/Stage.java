@@ -18,6 +18,8 @@ import drc.BridgefexDirectors;
  * drc::Stage
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Stage extends BridgefexObject {
@@ -104,6 +106,8 @@ public class Stage extends BridgefexObject {
 
     /**
      * std::string drc::Stage::run(drc::Mode mode)
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Stage_run")
     public final java.lang.String run(drc.shape.Mode mode) {
@@ -127,6 +131,8 @@ public class Stage extends BridgefexObject {
 
     /**
      * int32_t drc::Stage::steps() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Stage_steps")
     public final int steps() {
@@ -165,19 +171,23 @@ public class Stage extends BridgefexObject {
         if (__d != null) {
             switch (__d.kind()) {
                 case 6: {
-                    try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
-                        BridgefexSegment __result = __arena.allocate(drc.shape.Point.LAYOUT);
-                        int __status = BridgefexNative.drc_Stage_director_base_origin(__self.pointer(), __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return drc.shape.Point.read(__result);
-                    }
+                    return __base6_origin();
                 }
                 default:
                     break;
             }
         }
         throw new java.lang.IllegalStateException("Stage.origin is not part of the API: only an override of it can call it");
+    }
+
+    private drc.shape.Point __base6_origin() {
+        try (BridgefexArena __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); BridgefexLease __self = holdDirector(false)) {
+            BridgefexSegment __result = __arena.allocate(drc.shape.Point.LAYOUT);
+            int __status = BridgefexNative.drc_Stage_director_base_origin(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
+            return drc.shape.Point.read(__result);
+        }
     }
 
     /**
@@ -216,7 +226,7 @@ public class Stage extends BridgefexObject {
                 return null;
             }
             if (!found[0]) {
-                throw new java.lang.IllegalStateException(type.getSimpleName() + " must override the pure virtual method Stage.step");
+                throw new java.lang.IllegalStateException((type.getSimpleName().isEmpty() ? type.getName() : type.getSimpleName()) + " must override the pure virtual method Stage.step" + (BridgefexDirectors.declares(type, GENERATED, "step") ? " (a method of that name with other parameters was found: it overrides nothing)" : ""));
             }
             return found;
         }

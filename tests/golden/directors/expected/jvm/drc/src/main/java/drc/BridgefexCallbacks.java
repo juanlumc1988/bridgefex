@@ -178,7 +178,7 @@ public final class BridgefexCallbacks {
         try {
             Consumer<Throwable> handler = UNOBSERVED;
             if (handler == null) {
-                System.err.println("Unobserved exception in a C++ callback: " + error);
+                System.err.println("Unobserved exception in a C++ callback or override: " + error);
                 error.printStackTrace();
                 return;
             }
@@ -730,7 +730,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Shape.name returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Shape.name'");
                     try (var __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__out, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }
@@ -841,7 +841,11 @@ public final class BridgefexCallbacks {
             __box.enter();
             try {
                 drc.shape.Point __value = BridgefexRuntime.nonNull(__target.center(), "the result of the override 'Shape.center'");
-                __value.write(BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()));
+                try (var __arena = BridgefexRuntime.arena()) {
+                    java.lang.foreign.MemorySegment __copy = __arena.allocate(drc.shape.Point.LAYOUT);
+                    __value.write(__copy);
+                    BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()).copyFrom(__copy);
+                }
             } finally {
                 __box.leave();
             }
@@ -876,7 +880,11 @@ public final class BridgefexCallbacks {
             __box.enter();
             try {
                 drc.shape.Point __value = BridgefexRuntime.nonNull(__target.move(drc.shape.Point.read(BridgefexRuntime.view(__c1, drc.shape.Point.LAYOUT.byteSize())), drc.shape.Point.read(BridgefexRuntime.view(__c2, drc.shape.Point.LAYOUT.byteSize()))), "the result of the override 'Shape.move'");
-                __value.write(BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()));
+                try (var __arena = BridgefexRuntime.arena()) {
+                    java.lang.foreign.MemorySegment __copy = __arena.allocate(drc.shape.Point.LAYOUT);
+                    __value.write(__copy);
+                    BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()).copyFrom(__copy);
+                }
             } finally {
                 __box.leave();
             }
@@ -1021,7 +1029,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Shape.greet returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Shape.greet'");
                     try (var __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__out, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }
@@ -1610,14 +1618,14 @@ public final class BridgefexCallbacks {
         boolean __passed = false;
         DirectorBox __box = null;
         try {
-            __box = (DirectorBox) of(__userData.address());
-            if (__box.skip()) {
-                return;
-            }
             if (__c1.address() != 0L) {
                 BridgefexHandle __h1 = new BridgefexHandle(BridgefexNative::drc_Beam_destroy, true);
                 __h1.assign(__c1);
                 __v1 = drc.shape.Beam.wrap(__h1);
+            }
+            __box = (DirectorBox) of(__userData.address());
+            if (__box.skip()) {
+                return;
             }
             drc.shape.Shape __target = (drc.shape.Shape) __box.target();
             if (__target == null) {
@@ -1752,7 +1760,7 @@ public final class BridgefexCallbacks {
                     throw new IllegalStateException("the override Stage.step returned null for a std::string");
                 }
                 if (__value != null) {
-                    byte[] __bytes = BridgefexRuntime.utf8(__value, "result");
+                    byte[] __bytes = BridgefexRuntime.utf8(__value, "the result of the override 'Stage.step'");
                     try (var __arena = BridgefexRuntime.arena()) {
                         BridgefexNative.drc_string_sink_set(__out, BridgefexRuntime.bytes(__arena, __bytes), (long) __bytes.length);
                     }
@@ -1791,7 +1799,11 @@ public final class BridgefexCallbacks {
             __box.enter();
             try {
                 drc.shape.Point __value = BridgefexRuntime.nonNull(__target.bridgefex_origin(), "the result of the override 'Stage.origin'");
-                __value.write(BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()));
+                try (var __arena = BridgefexRuntime.arena()) {
+                    java.lang.foreign.MemorySegment __copy = __arena.allocate(drc.shape.Point.LAYOUT);
+                    __value.write(__copy);
+                    BridgefexRuntime.view(__out, drc.shape.Point.LAYOUT.byteSize()).copyFrom(__copy);
+                }
             } finally {
                 __box.leave();
             }

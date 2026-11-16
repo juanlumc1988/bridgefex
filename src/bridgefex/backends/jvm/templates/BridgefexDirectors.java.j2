@@ -33,6 +33,23 @@ public final class BridgefexDirectors {
         return false;
     }
 
+    /**
+     * True if a class of the user declares a method with this name that can be overridden, whatever its
+     * parameters: what a message says when an override with other parameter types is not one.
+     */
+    public static boolean declares(Class<?> type, Class<?>[] generated, String name) {
+        for (Class<?> current = type; current != null && !contains(generated, current); current = current.getSuperclass()) {
+            for (Method method : current.getDeclaredMethods()) {
+                int modifiers = method.getModifiers();
+                if (method.getName().equals(name) && !method.isBridge() && !method.isSynthetic()
+                    && !Modifier.isStatic(modifiers) && !Modifier.isPrivate(modifiers)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean contains(Class<?>[] classes, Class<?> type) {
         for (Class<?> item : classes) {
             if (item == type) {

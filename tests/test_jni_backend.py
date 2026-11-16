@@ -242,22 +242,17 @@ typedef signed char jbyte;
 """
 
 
-@pytest.mark.parametrize(
-    "target", ["armv7a-linux-gnueabihf", "i686-linux-gnu", "aarch64-linux-gnu", "x86_64-linux-gnu"]
-)
-@pytest.mark.parametrize("name", ["demo", "containers", "inherit", "callbacks"])
-def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
-    tmp_path: Path, target: str, name: str
-) -> None:
-    """Pointers are 32 bits on 32-bit ARM: the glue converts the addresses of Java with explicit
-    casts, and says nothing under -Wconversion. Checked with clang for the target, over stand-in
-    headers of the C library (it only needs a syntax check, not a sysroot)."""
+TARGETS = ["armv7a-linux-gnueabihf", "i686-linux-gnu", "aarch64-linux-gnu", "x86_64-linux-gnu"]
+
+
+def _check_glue(tmp_path: Path, target: str, files: dict[str, str], headers: Path) -> None:
+    """The glue compiles for the target under -Wconversion: pointers are 32 bits on 32-bit ARM,
+    and the glue converts the addresses of Java with explicit casts. Checked with clang, over
+    stand-in headers of the C library (it only needs a syntax check, not a sysroot)."""
     clang = shutil.which("clang++")
     includes = jni_includes()
     if clang is None or not includes:
         pytest.skip("needs clang and a JDK with jni.h")
-    case = load_case(GOLDEN_DIR / name)
-    files = bridgefex.generate(case.headers, case.options(("jni",))).files
     bridgefex.write_files(files, tmp_path / "out")
     stubs = tmp_path / "stubs"
     stubs.mkdir()
@@ -284,7 +279,7 @@ def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
             f"-I{stubs}",
             f"-I{includes[0]}",  # jni.h; jni_md.h is the stand-in of the Linux one
             f"-I{tmp_path / 'out' / 'c'}",
-            f"-I{case.input_dir}",
+            f"-I{headers}",
             str(glue),
         ],
         capture_output=True,
@@ -292,6 +287,77 @@ def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
         check=False,
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize("target", TARGETS)
+@pytest.mark.parametrize("name", ["demo", "containers", "inherit", "callbacks", "directors"])
+def test_the_glue_compiles_for_32_and_64_bit_targets_without_warnings(
+    tmp_path: Path, target: str, name: str
+) -> None:
+    case = load_case(GOLDEN_DIR / name)
+    files = bridgefex.generate(case.headers, case.options(("jni",))).files
+    _check_glue(tmp_path, target, files, case.input_dir)
+
+
+DIRECTOR_TYPES = """
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+enum class Small : std::int8_t { A = -1, B = 1 };
+enum class Wide : std::uint64_t { A = 1, B = 5000000000ULL };
+enum Plain { P, Q };
+struct Pad { std::int32_t n; std::uint8_t u8; double d; long l; };
+class Peer { public: Peer(); virtual ~Peer(); };
+class Matrix {
+public:
+    Matrix();
+    virtual ~Matrix();
+    virtual bool b(bool x) const;
+    virtual std::int8_t i8(std::int8_t x) const;
+    virtual std::uint8_t u8(std::uint8_t x) const;
+    virtual std::int16_t i16(std::int16_t x) const;
+    virtual std::uint16_t u16(std::uint16_t x) const;
+    virtual std::uint32_t u32(std::uint32_t x) const;
+    virtual std::int64_t i64(std::int64_t x) const;
+    virtual std::uint64_t u64(std::uint64_t x) const;
+    virtual std::size_t size(std::size_t x) const;
+    virtual long lng(long x) const;
+    virtual unsigned long ulng(unsigned long x) const;
+    virtual float f(float x) const;
+    virtual double d(double x) const;
+    virtual Small small(Small x) const;
+    virtual Wide wide(Wide x) const;
+    virtual Plain plain(Plain x) const;
+    virtual Pad pad(Pad x) const;
+    virtual std::string text(const std::string& x) const;
+    virtual std::vector<std::int32_t> ints(const std::vector<std::int32_t>& x) const;
+    virtual std::vector<std::string> words(const std::vector<std::string>& x) const;
+    virtual std::array<std::uint16_t, 3> three(const std::array<std::uint16_t, 3>& x) const;
+    virtual std::unique_ptr<Peer> peer(std::unique_ptr<Peer> x, const Peer& y, Peer* z) const;
+    virtual void mixed(std::int8_t a, long b, std::size_t c, float d, double e, bool f) const;
+};
+"""
+
+
+@pytest.mark.parametrize("target", TARGETS)
+def test_the_glue_of_directors_of_every_kind_of_type_compiles_for_32_and_64_bit_targets(
+    tmp_path: Path, target: str
+) -> None:
+    """What C++ passes to an override and what it takes back: every scalar (8 and 16 bits, ``long``,
+    ``size_t``), enums of every width, structs, strings and containers, pointers."""
+    header = tmp_path / "input" / "wide.h"
+    header.parent.mkdir()
+    header.write_text(DIRECTOR_TYPES, encoding="utf-8")
+    annotations = tmp_path / "wide.toml"
+    annotations.write_text('directors = ["wide_Matrix"]\n', encoding="utf-8")
+    options = bridgefex.Options(
+        "wide", std="c++17", languages=("jni",), verify=False, annotations=(annotations,)
+    )
+    files = bridgefex.generate([header], options).files
+    _check_glue(tmp_path, target, files, header.parent)
 
 
 @pytest.mark.parametrize("name", ["BridgefexSegment", "BridgefexArena", "BridgefexStruct"])

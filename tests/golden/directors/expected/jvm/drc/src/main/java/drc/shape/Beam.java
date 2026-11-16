@@ -15,6 +15,8 @@ import drc.BridgefexDirectors;
  * drc::Beam
  * <p>
  * The C++ object is destroyed by close(), or when the object is collected, unless C++ owns it (it was returned by reference or pointer, or it was given to C++).
+ * <p>
+ * A class of yours can derive from it: it overrides the virtual methods that are not final, and C++ calls the overrides.
  */
 @java.lang.SuppressWarnings("this-escape")
 public class Beam extends BridgefexObject {
@@ -136,6 +138,8 @@ public class Beam extends BridgefexObject {
 
     /**
      * int32_t drc::Beam::length() const
+     * <p>
+     * Virtual: a class of yours can override it, and C++ calls the override.
      */
     @BridgefexFunction("drc_Beam_length")
     public int length() {
@@ -143,13 +147,7 @@ public class Beam extends BridgefexObject {
         if (__d != null) {
             switch (__d.kind()) {
                 case 0: {
-                    try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false)) {
-                        var __result = __arena.allocate(BridgefexRuntime.C_INT);
-                        int __status = BridgefexNative.drc_Beam_director_base_length(__self.pointer(), __result);
-                        __scope.returned();
-                        __scope.check(__status);
-                        return __result.get(BridgefexRuntime.C_INT, 0);
-                    }
+                    return __base0_length();
                 }
                 default:
                     break;
@@ -164,8 +162,20 @@ public class Beam extends BridgefexObject {
         }
     }
 
+    private int __base0_length() {
+        try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false)) {
+            var __result = __arena.allocate(BridgefexRuntime.C_INT);
+            int __status = BridgefexNative.drc_Beam_director_base_length(__self.pointer(), __result);
+            __scope.returned();
+            __scope.check(__status);
+            return __result.get(BridgefexRuntime.C_INT, 0);
+        }
+    }
+
     /**
      * int32_t drc::Beam::call_length() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Beam_call_length")
     public final int callLength() {
@@ -180,6 +190,8 @@ public class Beam extends BridgefexObject {
 
     /**
      * int32_t drc::Beam::made_by() const
+     * <p>
+     * Final: C++ would not call an override of it.
      */
     @BridgefexFunction("drc_Beam_made_by")
     public final int madeBy() {

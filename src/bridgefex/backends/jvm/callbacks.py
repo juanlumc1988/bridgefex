@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ...errors import Diagnostic, GenerationError
 from ...model import (
     Access,
     ClassForm,
@@ -36,6 +37,7 @@ from ...plan import (
     CallbackPart,
     CallbackSpec,
     ClassPlan,
+    DirectorEntry,
     FfiKind,
     FunctionPlan,
     ModulePlan,
@@ -299,6 +301,33 @@ def _slots(callback: CallbackSpec, names: Names) -> int:
     return total
 
 
+def _check_width(entry: DirectorEntry, names: Names) -> None:
+    """The thunk of a virtual method has the parameters of the vtable member: as many as a
+    function of the bindings can have (a protected pure virtual method has no C function that
+    would have been refused for it)."""
+    ffm = names.flavor.modern
+    out = director_result(entry.callback.result, names)
+    slots = 2 + sum(
+        2 if carrier in ("pointer", "long", "double") else 1
+        for part in entry.callback.arguments
+        for carrier in argument(part, names).carriers
+    )
+    if out is not None and (ffm or isinstance(out, Pointed)):
+        slots += 2
+    limit = FFM_SLOTS if ffm else JNI_SLOTS
+    if slots > limit:
+        raise GenerationError(
+            [
+                Diagnostic(
+                    f"Java: '{entry.description}' takes {slots} slots of the {limit} that the "
+                    "thunk of a virtual method can have (a pointer and a long take 2; a string is "
+                    "a pointer and a size)",
+                    entry.location,
+                )
+            ]
+        )
+
+
 def functional(callback: CallbackSpec, names: Names) -> tuple[str, str]:
     """The Java interface of a callback and the name of its method."""
     count = len(callback.arguments)
@@ -465,6 +494,7 @@ def collect(plan: ModulePlan, names: Names) -> Thunks:
                 continue
             slots.add(slot.thunk)
             entry = slot.entry
+            _check_width(entry, names)
             items.append(
                 Thunk(
                     len(items),
@@ -535,6 +565,10 @@ class Arguments:
 
     lends: bool
 
+    early: int = 0
+    """How many lines of ``prelude`` come first: the pointers and the objects that C++ gave up.
+    A thunk that skips its override still has to destroy those."""
+
 
 def _arguments(thunk: Thunk, names: Names) -> Arguments:
     ffm = names.flavor.modern
@@ -583,7 +617,14 @@ def _arguments(thunk: Thunk, names: Names) -> Arguments:
             adopted.append((argument_.adopts, names_["v"]))
         lends = lends or argument_.lends
         values.append(fill(argument_.read))
-    return Arguments(parameters, [*pointers, *adopts, *rest], values, adopted, lends)
+    return Arguments(
+        parameters,
+        [*pointers, *adopts, *rest],
+        values,
+        adopted,
+        lends,
+        early=len(pointers) + len(adopts),
+    )
 
 
 def _parameters(thunk: Thunk, names: Names) -> tuple[list[str], list[str], list[str]]:
@@ -792,7 +833,16 @@ def _director_call(
     elif out.kind == "struct":
         body.append(f"{out.public} {L}value = {R}.nonNull({call}, {label});")
         if ffm:
-            body.append(f"{L}value.write({R}.view({L}out, {out.public}.LAYOUT.byteSize()));")
+            # The struct is checked while it is written (a member out of range fails): it is
+            # written in memory of Java and copied, so that C++ gets all of it or nothing.
+            arena = names.flavor.declare(names.flavor.arena)
+            body += [
+                f"try ({arena} {L}arena = {R}.arena()) {{",
+                f"    {segment} {L}copy = {L}arena.allocate({out.public}.LAYOUT);",
+                f"    {L}value.write({L}copy);",
+                f"    {R}.view({L}out, {out.public}.LAYOUT.byteSize()).copyFrom({L}copy);",
+                "}",
+            ]
         else:
             # Java cannot write the memory that C++ gave: the struct is written in memory of Java,
             # and copied where C++ says.
@@ -815,7 +865,7 @@ def _director_call(
         arena = names.flavor.declare(names.flavor.arena)
         body += [
             f"if ({L}value != null) {{",
-            f'    byte[] {L}bytes = {R}.utf8({L}value, "result");',
+            f"    byte[] {L}bytes = {R}.utf8({L}value, {label});",
             f"    try ({arena} {L}arena = {R}.arena()) {{",
             f"        BridgefexNative.{thunk.sink}({sink}, {R}.bytes({L}arena, {L}bytes), "
             f"(long) {L}bytes.length);",
@@ -854,15 +904,19 @@ def director_lines(thunk: Thunk, names: Names) -> list[str]:
         lines.append(f"    boolean {L}passed = false;")
     if arguments.lends:
         lines.append(f"    Lent {L}lent = new Lent();")
+    # The objects that C++ gave up are made before anything can skip the override.
     lines += [
         f"    DirectorBox {L}box = null;",
         "    try {",
+    ]
+    lines += [f"        {line}" for line in prelude[: arguments.early]]
+    lines += [
         f"        {L}box = (DirectorBox) of({key});",
         f"        if ({L}box.skip()) {{",
         f"            return{nothing};",
         "        }",
     ]
-    lines += [f"        {line}" for line in prelude]
+    lines += [f"        {line}" for line in prelude[arguments.early :]]
     lines += [
         f"        {target.root} {L}target = ({target.root}) {L}box.target();",
         f"        if ({L}target == null) {{",

@@ -21,6 +21,10 @@ JAVA_KEYWORDS = frozenset(
 
 # The classes of the runtime, in the package of the module: a class of a header cannot have their
 # names, because the generated code of the headers imports them.
+DIRECTOR_OVERRIDES = "DirectorOverrides"
+"""The class that a class that can be derived from has inside, for its director: a class of the
+file cannot have the name."""
+
 RUNTIME_TYPES = frozenset(
     """
     BridgefexRuntime BridgefexNative BridgefexObject BridgefexException BridgefexFunction

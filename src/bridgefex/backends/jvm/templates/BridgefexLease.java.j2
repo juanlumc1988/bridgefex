@@ -13,12 +13,19 @@ public final class BridgefexLease implements AutoCloseable {
     private final BridgefexHandle handle;
     private final {{ segment }} pointer;
     private final BridgefexHandle[] owners;
+{% if directors %}
+    /** The object of the call: an override of it may run until the lease is closed. */
+    private final BridgefexObject target;
+{% endif %}
     private boolean released;
 
-    BridgefexLease(BridgefexHandle handle, {{ segment }} pointer, BridgefexHandle[] owners) {
+    BridgefexLease(BridgefexHandle handle, {{ segment }} pointer, BridgefexHandle[] owners{% if directors %}, BridgefexObject target{% endif %}) {
         this.handle = handle;
         this.pointer = pointer;
         this.owners = owners;
+{% if directors %}
+        this.target = target;
+{% endif %}
     }
 
     public {{ segment }} pointer() {
@@ -28,14 +35,14 @@ public final class BridgefexLease implements AutoCloseable {
 
     /** A hold on nothing: the pointer is valid while an override of the object runs on this thread. */
     public static BridgefexLease unheld({{ segment }} pointer) {
-        return new BridgefexLease(null, pointer, null);
+        return new BridgefexLease(null, pointer, null, null);
     }
 {% endif %}
 
     /** The same hold, for the address of the object as another of its classes. */
     public BridgefexLease as({{ segment }} other) {
         released = true; // the new lease releases the hold
-        return new BridgefexLease(handle, other, owners);
+        return new BridgefexLease(handle, other, owners{% if directors %}, target{% endif %});
     }
 
     /** The object (claimed by {@code hold(..., true)}) goes to C++, which destroys it. */
@@ -59,5 +66,17 @@ public final class BridgefexLease implements AutoCloseable {
                 owner.releaseLease();
             }
         }
+{% if directors %}
+        // The Java object must not be collected while an override of it can run: the collector
+        // would clear the weak reference that C++ reaches it by, and the call would fail.
+        if (target != null) {
+{% if ffm %}
+            java.lang.ref.Reference.reachabilityFence(target);
+{% else %}
+            synchronized (target) { // Reference.reachabilityFence is Java 9
+            }
+{% endif %}
+        }
+{% endif %}
     }
 }

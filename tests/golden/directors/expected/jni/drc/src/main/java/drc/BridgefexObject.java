@@ -91,7 +91,7 @@ public abstract class BridgefexObject implements AutoCloseable {
             releaseAll(held);
             throw refusal(result, give);
         }
-        return new BridgefexLease(leased, handle.pointer(), held);
+        return new BridgefexLease(leased, handle.pointer(), held, this);
     }
 
     private IllegalStateException refusal(BridgefexHandle.LeaseResult result, boolean give) {

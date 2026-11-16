@@ -1,0 +1,10 @@
+# A case for the Java bindings only (tests/test_jvm_directors_run.py): what the adversarial review of the
+# directors in Java found that the golden case "directors" does not reach: the object of a call that is
+# collected while C++ calls its overrides, an object given to C++ that an override never gets, a struct
+# result that an override gives out of range, and a director that C++ destroys in a thread_local when its
+# thread ends.
+module = "drt"
+headers = ["drt.h"]
+std = "c++17"
+annotations = ["annotations.toml"]
+languages = ["jvm", "jni"]

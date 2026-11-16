@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import bridgefex
+from bridgefex.errors import GenerationError
 from tests.conformance import runner_jvm
 from tests.test_jvm_backend import PRELUDE
 
@@ -249,3 +250,177 @@ protected:
     assert "    public double valueDouble(double arg1) {" in twin
     assert "    protected int valueString(java.lang.String arg1) {" in twin
     assert "    public final int bridgefex_valueString(java.lang.String arg1) {" in twin
+
+
+# What the reviews of the directors found ------------------------------------------------------
+
+
+def test_an_override_that_names_its_parameters_differently_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """The base call of each director is lowered with the names that its own class gives the
+    parameters, not the ones of the method that contains it."""
+    code = """
+class Base { public: Base(); virtual ~Base();
+    virtual int f(int alpha, int beta) const; virtual int g(int, int) const; };
+class Der : public Base { public: Der();
+    int f(int x, int y) const override; int g(int a, int b) const override; };
+"""
+    files = generate(tmp_path, code, ("Base", "Der"), language=language, verify=True)
+    base = source(files, language, "Base")
+    assert "    public int f(int alpha, int beta) {" in base
+    assert "private int __base1_f(int x, int y) {" in base
+
+
+def test_a_method_named_differently_from_the_one_that_declares_it_is_final(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """The director looks for the override by the name of the class that declares the method: the
+    method of another name (an overload that the first class does not have) does nothing."""
+    code = """
+class Shape { public: Shape(); virtual ~Shape();
+    virtual int add(int a, int b) const; virtual double add(double a, double b) const; };
+class Circle : public Shape { public: Circle(); int add(int a, int b) const override; };
+"""
+    files = generate(tmp_path, code, ("Shape", "Circle"), language=language, verify=True)
+    assert "    public int addIntInt(int a, int b) {" in source(files, language, "Shape")
+    circle = source(files, language, "Circle")
+    assert "    public final int add(int a, int b) {" in circle
+    assert "addIntInt" not in circle.split("public final int add(int a, int b)")[0]
+
+
+def test_what_a_class_below_inherits_is_final_in_it(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """C++ does not call an override of a class that has no director: Java refuses it."""
+    code = """
+class Shape { public: Shape(); virtual ~Shape(); virtual int area() const;
+    virtual std::string name() const; };
+class Dot final : public Shape { public: Dot(); };
+"""
+    files = generate(tmp_path, code, ("Shape",), language=language, verify=True)
+    dot = source(files, language, "Dot")
+    assert "    public final int area() {" in dot
+    assert "    public final java.lang.String name() {" in dot
+    assert "return super.area();" in dot
+
+
+def test_a_chain_of_classes_that_cannot_be_derived_from_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """A class below one that Java cannot derive from declares the virtual method again in C++:
+    the one above is final and does the same."""
+    code = """
+class D { public: D(); virtual ~D(); virtual int v() const; int w() const; };
+class G1 : public D { public: G1(); int v() const override; };
+class G2 : public G1 { public: G2(); int v() const override; virtual int z() const; };
+class G3 : public G2 { public: G3(); int v() const override; int z() const override; };
+"""
+    files = generate(tmp_path, code, ("D",), language=language, verify=True)
+    assert "    public final int v() {" in source(files, language, "G1")
+    assert " v()" not in source(files, language, "G2").replace("super.v()", "")
+    assert " v()" not in source(files, language, "G3").replace("super.v()", "")
+
+
+def test_a_class_with_a_director_that_java_cannot_derive_from_has_final_methods(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """The annotations give the class a director, but its base class has none (or it has two
+    bases): an override would be ignored, so Java refuses it as it does for the other classes."""
+    code = """
+class Base { public: Base(); virtual ~Base(); virtual int f() const; };
+class Other { public: Other(); virtual ~Other(); virtual int h() const; };
+class Plain : public Base { public: Plain(); int f() const override; virtual int g() const; };
+class Multi : public Other, public Base { public: Multi(); int g() const; };
+"""
+    files = generate(tmp_path, code, ("Plain", "Multi"), language=language, verify=True)
+    plain = source(files, language, "Plain")
+    assert "    public final int f() {" in plain
+    assert "    public final int g() {" in plain
+    assert "BridgefexDirectors" not in plain
+    multi = source(files, language, "Multi")
+    assert "    public final int g() {" in multi
+    assert "    public final int f() {" in multi  # the copy of a method of the second base
+    assert " h() {" not in multi.replace("final int h() {", "")  # the copy of the other base
+
+
+def test_an_intermediate_class_that_drops_a_virtual_method_has_a_derivable_subclass(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """What a class makes final (C++ implements it where it cannot be overridden) is not made
+    final again by the classes below it."""
+    code = """
+class Base { public: Base(); virtual ~Base(); virtual int p() const; virtual int q() const; };
+class Mid : public Base { public: Mid(); int p() const final; };
+class Leaf : public Mid { public: Leaf(); int q() const override; };
+"""
+    files = generate(tmp_path, code, ("Base", "Mid", "Leaf"), language=language, verify=True)
+    assert "    public final int p() {" in source(files, language, "Mid")
+    assert "final int p()" not in source(files, language, "Leaf")
+
+
+def test_a_module_whose_directors_have_nothing_to_override_compiles(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """The virtual methods use types that an override cannot have, and the module has no callback:
+    the class still has its director (and the runtime that C++ calls into)."""
+    code = """
+class Item { public: Item(); ~Item(); int size() const; };
+class Lone { public: Lone(); virtual ~Lone(); virtual int total(Item item) const; };
+"""
+    files = generate(tmp_path, code, ("Lone",), language=language, verify=True)
+    assert any(path.endswith("BridgefexCallbacks.java") for path in files)
+
+
+def test_a_nested_enum_cannot_be_named_like_the_class_of_the_overrides(
+    tmp_path: Path, language: str
+) -> None:
+    code = """
+class Base { public: enum class DirectorOverrides { A }; Base(); virtual ~Base();
+    virtual int f() const; };
+"""
+    with pytest.raises(GenerationError) as raised:
+        generate(tmp_path, code, ("Base",), language=language)
+    assert "'Base::DirectorOverrides' gets the Java name 'DirectorOverrides'" in str(raised.value)
+
+
+def test_what_a_class_below_inherits_and_privately_implements_is_final_in_it(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    """C++ implements the method where it cannot be overridden (a private override, not part of
+    the API): the class has no wrapper for it, and Java must not accept an override either."""
+    code = """
+class Base2 { public: Base2(); virtual ~Base2(); virtual int v() const; virtual int w() const; };
+class Priv : public Base2 { public: Priv(); private: int v() const override; };
+"""
+    files = generate(tmp_path, code, ("Base2", "Priv"), language=language, verify=True)
+    priv = source(files, language, "Priv")
+    assert "    public final int v() {" in priv
+    assert "return super.v();" in priv
+    assert "    public int w() {" not in priv
+
+
+def test_the_documentation_of_the_classes_and_methods_says_what_can_be_overridden(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    files = generate(tmp_path, BASE, language=language)
+    base = source(files, language, "Base")
+    assert "A class of yours can derive from it" in base
+    assert "Virtual: a class of yours can override it, and C++ calls the override." in base
+    assert "it is pure virtual: it has to be overridden" in base
+    assert "Final: C++ would not call an override of it." in base
+    leaf = source(files, language, "Leaf")
+    assert "Java cannot derive from it with effect" in leaf
+
+
+def test_a_class_whose_constructors_java_cannot_tell_apart_says_it_cannot_be_derived_from(
+    tmp_path: Path, java: None, language: str
+) -> None:
+    code = """
+class Dup { public: Dup(const std::string& a); Dup(const char* b); virtual ~Dup();
+    virtual int f() const; };
+"""
+    files = generate(tmp_path, code, ("Dup",), language=language, verify=True)
+    dup = source(files, language, "Dup")
+    assert "Java cannot derive from it" in dup
+    assert "A class of yours can derive from it" not in dup
