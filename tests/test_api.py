@@ -48,7 +48,7 @@ def test_options_are_validated() -> None:
     with pytest.raises(ConfigurationError, match="no input headers"):
         bridgefex.generate([], bridgefex.Options(module="ok"))
     with pytest.raises(ConfigurationError, match="unknown languages"):
-        bridgefex.generate([Path("x.h")], bridgefex.Options(module="ok", languages=("rust",)))
+        bridgefex.generate([Path("x.h")], bridgefex.Options(module="ok", languages=("cobol",)))
     with pytest.raises(ConfigurationError, match="invalid C\\+\\+ standard"):
         bridgefex.generate([Path("x.h")], bridgefex.Options(module="ok", std="c11"))
 
