@@ -5,6 +5,8 @@ tests/test_rust_roundtrip.py."""
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -333,3 +335,153 @@ std::string echo(const std::string& s);
 const char* maybe(const char* s);
 """
     generate(tmp_path, code, verify=True)
+
+
+# Borrowing: what a borrowed result may be ------------------------------------------------------
+
+BORROWING = """
+class Node { public: Node(); ~Node(); int value() const; void set(int value); };
+class Holder {
+public:
+    Holder();
+    ~Holder();
+    Node& slot() const;
+    const Node& cslot() const;
+    Node& pick(Node& first, const Node& second);
+    const Node& cpick(const Node& first) const;
+};
+Node& choose(const Node& first, Node& second);
+const Node& cchoose(const Node& first, const Node& second);
+Node& fresh(Node copy);
+"""
+
+
+def flat(text: str) -> str:
+    """The code on one line, as rustfmt-like wrapping does not matter to what is tested."""
+    return " ".join(text.split()).replace("( ", "(").replace(", )", ")")
+
+
+def test_a_const_method_that_gives_a_mutable_reference_takes_mut_self(tmp_path: Path) -> None:
+    """Two results of ``&self`` would be two ``&mut`` to one object."""
+    api = flat(source(generate(tmp_path, BORROWING)))
+    assert "pub fn slot(&mut self) -> crate::Result<&mut crate::api::Node>" in api
+    assert "Takes `&mut self` although C++ declares it `const`" in api
+    # A const result is shared, as the method is.
+    assert "pub fn cslot(&self) -> crate::Result<&crate::api::Node>" in api
+
+
+def test_a_borrowed_result_may_come_from_any_object_that_the_call_takes(tmp_path: Path) -> None:
+    api = flat(source(generate(tmp_path, BORROWING)))
+    # C++ does not say which: the result lives as long as all of them, and a result that is not
+    # const needs all of them exclusively.
+    assert (
+        "pub fn pick<'a>(&'a mut self, first: &'a mut crate::api::Node, "
+        "second: &'a mut crate::api::Node) -> crate::Result<&'a mut crate::api::Node>"
+    ) in api
+    assert "`second` is `&mut` although C++ takes it `const`" in api
+    assert (
+        "pub fn cpick<'a>(&'a self, first: &'a crate::api::Node) "
+        "-> crate::Result<&'a crate::api::Node>"
+    ) in api
+    assert (
+        "pub fn choose<'a>(first: &'a mut crate::api::Node, second: &'a mut crate::api::Node) "
+        "-> crate::Result<&'a mut crate::api::Node>"
+    ) in api
+    assert (
+        "pub fn cchoose<'a>(first: &'a crate::api::Node, second: &'a crate::api::Node) "
+        "-> crate::Result<&'a crate::api::Node>"
+    ) in api
+
+
+def test_a_copy_that_a_function_takes_is_not_what_the_result_borrows_from(tmp_path: Path) -> None:
+    api = flat(source(generate(tmp_path, BORROWING)))
+    # `fresh(Node copy)` gives a reference that nobody owns: it is `'static`, and unsafe because
+    # it is not const; the copy does not take part.
+    assert "pub unsafe fn fresh(copy: &crate::api::Node) -> crate::Result<&'static mut" in api
+
+
+def refused(tmp_path: Path, code: str, body: str) -> str | None:
+    """The error of the compiler for ``body`` as the ``main`` of a program that uses the crate
+    of the header ``code``, or None if it compiles."""
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    files = generate(tmp_path, code)
+    bridgefex.write_files(files, tmp_path / "out")
+    app = tmp_path / "app"
+    (app / "src").mkdir(parents=True)
+    (app / "Cargo.toml").write_text(
+        '[package]\nname = "app"\nversion = "0.0.0"\nedition = "2021"\n'
+        f'[dependencies]\nbind = {{ path = "{(tmp_path / "out" / "rust" / "bind").as_posix()}" }}\n'
+        "[workspace]\n",
+        encoding="utf-8",
+    )
+    (app / "src" / "main.rs").write_text(
+        "#![allow(unused)]\nuse bind::api::*;\nfn main() -> bind::Result<()> {\n"
+        f"    {body}\n    Ok(())\n}}\n",
+        encoding="utf-8",
+    )
+    command = runner_rust.cargo()
+    assert command is not None
+    environment = {
+        **os.environ,
+        "CARGO_TARGET_DIR": str(tmp_path / "target"),
+        "CARGO_NET_OFFLINE": "true",
+        "CARGO_TERM_COLOR": "never",
+    }
+    completed = subprocess.run(
+        [command, "check", "--offline", "--quiet", "--manifest-path", str(app / "Cargo.toml")],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+        timeout=600,
+    )
+    return None if completed.returncode == 0 else completed.stdout + completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("bad", "good", "code"),
+    [
+        pytest.param(
+            "let mut h = Holder::new()?; let a = h.slot()?; let b = h.slot()?; "
+            "a.set(1)?; b.set(2)?;",
+            "let mut h = Holder::new()?; let a = h.slot()?; a.set(1)?; "
+            "let b = h.slot()?; b.set(2)?;",
+            "E0499",
+            id="two-mutable-results-of-a-const-method",
+        ),
+        pytest.param(
+            "let mut h = Holder::new()?; let r = { let n = Node::new()?; h.cpick(&n)? }; "
+            "r.value()?;",
+            "let mut h = Holder::new()?; let n = Node::new()?; let r = h.cpick(&n)?; r.value()?;",
+            "E0597",
+            id="a-result-cannot-outlive-an-object-parameter-of-a-method",
+        ),
+        pytest.param(
+            "let a = Node::new()?; let r = { let b = Node::new()?; cchoose(&a, &b)? }; r.value()?;",
+            "let a = Node::new()?; let b = Node::new()?; let r = cchoose(&a, &b)?; r.value()?;",
+            "E0597",
+            id="a-result-cannot-outlive-any-object-of-a-function",
+        ),
+        pytest.param(
+            "let mut a = Node::new()?; let b = Node::new()?; let r = choose(&b, &mut a)?;",
+            "let mut a = Node::new()?; let mut b = Node::new()?; let r = choose(&mut b, &mut a)?;",
+            "E0308",
+            id="a-mutable-result-needs-every-object-it-may-come-from-exclusively",
+        ),
+        pytest.param(
+            "let mut a = Node::new()?; let mut b = Node::new()?; let r = choose(&mut b, &mut a)?; "
+            "b.value()?; r.set(1)?;",
+            "let mut a = Node::new()?; let mut b = Node::new()?; let r = choose(&mut b, &mut a)?; "
+            "r.set(1)?; b.value()?;",
+            "E0502",
+            id="and-while-the-result-lives-nobody-else-uses-them",
+        ),
+    ],
+)
+def test_the_compiler_refuses_what_a_borrowed_result_forbids(
+    tmp_path: Path, cargo: None, bad: str, good: str, code: str
+) -> None:
+    error = refused(tmp_path / "bad", BORROWING, bad)
+    assert error is not None, "the program was accepted"
+    assert f"error[{code}]" in error, error
+    assert refused(tmp_path / "good", BORROWING, good) is None

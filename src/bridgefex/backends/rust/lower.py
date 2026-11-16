@@ -133,14 +133,14 @@ class _Lowerer:
     def run(self) -> Lowering:
         plan = self.plan
         lowering = self.lowering
-        if plan.kind is CallableKind.METHOD:
-            lowering.receiver = "&self" if plan.is_const else "&mut self"
-            self.arguments["self"] = "self"
-        elif plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
-            raise Unsupported("directors are not supported in Rust yet")
         self.lifetime = self.borrowed_lifetime()
         if self.lifetime == "'a":
             lowering.generics = "<'a>"
+        if plan.kind is CallableKind.METHOD:
+            lowering.receiver = self.receiver()
+            self.arguments["self"] = "self"
+        elif plan.kind in (CallableKind.DIRECTOR_CONSTRUCTOR, CallableKind.DIRECTOR_BASE):
+            raise Unsupported("directors are not supported in Rust yet")
         for spec in plan.params:
             self.param(spec)
         returns, after = self.result()
@@ -155,28 +155,52 @@ class _Lowerer:
         ]
         return lowering
 
+    def exclusive(self) -> bool:
+        """The result is a non-``const`` object that C++ keeps owning: a ``&mut`` that Rust may
+        give only if what it borrows from is borrowed exclusively (two calls would give two
+        ``&mut`` to the same object otherwise)."""
+        spec = self.plan.result
+        return (
+            spec is not None
+            and isinstance(spec.type, ClassRef)
+            and is_borrowed(spec, spec.type)
+            and not is_constant(spec.type)
+        )
+
+    def borrowing(self, spec: ParamSpec) -> bool:
+        """An object parameter that the borrowed result may come from: one that the function
+        only uses (not one it takes, and not a copy of the object)."""
+        return (
+            isinstance(spec.type, ClassRef)
+            and "transfer" not in spec.words
+            and spec.type.form not in (ClassForm.UNIQUE, ClassForm.VALUE)
+        )
+
     def borrowed_lifetime(self) -> str:
         """The lifetime that the objects of a call share with the borrowed object that it gives
-        back. A method gives it from ``self``, which the elision of Rust does by itself; a
-        function gives it from the objects that it takes, all of them for one lifetime."""
+        back. C++ does not say which of them it comes from, so it is all of them: the result
+        cannot outlive any (an object that nobody owns lives until the program ends)."""
         plan = self.plan
         spec = plan.result
-        if (
-            spec is None
-            or not isinstance(spec.type, ClassRef)
-            or not is_borrowed(spec, spec.type)
-            or plan.kind is CallableKind.METHOD
-        ):
+        if spec is None or not isinstance(spec.type, ClassRef) or not is_borrowed(spec, spec.type):
             return ""
-        owners = [
-            param
-            for param in plan.params
-            if isinstance(param.type, ClassRef)
-            and "transfer" not in param.words
-            and param.type.form is not ClassForm.UNIQUE
-        ]
-        # An object that nobody owns lives until the program ends.
+        owners = [param for param in plan.params if self.borrowing(param)]
+        if plan.kind is CallableKind.METHOD:
+            # Rust gives the lifetime of ``self`` by itself when there is nothing else.
+            return "'a" if owners else ""
         return "'a" if owners else "'static"
+
+    def receiver(self) -> str:
+        """``&self`` or ``&mut self`` (with the lifetime that the result shares, if there is
+        one). A ``const`` method that gives a ``&mut`` takes ``&mut self``."""
+        constant = self.plan.is_const and not self.exclusive()
+        if self.plan.is_const and not constant:
+            self.lowering.remarks.append(
+                "Takes `&mut self` although C++ declares it `const`: it gives a non-`const` "
+                "reference, and two of them at once would be two `&mut` to the same object."
+            )
+        lifetime = f"{self.lifetime} " if self.lifetime == "'a" else ""
+        return f"&{lifetime}self" if constant else f"&{lifetime}mut self"
 
     def argument(self, name: str) -> str:
         try:
@@ -220,8 +244,16 @@ class _Lowerer:
         if "transfer" in spec.words or ref.form is ClassForm.UNIQUE:
             owned = f"crate::Owned<{path}>"
             return f"::core::option::Option<{owned}>" if nullable else owned
-        lifetime = f"{self.lifetime} " if self.lifetime else ""
-        borrowed = f"&{lifetime}{path}" if is_constant(ref) else f"&{lifetime}mut {path}"
+        lifetime = f"{self.lifetime} " if self.lifetime and self.borrowing(spec) else ""
+        # What a non-``const`` result may come from is borrowed exclusively, also when C++ takes
+        # it as ``const`` (it cannot be that object, but Rust does not know which one it is).
+        constant = is_constant(ref) and not (self.exclusive() and self.borrowing(spec))
+        if constant != is_constant(ref):
+            self.lowering.remarks.append(
+                f"`{spec.name}` is `&mut` although C++ takes it `const`: the result is not "
+                "`const`, and may come from any of the objects that the call takes."
+            )
+        borrowed = f"&{lifetime}{path}" if constant else f"&{lifetime}mut {path}"
         if ref.form in (ClassForm.POINTER, ClassForm.CONST_POINTER) and nullable:
             return f"::core::option::Option<{borrowed}>"
         return borrowed

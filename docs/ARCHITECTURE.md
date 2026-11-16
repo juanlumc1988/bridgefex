@@ -298,7 +298,7 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
   `PhantomData<(*mut u8, PhantomPinned)>` (so it is neither `Send`, `Sync` nor `Unpin`) and a private marker: there is no
   value of it, only `&T`, `&mut T` and `Owned<T>`, which owns the C++ object and calls its `destroy` when dropped. The
   borrow checker then does the work that the other backends do at run time: `const` is `&self`, the rest `&mut self`, a
-  result borrowed from `self` or from arguments has their lifetime (`'a` shared by the arguments that are not given up),
+  result borrowed has the lifetime of all the objects of the call (`'a` shared by `self` and by the arguments that are not given up or copied: C++ does not say which one it comes from) and, if it is not `const`, they are all borrowed exclusively (a `const` method that gives a `&mut` takes `&mut self`),
   and an object that was given to C++ is a moved value.
 - **Ownership is the one of the plan.** A transfer is an `Owned<T>` taken by value and given up with `Owned::into_raw`
   after the checks; there is no claim, no lease and no registry, because the compiler guarantees what they check. What it
