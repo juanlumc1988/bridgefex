@@ -1612,9 +1612,8 @@ public class Shape extends BridgefexObject {
     }
 
     private boolean __base1_same(drc.shape.Shape other) {
-        BridgefexRuntime.nonNull(other, "other");
-        try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
-            var __h1 = __t1.pointer();
+        try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other == null ? null : other.hold_drc_Shape(false, false)) {
+            var __h1 = __t1 == null ? java.lang.foreign.MemorySegment.NULL : __t1.pointer();
             var __result = __arena.allocate(BridgefexRuntime.C_BOOL);
             int __status = BridgefexNative.drc_Circle_director_base_same(__self.pointer(), __h1, __result);
             __scope.returned();
@@ -1624,9 +1623,8 @@ public class Shape extends BridgefexObject {
     }
 
     private boolean __base5_same(drc.shape.Shape other) {
-        BridgefexRuntime.nonNull(other, "other");
-        try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other.hold_drc_Shape(false, false)) {
-            var __h1 = __t1.pointer();
+        try (var __arena = BridgefexRuntime.arena(); BridgefexCallbacks.Scope __scope = BridgefexCallbacks.begin(); var __self = holdDirector(false); var __t1 = other == null ? null : other.hold_drc_Shape(false, false)) {
+            var __h1 = __t1 == null ? java.lang.foreign.MemorySegment.NULL : __t1.pointer();
             var __result = __arena.allocate(BridgefexRuntime.C_BOOL);
             int __status = BridgefexNative.drc_Shape_director_base_same(__self.pointer(), __h1, __result);
             __scope.returned();

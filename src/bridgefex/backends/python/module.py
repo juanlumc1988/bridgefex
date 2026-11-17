@@ -616,6 +616,7 @@ class _Lowering:
             kind=kind,
             module=self.plan.name,
             header_stem=header.stem,
+            retains_this=plan.retains_this,
         )
         if plan.kind is CallableKind.STATIC:
             result = dataclasses.replace(result, is_static=True)

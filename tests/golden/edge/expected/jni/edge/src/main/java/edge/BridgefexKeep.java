@@ -18,6 +18,8 @@ public final class BridgefexKeep {
 
     private final BridgefexHandle owner;
     private final Set<BridgefexHandle> pinned = Collections.newSetFromMap(new IdentityHashMap<>());
+    /** The texts that the C++ object points to: memory that the collector frees once nothing refers to it. */
+    private final List<Object> texts = new ArrayList<>();
 
     BridgefexKeep(BridgefexHandle owner) {
         this.owner = owner;
@@ -36,15 +38,26 @@ public final class BridgefexKeep {
         }
     }
 
+    /** Keeps a text (its memory) as long as the C++ object may use it. */
+    void addText(Object text) {
+        synchronized (this) {
+            texts.add(text);
+        }
+    }
+
     /** What was kept goes to {@code other}: it is not released with this one. */
     void moveTo(BridgefexKeep other) {
         List<BridgefexHandle> moving;
+        List<Object> movingTexts;
         synchronized (this) {
             moving = new ArrayList<>(pinned);
             pinned.clear();
+            movingTexts = new ArrayList<>(texts);
+            texts.clear();
         }
         List<BridgefexHandle> duplicated = new ArrayList<>();
         synchronized (other) {
+            other.texts.addAll(movingTexts);
             for (BridgefexHandle handle : moving) {
                 if (!other.pinned.add(handle)) {
                     duplicated.add(handle);
@@ -61,6 +74,8 @@ public final class BridgefexKeep {
         synchronized (this) {
             releasing = new ArrayList<>(pinned);
             pinned.clear();
+            // The C++ object is destroyed by now: nothing reads its texts, which the collector may free.
+            texts.clear();
         }
         Throwable failure = null;
         for (BridgefexHandle handle : releasing) {

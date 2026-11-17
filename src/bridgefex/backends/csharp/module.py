@@ -44,9 +44,9 @@ _CLASS_MEMBERS = frozenset(
 
 _FILE_TYPES = frozenset(
     """
-    Runtime Native Lease Block StringBlock Keep ObjectHandle BridgefexObject BridgefexException
-    BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks CallScope CallbackBox
-    Thunks DirectorBox Lent
+    Runtime Native Lease Block StringBlock Keep KeptText ObjectHandle BridgefexObject
+    BridgefexException BridgefexFunction BridgefexFunctionAttribute Functions BridgefexCallbacks
+    CallScope CallbackBox Thunks DirectorBox Lent
     """.split()
 )
 """Types of the root namespace that a type of a header must not hide."""

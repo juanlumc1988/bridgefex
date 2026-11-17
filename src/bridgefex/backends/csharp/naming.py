@@ -26,8 +26,8 @@ LOCAL_PREFIX = "__"
 # called so would hide them there.
 BODY_TYPES = frozenset(
     """
-    Runtime Native Block StringBlock Lease Keep BridgefexObject BridgefexException ObjectHandle
-    BridgefexCallbacks CallScope CallbackBox Thunks DirectorBox Lent
+    Runtime Native Block StringBlock Lease Keep KeptText BridgefexObject BridgefexException
+    ObjectHandle BridgefexCallbacks CallScope CallbackBox Thunks DirectorBox Lent
     """.split()
 )
 

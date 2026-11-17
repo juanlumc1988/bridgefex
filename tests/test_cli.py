@@ -61,8 +61,8 @@ def test_the_help_names_the_languages_and_what_the_module_names(
     with pytest.raises(SystemExit):
         main(["--help"])
     text = " ".join(capsys.readouterr().out.split())
-    assert "Python package, the C# namespace and the Java package" in text
-    assert "the Java sources with javac" in text
+    assert "Python package, the C# namespace, the Java package and the Rust crate" in text
+    assert "the Java sources with javac, the Rust crate with cargo" in text
     assert "ctypes" not in text
 
 

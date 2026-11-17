@@ -366,6 +366,32 @@ def _resolve_standard(
     return None
 
 
+def asan_runtime(toolchain: Toolchain) -> str | None:
+    """Path of GCC's ASan runtime, to preload into Python.
+
+    GCC only: Clang does not link its runtime into shared libraries, and its
+    own runtime is a separate package.
+    """
+    if toolchain.kind != "gnu" or not sys.platform.startswith("linux"):
+        return None
+    macros = subprocess.run(
+        [toolchain.cxx, "-dM", "-E", "-x", "c++", os.devnull],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if macros.returncode != 0 or "__clang__" in macros.stdout:
+        return None
+    completed = subprocess.run(
+        [toolchain.cxx, "-print-file-name=libasan.so"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    path = completed.stdout.strip()
+    return path if completed.returncode == 0 and os.path.isabs(path) else None
+
+
 def detect() -> Toolchain:
     """The toolchain used by the native tests."""
     if sys.platform == "win32":

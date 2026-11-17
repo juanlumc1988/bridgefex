@@ -39,7 +39,7 @@ public final class BridgefexRuntime {
     /** The name of the library, without the prefix and the extension of the platform. */
     public static final String LIBRARY = "drc";
     /** The fingerprint of the C API that these bindings were generated for. */
-    public static final String FINGERPRINT = "76c5f1c2fd950a2b25053a0f36ff49eb";
+    public static final String FINGERPRINT = "9a0ee76310213a53418ce56e476a899a";
     /** The system property that gives the path of the library. */
     public static final String PROPERTY = "drc.library";
     /** The environment variable that gives the path of the library. */
@@ -354,6 +354,16 @@ public final class BridgefexRuntime {
             }
         }
         return bytes;
+    }
+
+    /**
+     * The bytes as memory of their own that ends with a NUL, for a text that C++ keeps a pointer to: it
+     * lives as long as something refers to it (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static MemorySegment keptBytes(byte[] bytes) {
+        MemorySegment memory = Arena.ofAuto().allocate(bytes.length + 1L);
+        MemorySegment.copy(bytes, 0, memory, ValueLayout.JAVA_BYTE, 0, bytes.length);
+        return memory;
     }
 
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */

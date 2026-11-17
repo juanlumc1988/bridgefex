@@ -135,6 +135,7 @@ def policy(
     result: Kind | None = None,
     *,
     constructor: bool = False,
+    method: bool = False,
     name: str = "f",
 ) -> tuple[Resolved, list[str]]:
     table = load([write(directory, text)]) if text else {}
@@ -144,6 +145,7 @@ def policy(
         params,
         result,
         constructor=constructor,
+        method=method,
         annotations=table,
         location=None,
     )
@@ -451,3 +453,93 @@ def test_a_director_asked_for_twice_is_an_error(tmp_path: Path) -> None:
 def test_directors_after_a_table_say_where_they_have_to_be(tmp_path: Path) -> None:
     message = config_error(tmp_path, '[a_f]\nreturn = "owned"\ndirectors = ["a_One"]\n')
     assert "file0.toml:3: [a_f] directors: the list of classes has to come before" in message
+
+
+# `this` and the strings that C++ keeps -----------------------------------------------------------
+
+
+def test_a_method_can_say_that_something_keeps_a_pointer_to_the_object(tmp_path: Path) -> None:
+    resolved, errors = policy('[f]\nthis = "retain"\n', tmp_path, [], Kind.UNIQUE_PTR, method=True)
+    assert (errors, resolved.retains_this) == ([], True)
+    resolved, errors = policy('[f]\nthis = ["retain"]\n', tmp_path, [], None, method=True)
+    assert (errors, resolved.retains_this) == ([], True)
+    # Not said: not kept (and what a parameter says is not about the object).
+    resolved, errors = policy(
+        '[f]\nnode = "retain"\n', tmp_path, [Param("node", Kind.OBJECT_REFERENCE)], method=True
+    )
+    assert (errors, resolved.retains_this) == ([], False)
+    resolved, errors = policy("", tmp_path, [], Kind.UNIQUE_PTR, method=True)
+    assert resolved.retains_this is False
+
+
+@pytest.mark.parametrize(
+    ("flags", "reason"),
+    [
+        ({}, "only a method has one"),
+        ({"constructor": True}, "a constructor has no object yet"),
+    ],
+)
+def test_this_is_only_the_object_of_a_method(
+    tmp_path: Path, flags: dict[str, bool], reason: str
+) -> None:
+    (error,) = policy('[f]\nthis = "retain"\n', tmp_path, [], None, **flags)[1]
+    assert f"'this' is the object that the method is called on: {reason}" in error
+    assert "annotations.toml:" in error
+
+
+@pytest.mark.parametrize("word", ["call", "transfer", "nullable", "bogus"])
+def test_only_retain_applies_to_this(tmp_path: Path, word: str) -> None:
+    """The file says so when it is read: ``retain`` is the only word that ``this`` expects."""
+    message = config_error(tmp_path, f'[f]\nthis = "{word}"\n')
+    assert f"[f] this: unknown annotation '{word}' (expected: retain)" in message
+
+
+def test_this_cannot_keep_a_result_that_is_borrowed_from_it(tmp_path: Path) -> None:
+    """A reference, or a pointer that is borrowed, keeps the object it comes from alive."""
+    for kind, extra in (
+        (Kind.OBJECT_REFERENCE, ""),
+        (Kind.OBJECT_POINTER, 'return = "borrowed"\n'),
+    ):
+        (error,) = policy(f'[f]\nthis = "retain"\n{extra}', tmp_path, [], kind, method=True)[1]
+        assert (
+            "'this': the result is borrowed from the object, which it keeps alive already" in error
+        )
+    # What is owned is what keeps it.
+    resolved, errors = policy(
+        '[f]\nthis = "retain"\n', tmp_path, [], Kind.OBJECT_VALUE, method=True
+    )
+    assert (errors, resolved.retains_this) == ([], True)
+
+
+def test_a_parameter_can_be_called_self_and_this_is_still_the_object(tmp_path: Path) -> None:
+    """``this`` is a C++ keyword: no parameter has that name, unlike ``self``."""
+    resolved, errors = policy(
+        '[f]\nself = "retain"\nthis = "retain"\n',
+        tmp_path,
+        [Param("self", Kind.OBJECT_REFERENCE)],
+        None,
+        method=True,
+    )
+    assert errors == []
+    assert resolved.parameters == (frozenset({"retain"}),)
+    assert resolved.retains_this is True
+
+
+@pytest.mark.parametrize("kind", [Kind.C_STRING, Kind.STRING_VIEW])
+def test_a_string_that_cpp_keeps_a_pointer_to_can_be_retained(tmp_path: Path, kind: Kind) -> None:
+    resolved, errors = policy('[f]\ntext = "retain"\n', tmp_path, [Param("text", kind)])
+    assert (errors, resolved.parameters) == ([], (frozenset({"retain"}),))
+    # A constructor does not retain a string on its own, as it does an object.
+    resolved, errors = policy("", tmp_path, [Param("text", kind)], constructor=True)
+    assert (errors, resolved.parameters) == ([], (frozenset(),))
+
+
+def test_a_std_string_is_copied_so_there_is_nothing_to_retain(tmp_path: Path) -> None:
+    (error,) = policy('[f]\ntext = "retain"\n', tmp_path, [Param("text", Kind.STRING)])[1]
+    assert "'retain' does not apply to a string" in error
+    assert "a std::string is copied for the call" in error
+
+
+def test_bytes_applies_to_a_string_view_result_too(tmp_path: Path) -> None:
+    resolved, errors = policy('[f]\nreturn = "bytes"\n', tmp_path, [], Kind.STRING_VIEW)
+    assert (errors, resolved.result_bytes) == ([], True)

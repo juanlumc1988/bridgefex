@@ -1805,8 +1805,7 @@ public unsafe partial class Shape : BridgefexObject
                 {
                     using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
-                    global::System.ArgumentNullException.ThrowIfNull(other);
-                    using var __t1 = other.Hold_drc_Shape(false);
+                    using var __t1 = other is null ? default : other.Hold_drc_Shape(false);
                     nint __h1 = __t1.Pointer;
                     byte __result;
                     int __status = Native.drc_Circle_director_base_same(__self.Pointer, __h1, &__result);
@@ -1819,8 +1818,7 @@ public unsafe partial class Shape : BridgefexObject
                 {
                     using var __scope = CallScope.Begin();
                     using var __self = HoldDirector(false);
-                    global::System.ArgumentNullException.ThrowIfNull(other);
-                    using var __t1 = other.Hold_drc_Shape(false);
+                    using var __t1 = other is null ? default : other.Hold_drc_Shape(false);
                     nint __h1 = __t1.Pointer;
                     byte __result;
                     int __status = Native.drc_Shape_director_base_same(__self.Pointer, __h1, &__result);

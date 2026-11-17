@@ -9,6 +9,7 @@ Each case has:
   check_python.py  optional Python program run against the built library
   check_csharp.cs  optional C# program (top-level statements) run against the built library
   check_jvm.java   optional Java program (class Check) run against the built library
+  check_rust.rs    optional Rust program (a main.rs) run against the built library
   check_c.c        optional C program linked against the built library
   scenarios.toml   optional, what every backend must do the same (tests/conformance)
   annotations.toml optional, if case.toml lists it: who owns what (see bridgefex.annotations)
@@ -74,6 +75,10 @@ class Case:
         return own if own.exists() else self.check_jvm
 
     @property
+    def check_rust(self) -> Path:
+        return self.directory / "check_rust.rs"
+
+    @property
     def check_c(self) -> Path:
         return self.directory / "check_c.c"
 
@@ -114,6 +119,40 @@ def load_case(directory: Path) -> Case:
         min_cxx=config.get("min_cxx", "c++11"),
         annotations=tuple(directory / name for name in config.get("annotations", ())),
         languages=tuple(config.get("languages", ("python",))),
+    )
+
+
+def adhoc_case(
+    directory: Path,
+    module: str,
+    header: str,
+    implementation: str,
+    *,
+    std: str = "c++17",
+    annotations: str = "",
+) -> Case:
+    """A case of one header (``<module>.h``, in the namespace ``module``) and its implementation,
+    for the tests that need a library that no golden case has (``annotations`` is the text of its
+    annotations file). ``directory`` must be empty."""
+    (directory / "input").mkdir(parents=True)
+    (directory / "impl").mkdir()
+    path = directory / "input" / f"{module}.h"
+    path.write_text("#pragma once\n" + header, encoding="utf-8")
+    (directory / "impl" / f"{module}.cpp").write_text(
+        f'#include "{module}.h"\n' + implementation, encoding="utf-8"
+    )
+    table = directory / "annotations.toml"
+    if annotations:
+        table.write_text(annotations, encoding="utf-8")
+    return Case(
+        name=module,
+        directory=directory,
+        module=module,
+        headers=(path,),
+        std=std,
+        min_cxx="c++11",
+        annotations=(table,) if annotations else (),
+        languages=("python", "rust"),
     )
 
 

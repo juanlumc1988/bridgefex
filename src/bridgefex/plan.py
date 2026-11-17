@@ -413,6 +413,11 @@ class CallablePlan:
     is_const: bool = False
     """A method that can be called on a const object."""
 
+    retains_this: bool = False
+    """The object that it returns keeps a pointer to the object that the method is called on (a
+    guard, an iterator); if it returns no object, the library keeps it for ever. It is the
+    annotation ``this = "retain"``."""
+
     source: Method | Constructor | None = dataclass_field(default=None, compare=False, repr=False)
     """The declaration it wraps. A location does not tell two declarations apart (a macro
     can declare several at one), so a backend that joins what a class declares with what
@@ -462,11 +467,18 @@ def _param_name(param: LoweredParam) -> str:
     return param.spec.name if param.spec is not None else ""
 
 
-def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, ...]:
+def _parameter_notes(
+    params: Sequence[LoweredParam], keeper: str, retains_this: str | None = None
+) -> tuple[str, ...]:
     """What the C header says about the objects that the function is given: which
     it takes, which may be NULL and which it keeps a pointer to (``keeper`` is who
-    keeps it: self, the new object, the library)."""
+    keeps it: self, the new object, the library). ``retains_this`` is who keeps a
+    pointer to the object that a method is called on, if somebody does."""
     notes: list[str] = []
+    if retains_this is not None:
+        notes.append(
+            f"this: {retains_this} a pointer to it; it must stay valid as long as it is used."
+        )
     taken = [_param_name(param) for param in params if param.transfers]
     if taken:
         pronoun = "it" if len(taken) == 1 else "them"
@@ -483,6 +495,21 @@ def _parameter_notes(params: Sequence[LoweredParam], keeper: str) -> tuple[str, 
         if "retain" in param.words
     ]
     return tuple(notes)
+
+
+def _this_keeper(policy: Resolved, lowered: LoweredResult) -> str | None:
+    """Who keeps a pointer to the object that a method is called on, for the notes: the object
+    that the method returns, or else the library (for ever)."""
+    if not policy.retains_this:
+        return None
+    spec = lowered.spec
+    owned = (
+        spec is not None
+        and isinstance(spec.type, ClassRef)
+        and spec.type.form not in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE)
+        and spec.ownership != "borrowed"
+    )
+    return "the object that it returns keeps" if owned else "the library keeps"
 
 
 def _temporaries_check(call: str, params: Sequence[LoweredParam], what: str) -> tuple[str, ...]:
@@ -1782,7 +1809,10 @@ class _Builder:
                 ClassForm.UNIQUE: Kind.UNIQUE_PTR,
             }[ref.form]
         if isinstance(type_, StringType):
-            return Kind.C_STRING if type_.kind is StringKind.C_STRING else Kind.STRING
+            return {
+                StringKind.C_STRING: Kind.C_STRING,
+                StringKind.STRING_VIEW: Kind.STRING_VIEW,
+            }.get(type_.kind, Kind.STRING)
         if isinstance(type_, CallbackType):
             return Kind.CALLBACK
         return Kind.OTHER
@@ -1796,10 +1826,18 @@ class _Builder:
         location: Location,
         *,
         constructor: bool = False,
+        method: bool = False,
+        like: str | None = None,
     ) -> Resolved:
         """The policy of a generated C function: its annotations, and what the
-        types imply. Reports what is wrong with them."""
+        types imply. Reports what is wrong with them. ``method`` says that it is
+        called on an object (the annotations may say what keeps a pointer to it).
+        ``like`` is the function that this one repeats (the base call of a virtual
+        method is the method itself): what the file says of that one applies when it
+        says nothing of this one."""
         self.annotatable.append(c_name)
+        if like is not None and c_name not in self._annotations:
+            c_name = like
         resolved, problems = resolve(
             c_name,
             what,
@@ -1808,6 +1846,7 @@ class _Builder:
             constructor=constructor,
             annotations=self._annotations,
             location=location,
+            method=method,
         )
         self.errors.extend(problems)
         return resolved
@@ -2680,7 +2719,10 @@ class _Builder:
                 *(check for param in params for check in param.compile_checks),
             ),
             prologue=tuple(line for param in params for line in param.prologue),
-            notes=(*_parameter_notes(params, keeper), *lowered.notes),
+            notes=(
+                *_parameter_notes(params, keeper, _this_keeper(policy, lowered)),
+                *lowered.notes,
+            ),
         )
         return function, lowered
 
@@ -2695,6 +2737,7 @@ class _Builder:
         result: LoweredResult | None,
         location: Location,
         is_const: bool = False,
+        retains_this: bool = False,
         source: Method | Constructor | None = None,
     ) -> CallablePlan:
         # A parameter that could not be lowered was reported: the plan is not built.
@@ -2707,6 +2750,7 @@ class _Builder:
             result=result.spec if result is not None else None,
             location=location,
             is_const=is_const,
+            retains_this=retains_this,
             source=source,
         )
 
@@ -2811,7 +2855,14 @@ class _Builder:
             name = f"{c_type}_{method.name}{suffix}"
             what = f"method '{cpp_name}::{method.name}({_describe_params(method.parameters)})'"
             self._reserve_c_name(name, what, method.location)
-            policy = self._policy(name, what, method.parameters, method.result, method.location)
+            policy = self._policy(
+                name,
+                what,
+                method.parameters,
+                method.result,
+                method.location,
+                method=not method.is_static,
+            )
             params = self._lower_params(method.parameters, method.location, policy)
             qualifiers = " const" if method.is_const else ""
             static = "static " if method.is_static else ""
@@ -2851,6 +2902,7 @@ class _Builder:
                     result=result,
                     location=method.location,
                     is_const=method.is_const,
+                    retains_this=policy.retains_this,
                     source=method,
                 )
             )
@@ -3367,6 +3419,20 @@ class _Builder:
                 back = f"{' || '.join(terms)} ? {cpp}() : {back}"
         return cpp, f"{c_type}*", token, [f"{c_type} _result{{}};"], [f"return {back};"]
 
+    def _base_policy(
+        self, name: str, what: str, slot: _Slot, method: Method, location: Location
+    ) -> Resolved:
+        """The policy of the base call of a virtual method: the method itself, so what the
+        annotations say of the public one (a text or the object that C++ keeps) holds for the
+        call that an override makes of it too."""
+        owner = slot.owner
+        public = f"{owner.c_type}_{method.name}" + self._suffix(
+            ("method", *owner.model.namespace, owner.model.name, method.name), method.parameters
+        )
+        return self._policy(
+            name, what, method.parameters, method.result, location, method=True, like=public
+        )
+
     def _director_entry(
         self, info: ClassInfo, slot: _Slot, field: str, impl: str
     ) -> tuple[DirectorEntry, list[str], list[str]] | None:
@@ -3458,7 +3524,7 @@ class _Builder:
             name = f"{director_type}_base_{field}"
             what = f"the base call of '{description}'"
             self._reserve_c_name(name, what, location)
-            policy = self._policy(name, what, method.parameters, method.result, location)
+            policy = self._base_policy(name, what, slot, method, location)
             params = self._lower_params(
                 method.parameters, location, policy, reserved=_DIRECTOR_PARAMETERS
             )
@@ -3491,6 +3557,7 @@ class _Builder:
                 result=lowered_result,
                 location=location,
                 is_const=method.is_const,
+                retains_this=policy.retains_this,
             )
         entry = DirectorEntry(
             field=field,

@@ -1857,6 +1857,83 @@ def test_constructors_keep_unless_they_only_read() -> None:
     )
 
 
+def test_a_method_can_be_told_that_something_keeps_a_pointer_to_its_object() -> None:
+    owned = Method("lock", (), cref("Node", ClassForm.UNIQUE), False, False, HERE)
+    plain = method("register_me")
+    quiet = method("peek", is_const=True)
+    tree = klass("Tree", methods=(owned, plain, quiet))
+    annotations = annotate(ns_Tree_lock={"this": "retain"}, ns_Tree_register_me={"this": "retain"})
+    plan = build_plan(Module("mod", two_headers(tree)), annotations, reservations())
+    classes = [item for item in plan.headers[1].items if isinstance(item, ClassPlan)]
+    lock, register, peek = classes[0].members
+    assert (lock.retains_this, register.retains_this, peek.retains_this) == (True, True, False)
+    # Who keeps it: the object that the method returns, or else the library for ever.
+    assert lock.function.notes[0] == (
+        "this: the object that it returns keeps a pointer to it; it must stay valid as long as "
+        "it is used."
+    )
+    assert register.function.notes == (
+        "this: the library keeps a pointer to it; it must stay valid as long as it is used.",
+    )
+    assert peek.function.notes == ()
+
+
+def test_python_keeps_the_object_of_a_method_alive_as_the_annotations_say() -> None:
+    owned = Method("lock", (), cref("Node", ClassForm.UNIQUE), False, False, HERE)
+    plain = method("register_me")
+    quiet = method("peek", is_const=True)
+    _, item = annotated(
+        owned,
+        plain,
+        quiet,
+        annotations=annotate(
+            ns_Tree_lock={"this": "retain"}, ns_Tree_register_me={"this": "retain"}
+        ),
+    )
+    lock, register, peek = item.members
+    # The result exists before the call: it keeps the object that it was made by.
+    assert lock.retain_statements() == ("_runtime.retain(_result._retained, self)",)
+    # No object to tie it to: for ever.
+    assert register.retain_statements() == ("_runtime.retain(_runtime.forever, self)",)
+    assert peek.retain_statements() == ()
+    # Before the call: C++ may keep it even if the call fails.
+    assert "_runtime.retain(_result._retained, self)" in lock.body(8)
+
+
+def test_python_keeps_a_text_that_cpp_keeps() -> None:
+    text = StringType(StringKind.C_STRING)
+    view = StringType(StringKind.STRING_VIEW)
+    _, item = annotated(
+        method("raw", Parameter("text", text)),
+        method("view", Parameter("text", view)),
+        method("copy", Parameter("text", StringType(StringKind.STRING))),
+        annotations=annotate(ns_Tree_raw={"text": "retain"}, ns_Tree_view={"text": "retain"}),
+    )
+    raw, view_plan, copy = item.members
+    assert raw.retain_statements() == ("_runtime.retain(self._retained, text)",)
+    assert view_plan.retain_statements() == ("_runtime.retain(self._retained, text)",)
+    assert copy.retain_statements() == ()
+    # The converted text is what is kept: the bytes that C++ points to.
+    lines = view_plan.body(8).splitlines()
+    convert = next(i for i, line in enumerate(lines) if "to_bytes" in line)
+    retain = next(i for i, line in enumerate(lines) if "_runtime.retain" in line)
+    assert convert < retain
+
+
+def test_this_cannot_be_annotated_on_a_function_that_has_no_object() -> None:
+    static = method("make", is_static=True)
+    tree = klass("Tree", methods=(static,))
+    with pytest.raises(GenerationError) as raised:
+        build_plan(
+            Module("mod", two_headers(tree)),
+            annotate(ns_Tree_make={"this": "retain"}),
+            reservations(),
+        )
+    assert "'this' is the object that the method is called on: only a method has one" in str(
+        raised.value
+    )
+
+
 def test_strings_as_bytes() -> None:
     _, item = annotated(
         Method("m", (), StringType(StringKind.STRING), True, False, HERE),

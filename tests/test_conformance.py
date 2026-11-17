@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from bridgefex.backends import registry
-from tests.conformance import runner_csharp, runner_jvm, scenarios
+from tests.conformance import runner_csharp, runner_jvm, runner_rust, scenarios
 from tests.support.build import build
 from tests.support.cases import GOLDEN_DIR, Case, all_cases, load_case
 from tests.support.plans import plan_of
@@ -64,6 +64,7 @@ RUNNERS: dict[str, Callable[[Case, Path, Path, Path], subprocess.CompletedProces
     "csharp": runner_csharp.run,
     "jvm": runner_jvm.run,
     "jni": functools.partial(runner_jvm.run, language="jni"),
+    "rust": runner_rust.run,
 }
 
 # What each backend can already play: the cases whose scenarios use only what it supports.
@@ -78,6 +79,7 @@ SUPPORTED: dict[str, frozenset[str] | None] = {
     "jni": frozenset(
         {"scalars", "enums", "structs", "strings", "demo", "inherit", "containers", "spans"}
     ),
+    "rust": frozenset({"scalars", "demo", "enums", "structs", "strings", "inherit"}),
 }
 
 
@@ -94,6 +96,8 @@ def _dotnet(request: pytest.FixtureRequest) -> None:
         request.getfixturevalue("dotnet")
     if callspec is not None and callspec.params.get("language") in ("jvm", "jni"):
         runner_jvm.skip_without_java()
+    if callspec is not None and callspec.params.get("language") == "rust":
+        runner_rust.skip_without_rust()
 
 
 def test_every_backend_has_a_runner() -> None:

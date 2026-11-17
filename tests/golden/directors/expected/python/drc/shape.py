@@ -1050,10 +1050,10 @@ class Shape(_runtime.Object):
         """Calls the implementation of ``bool drc::Shape::same(const drc::Shape* other) const`` in C++: not the
         override of an object, which would call this one again."""
         _out = ctypes.c_bool()
-        _runtime.check_object(other, Shape, "other")
+        _runtime.check_object(other, Shape, "other", nullable=True)
         _runtime.check(_bind().drc_Shape_director_base_same(
             self._dptr(),
-            other._ptr_drc_Shape(),
+            (other._ptr_drc_Shape() if other is not None else None),
             _out,
         ))
         return _out.value
@@ -2201,10 +2201,10 @@ class Circle(Shape):
         """Calls the implementation of ``bool drc::Shape::same(const drc::Shape* other) const`` in C++: not the
         override of an object, which would call this one again."""
         _out = ctypes.c_bool()
-        _runtime.check_object(other, Shape, "other")
+        _runtime.check_object(other, Shape, "other", nullable=True)
         _runtime.check(_bind().drc_Circle_director_base_same(
             self._dptr(),
-            other._ptr_drc_Shape(),
+            (other._ptr_drc_Shape() if other is not None else None),
             _out,
         ))
         return _out.value

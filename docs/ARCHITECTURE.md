@@ -59,7 +59,13 @@ is a tree of frozen dataclasses:
   struct or class it refers to, the annotation words `nullable`, `transfer`,
   `retain` and `call`, the C parameters that hold its size, user data and release
   function), `CallableKind` says whether it is a free function, a static method,
-  a method or a constructor.
+  a method or a constructor. `retains_this` is the annotation `this = "retain"` of a
+  method: what it returns keeps a pointer to the object it is called on (a guard, an
+  iterator), or the library does for ever if it returns none; `retain` on a `const char*`
+  or a `std::string_view` says that a text is what C++ keeps. Each backend keeps what is
+  kept the way its language allows (a result that holds the object, a copy of the text
+  that the object that stores it holds, for ever for a function), and Rust makes the
+  function `unsafe`.
 - `ClassPlan` also has `bases` and `views`: the C API converts a derived pointer
   to each ancestor (`<class>_as_<ancestor>`), because with several bases the
   address changes.
@@ -282,6 +288,43 @@ releases is released by a queue of the thread, not by recursion, and a claim to 
 the call alone. What a wrapper needs from the generated class is public (the handle constructor
 is `protected`, with a static `wrap`, so that `new X(null)` is not ambiguous) but documented as not API.
 
+The Rust backend (`backends/rust/`) lowers the plan to a crate whose types cannot be misused
+instead of to classes that check at run time. `mapping.py` maps `Ffi` and the scalars to the types of
+`extern "C"` (`core::ffi` for the C types whose width is the platform's, the exact Rust type for those of
+`<stdint.h>`), `naming.py` converts names (`snake`, `pascal`, `upper_snake`, a trailing `_` for a keyword,
+a prefix `__` for the locals of the generated code, which no C identifier can have, and absolute paths
+(`::core::...`, `crate::...`) so that nothing a header declares shadows them), `lower.py` lowers a `CallablePlan` to a
+function (`Lowering`: its receiver, parameters, result, statements and remarks; an `unsafe fn` is a lowering that
+needs the caller to promise something) and `module.py` writes the files (`native.rs`, a file per header, a class with
+its `Class` implementation, the inheritance, the enums in a module of the class, the structs), `check.py` runs
+`cargo check` with warnings as errors in a scratch directory, and `templates/` holds the runtime (`runtime.rs`) and the
+`Cargo.toml` and `build.rs`. What Rust gives and the plan assumes the target has to provide:
+
+- **A class is an opaque type behind a reference.** It is a `#[repr(C)]` struct with no fields that can be named, a
+  `PhantomData<(*mut u8, PhantomPinned)>` (so `&T` and `&mut T` are not `Send` and `&T` is not `Sync`: the header does not say whether C++ may use the object from another thread) and a private marker: there is no
+  value of it, only `&T`, `&mut T` and `Owned<T>`, which owns the C++ object and calls its `destroy` when dropped. The
+  borrow checker then does the work that the other backends do at run time: `const` is `&self`, the rest `&mut self`, a
+  result borrowed has the lifetime of all the objects of the call (`'a` shared by `self` and by the arguments that are not given up or copied: C++ does not say which one it comes from) and, if it is not `const`, they are all borrowed exclusively (a `const` method that gives a `&mut` takes `&mut self`),
+  and an object that was given to C++ is a moved value.
+- **Ownership is the one of the plan.** A transfer is an `Owned<T>` taken by value and given up with `Owned::into_raw`
+  after the checks; there is no claim, no lease and no registry, because the compiler guarantees what they check. What it
+  cannot guarantee is `retain` (C++ keeps a pointer, for how long Rust cannot see): the function is `unsafe`, and
+  `Owned::leak` is the way to give an object up for good. A result borrowed from nothing is `'static`, hence `unsafe` too, `const` or not (C++ may destroy the object through another function). What the guarantee rests on is the annotations: a function that keeps a pointer and is not annotated `retain` is safe in Rust and wrong (`this = "retain"` says that the object of a method is what is kept, `retain` on a `const char*` or a `std::string_view` that a text is; both are `unsafe` in Rust: README, "What the safety rests on").
+- **Inheritance** is `Deref` to the first base (so the methods of every ancestor are one list and a `&Derived` coerces to a
+  `&Base` where a function takes one), `as_<base>()` for the other bases (the view functions of the plan adjust the
+  pointer), and `Owned<Derived>::into_base()` where the plan says the base has a virtual destructor (the object is destroyed
+  through it). Without one the conversion does not exist, which is what makes taking a derived object as a base class
+  that C++ destroys through the base a type error.
+- **Enums are newtypes** (`struct Color(pub u8)` with a constant per enumerator): a C++ enum may hold a value that
+  no enumerator has, and a Rust `enum` that holds one is undefined behavior. A range enum is checked before the call.
+- **Errors** are `Result<T, Error>` with an `ErrorKind` (`#[non_exhaustive]`); `runtime::ensure` checks the fingerprint of
+  the library once (an atomic) and `runtime::check` reads the message of the thread of the call.
+- **Linking** is the business of `build.rs` (a directory and a kind from `<MODULE>_LIB_DIR` and `<MODULE>_LIB_KIND`,
+  and the C++ runtime of the target for a static library): a crate is a dependency of the user's program, and there is no
+  runtime loading to do, so `ensure` only checks the fingerprint.
+
+The generated crates are built with the oldest Rust that they declare (`RUST_VERSION` in `__init__.py`), which the CI tests.
+
 ## The conformance suite
 
 The behavior that every language must share (what a call returns, which failures
@@ -330,7 +373,7 @@ bindings name in the attribute `[BridgefexFunction]` of the member, so that the 
 none of the rules by which C# names things; the Python harness also gives it the C# names of
 the enums and structs. The Java one is the same: `Runner.java` is compiled with the generated sources and plays the
 scenarios by reflection from a JSON file, finding each member by the `@BridgefexFunction` that names its C function. A language whose toolchain is not installed skips its runner, unless the
-environment requires it (`BRIDGEFEX_REQUIRE_DOTNET` and `BRIDGEFEX_REQUIRE_JAVA`, set by the CI). Behavior that is not shared (how a class that is
+environment requires it (`BRIDGEFEX_REQUIRE_DOTNET`, `BRIDGEFEX_REQUIRE_JAVA` and `BRIDGEFEX_REQUIRE_RUST`, set by the CI). The Rust one is a program too: `runner_rust.py` writes a `main.rs` with a function per scenario (from the same resolved scenarios, finding each member by the names of the generated crate that `backends/rust/module.py` also uses: `targets`), builds it with `cargo` against the crate of the case, and runs it; a step that the type system makes impossible (a call after `close`, a number out of the range of its type) is not played where the compiler refuses it, and it is a failure if the scenario meant something else. Behavior that is not shared (how a class that is
 not instantiable fails to be, a `TypeError` for the wrong kind of argument, a copy or a pickle) stays in the
 `check_<language>` program of the case. Callbacks and ownership annotations are not
 in the scenarios yet.
@@ -339,12 +382,12 @@ in the scenarios yet.
 
 - `tests/test_plan.py` checks the plan and, through the Python backend's view of
   it, the Python lowering; `tests/test_backends.py` the registry and the checks;
-  `tests/test_csharp_backend.py` what the C# backend writes, names and refuses; `tests/test_jvm_backend.py` the same for Java.
+  `tests/test_csharp_backend.py` what the C# backend writes, names and refuses; `tests/test_jvm_backend.py` the same for Java and `tests/test_rust_backend.py` for Rust.
 - `tests/test_architecture.py` the layering described above; `tests/test_conformance.py`
   the conformance suite.
 - `tests/golden/<case>/` holds, per case, the input headers, the C++ implementation
   and the expected generated files; `test_golden.py` compares them byte by byte
   and `test_roundtrip.py` builds the library and runs `check_c.c` and
   `check_python.py` against it; `test_csharp_roundtrip.py` does the same with
-  `check_csharp.cs`, built with the generated project like a user's program, and `test_jvm_roundtrip.py` with `check_jvm.java` (with the helpers of `tests/support/jvm/Checks.java`). Cases of the bindings alone, with no C program, are in `tests/binding_cases/`.
+  `check_csharp.cs`, built with the generated project like a user's program, and `test_jvm_roundtrip.py` with `check_jvm.java` (with the helpers of `tests/support/jvm/Checks.java`). `test_rust_roundtrip.py` runs `check_rust.rs` (also under AddressSanitizer) and the pairs of programs that the Rust compiler must refuse and accept, `test_rust_armhf.py` runs the Rust checks and scenarios on 32-bit ARM under QEMU, and `test_rust_msrv.py` builds the generated crates with the oldest Rust they declare. Cases of the bindings alone, with no C program, are in `tests/binding_cases/`.
   A case lists the bindings that its `expected/` has (`languages` in `case.toml`).

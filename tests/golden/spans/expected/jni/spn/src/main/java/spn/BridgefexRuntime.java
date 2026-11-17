@@ -337,6 +337,21 @@ public final class BridgefexRuntime {
         return bytes;
     }
 
+    /**
+     * The bytes as memory of their own that ends with a NUL, for a text that C++ keeps a pointer to: it
+     * lives as long as something refers to it (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static BridgefexSegment keptBytes(byte[] bytes) {
+        ensureLoaded();
+        java.nio.ByteBuffer own = java.nio.ByteBuffer.allocateDirect(bytes.length + 1 + 8)
+            .order(java.nio.ByteOrder.nativeOrder());
+        long base = BridgefexNative.addressOf(own);
+        int shift = (int) (((base + 7) / 8 * 8) - base);
+        BridgefexSegment memory = new BridgefexSegment(own, shift, base + shift, bytes.length + 1L);
+        memory.copyFrom(bytes, 0);
+        return memory;
+    }
+
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */
     public static BridgefexSegment bytes(BridgefexArena arena, byte[] bytes) {
         BridgefexSegment memory = arena.allocate(bytes.length + 1L);

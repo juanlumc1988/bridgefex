@@ -209,6 +209,9 @@ class _Lowerer:
         """(the parameter, the local with its pointer, the hold) of each object given to C++."""
 
         self.retained: list[str] = []
+        self.kept_texts: list[str] = []
+        """The locals with the texts that C++ keeps pointers to (annotation ``retain``)."""
+
         self.owners: list[str] = []
         self.callbacks = False
 
@@ -255,14 +258,9 @@ class _Lowerer:
             body.add(f"{name}?.Surrender();")
         # What C++ may keep is retained before the call: a call that stores a pointer and then
         # throws has kept it all the same. A constructor that throws has kept nothing.
-        target = (
-            "Retain"
-            if plan.kind in (CallableKind.METHOD, CallableKind.CONSTRUCTOR)
-            else "BridgefexObject.RetainForever"
-        )
         if plan.kind is not CallableKind.CONSTRUCTOR:
-            for name in self.retained:
-                body.add(f"{target}({name});")
+            for line in self.retains():
+                body.add(line)
         if out.checks_after or self.callbacks or out.cleanup:
             body.add(f"int {L}status = {call};")
             if self.callbacks:
@@ -287,19 +285,39 @@ class _Lowerer:
         else:
             body.add(f"Runtime.Check({call});")
         if plan.kind is CallableKind.CONSTRUCTOR and self.factory is None:
-            for name in self.retained:
-                body.add(f"{target}({name});")
+            for line in self.retains():
+                body.add(line)
         if plan.kind is CallableKind.CONSTRUCTOR and self.factory is not None:
             # The object that is returned keeps what it was given.
             out.after_check = [
                 f"var {L}new = new {self.factory[0]}({L}o);",
                 *(f"{L}new.Retain({name});" for name in self.retained),
+                *(f"{L}new.RetainText({name});" for name in self.kept_texts),
                 f"return {L}new;",
             ]
         for line in out.after_check:
             body.add(line)
         self.lowering.body = body.finish()
         return self.lowering
+
+    def retains(self) -> list[str]:
+        """The statements that keep what C++ keeps pointers to: the objects and the texts that
+        are given, by the object that keeps them (this one, or the new one of a constructor), or
+        for ever; and the object itself, if the library keeps it."""
+        plan = self.plan
+        keeper = plan.kind in (
+            CallableKind.METHOD,
+            CallableKind.CONSTRUCTOR,
+            CallableKind.DIRECTOR_BASE,
+        )
+        target = "Retain" if keeper else "BridgefexObject.RetainForever"
+        text_target = "RetainText" if keeper else "BridgefexObject.RetainTextForever"
+        lines = [f"{target}({name});" for name in self.retained]
+        lines += [f"{text_target}({name});" for name in self.kept_texts]
+        if plan.retains_this and not self.gives_object():
+            # Nothing that C++ gives keeps the object: the library does, for ever.
+            lines.append("BridgefexObject.RetainForever(this);")
+        return lines
 
     def protected(self, check: str, out: _Result) -> None:
         """The check and the statements after it, with the release of the result of C++ in a
@@ -348,6 +366,16 @@ class _Lowerer:
                 )
                 self.body.add("}")
 
+    def gives_object(self) -> bool:
+        """The method returns an object that the caller owns (a wrapper that is new)."""
+        spec = self.plan.result
+        return (
+            spec is not None
+            and isinstance(spec.type, ClassRef)
+            and spec.type.form not in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE)
+            and spec.ownership != "borrowed"
+        )
+
     def argument(self, name: str) -> str:
         try:
             return self.arguments[name]
@@ -362,7 +390,7 @@ class _Lowerer:
         type_ = spec.type
         name = parameter(spec.name)
         self.lowering.parameters.append(f"{public_type(type_, self.names, spec)} {name}")
-        if "retain" in spec.words:
+        if "retain" in spec.words and not isinstance(type_, StringType):
             self.retained.append(name)
         if (
             isinstance(type_, ClassRef)
@@ -439,8 +467,32 @@ class _Lowerer:
             "{}", f"({underlying.public}){name}"
         )
 
+    def kept_text(self, spec: ParamSpec, position: int, name: str) -> None:
+        """A text that C++ keeps a pointer to: a copy in native memory, kept by the object that
+        keeps it (a managed array can move, and is gone when the call returns)."""
+        body = self.body
+        local = f"{L}k{position}"
+        pointer = f"{L}p{position}"
+        if spec.size is None:
+            make = f'Runtime.Utf8Z({name}, "{spec.name}")'
+            if "nullable" in spec.words:
+                body.add(f"KeptText? {local} = {name} is null ? null : new KeptText({make});")
+                body.add(f"byte* {pointer} = {local} is null ? null : {local}.Pointer;")
+            else:
+                body.add(f"KeptText {local} = new KeptText({make});")
+                body.add(f"byte* {pointer} = {local}.Pointer;")
+        else:
+            body.add(f'KeptText {local} = new KeptText(Runtime.Utf8({name}, "{spec.name}"));')
+            body.add(f"byte* {pointer} = {local}.Pointer;")
+            self.arguments[spec.size] = f"(nuint){local}.Length"
+        self.arguments[spec.name] = pointer
+        self.kept_texts.append(local)
+
     def string_param(self, spec: ParamSpec, position: int, name: str) -> None:
         body = self.body
+        if "retain" in spec.words:
+            self.kept_text(spec, position, name)
+            return
         if spec.size is None:
             # NUL-terminated: C++ would stop at a NUL of the text.
             if "nullable" in spec.words:
@@ -630,7 +682,18 @@ class _Lowerer:
         self.body.add(f"var {L}o = new {handle_name}();")
         out.checks_after = True
         out.after_call = [f"{L}o.Assign({L}result);"]
-        if nullable:
+        if self.plan.retains_this:
+            # The object that is given keeps a pointer to this one: it keeps it alive.
+            made = [f"var {L}made = new {class_name}({L}o);", f"{L}made.Retain(this);"]
+            if nullable:
+                out.after_check = [
+                    f"if ({L}o.IsInvalid) return null;",
+                    *made,
+                    f"return {L}made;",
+                ]
+            else:
+                out.after_check = [*made, f"return {L}made;"]
+        elif nullable:
             out.after_check = [f"return {L}o.IsInvalid ? null : new {class_name}({L}o);"]
         else:
             out.after_check = [f"return new {class_name}({L}o);"]

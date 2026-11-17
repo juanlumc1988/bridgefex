@@ -31,7 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help=(
             "module name: prefix of the runtime C symbols, and name of the Python package, "
-            "the C# namespace and the Java package"
+            "the C# namespace, the Java package and the Rust crate"
         ),
     )
     parser.add_argument(
@@ -111,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help=(
             "do not compile the generated code before writing it (the C layer with libclang, "
-            "the C# project with dotnet, the Java sources with javac)"
+            "the C# project with dotnet, the Java sources with javac, the Rust crate with cargo)"
         ),
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

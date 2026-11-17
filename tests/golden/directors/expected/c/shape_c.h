@@ -558,7 +558,8 @@ DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_peek(drc_Shape_director
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_compare(drc_Shape_director* director, const drc_Shape* other, double* out_result);
 
 /* bool drc::Shape::same(const drc::Shape* other) const
- * calls the implementation of the class, without going through the vtable */
+ * calls the implementation of the class, without going through the vtable
+ * other: may be NULL. */
 DRC_NODISCARD DRC_API drc_status drc_Shape_director_base_same(drc_Shape_director* director, const drc_Shape* other, bool* out_result);
 
 /* int32_t drc::Shape::grow(drc::Beam& beam) const
@@ -667,7 +668,8 @@ DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_peek(drc_Circle_direct
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_compare(drc_Circle_director* director, const drc_Shape* other, double* out_result);
 
 /* bool drc::Shape::same(const drc::Shape* other) const
- * calls the implementation of the class, without going through the vtable */
+ * calls the implementation of the class, without going through the vtable
+ * other: may be NULL. */
 DRC_NODISCARD DRC_API drc_status drc_Circle_director_base_same(drc_Circle_director* director, const drc_Shape* other, bool* out_result);
 
 /* int32_t drc::Shape::grow(drc::Beam& beam) const

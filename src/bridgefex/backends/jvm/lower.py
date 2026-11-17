@@ -188,6 +188,9 @@ class _Lowerer:
         """(the parameter, the hold, may be null) of each object given to C++."""
 
         self.retained: list[str] = []
+        self.kept_texts: list[str] = []
+        """The locals with the memory of the texts that C++ keeps pointers to (``retain``)."""
+
         self.owners: list[str] = []
         self.created: str | None = None
         """The object that a factory returns."""
@@ -286,10 +289,8 @@ class _Lowerer:
         # fails has kept it all the same. A constructor that fails has kept nothing.
         constructor = plan.kind is CallableKind.CONSTRUCTOR
         if not constructor:
-            target = (
-                "retain" if plan.kind is CallableKind.METHOD else "BridgefexObject.retainForever"
-            )
-            self.statements.extend(f"{target}({name});" for name in self.retained)
+            keeper = "" if plan.kind in (CallableKind.METHOD, CallableKind.DIRECTOR_BASE) else None
+            self.statements.extend(self.retains(keeper))
         if not self.callbacks and self.names.has_callbacks:
             # A callback that C++ stored and runs now is not one of the callbacks of this call.
             self.resources.insert(
@@ -385,6 +386,33 @@ class _Lowerer:
                 )
                 self.pre.append("}")
 
+    def retains(self, keeper: str | None) -> list[str]:
+        """The statements that keep what C++ keeps pointers to: the objects and the texts that
+        are given, by the object that keeps them (``keeper``: the prefix of the call, empty for
+        this one), or for ever (None: a function or a static method); and the object itself, if
+        the library keeps it."""
+        plan = self.plan
+        retain = "BridgefexObject.retainForever" if keeper is None else f"{keeper}retain"
+        retain_text = (
+            "BridgefexObject.retainTextForever" if keeper is None else f"{keeper}retainText"
+        )
+        lines = [f"{retain}({name});" for name in self.retained]
+        lines += [f"{retain_text}({name});" for name in self.kept_texts]
+        if plan.retains_this and not self.gives_object():
+            # Nothing that C++ gives keeps the object: the library does, for ever.
+            lines.append("BridgefexObject.retainForever(this);")
+        return lines
+
+    def gives_object(self) -> bool:
+        """The method returns an object that the caller owns (a wrapper that is new)."""
+        spec = self.plan.result
+        return (
+            spec is not None
+            and isinstance(spec.type, ClassRef)
+            and spec.type.form not in (ClassForm.REFERENCE, ClassForm.CONST_REFERENCE)
+            and spec.ownership != "borrowed"
+        )
+
     def argument(self, name: str) -> str:
         try:
             return self.arguments[name]
@@ -398,7 +426,7 @@ class _Lowerer:
     def param(self, spec: ParamSpec, position: int) -> None:
         type_ = spec.type
         name = self.parameter_names[position - 1]
-        if "retain" in spec.words:
+        if "retain" in spec.words and not isinstance(type_, StringType):
             self.retained.append(name)
         if (
             isinstance(type_, ClassRef)
@@ -472,7 +500,37 @@ class _Lowerer:
             "{}", value
         )
 
+    def kept_text(self, spec: ParamSpec, position: int, name: str) -> None:
+        """A text that C++ keeps a pointer to: memory of its own that the object that keeps it
+        holds (the memory of the call is gone when the call returns)."""
+        self.lowering.parameters.append(f"{STRING} {name}")
+        statements = self.statements
+        local = f"{L}k{position}"
+        pointer = f"{L}p{position}"
+        segment = self.declare(self.segment)
+        if spec.size is None:
+            make = f'{R}.keptBytes({R}.utf8z({name}, "{name}"))'
+            if "nullable" in spec.words:
+                self.lowering.remarks.append(f"{name} may be null (a NULL const char*).")
+                statements.append(f"{segment} {local} = {name} == null ? null : {make};")
+                statements.append(
+                    f"{segment} {pointer} = {local} == null ? {self.segment}.NULL : {local};"
+                )
+            else:
+                statements.append(f"{segment} {local} = {make};")
+                statements.append(f"{segment} {pointer} = {local};")
+        else:
+            statements.append(f'byte[] {L}b{position} = {R}.utf8({name}, "{name}");')
+            statements.append(f"{segment} {local} = {R}.keptBytes({L}b{position});")
+            statements.append(f"{segment} {pointer} = {local};")
+            self.arguments[spec.size] = f"(long) {L}b{position}.length"
+        self.arguments[spec.name] = pointer
+        self.kept_texts.append(local)
+
     def string_param(self, spec: ParamSpec, position: int, name: str) -> None:
+        if "retain" in spec.words:
+            self.kept_text(spec, position, name)
+            return
         arena = self.arena_resource()
         self.lowering.parameters.append(f"{STRING} {name}")
         statements = self.statements
@@ -655,7 +713,7 @@ class _Lowerer:
         if self.factory is None:
             # The handle of the object exists already (the constructor of the base made it).
             self.after_call = [f"this.handle.assign({assign});"]
-            return [f"retain({name});" for name in self.retained]
+            return self.retains("")
         # A static method: the object exists before the call, so that its destruction is
         # guaranteed from the moment the C function writes the pointer.
         assert self.declaring is not None
@@ -664,7 +722,7 @@ class _Lowerer:
         self.statements.append(f"{self.declare(self.factory)} {L}new = {self.factory}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({assign});"]
         self.lowering.returns = self.factory
-        return [*(f"{L}new.retain({name});" for name in self.retained), f"return {L}new;"]
+        return [*self.retains(f"{L}new."), f"return {L}new;"]
 
     def director_constructor_result(self) -> list[str]:
         """A constructor that makes the director: the vtable and the box were made by the
@@ -684,7 +742,7 @@ class _Lowerer:
             f"{L}box.attach({L}director.get({R}.ADDRESS, 0), {L}result.get({R}.ADDRESS, 0));",
             f"setDirector({L}box);",
         ]
-        return [f"retain({name});" for name in self.retained]
+        return self.retains("")
 
     def object_result(self, spec: ResultSpec, ref: ClassRef) -> list[str]:
         info = spec.cls
@@ -721,6 +779,15 @@ class _Lowerer:
         self.statements.append(f"{handle} {L}h = {self.names.destroyer(info.c_type)};")
         self.statements.append(f"{self.declare(class_name)} {L}new = {class_name}.wrap({L}h);")
         self.after_call = [f"{L}h.assign({pointer});"]
+        if self.plan.retains_this:
+            # The object that is given keeps a pointer to this one: it keeps it alive.
+            if nullable:
+                return [
+                    f"if ({L}h.isInvalid()) return null;",
+                    f"{L}new.retain(this);",
+                    f"return {L}new;",
+                ]
+            return [f"{L}new.retain(this);", f"return {L}new;"]
         if nullable:
             return [f"return {L}h.isInvalid() ? null : {L}new;"]
         return [f"return {L}new;"]

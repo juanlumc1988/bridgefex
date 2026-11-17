@@ -41,6 +41,7 @@ jobs:
       # them they fail, not skip.
       BRIDGEFEX_REQUIRE_DOTNET: "1"
       BRIDGEFEX_REQUIRE_JAVA: "1"
+      BRIDGEFEX_REQUIRE_RUST: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
@@ -62,6 +63,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      # The runners have rustup: the stable toolchain, for the tests of the Rust bindings.
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          cargo --version
       - name: Install libclang 20 and compilers
         run: |
           sudo apt-get update -q
@@ -89,6 +96,7 @@ jobs:
       PYTHONUTF8: "1"
       BRIDGEFEX_REQUIRE_DOTNET: "1"
       BRIDGEFEX_REQUIRE_JAVA: "1"
+      BRIDGEFEX_REQUIRE_RUST: "1"
       DOTNET_CLI_TELEMETRY_OPTOUT: "1"
       DOTNET_NOLOGO: "1"
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
@@ -108,6 +116,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          cargo --version
       # The image ships LLVM 20 in C:\Program Files\LLVM; bridgefex checks the
       # version of the libclang.dll it loads.
       - name: Set up MSVC
@@ -118,6 +131,41 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Test
         run: python -m pytest -ra
+
+  # The Rust bindings where the other jobs cannot take them: the oldest Rust that the crates
+  # declare (the `rust-version` of their Cargo.toml), and 32-bit ARM (the library cross-built with
+  # GCC for armhf, the program built for `armv7-unknown-linux-gnueabihf` and run under QEMU).
+  rust-targets:
+    name: ubuntu-24.04 / Rust 1.70 and armhf
+    runs-on: ubuntu-24.04
+    env:
+      BRIDGEFEX_REQUIRE_RUST: "1"
+      BRIDGEFEX_REQUIRE_RUST_MSRV: "1"
+      BRIDGEFEX_REQUIRE_ARMHF: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable 1.70.0 --profile minimal --no-self-update
+          rustup default stable
+          rustup target add armv7-unknown-linux-gnueabihf --toolchain stable
+          cargo --version
+      - name: Install libclang 20 and compilers
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            libclang1-20 libclang-common-20-dev gcc-14 g++-14 \
+            gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf qemu-user
+      - name: Install
+        run: python -m pip install -e '.[dev]'
+      - name: Test
+        env:
+          CC: gcc-14
+          CXX: g++-14
+        run: python -m pytest -ra tests/test_rust_msrv.py tests/test_rust_armhf.py
 
   # The oldest Java that the Java bindings support (the foreign function API is final in 22): the
   # tests of the backend, its round trips and the conformance suite.
