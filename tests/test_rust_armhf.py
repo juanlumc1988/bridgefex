@@ -58,8 +58,11 @@ def _missing() -> str | None:
     return None
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="module")
 def _armhf() -> None:
+    """Skip (or fail, with ``BRIDGEFEX_REQUIRE_ARMHF=1``) before anything is built: the fixtures of
+    module scope that build the cases come first, and a function-scoped check would be too late
+    (the machine without the cross compiler would have an error for each test, not a skip)."""
     missing = _missing()
     if missing is None:
         return
