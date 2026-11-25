@@ -246,6 +246,160 @@ impl<T> Drop for Array<T> {
     }
 }
 
+/// The text of a string that C++ gives to a callback (its bytes and their number, which may
+/// be 0 with a NULL pointer). What is not UTF-8 is replaced by U+FFFD.
+///
+/// # Safety
+///
+/// `data` must point to `size` bytes that stay valid while the text is used, if `size` is not 0.
+#[allow(dead_code)]
+pub(crate) unsafe fn text<'a>(
+    data: *const ::core::ffi::c_char,
+    size: usize,
+) -> ::std::borrow::Cow<'a, str> {
+    if size == 0 {
+        return ::std::borrow::Cow::Borrowed("");
+    }
+    ::std::string::String::from_utf8_lossy(unsafe {
+        ::core::slice::from_raw_parts(data.cast::<u8>(), size)
+    })
+}
+
+/// The text of a `const char*` that C++ gives to a callback (`None` for NULL).
+///
+/// # Safety
+///
+/// `data` must be NULL or point to a C string that stays valid while the text is used.
+#[allow(dead_code)]
+pub(crate) unsafe fn c_text<'a>(
+    data: *const ::core::ffi::c_char,
+) -> ::core::option::Option<::std::borrow::Cow<'a, str>> {
+    if data.is_null() {
+        return None;
+    }
+    Some(unsafe { CStr::from_ptr(data) }.to_string_lossy())
+}
+
+/// What a panic of a closure that C++ called is kept in until the call that gave the closure
+/// returns: a panic cannot unwind through C++.
+type Payload = ::std::boxed::Box<dyn ::core::any::Any + Send>;
+
+struct ScopeState {
+    open: bool,
+    panic: Option<Payload>,
+}
+
+/// The call that gave closures to C++, for the panics of those: the first one is kept and the
+/// call raises it again when C++ returns, and no closure of the call runs after it. A panic
+/// that happens when the call has returned (a closure that C++ kept) has nobody to raise it:
+/// the panic hook has shown it, and it is dropped.
+#[allow(dead_code)]
+pub(crate) struct Scope {
+    state: ::std::sync::Mutex<ScopeState>,
+}
+
+#[allow(dead_code)]
+impl Scope {
+    pub(crate) fn new() -> ::std::sync::Arc<Scope> {
+        ::std::sync::Arc::new(Scope {
+            state: ::std::sync::Mutex::new(ScopeState { open: true, panic: None }),
+        })
+    }
+
+    fn lock(&self) -> ::std::sync::MutexGuard<'_, ScopeState> {
+        self.state.lock().unwrap_or_else(::std::sync::PoisonError::into_inner)
+    }
+
+    /// C++ returned: the first panic of a closure, if there was one. Later panics are lost.
+    pub(crate) fn finish(&self) -> Option<Payload> {
+        let mut state = self.lock();
+        state.open = false;
+        state.panic.take()
+    }
+}
+
+/// A closure that C++ holds (`user_data` of a callback), with the call that gave it.
+#[allow(dead_code)]
+pub(crate) struct Registration<F> {
+    function: F,
+    scope: ::std::sync::Arc<Scope>,
+}
+
+#[allow(dead_code)]
+impl<F> Registration<F> {
+    /// The closure as the `user_data` of a callback: `release` frees it.
+    pub(crate) fn into_raw(
+        function: F,
+        scope: &::std::sync::Arc<Scope>,
+    ) -> *mut ::core::ffi::c_void {
+        let registration = Registration { function, scope: ::std::sync::Arc::clone(scope) };
+        ::std::boxed::Box::into_raw(::std::boxed::Box::new(registration)).cast()
+    }
+
+    /// The closure of a `user_data`.
+    ///
+    /// # Safety
+    ///
+    /// `data` is the `user_data` that `into_raw` gave, and `release` was not called with it.
+    pub(crate) unsafe fn from_raw<'a>(data: *mut ::core::ffi::c_void) -> &'a Registration<F> {
+        unsafe { &*data.cast::<Registration<F>>() }
+    }
+
+    /// Runs the closure unless a closure of the call panicked: its panic is kept (C++ cannot be
+    /// unwound) and `None` is what C++ gets, the default result.
+    pub(crate) fn run<T>(&self, call: impl FnOnce(&F) -> T) -> Option<T> {
+        {
+            let state = self.scope.lock();
+            if state.panic.is_some() {
+                return None;
+            }
+        }
+        match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| call(&self.function))) {
+            Ok(value) => Some(value),
+            Err(payload) => {
+                let mut state = self.scope.lock();
+                if state.open && state.panic.is_none() {
+                    state.panic = Some(payload);
+                } else {
+                    drop(state);
+                    // The payload may panic when it is dropped: that is no one's either.
+                    let _ = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
+                        drop(payload)
+                    }));
+                }
+                None
+            }
+        }
+    }
+}
+
+/// What a callback is for C: the function, its `user_data` and the function that releases it.
+/// All NULL is an empty `std::function`.
+#[allow(dead_code)]
+pub(crate) struct Registered<C> {
+    pub(crate) call: Option<C>,
+    pub(crate) data: *mut ::core::ffi::c_void,
+    pub(crate) release: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void)>,
+}
+
+#[allow(dead_code)]
+impl<C> Registered<C> {
+    pub(crate) fn none() -> Registered<C> {
+        Registered { call: None, data: ::core::ptr::null_mut(), release: None }
+    }
+}
+
+/// C++ no longer holds the closure: drops it (a panic of its drop cannot go on to C++).
+///
+/// # Safety
+///
+/// `data` is the `user_data` that `Registration::into_raw` gave, and it is released once.
+#[allow(dead_code)]
+pub(crate) unsafe extern "C" fn release<F>(data: *mut ::core::ffi::c_void) {
+    let registration = unsafe { ::std::boxed::Box::from_raw(data.cast::<Registration<F>>()) };
+    let _ = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| drop(registration)));
+}
+
 const FINGERPRINT: &str = "3d59c8be588a54f0e2f1750e150c7660";
 
 static STATE: AtomicU8 = AtomicU8::new(0);

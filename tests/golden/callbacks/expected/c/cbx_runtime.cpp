@@ -156,7 +156,7 @@ extern "C" const char* cbx_last_error(void)
 
 extern "C" const char* cbx_api_fingerprint(void)
 {
-    return "df5d8e9850a7e209709625923e309edc";
+    return "c048ea3096a57e57913ada8e88256c87";
 }
 
 extern "C" void cbx_free(void* memory)

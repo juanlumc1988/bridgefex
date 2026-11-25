@@ -1780,11 +1780,13 @@ class _Builder:
                 data, release = user_data[position], releases[position]
                 assert data is not None
                 assert release is not None
-                lowered.append(
-                    self._lower_callback_param(
-                        (name, data, release, f"_owner{owners}"), type_, location
-                    )
+                words = policy.parameters[position]
+                callback = self._lower_callback_param(
+                    (name, data, release, f"_owner{owners}"), type_, location
                 )
+                # (Only Rust reads the words of a callback: ``nullable`` makes it an ``Option``.)
+                spec = callback.spec and dataclasses.replace(callback.spec, words=words)
+                lowered.append(dataclasses.replace(callback, words=words, spec=spec))
             else:
                 words = policy.parameters[position]
                 param = self._lower_param(

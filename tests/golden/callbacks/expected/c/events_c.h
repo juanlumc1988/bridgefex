@@ -17,7 +17,8 @@ CBX_NODISCARD CBX_API cbx_status ev_sum(int32_t n, void (*f)(void*, int32_t, int
 /* int32_t ev::count_if(int32_t n, std::function<bool (const int64_t&)> predicate) */
 CBX_NODISCARD CBX_API cbx_status ev_count_if(int32_t n, void (*predicate)(void*, int64_t, bool*), void* predicate_user_data, void (*predicate_release)(void*), int32_t* out_result);
 
-/* bool ev::is_empty(std::function<void ()> f) */
+/* bool ev::is_empty(std::function<void ()> f)
+ * f: may be NULL. */
 CBX_NODISCARD CBX_API cbx_status ev_is_empty(void (*f)(void*), void* f_user_data, void (*f_release)(void*), bool* out_result);
 
 /* ev::Level ev::classify(int32_t value, std::function<ev::Level (int32_t)> classifier) */
@@ -41,16 +42,19 @@ CBX_NODISCARD CBX_API cbx_status ev_strings(void (*f)(void*, const char*, size_t
 /* void ev::parallel(int32_t threads, int32_t n, std::function<void (int32_t)> f) */
 CBX_NODISCARD CBX_API cbx_status ev_parallel(int32_t threads, int32_t n, void (*f)(void*, int32_t), void* f_user_data, void (*f_release)(void*));
 
-/* int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f) */
+/* int32_t ev::prefixed(const std::string& prefix, const std::function<int32_t (const std::string&)>& f)
+ * f: may be NULL. */
 CBX_NODISCARD CBX_API cbx_status ev_prefixed(const char* prefix, size_t prefix_size, void (*f)(void*, const char*, size_t, int32_t*), void* f_user_data, void (*f_release)(void*), int32_t* out_result);
 
-/* void ev::store_and_sleep(std::function<int32_t (int32_t)> handler, int32_t ms) */
+/* void ev::store_and_sleep(std::function<int32_t (int32_t)> handler, int32_t ms)
+ * handler: may be NULL. */
 CBX_NODISCARD CBX_API cbx_status ev_store_and_sleep(void (*handler)(void*, int32_t, int32_t*), void* handler_user_data, void (*handler_release)(void*), int32_t ms);
 
 /* int32_t ev::fire(int32_t value) */
 CBX_NODISCARD CBX_API cbx_status ev_fire(int32_t value, int32_t* out_result);
 
-/* void ev::set_log_handler(std::function<void (ev::Level, const std::string&)> handler) */
+/* void ev::set_log_handler(std::function<void (ev::Level, const std::string&)> handler)
+ * handler: may be NULL. */
 CBX_NODISCARD CBX_API cbx_status ev_set_log_handler(void (*handler)(void*, ev_Level, const char*, size_t), void* handler_user_data, void (*handler_release)(void*));
 
 /* bool ev::log(ev::Level level, const std::string& message) */
@@ -65,7 +69,8 @@ CBX_NODISCARD CBX_API cbx_status ev_Timer_create(ev_Timer** out_self, void (*on_
 /* ev::Timer::~Timer() */
 CBX_API void ev_Timer_destroy(ev_Timer* self);
 
-/* void ev::Timer::set_on_tick(std::function<void (int32_t)> on_tick) */
+/* void ev::Timer::set_on_tick(std::function<void (int32_t)> on_tick)
+ * on_tick: may be NULL. */
 CBX_NODISCARD CBX_API cbx_status ev_Timer_set_on_tick(ev_Timer* self, void (*on_tick)(void*, int32_t), void* on_tick_user_data, void (*on_tick_release)(void*));
 
 /* void ev::Timer::tick(int32_t times) */

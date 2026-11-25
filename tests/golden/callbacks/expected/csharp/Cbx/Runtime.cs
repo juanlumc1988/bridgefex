@@ -113,7 +113,7 @@ internal readonly unsafe ref struct StringBlock
 internal static unsafe partial class Runtime
 {
     internal const string Library = "cbx";
-    internal const string Fingerprint = "df5d8e9850a7e209709625923e309edc";
+    internal const string Fingerprint = "c048ea3096a57e57913ada8e88256c87";
 
     internal const string Variable = "CBX_LIBRARY";
     private static readonly object Gate = new();

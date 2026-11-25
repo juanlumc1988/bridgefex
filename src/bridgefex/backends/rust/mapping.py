@@ -54,15 +54,8 @@ def scalar(c_name: str) -> str:
     return SCALARS[c_name]
 
 
-_NOT_YET = {
-    FfiKind.CALLBACK: "a callback (a std::function)",
-    FfiKind.RELEASE: "a callback (a std::function)",
-}
-
-
 def _not_yet(kind: FfiKind) -> Unsupported:
-    what = _NOT_YET.get(kind, f"the C type of kind '{kind.value}'")
-    return Unsupported(f"{what} is not supported in Rust yet")
+    return Unsupported(f"the C type of kind '{kind.value}' is not supported in Rust yet")
 
 
 def pointer(param: CParam, inner: str) -> str:
@@ -70,13 +63,21 @@ def pointer(param: CParam, inner: str) -> str:
     return f"*const {inner}" if param.c_type.lstrip().startswith("const ") else f"*mut {inner}"
 
 
-def native_type(param: CParam, names: Mapping[str, str]) -> str:
+def native_type(
+    param: CParam, names: Mapping[str, str], enums: Mapping[str, str] | None = None
+) -> str:
     """The type of a parameter of an ``extern "C"`` declaration. ``names`` has the Rust path of
-    the type of each class and struct, by the C type."""
+    the type of each class and struct, by the C type, and ``enums`` the Rust type of the integer
+    of each enum (the C type of an enum is that integer)."""
     ffi = param.ffi
     kind = ffi.kind
     if kind is FfiKind.SCALAR:
         return scalar(ffi.name)
+    if kind is FfiKind.VOID_POINTER:
+        # The user_data of a callback.
+        return f"*mut {CORE}::c_void"
+    if kind in (FfiKind.CALLBACK, FfiKind.RELEASE):
+        return _function_pointer(param, names, enums or {})
     if kind is FfiKind.POINTER and ffi.inner is not None:
         if ffi.inner.kind is FfiKind.HANDLE:
             # A pointer to the pointer of a class (the object that a function makes or gives):
@@ -88,6 +89,42 @@ def native_type(param: CParam, names: Mapping[str, str]) -> str:
     if kind is FfiKind.CHAR_POINTER:
         return pointer(param, f"{CORE}::c_char")
     raise _not_yet(kind)
+
+
+def function_types(param: CParam, names: Mapping[str, str], enums: Mapping[str, str]) -> list[str]:
+    """The Rust types of the parameters of a callback (or of its release function), as the C
+    declaration of the parameter says them (``void (*f)(void*, int32_t, int32_t*)``)."""
+    assert param.function_params is not None
+    return [_c_type(text.strip(), names, enums) for text in param.function_params.split(",")]
+
+
+def function_pointer(param: CParam, names: Mapping[str, str], enums: Mapping[str, str]) -> str:
+    """The type of the function that a callback is, without the NULL that C accepts."""
+    return f'unsafe extern "C" fn({", ".join(function_types(param, names, enums))})'
+
+
+def _function_pointer(param: CParam, names: Mapping[str, str], enums: Mapping[str, str]) -> str:
+    """A callback, or the function that releases it. C may give NULL (an empty
+    ``std::function``), which is ``None``."""
+    return f"::core::option::Option<{function_pointer(param, names, enums)}>"
+
+
+def _c_type(text: str, names: Mapping[str, str], enums: Mapping[str, str]) -> str:
+    """The Rust type of a C type that a callback has: the ones that the plan writes (a scalar, an
+    enum, a struct, and a pointer to any of them, ``void*`` and ``const char*`` too)."""
+    if text.endswith("*"):
+        pointee = text[:-1].strip()
+        constant = pointee.startswith("const ")
+        pointee = pointee.removeprefix("const ").strip()
+        inner = {"void": f"{CORE}::c_void", "char": f"{CORE}::c_char"}.get(pointee)
+        return f"*{'const' if constant else 'mut'} {inner or _c_type(pointee, names, enums)}"
+    if text in SCALARS:
+        return SCALARS[text]
+    if text in enums:
+        return enums[text]
+    if text in names:
+        return names[text]
+    raise Unsupported(f"the C type '{text}' of a callback is not supported in Rust yet")
 
 
 def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:

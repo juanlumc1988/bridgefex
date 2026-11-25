@@ -69,6 +69,10 @@ def test_rust_round_trip(built: Built) -> None:
     )
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout
+    # What C++ calls when the process ends, after main has returned (a stored closure that a
+    # static destructor runs): the check cannot see its own output.
+    if case.name == "callbacks":
+        assert "at exit: Level::ERROR exit" in completed.stdout, completed.stdout
 
 
 @pytest.fixture(scope="module", params=CASES, ids=lambda case: case.name)
@@ -186,6 +190,19 @@ use own::tree::{Driver, Pair, Tree};
 use own::Owned;
 
 fn main() -> own::Result<()> {
+""",
+    "containers": """\
+#![allow(unused)]
+use cont::vectors::*;
+
+fn main() -> cont::Result<()> {
+""",
+    "callbacks": """\
+#![allow(unused)]
+use cbx::events::*;
+use std::sync::atomic::{AtomicI32, Ordering};
+
+fn main() -> cbx::Result<()> {
 """,
     "inherit": """\
 #![allow(unused)]
@@ -368,6 +385,68 @@ REFUSED_INHERIT = [
 ]
 
 
+REFUSED_CONTAINERS = [
+    pytest.param(
+        "twice(&[1.0, 2.0])?;",
+        "twice(&[1.0, 2.0, 3.0, 4.0])?;",
+        "E0308",
+        id="an-array-has-the-length-of-its-type",
+    ),
+    pytest.param(
+        'let words: Vec<String> = vec!["a".to_string()]; total_size(&words)?;',
+        'let words: Vec<&str> = vec!["a"]; total_size(&words)?;',
+        "E0308",
+        id="strings-go-in-as-str",
+    ),
+    pytest.param(
+        "rotate(&[1u8])?;",
+        "rotate(&[Color::GREEN])?;",
+        "E0308",
+        id="an-enum-goes-in-as-its-type",
+    ),
+]
+
+REFUSED_CALLBACKS = [
+    pytest.param(
+        "let shared = std::rc::Rc::new(1); sum(3, move |i| i + *shared)?;",
+        "let shared = std::sync::Arc::new(1); sum(3, move |i| i + *shared)?;",
+        "E0277",
+        id="a-closure-is-send",
+    ),
+    pytest.param(
+        "let cell = std::cell::Cell::new(0); sum(3, move |i| { cell.set(i); i })?;",
+        "let cell = AtomicI32::new(0); sum(3, move |i| { cell.store(i, Ordering::SeqCst); i })?;",
+        "E0277",
+        id="a-closure-is-sync",
+    ),
+    pytest.param(
+        "let total = 5; sum(3, |i| i + total)?;",
+        "let total = 5; sum(3, move |i| i + total)?;",
+        "E0373",
+        id="a-closure-does-not-borrow-what-it-captures",
+    ),
+    pytest.param(
+        "let mut count = 0; sum(3, move |i| { count += 1; i + count })?;",
+        "let count = AtomicI32::new(0); "
+        "sum(3, move |i| { count.fetch_add(1, Ordering::SeqCst); i })?;",
+        "E0594",
+        id="a-closure-is-fn-not-fnmut",
+    ),
+    pytest.param(
+        "is_empty(|| {})?;",
+        "is_empty(Some(|| {}))?;",
+        "E0308",
+        id="a-nullable-callback-is-an-option",
+    ),
+    pytest.param(
+        "sum(3, |i: i64| i)?;",
+        "sum(3, |i: i32| i)?;",
+        "E0631",
+        id="the-closure-has-the-types-of-the-function",
+    ),
+]
+
+
 def _program(case: Case, body: str) -> str:
     return PRELUDES[case.name] + "    " + body + "\n    Ok(())\n}\n"
 
@@ -396,7 +475,12 @@ def crates(
 
 @pytest.mark.parametrize(
     ("name", "bad", "good", "code"),
-    [*_for("ownership", REFUSED), *_for("inherit", REFUSED_INHERIT)],
+    [
+        *_for("ownership", REFUSED),
+        *_for("inherit", REFUSED_INHERIT),
+        *_for("containers", REFUSED_CONTAINERS),
+        *_for("callbacks", REFUSED_CALLBACKS),
+    ],
 )
 def test_the_compiler_refuses_it(
     crates: Callable[[str], tuple[Case, Path, Path]],
@@ -698,3 +782,85 @@ fn main() -> calc::Result<()> {
 }
 """
     assert "checked" in _run(case, library, output, "kept", program)
+
+
+def test_closures_are_released_once_whatever_happens_to_the_call(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """C++ releases every closure that a call was given, once: when the call fails before the C
+    function runs (a text with a NUL), when a closure panics (the other one is released too), and
+    when the call has several closures. A call that gives results (a vector) beside closures."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "#include <cstring>\n#include <functional>\n#include <vector>\nnamespace calc {\n"
+        "int pair(std::function<int()> first, std::function<int()> second);\n"
+        "int text(const char* name, std::function<int(int)> f);\n"
+        "std::vector<int> each(const std::vector<int>& values, std::function<int(int)> f);\n}\n",
+        "namespace calc {\n"
+        "int pair(std::function<int()> first, std::function<int()> second) {\n"
+        "    return first() * 10 + second();\n}\n"
+        "int text(const char* name, std::function<int(int)> f) {\n"
+        "    return f(static_cast<int>(std::strlen(name)));\n}\n"
+        "std::vector<int> each(const std::vector<int>& values, std::function<int(int)> f) {\n"
+        "    std::vector<int> result;\n"
+        "    for (int value : values) {\n        result.push_back(f(value));\n    }\n"
+        "    return result;\n}\n}\n",
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+use calc::calc::{each, pair, text};
+use calc::ErrorKind;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+
+struct Held(Arc<AtomicUsize>);
+
+impl Held {
+    fn new(live: &Arc<AtomicUsize>) -> Held {
+        live.fetch_add(1, Ordering::SeqCst);
+        Held(Arc::clone(live))
+    }
+}
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+fn main() -> calc::Result<()> {
+    std::panic::set_hook(Box::new(|_| {}));
+    let live = Arc::new(AtomicUsize::new(0));
+    let (a, b) = (Held::new(&live), Held::new(&live));
+    assert_eq!(pair(move || { let _ = &a; 1 }, move || { let _ = &b; 2 })?, 12);
+    assert_eq!(live.load(Ordering::SeqCst), 0, "both closures were released");
+
+    // The second closure panics: the call raises it, and both closures are gone.
+    let (a, b) = (Held::new(&live), Held::new(&live));
+    let raised = catch_unwind(AssertUnwindSafe(|| {
+        pair(move || { let _ = &a; 1 }, move || { let _ = &b; panic!("two") })
+    }));
+    assert_eq!(*raised.expect_err("the panic").downcast_ref::<&str>().unwrap(), "two");
+    assert_eq!(live.load(Ordering::SeqCst), 0, "both closures were released");
+
+    // The call fails before the C function runs: the closure never ran, and it is dropped once.
+    let ran = Arc::new(AtomicUsize::new(0));
+    let (held, seen) = (Held::new(&live), Arc::clone(&ran));
+    let error = text("a\\0b", move |_| { let _ = &held; seen.fetch_add(1, Ordering::SeqCst); 0 })
+        .expect_err("the text has a NUL");
+    assert_eq!(error.kind(), ErrorKind::InvalidArgument);
+    assert_eq!((ran.load(Ordering::SeqCst), live.load(Ordering::SeqCst)), (0, 0));
+    let held = Held::new(&live);
+    assert_eq!(text("abc", move |length| { let _ = &held; length * 2 })?, 6);
+    assert_eq!(live.load(Ordering::SeqCst), 0);
+
+    // A vector in and a vector out, beside a closure.
+    assert_eq!(each(&[1, 2, 3], |value| value * value)?, [1, 4, 9]);
+    assert!(each(&[], |value| value)?.is_empty());
+    println!("checked");
+    Ok(())
+}
+"""
+    assert "checked" in _run(case, library, output, "released", program)
