@@ -1784,7 +1784,7 @@ class _Builder:
                 callback = self._lower_callback_param(
                     (name, data, release, f"_owner{owners}"), type_, location
                 )
-                # (``nullable``: the callback may be empty; read by a backend whose type is not null.)
+                # (``nullable``: the callback may be empty; read by a type that is not null.)
                 spec = callback.spec and dataclasses.replace(callback.spec, words=words)
                 lowered.append(dataclasses.replace(callback, words=words, spec=spec))
             else:
