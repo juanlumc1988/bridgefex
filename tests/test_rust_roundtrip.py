@@ -100,18 +100,26 @@ def test_the_round_trip_is_clean_under_asan(asan_build: tuple[Case, Path, Path, 
     on purpose are still reachable from C++ globals)."""
     case, library, output, runtime = asan_build
     executable = runner_rust.build_program(case, library, output, "check", case.check_rust)
-    completed = subprocess.run(
-        [str(executable)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={
-            **runner_rust.environment(case, output, library),
-            "LD_PRELOAD": runtime,
-            "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=0",
-        },
-        timeout=600,
-    )
+    try:
+        completed = subprocess.run(
+            [str(executable)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={
+                **runner_rust.environment(case, output, library),
+                "LD_PRELOAD": runtime,
+                "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=0",
+            },
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired as stuck:
+        # What the check said before it stopped answering (a phase of it is stuck or slow).
+        said = (stuck.stdout or b"", stuck.stderr or b"")
+        text = "".join(
+            part if isinstance(part, str) else part.decode(errors="replace") for part in said
+        )
+        pytest.fail(f"the check of {case.name} took more than 600 s under ASAN; it said:\n{text}")
     assert "Sanitizer" not in completed.stderr, completed.stderr
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "round trip OK" in completed.stdout

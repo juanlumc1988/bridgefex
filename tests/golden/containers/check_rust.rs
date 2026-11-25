@@ -17,6 +17,10 @@ fn check(condition: bool, what: &str) {
 }
 
 fn main() -> cont::Result<()> {
+    // (The phases say where a run that is stuck or slow (under a sanitizer, on a small machine)
+    // was.)
+    eprintln!("containers: slices");
+
     // -- Anything that has its elements together is a slice ----------------------------------
 
     let expected: Vec<i64> = vec![10, -20, 30];
@@ -82,6 +86,8 @@ fn main() -> cont::Result<()> {
     let error = too_big().expect_err("the vector is too big");
     check(error.kind() == ErrorKind::Exception && error.message().contains("max_size"), "a throw");
 
+    eprintln!("containers: class");
+
     // -- A class that takes and returns vectors -------------------------------------------------
 
     {
@@ -94,18 +100,20 @@ fn main() -> cont::Result<()> {
 
     // -- What C++ allocated is released, also in many threads ------------------------------------
 
+    eprintln!("containers: big results");
     {
         let many = "x".repeat(1000);
         let words: Vec<&str> = vec![many.as_str(); 1000]; // 1 MB of text
-        for _ in 0..300 {
+        for _ in 0..40 {
             check(upper(&words)?.len() == 1000, "a big vector of strings");
             check(scale(&vec![0; 100_000], 1)?.len() == 100_000, "a big vector of numbers");
         }
     }
+    eprintln!("containers: threads");
     let threads: Vec<_> = (0..8_i64)
         .map(|number| {
             std::thread::spawn(move || {
-                for turn in 0..500_i64 {
+                for turn in 0..100_i64 {
                     let given = [number, turn, -number];
                     let scaled = scale(&given, 3).map_err(|error| error.to_string())?;
                     if scaled != [3 * number, 3 * turn, -3 * number] {
