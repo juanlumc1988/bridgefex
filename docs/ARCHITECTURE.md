@@ -315,6 +315,22 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
   pointer), and `Owned<Derived>::into_base()` where the plan says the base has a virtual destructor (the object is destroyed
   through it). Without one the conversion does not exist, which is what makes taking a derived object as a base class
   that C++ destroys through the base a type error.
+- **A container is a slice in, a `Vec` out.** A parameter goes to C++ where it is (`as_ptr()`, `len()`: an enum is
+  `#[repr(transparent)]`, so its slice is that of its integer, and a struct is the mirror of the C one; a string is
+  described by a `Vec<NativeText>` of its bytes and their number, which lives for the call) and a result is read
+  into a `Vec` from the `Array` of the runtime, whose `Drop` releases what C++ allocated, so a failure after C++
+  wrote it frees it too. A `std::array` is a `&[T; N]` and a `[T; N]`: the length is checked by the compiler, the
+  result is a local array that C++ fills (and that is not read if the call failed). What a `std::span` keeps after
+  the call is the one that no type can say: it is documented, as it is for the other languages.
+- **A callback is a closure that C++ owns.** `impl Fn + Send + Sync + 'static`, because C++ may call it from any thread
+  and keep it: the bindings give the closure away (a `Box` that is the `user_data`; `release` drops it) right before
+  the call, when nothing can fail any more, and C++ releases it exactly once whatever happens to the call. The
+  function that C++ calls is declared in the body of the function of the bindings, once for each callback parameter, and
+  is generic over the closure (its type is the signature of the `std::function`, which the plan names): it converts what
+  C++ gives and runs the closure inside `catch_unwind`. A panic is kept by the `Scope` of the call that gave the closure
+  (not by a thread-local, which C++ can run a destructor after): the first one is raised again by the call when C++
+  returns, the closures of that call do not run after it, and the ones that run when the call has returned find
+  its scope closed and are dropped.
 - **Enums are newtypes** (`struct Color(pub u8)` with a constant per enumerator): a C++ enum may hold a value that
   no enumerator has, and a Rust `enum` that holds one is undefined behavior. A range enum is checked before the call.
 - **Errors** are `Result<T, Error>` with an `ErrorKind` (`#[non_exhaustive]`); `runtime::ensure` checks the fingerprint of

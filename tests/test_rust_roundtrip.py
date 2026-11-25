@@ -864,3 +864,45 @@ fn main() -> calc::Result<()> {
 }
 """
     assert "checked" in _run(case, library, output, "released", program)
+
+
+def test_a_closure_gets_empty_texts_and_text_that_is_not_utf8(
+    toolchain: Toolchain, tmp_path: Path
+) -> None:
+    """A ``std::string_view`` that C++ makes empty has a NULL pointer (a slice of it would be
+    undefined behavior), a ``const char*`` may be NULL, and text that is not UTF-8 is converted."""
+    case = adhoc_case(
+        tmp_path / "case",
+        "calc",
+        "#include <functional>\n#include <string>\n#include <string_view>\nnamespace calc {\n"
+        "void texts(std::function<void(std::string_view, const std::string&, const char*)> f);\n"
+        "}\n",
+        "namespace calc {\n"
+        "void texts(std::function<void(std::string_view, const std::string&, const char*)> f) {\n"
+        '    f(std::string_view(), std::string(), nullptr);\n    f("", "", "");\n'
+        '    f(std::string_view("\\xff\\xfe", 2), std::string("a\\xc3", 2), "\\xe2\\x82");\n}\n}\n',
+    )
+    library, output = build(case, toolchain, tmp_path / "build")
+    program = """\
+use calc::calc::texts;
+use std::sync::{Arc, Mutex};
+
+fn main() -> calc::Result<()> {
+    let seen: Arc<Mutex<Vec<(String, String, Option<String>)>>> = Arc::default();
+    let sink = Arc::clone(&seen);
+    texts(move |view, text, c_text| {
+        sink.lock().unwrap().push((view.to_string(), text.to_string(), c_text.map(str::to_string)));
+    })?;
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen[0], (String::new(), String::new(), None));
+    assert_eq!(seen[1], (String::new(), String::new(), Some(String::new())));
+    let bad = |text: &str| text.to_string();
+    assert_eq!(
+        seen[2],
+        (bad("\\u{fffd}\\u{fffd}"), bad("a\\u{fffd}"), Some(bad("\\u{fffd}")))
+    );
+    println!("checked");
+    Ok(())
+}
+"""
+    assert "checked" in _run(case, library, output, "texts", program)
