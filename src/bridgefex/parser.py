@@ -13,6 +13,7 @@ import dataclasses
 import functools
 import os
 import re
+import sys
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,10 +79,17 @@ class ParseOptions:
         # truncates larger enumerators: with its target, they are rejected in
         # the parsed header (see parse_header), as on the other targets.
         args.append(_MSVC_ENUM_WARNING)
+        if sys.platform == "win32":
+            # The STL of the newest Visual Studio asserts that its compiler is a Clang newer than
+            # the libclang that is loaded (it is tested with the one of its own release), and says
+            # so at the first header that includes it. The macro is its documented switch for a
+            # compiler that it does not know: what is parsed is the same.
+            args.append(_STL_VERSION_MISMATCH)
         return args
 
 
 _MSVC_ENUM_WARNING = "-Wmicrosoft-enum-value"
+_STL_VERSION_MISMATCH = "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH"
 
 
 @dataclass(frozen=True, slots=True)
