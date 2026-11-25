@@ -25,7 +25,7 @@ from clang import cindex
 from . import libclang
 from .backends import BACKENDS
 from .errors import Diagnostic, GenerationError, Location
-from .parser import ParseOptions
+from .parser import ParseOptions, stl_arguments
 from .plan import CFunction, HeaderPlan, ModulePlan
 from .rendering import write_files
 
@@ -117,6 +117,7 @@ def verify(
                 *(f"-I{directory}" for directory in options.include_dirs),
                 *(f"-D{definition}" for definition in options.defines),
                 *_without_werror(options.extra_args),
+                *stl_arguments(),
             ]
             unit = _parse(
                 index, source, args, cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
