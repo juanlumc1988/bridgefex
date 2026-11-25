@@ -162,21 +162,17 @@ def test_the_build_script_links_the_library_from_the_variables_of_the_module(
 
 def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(tmp_path: Path) -> None:
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, "#include <vector>\nint f(const std::vector<int>& a);\n")
+        generate(tmp_path, "#include <functional>\nint f(std::function<int ()> a);\n")
     assert "not supported in Rust yet" in str(raised.value)
     assert "Rust:" in str(raised.value)
 
 
 def test_what_is_not_supported_yet_says_what_it_is_and_where(tmp_path: Path) -> None:
-    code = "#include <functional>\n#include <vector>\nvoid f(std::function<void ()> done);\n"
+    code = "#include <functional>\nvoid f(std::function<void ()> done);\n"
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, code)
     assert "api.h:" in str(raised.value)
     assert "a callback (a std::function) is not supported in Rust yet" in str(raised.value)
-    with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, "#include <vector>\nstd::vector<int> make();\n")
-    assert "api.h:" in str(raised.value)
-    assert "a container (std::vector, std::array) or a span is not supported" in str(raised.value)
 
 
 def test_two_functions_with_the_same_rust_name_are_refused(tmp_path: Path) -> None:
@@ -692,18 +688,15 @@ def test_the_build_script_links_a_library_again_when_it_is_rebuilt(tmp_path: Pat
 def test_every_declaration_that_is_not_supported_yet_is_reported_once(tmp_path: Path) -> None:
     code = """
 #include <functional>
-#include <span>
-#include <vector>
 class Bag {
 public:
     Bag();
     ~Bag();
-    std::vector<int> items() const;
     void each(const std::function<void (int)>& visit);
     int fine() const;
 };
-void spans(std::span<const int> values);
-std::vector<int> make();
+void later(std::function<void ()> done);
+int sum(const std::function<int (int)>& add);
 """
     path = tmp_path / "api.h"
     path.write_text(PRELUDE + code, encoding="utf-8")
@@ -711,8 +704,8 @@ std::vector<int> make();
     with pytest.raises(GenerationError) as raised:
         bridgefex.generate([path], options)
     lines = str(raised.value).splitlines()
-    assert len(lines) == 4, lines
-    for name in ("Bag::items", "Bag::each", "spans", "make"):
+    assert len(lines) == 3, lines
+    for name in ("Bag::each", "later", "sum"):
         assert sum(name in line for line in lines) == 1, (name, lines)
     assert all("api.h:" in line and "Rust:" in line for line in lines)
 

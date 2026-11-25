@@ -6,19 +6,30 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ...model import ClassForm, ClassRef, EnumRef, ScalarType, StringType, StructRef, Type
+from ...model import (
+    ClassForm,
+    ClassRef,
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+    Type,
+)
 from ...naming import unique_name
 from ...plan import (
     CallableKind,
     CallablePlan,
     ClassPlan,
+    ElementSpec,
     EnumPlan,
     ModulePlan,
     ParamSpec,
     ResultSpec,
     StructPlan,
 )
-from .mapping import Unsupported, scalar
+from .mapping import TEXT, Unsupported, scalar
 from .naming import LOCAL_PREFIX, parameter
 
 L = LOCAL_PREFIX
@@ -88,7 +99,40 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
         return names.enums[spec.enum.c_type]
     if isinstance(type_, StructRef) and spec.struct is not None:
         return names.structs[spec.struct.c_type]
+    if isinstance(type_, ContainerType):
+        return container_type(type_, names, spec)
     raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+
+def element_type(element: ElementSpec | None, names: Names, text: str) -> str:
+    """The Rust type of an element of a container (``text``: the type that a string has)."""
+    if element is None:
+        raise Unsupported("a container without its element type")
+    type_ = element.type
+    if isinstance(type_, ScalarType):
+        return scalar(type_.c_name)
+    if isinstance(type_, StringType):
+        return text
+    if isinstance(type_, EnumRef) and element.enum is not None:
+        return names.enums[element.enum.c_type]
+    if isinstance(type_, StructRef) and element.struct is not None:
+        return names.structs[element.struct.c_type]
+    raise Unsupported(
+        f"the type '{type_.cpp_spelling}' as the element of a container is not supported in Rust"
+    )
+
+
+def container_type(type_: ContainerType, names: Names, spec: ParamSpec | ResultSpec) -> str:
+    """The type that the Rust API shows for a ``std::vector``, a ``std::array`` or a
+    ``std::span``: a slice (or a reference to an array, whose length is the one of the C++ type)
+    that a function takes, and a ``Vec`` (or an array) that it gives."""
+    if isinstance(spec, ParamSpec):
+        item = element_type(spec.element, names, "&str")
+        return f"&[{item}; {type_.length}]" if type_.kind is ContainerKind.ARRAY else f"&[{item}]"
+    item = element_type(spec.element, names, "::std::string::String")
+    if type_.kind is ContainerKind.ARRAY:
+        return f"[{item}; {type_.length}]"
+    return f"::std::vec::Vec<{item}>"
 
 
 def kept_text(spec: ParamSpec) -> bool:
@@ -247,6 +291,8 @@ class _Lowerer:
             self.arguments[spec.name] = f"&{name}"
         elif isinstance(type_, StringType):
             self.string_param(spec, name)
+        elif isinstance(type_, ContainerType):
+            self.container_param(spec, type_, name)
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, name)
         else:
@@ -342,6 +388,36 @@ class _Lowerer:
             )
         self.arguments[spec.name] = f"{name}.0"
 
+    def container_param(self, spec: ParamSpec, type_: ContainerType, name: str) -> None:
+        """A slice (or an array) goes to C++ as it is, where it is: a pointer, and the number of
+        its elements for a vector or a span. The elements that are not C types themselves get
+        what C needs first: an enum is its integer (``#[repr(transparent)]``), a string the
+        pair of its bytes and their number."""
+        element = spec.element
+        assert element is not None
+        if type_.kind is not ContainerKind.ARRAY:
+            if spec.size is None:
+                raise AssertionError(f"the container '{spec.name}' has no size parameter")
+            self.arguments[spec.size] = f"{name}.len()"
+        if isinstance(element.type, StringType):
+            # No NUL check: the size of each string is passed, and a NUL is text.
+            local = unique_name(f"{L}t_{name.lstrip('_')}", frozenset(self.taken))
+            self.taken.add(local)
+            self.before.append(f"let {local} = {RUNTIME}::NativeText::all({name});")
+            self.arguments[spec.name] = f"{local}.as_ptr()"
+        elif isinstance(element.type, EnumRef):
+            assert element.enum is not None
+            valid = element.enum.model.valid_range
+            if valid is not None:
+                # An enum without a fixed type: see enum_param.
+                self.before.append(
+                    f"{RUNTIME}::check_enums({name}.iter().map(|item| item.0 as i128), "
+                    f'{valid[0]}, {valid[1]}, "{spec.name}")?;'
+                )
+            self.arguments[spec.name] = f"{name}.as_ptr().cast()"
+        else:
+            self.arguments[spec.name] = f"{name}.as_ptr()"
+
     def string_param(self, spec: ParamSpec, name: str) -> None:
         nullable = "nullable" in spec.words
         if "retain" in spec.words:
@@ -414,7 +490,55 @@ class _Lowerer:
             return f"crate::Result<{public}>", [f"Ok({L}result)"]
         if isinstance(type_, StringType):
             return self.string_result(type_, spec, public)
+        if isinstance(type_, ContainerType):
+            return self.container_result(type_, spec, public)
         raise Unsupported(f"the result of type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+    def container_result(
+        self, type_: ContainerType, spec: ResultSpec, public: str
+    ) -> tuple[str, list[str]]:
+        """A ``Vec`` (or an array) of copies: the elements that C++ wrote are read, and what C++
+        allocated for them is released."""
+        element = spec.element
+        assert element is not None
+        raw = self.raw_element(element)
+        convert = ""
+        if isinstance(element.type, EnumRef):
+            assert element.enum is not None
+            convert = self.names.enums[element.enum.c_type]
+        if type_.kind is ContainerKind.ARRAY:
+            # The room is Rust's: C++ writes every element when it succeeds.
+            zero = (
+                f"{raw}::zeroed()"
+                if isinstance(element.type, StructRef)
+                else ("::core::default::Default::default()")
+            )
+            length = type_.length
+            self.before.append(f"let mut {L}result: [{raw}; {length}] = [{zero}; {length}];")
+            self.arguments["out_result"] = f"{L}result.as_mut_ptr()"
+            value = f"{L}result.map({convert})" if convert else f"{L}result"
+            return f"crate::Result<{public}>", [f"Ok({value})"]
+        self.before.append(f"let mut {L}result = {RUNTIME}::Array::<{raw}>::new();")
+        self.arguments["out_result"] = f"{L}result.data()"
+        self.arguments["out_result_size"] = f"{L}result.size()"
+        items = f"{L}result.items()"
+        if isinstance(element.type, StringType):
+            value = f"{items}.iter().map(|text| unsafe {{ text.lossy() }}).collect()"
+        elif convert:
+            value = f"{items}.iter().map(|&raw| {convert}(raw)).collect()"
+        else:
+            value = f"{items}.to_vec()"
+        return f"crate::Result<{public}>", [f"Ok({value})"]
+
+    def raw_element(self, element: ElementSpec) -> str:
+        """The type that an element has in the C API: what C++ writes in a result."""
+        type_ = element.type
+        if isinstance(type_, EnumRef):
+            assert element.enum is not None
+            return scalar(element.enum.model.underlying.c_name)
+        if isinstance(type_, StringType):
+            return TEXT
+        return element_type(element, self.names, TEXT)
 
     def object_result(self, ref: ClassRef, spec: ResultSpec) -> tuple[str, list[str]]:
         assert spec.cls is not None

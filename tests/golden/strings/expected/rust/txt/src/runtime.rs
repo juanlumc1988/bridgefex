@@ -105,6 +105,20 @@ pub(crate) fn check_enum(value: i128, low: i128, high: i128, name: &str) -> Resu
     }
 }
 
+/// The elements of an enum without a fixed type are all values that its C++ type holds.
+#[allow(dead_code)]
+pub(crate) fn check_enums(
+    values: impl ::core::iter::Iterator<Item = i128>,
+    low: i128,
+    high: i128,
+    name: &str,
+) -> Result<()> {
+    for (index, value) in values.enumerate() {
+        check_enum(value, low, high, &format!("{name}[{index}]"))?;
+    }
+    Ok(())
+}
+
 /// A text as a C string. C++ reads up to the first NUL: a text that has one is refused.
 #[allow(dead_code)]
 pub(crate) fn c_string(text: &str, name: &str) -> Result<::std::ffi::CString> {
@@ -153,6 +167,78 @@ impl Text {
 }
 
 impl Drop for Text {
+    fn drop(&mut self) {
+        if !self.data.is_null() {
+            unsafe { native::txt_free(self.data.cast()) }
+        }
+    }
+}
+
+/// A string of an array of strings: its bytes (that may have a NUL) and their number. It is
+/// what C++ passes in the array of a result, and what the bindings pass in the array of a
+/// parameter (a slice of `&str` that lives for the call).
+#[repr(C)]
+#[allow(dead_code)]
+pub(crate) struct NativeText {
+    data: *const ::core::ffi::c_char,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl NativeText {
+    /// The strings of a slice of `&str`, as the array that C++ takes: it points to the text of the
+    /// slice, so it must not outlive it.
+    pub(crate) fn all(texts: &[&str]) -> ::std::vec::Vec<NativeText> {
+        texts
+            .iter()
+            .map(|text| NativeText { data: text.as_ptr().cast(), size: text.len() })
+            .collect()
+    }
+
+    /// The text as UTF-8 (what is not valid is replaced by U+FFFD).
+    ///
+    /// # Safety
+    ///
+    /// `data` must point to `size` bytes that are still there: what C++ wrote in a result that is
+    /// not released yet, or the text that `all` was given.
+    pub(crate) unsafe fn lossy(&self) -> ::std::string::String {
+        let bytes = unsafe { ::core::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
+        ::std::string::String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+/// The array that C++ allocated for a result (a `std::vector` or a `std::span`): its elements are
+/// copied out of it, and it is released when this is dropped.
+#[allow(dead_code)]
+pub(crate) struct Array<T> {
+    data: *mut T,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl<T> Array<T> {
+    pub(crate) fn new() -> Array<T> {
+        Array { data: ::core::ptr::null_mut(), size: 0 }
+    }
+
+    pub(crate) fn data(&mut self) -> *mut *mut T {
+        &mut self.data
+    }
+
+    pub(crate) fn size(&mut self) -> *mut usize {
+        &mut self.size
+    }
+
+    /// The elements (none if C++ gave a NULL: it did not write the result).
+    pub(crate) fn items(&self) -> &[T] {
+        if self.data.is_null() {
+            return &[];
+        }
+        unsafe { ::core::slice::from_raw_parts(self.data, self.size) }
+    }
+}
+
+impl<T> Drop for Array<T> {
     fn drop(&mut self) {
         if !self.data.is_null() {
             unsafe { native::txt_free(self.data.cast()) }

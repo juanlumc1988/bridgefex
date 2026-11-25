@@ -10,6 +10,9 @@ from ...plan import CFunction, CParam, Ffi, FfiKind
 
 CORE = "::core::ffi"
 
+TEXT = "crate::runtime::NativeText"
+"""The string of an array of strings (``struct { const char* data; size_t size; }``)."""
+
 
 class Unsupported(Exception):
     """The plan has something that the Rust bindings do not have yet."""
@@ -54,7 +57,6 @@ def scalar(c_name: str) -> str:
 _NOT_YET = {
     FfiKind.CALLBACK: "a callback (a std::function)",
     FfiKind.RELEASE: "a callback (a std::function)",
-    FfiKind.POINTER: "a container (std::vector, std::array) or a span",
 }
 
 
@@ -91,6 +93,12 @@ def native_type(param: CParam, names: Mapping[str, str]) -> str:
 def _pointee(param: CParam, ffi: Ffi, names: Mapping[str, str]) -> str:
     if ffi.kind is FfiKind.SCALAR:
         return scalar(ffi.name)
+    if ffi.kind in (FfiKind.STRING_IN, FfiKind.STRING):
+        # One string of an array of strings: its bytes and their number.
+        return TEXT
+    if ffi.kind is FfiKind.POINTER and ffi.inner is not None:
+        # The array that a container result is: C++ allocates it and writes its address here.
+        return f"*mut {_pointee(param, ffi.inner, names)}"
     if ffi.kind is FfiKind.HANDLE:
         # The handle of a class is itself a pointer to it.
         return f"*mut {names[ffi.name]}"

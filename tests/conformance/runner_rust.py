@@ -28,12 +28,14 @@ import pytest
 
 import bridgefex
 from bridgefex.backends.rust.check import cargo
-from bridgefex.backends.rust.lower import is_borrowed
+from bridgefex.backends.rust.lower import container_type, is_borrowed
 from bridgefex.backends.rust.module import Target, build_names, field_names, targets
 from bridgefex.backends.rust.naming import snake, upper_snake
 from bridgefex.model import (
     ClassForm,
     ClassRef,
+    ContainerKind,
+    ContainerType,
     EnumRef,
     ScalarType,
     StringType,
@@ -172,7 +174,13 @@ def _float(value: object, bits: int) -> str:
 
 
 class _Unplayable(Exception):
-    """A value that the scenario gives and the Rust program cannot: it does not fit the type."""
+    """A value that the scenario gives and the Rust program cannot: it does not fit the type
+    (``kind`` is ``range``), or the array that it is has not the length that the type of the
+    parameter fixes (``length``)."""
+
+    def __init__(self, message: str, kind: str = "range") -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 def _literal(value: object, type_: object) -> str:
@@ -264,7 +272,7 @@ class _Program:
         try:
             expression = self.expression(step, target, args, variables)
         except _Unplayable as problem:
-            if error == "range":
+            if error == problem.kind:
                 return  # the type of the parameter cannot take the value: it does not compile
             lines.append(f"return Err(({number}, {_string(str(problem))}.to_string()));")
             return
@@ -466,15 +474,35 @@ class _Program:
         return path.replace("crate::", f"{self.crate}::", 1)
 
     def render(
-        self, value: object, type_: object, *, spec_enum: object = None, nullable: bool = False
+        self,
+        value: object,
+        type_: object,
+        *,
+        spec_enum: object = None,
+        nullable: bool = False,
+        owned: bool = False,
     ) -> str:
-        """The Rust expression of a scenario value of the type ``type_``."""
+        """The Rust expression of a scenario value of the type ``type_`` (``owned``: what a
+        function gives, as opposed to what it takes: a ``String`` and a ``Vec``)."""
         if isinstance(type_, ScalarType):
             return _literal(value, type_)
+        if isinstance(type_, ContainerType):
+            assert isinstance(value, list)
+            if type_.kind is ContainerKind.ARRAY and len(value) != type_.length:
+                raise _Unplayable(
+                    f"an array of {len(value)} elements where the type has {type_.length}",
+                    "length",
+                )
+            items = ", ".join(self.render(item, type_.element, owned=owned) for item in value)
+            if not owned:
+                return f"&[{items}]"
+            return f"[{items}]" if type_.kind is ContainerKind.ARRAY else f"vec![{items}]"
         if isinstance(type_, StringType):
             if isinstance(value, dict) and value.get("null") is True:
                 return "None"
             text = _string(str(value))
+            if owned:
+                return f"::std::string::String::from({text})"
             return f"Some({text})" if nullable else text
         table = value if isinstance(value, dict) else {}
         if isinstance(type_, EnumRef):
@@ -524,6 +552,17 @@ class _Program:
                     condition = f"value != {literal}"
             else:
                 condition = f"value != {literal}"
+        elif isinstance(type_, ContainerType):
+            # An empty list has no type of its own: the one of the result gives it.
+            shown = self.path(container_type(type_, self.names, call.result))
+            literal = self.render(expected, type_, owned=True)
+            return [
+                f"let expected: {shown} = {literal};",
+                "if value != expected {",
+                f'    return Err(({number}, format!("expected {{}}, got {{:?}}", '
+                f"{_string(str(expected))}, value)));",
+                "}",
+            ]
         else:
             condition = f"value != {self.render(expected, type_)}"
         return [
