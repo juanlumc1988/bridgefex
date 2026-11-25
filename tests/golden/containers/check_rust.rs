@@ -75,6 +75,10 @@ fn main() -> cont::Result<()> {
     let error = count_high(&[Level(-1)]).expect_err("-1 is not a Level");
     check(error.message().contains("levels[0]"), "the first element is named");
     check(sum_levels(&[Level::HIGH, Level(7)]).is_err(), "an array of invalid enums");
+    // A value that is too big for a byte is not one that a byte would make valid.
+    check(count_high(&[Level(256)]).is_err(), "256 is not 0");
+    check(count_high(&[Level(1 << 24), Level::HIGH]).is_err(), "no truncation");
+    check(sum_levels(&[Level::HIGH, Level(257)]).is_err(), "257 is not 1");
     let error = too_big().expect_err("the vector is too big");
     check(error.kind() == ErrorKind::Exception && error.message().contains("max_size"), "a throw");
 

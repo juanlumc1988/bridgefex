@@ -33,8 +33,9 @@ impl Person {
                 name.len(),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `text::Person::Person(const char* name, int age)`
@@ -49,8 +50,9 @@ impl Person {
                 age,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string text::Person::name() const`

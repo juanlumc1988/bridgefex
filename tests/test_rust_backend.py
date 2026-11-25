@@ -989,7 +989,9 @@ struct F { int a; };
 class Registration { public: Registration(); ~Registration(); };
 int call(std::function<int(int)> function, std::function<void()> scope, F data, int out, int value);
 int registered(std::function<int(F)> registration);
+int twin(std::function<int()> f, std::function<int()> _f, std::function<int()> __f);
 """
     api = source(generate(tmp_path, code, verify=True))
     assert "pub fn call(" in api
     assert "pub fn registered(" in api
+    assert "pub fn twin(" in api

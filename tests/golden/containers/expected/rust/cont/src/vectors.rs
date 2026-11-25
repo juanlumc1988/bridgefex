@@ -100,8 +100,9 @@ impl Bag {
                 items.len(),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::vector<std::string> vec::Bag::items() const`

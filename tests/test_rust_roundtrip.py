@@ -793,13 +793,20 @@ def test_closures_are_released_once_whatever_happens_to_the_call(
     case = adhoc_case(
         tmp_path / "case",
         "calc",
-        "#include <cstring>\n#include <functional>\n#include <stdexcept>\n#include <vector>\n"
-        "namespace calc {\n"
+        "#include <cstring>\n#include <functional>\n#include <memory>\n#include <stdexcept>\n"
+        "#include <vector>\nnamespace calc {\n"
+        "class Thing { public: explicit Thing(std::function<int()> f); ~Thing();\n"
+        "    static std::unique_ptr<Thing> make(std::function<int()> f);\n"
+        "    static int live(); private: static int live_; };\n"
         "int pair(std::function<int()> first, std::function<int()> second);\n"
         "int then_fail(std::function<int()> f);\n"
         "int text(const char* name, std::function<int(int)> f);\n"
         "std::vector<int> each(const std::vector<int>& values, std::function<int(int)> f);\n}\n",
         "namespace calc {\n"
+        "int Thing::live_ = 0;\nint Thing::live() { return live_; }\n"
+        "Thing::Thing(std::function<int()> f) { ++live_; f(); }\nThing::~Thing() { --live_; }\n"
+        "std::unique_ptr<Thing> Thing::make(std::function<int()> f) {\n"
+        "    return std::make_unique<Thing>(std::move(f));\n}\n"
         "int then_fail(std::function<int()> f) {\n    f();\n"
         '    throw std::runtime_error("c++");\n}\n'
         "int pair(std::function<int()> first, std::function<int()> second) {\n"
@@ -813,7 +820,7 @@ def test_closures_are_released_once_whatever_happens_to_the_call(
     )
     library, output = build(case, toolchain, tmp_path / "build")
     program = """\
-use calc::calc::{each, pair, text, then_fail};
+use calc::calc::{each, pair, text, then_fail, Thing};
 use calc::ErrorKind;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -871,6 +878,19 @@ fn main() -> calc::Result<()> {
     assert_eq!(error.kind(), ErrorKind::Exception);
     assert_eq!(live.load(Ordering::SeqCst), 0);
 
+    // The object that C++ made while a closure panicked is not lost: the call that raises the
+    // panic destroys it first (a constructor, and a result in a std::unique_ptr).
+    let raised = catch_unwind(AssertUnwindSafe(|| Thing::new(|| panic!("constructor"))));
+    assert!(raised.is_err());
+    assert_eq!(Thing::live()?, 0, "the object of a constructor whose closure panicked");
+    let raised = catch_unwind(AssertUnwindSafe(|| Thing::make(|| panic!("factory"))));
+    assert!(raised.is_err());
+    assert_eq!(Thing::live()?, 0, "the object of a function whose closure panicked");
+    let thing = Thing::new(|| 1)?;
+    assert_eq!(Thing::live()?, 1);
+    drop(thing);
+    assert_eq!(Thing::live()?, 0);
+
     // A vector in and a vector out, beside a closure.
     assert_eq!(each(&[1, 2, 3], |value| value * value)?, [1, 4, 9]);
     assert!(each(&[], |value| value)?.is_empty());
@@ -889,17 +909,21 @@ def test_a_closure_gets_empty_texts_and_text_that_is_not_utf8(
     case = adhoc_case(
         tmp_path / "case",
         "calc",
-        "#include <functional>\n#include <string>\n#include <string_view>\nnamespace calc {\n"
-        "void texts(std::function<void(std::string_view, const std::string&, const char*)> f);\n"
-        "}\n",
+        "#include <functional>\n#include <string>\n#include <string_view>\n#include <vector>\n"
         "namespace calc {\n"
+        "void texts(std::function<void(std::string_view, const std::string&, const char*)> f);\n"
+        "std::vector<std::string> blobs();\n}\n",
+        "namespace calc {\n"
+        "std::vector<std::string> blobs() {\n"
+        '    return {std::string("\\xff\\xfe", 2), std::string("a\\0b", 3), "",\n'
+        '            std::string("\\xe2", 1)};\n}\n'
         "void texts(std::function<void(std::string_view, const std::string&, const char*)> f) {\n"
         '    f(std::string_view(), std::string(), nullptr);\n    f("", "", "");\n'
         '    f(std::string_view("\\xff\\xfe", 2), std::string("a\\xc3", 2), "\\xe2\\x82");\n}\n}\n',
     )
     library, output = build(case, toolchain, tmp_path / "build")
     program = """\
-use calc::calc::texts;
+use calc::calc::{blobs, texts};
 use std::sync::{Arc, Mutex};
 
 fn main() -> calc::Result<()> {
@@ -915,6 +939,12 @@ fn main() -> calc::Result<()> {
     assert_eq!(
         seen[2],
         (bad("\\u{fffd}\\u{fffd}"), bad("a\\u{fffd}"), Some(bad("\\u{fffd}")))
+    );
+    // Text that is not UTF-8 comes back converted, one by one; a NUL is text.
+    let bad = |text: &str| text.to_string();
+    assert_eq!(
+        blobs()?,
+        [bad("\\u{fffd}\\u{fffd}"), bad("a\\0b"), bad(""), bad("\\u{fffd}")]
     );
     println!("checked");
     Ok(())

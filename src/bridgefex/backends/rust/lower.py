@@ -230,6 +230,11 @@ class _Lowerer:
         self.items: list[str] = []
         """What the body declares before it starts: the functions that C++ calls for a closure."""
 
+        self.adopted: list[str] = []
+        """What takes the object that a constructor or a function made, right after the call: a
+        panic of a closure, which the call raises next, drops it (and C++ destroys it) instead of
+        losing it."""
+
         self.late: list[str] = []
         """What runs right before the call, once nothing can fail any more: the closures are given
         away there (the C layer releases them, also when the call fails, and not before)."""
@@ -272,6 +277,7 @@ class _Lowerer:
             *self.before,
             *self.late,
             *_call(f"let {L}status = ", f"{NATIVE}::{plan.function.name}", arguments),
+            *self.adopted,
             *settle,
             f"{RUNTIME}::check({L}status)?;",
             *after,
@@ -472,7 +478,8 @@ class _Lowerer:
         types = function_types(param, self.names.types, self.names.raw_enums)
         pointer = function_pointer(param, self.names.types, self.names.raw_enums)
         base = name.lstrip("_")
-        register = f"{L}register_{base}"
+        register = unique_name(f"{L}register_{base}", frozenset(self.taken))
+        self.taken.add(register)
         local = unique_name(f"{L}cb_{base}", frozenset(self.taken))
         self.taken.add(local)
         bound = f"{closure_type(callback, self.names)}"
@@ -686,9 +693,10 @@ class _Lowerer:
             assert self.declaring is not None
             self.before.append(f"let mut {L}object: *mut Self = ::core::ptr::null_mut();")
             self.arguments["out_self"] = f"&mut {L}object"
+            self.adopted.append(f"let {L}owned = unsafe {{ crate::Owned::from_raw({L}object) }};")
             return (
                 "crate::Result<crate::Owned<Self>>",
-                [f"unsafe {{ {RUNTIME}::adopt({L}object) }}"],
+                [f"{L}owned.ok_or_else({RUNTIME}::null_object)"],
             )
         spec = plan.result
         if spec is None:
@@ -802,12 +810,13 @@ class _Lowerer:
                 [f"unsafe {{ {L}object.{view}() }}.ok_or_else({RUNTIME}::null_object)"],
             )
         owned = f"crate::Owned<{path}>"
+        self.adopted.append(f"let {L}owned = unsafe {{ crate::Owned::from_raw({L}object) }};")
         if nullable:
             return (
                 f"crate::Result<::core::option::Option<{owned}>>",
-                [f"Ok(unsafe {{ crate::Owned::from_raw({L}object) }})"],
+                [f"Ok({L}owned)"],
             )
-        return f"crate::Result<{owned}>", [f"unsafe {{ {RUNTIME}::adopt({L}object) }}"]
+        return f"crate::Result<{owned}>", [f"{L}owned.ok_or_else({RUNTIME}::null_object)"]
 
     def string_result(
         self, type_: StringType, spec: ResultSpec, public: str

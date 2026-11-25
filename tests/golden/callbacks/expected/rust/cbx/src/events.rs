@@ -136,11 +136,12 @@ impl Timer {
                 __cb_on_tick.release,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         if let Some(__panic) = __scope.finish() {
             ::std::panic::resume_unwind(__panic);
         }
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void ev::Timer::set_on_tick(std::function<void (int32_t)> on_tick)`
@@ -425,11 +426,12 @@ impl Watcher {
                 __cb_on_notify.release,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         if let Some(__panic) = __scope.finish() {
             ::std::panic::resume_unwind(__panic);
         }
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void ev::Watcher::notify() const`

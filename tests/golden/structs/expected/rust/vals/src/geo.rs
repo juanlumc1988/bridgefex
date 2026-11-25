@@ -246,8 +246,9 @@ impl Path {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::geo_Path_create(&mut __object, &start) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void geo::Path::add(const geo::Point& p)`

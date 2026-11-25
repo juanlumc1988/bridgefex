@@ -193,14 +193,57 @@ fn main() -> cbx::Result<()> {
 
     // A panic in a stored closure, run by a call that gave no closure, belongs to no call: that call
     // succeeds (the panic hook has shown the message) and C++ goes on.
-    set_log_handler(Some(|_: Level, text: &str| {
+    let ran: Arc<Mutex<Vec<String>>> = Arc::default();
+    let sink = Arc::clone(&ran);
+    set_log_handler(Some(move |_: Level, text: &str| {
+        sink.lock().unwrap().push(text.to_string());
         if text == "late" {
             panic!("late");
         }
     }))?;
     check(log(Level::INFO, "late")?, "a call whose stored closure panics returns normally");
     check(log(Level::INFO, "fine")?, "the handler goes on");
+    check(*ran.lock().unwrap() == ["set", "late", "fine"], "the closure runs again after its panic");
     set_log_handler(None::<fn(Level, &str)>)?;
+
+    // C++ destroys the std::function that is running: a handler that replaces itself. What it
+    // captured is alive until it returns, and then it is released.
+    let outcome: Arc<Mutex<String>> = Arc::default();
+    let sink = Arc::clone(&outcome);
+    let held = Held::new(&live);
+    let text = String::from("captured");
+    set_log_handler(Some(move |_: Level, message: &str| {
+        let _ = &held;
+        if message == "replace" {
+            set_log_handler(None::<fn(Level, &str)>).unwrap();
+            *sink.lock().unwrap() = format!("{text}:{message}");
+        }
+    }))?;
+    check(log(Level::INFO, "replace")?, "the handler runs");
+    check(*outcome.lock().unwrap() == "captured:replace", "what the closure captured is alive while it runs");
+    nothing_held("after a handler that replaced itself");
+    check(!log(Level::INFO, "gone")?, "and it is gone");
+
+    // A closure whose captures panic when they are dropped: C++ drops them, and goes on.
+    struct Nested;
+    impl Drop for Nested {
+        fn drop(&mut self) {
+            panic!("nested");
+        }
+    }
+    struct Bomb;
+    impl Drop for Bomb {
+        fn drop(&mut self) {
+            // A panic whose payload panics when it is dropped.
+            std::panic::panic_any(Nested);
+        }
+    }
+    let bomb = Bomb;
+    check(sum(3, move |i| { let _ = &bomb; i })? == 3, "a closure whose drop panics");
+    let bomb = Bomb;
+    set_log_handler(Some(move |_: Level, _: &str| { let _ = &bomb; }))?;
+    set_log_handler(None::<fn(Level, &str)>)?;
+    check(!log(Level::INFO, "after the bomb")?, "a handler whose drop panics is released");
 
     // -- Objects: the closure lives as long as the C++ object ---------------------------------------
 

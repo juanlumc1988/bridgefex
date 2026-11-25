@@ -323,8 +323,10 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
   result is a local array that C++ fills (and that is not read if the call failed). What a `std::span` keeps after
   the call is the one that no type can say: it is documented, as it is for the other languages.
 - **A callback is a closure that C++ owns.** `impl Fn + Send + Sync + 'static`, because C++ may call it from any thread
-  and keep it: the bindings give the closure away (a `Box` that is the `user_data`; `release` drops it) right before
-  the call, when nothing can fail any more, and C++ releases it exactly once whatever happens to the call. The
+  and keep it: the bindings give the closure away (an `Arc` that is the `user_data`, which a running call holds a count
+  of, so that a closure that makes C++ release itself is not freed under its feet; `release` drops one) right before
+  the call, when nothing can fail any more, and C++ releases it exactly once whatever happens to the call. The object that
+  a call made while a closure panicked is adopted before the panic is raised, so that it is destroyed and not lost. The
   function that C++ calls is declared in the body of the function of the bindings, once for each callback parameter, and
   is generic over the closure (its type is the signature of the `std::function`, which the plan names): it converts what
   C++ gives and runs the closure inside `catch_unwind`. A panic is kept by the `Scope` of the call that gave the closure

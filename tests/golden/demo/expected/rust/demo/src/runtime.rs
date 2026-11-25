@@ -318,12 +318,33 @@ impl Scope {
     }
 }
 
-/// A closure that C++ holds (`user_data` of a callback), with the call that gave it.
+/// Runs what C++ cannot be unwound through: a panic of it is dropped, and so is one of the drop of
+/// that panic (a payload that panics when it is dropped is forgotten, which leaks it and goes on).
+#[allow(dead_code)]
+fn contain(work: impl FnOnce()) {
+    if let Err(payload) = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(work)) {
+        let dropped = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| drop(payload)));
+        if let Err(again) = dropped {
+            ::core::mem::forget(again);
+        }
+    }
+}
+
+/// A closure that C++ holds (`user_data` of a callback), with the call that gave it. C++ may
+/// release it (destroy its last `std::function`) while the closure runs, when the closure
+/// replaces the handler that it is: the registration is shared, and a call holds it for as long
+/// as it runs the closure.
 #[allow(dead_code)]
 pub(crate) struct Registration<F> {
     function: F,
     scope: ::std::sync::Arc<Scope>,
 }
+
+/// The registration that a call of C++ is running: it keeps the closure alive until the call
+/// ends, whatever C++ does meanwhile. A closure whose captures panic when dropped (the last
+/// owner may be this) cannot take C++ down.
+#[allow(dead_code)]
+pub(crate) struct Running<F>(Option<::std::sync::Arc<Registration<F>>>);
 
 #[allow(dead_code)]
 impl<F> Registration<F> {
@@ -333,39 +354,54 @@ impl<F> Registration<F> {
         scope: &::std::sync::Arc<Scope>,
     ) -> *mut ::core::ffi::c_void {
         let registration = Registration { function, scope: ::std::sync::Arc::clone(scope) };
-        ::std::boxed::Box::into_raw(::std::boxed::Box::new(registration)).cast()
+        ::std::sync::Arc::into_raw(::std::sync::Arc::new(registration)).cast_mut().cast()
     }
 
-    /// The closure of a `user_data`.
+    /// The closure of a `user_data`, held until the result is dropped.
     ///
     /// # Safety
     ///
-    /// `data` is the `user_data` that `into_raw` gave, and `release` was not called with it.
-    pub(crate) unsafe fn from_raw<'a>(data: *mut ::core::ffi::c_void) -> &'a Registration<F> {
-        unsafe { &*data.cast::<Registration<F>>() }
+    /// `data` is the `user_data` that `into_raw` gave, and `release` was not called with it
+    /// (C++ calls the callback with a copy that it holds, so the count of `release` is not 0).
+    pub(crate) unsafe fn from_raw(data: *mut ::core::ffi::c_void) -> Running<F> {
+        let pointer = data.cast_const().cast::<Registration<F>>();
+        unsafe { ::std::sync::Arc::increment_strong_count(pointer) };
+        Running(Some(unsafe { ::std::sync::Arc::from_raw(pointer) }))
     }
+}
 
+impl<F> Drop for Running<F> {
+    fn drop(&mut self) {
+        if let Some(registration) = self.0.take() {
+            contain(|| drop(registration));
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl<F> Running<F> {
     /// Runs the closure unless a closure of the call panicked: its panic is kept (C++ cannot be
     /// unwound) and `None` is what C++ gets, the default result.
     pub(crate) fn run<T>(&self, call: impl FnOnce(&F) -> T) -> Option<T> {
+        let registration = self.0.as_ref().expect("a registration that runs is not released");
         {
-            let state = self.scope.lock();
+            let state = registration.scope.lock();
             if state.panic.is_some() {
                 return None;
             }
         }
-        match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| call(&self.function))) {
+        match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
+            call(&registration.function)
+        })) {
             Ok(value) => Some(value),
             Err(payload) => {
-                let mut state = self.scope.lock();
+                let mut state = registration.scope.lock();
                 if state.open && state.panic.is_none() {
                     state.panic = Some(payload);
                 } else {
                     drop(state);
                     // The payload may panic when it is dropped: that is no one's either.
-                    let _ = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
-                        drop(payload)
-                    }));
+                    contain(|| drop(payload));
                 }
                 None
             }
@@ -389,15 +425,18 @@ impl<C> Registered<C> {
     }
 }
 
-/// C++ no longer holds the closure: drops it (a panic of its drop cannot go on to C++).
+/// C++ no longer holds the closure: drops its count (the closure itself goes when no call is
+/// running it; a panic of its drop cannot go on to C++).
 ///
 /// # Safety
 ///
 /// `data` is the `user_data` that `Registration::into_raw` gave, and it is released once.
 #[allow(dead_code)]
 pub(crate) unsafe extern "C" fn release<F>(data: *mut ::core::ffi::c_void) {
-    let registration = unsafe { ::std::boxed::Box::from_raw(data.cast::<Registration<F>>()) };
-    let _ = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| drop(registration)));
+    let registration = unsafe {
+        ::std::sync::Arc::from_raw(data.cast_const().cast::<Registration<F>>())
+    };
+    contain(|| drop(registration));
 }
 
 const FINGERPRINT: &str = "40e3edfbcff24a2332e913c1e9603d6e";
@@ -479,12 +518,6 @@ impl<T: Class> Owned<T> {
 #[allow(dead_code)]
 pub(crate) fn null_object() -> Error {
     Error::new(ErrorKind::NullArgument, "the C layer gave a NULL object")
-}
-
-/// The object that a C function made (and that Rust owns from now on).
-#[allow(dead_code)]
-pub(crate) unsafe fn adopt<T: Class>(object: *mut T) -> Result<Owned<T>> {
-    unsafe { Owned::from_raw(object) }.ok_or_else(null_object)
 }
 
 impl<T: Class> Drop for Owned<T> {
