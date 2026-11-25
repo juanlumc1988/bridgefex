@@ -450,7 +450,7 @@ pub(crate) unsafe extern "C" fn release<F>(data: *mut ::core::ffi::c_void) {
     contain(|| drop(registration));
 }
 
-const FINGERPRINT: &str = "6b62d1b48eebc55b4bd1f6f0ce0f48b3";
+const FINGERPRINT: &str = "0c43d63c1dc51a38640733811c7438d3";
 
 static STATE: AtomicU8 = AtomicU8::new(0);
 

@@ -113,7 +113,7 @@ internal readonly unsafe ref struct StringBlock
 internal static unsafe partial class Runtime
 {
     internal const string Library = "spn";
-    internal const string Fingerprint = "6b62d1b48eebc55b4bd1f6f0ce0f48b3";
+    internal const string Fingerprint = "0c43d63c1dc51a38640733811c7438d3";
 
     internal const string Variable = "SPN_LIBRARY";
     private static readonly object Gate = new();

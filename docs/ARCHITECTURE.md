@@ -320,8 +320,10 @@ its `Class` implementation, the inheritance, the enums in a module of the class,
   described by a `Vec<NativeText>` of its bytes and their number, which lives for the call) and a result is read
   into a `Vec` from the `Array` of the runtime, whose `Drop` releases what C++ allocated, so a failure after C++
   wrote it frees it too. A `std::array` is a `&[T; N]` and a `[T; N]`: the length is checked by the compiler, the
-  result is a local array that C++ fills (and that is not read if the call failed). What a `std::span` keeps after
-  the call is the one that no type can say: it is documented, as it is for the other languages.
+  result is a local array that C++ fills (and that is not read if the call failed). A `std::span` of numbers that
+  C++ stores is asked for with `retain` (the plan has a kind for it, `Kind.SPAN`; the other containers are copies and
+  refuse the word): Python keeps the array that it made of the argument, C# and Java a copy in memory of their own that
+  the object that keeps it holds (`KeptText`, `keptMemory`, as for a text), and Rust makes the function `unsafe`.
 - **A callback is a closure that C++ owns.** `impl Fn + Send + Sync + 'static`, because C++ may call it from any thread
   and keep it: the bindings give the closure away (an `Arc` that is the `user_data`, which a running call holds a count
   of, so that a closure that makes C++ release itself is not freed under its feet; `release` drops one) right before

@@ -12,4 +12,18 @@ extern "C" {
     pub(crate) fn views_count_red(colors: *const u8, colors_size: usize, out_result: *mut ::core::ffi::c_int) -> i32;
     pub(crate) fn views_sum_x(points: *const crate::views::Point, points_size: usize, out_result: *mut f64) -> i32;
     pub(crate) fn views_total(words: *const crate::runtime::NativeText, words_size: usize, out_result: *mut usize) -> i32;
+    pub(crate) fn views_Ledger_create(out_self: *mut *mut crate::views::Ledger, first: *const i32, first_size: usize) -> i32;
+    pub(crate) fn views_Ledger_destroy(self_: *mut crate::views::Ledger);
+    pub(crate) fn views_Ledger_add(self_: *mut crate::views::Ledger, values: *const i32, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_addDoubles(self_: *mut crate::views::Ledger, values: *const f64, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_addFlags(self_: *mut crate::views::Ledger, values: *const bool, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_addLongs(self_: *mut crate::views::Ledger, values: *const ::core::ffi::c_long, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_addCopy(self_: *mut crate::views::Ledger, values: *const i32, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_intact(self_: *const crate::views::Ledger, out_result: *mut bool) -> i32;
+    pub(crate) fn views_Ledger_total(self_: *const crate::views::Ledger, out_result: *mut i64) -> i32;
+    pub(crate) fn views_Ledger_kept(self_: *const crate::views::Ledger, out_result: *mut i32) -> i32;
+    pub(crate) fn views_Ledger_pin(values: *const i32, values_size: usize) -> i32;
+    pub(crate) fn views_Ledger_keptIntact(out_result: *mut bool) -> i32;
+    pub(crate) fn views_Ledger_scribble() -> i32;
+    pub(crate) fn views_Ledger_badDestructions(out_result: *mut i32) -> i32;
 }

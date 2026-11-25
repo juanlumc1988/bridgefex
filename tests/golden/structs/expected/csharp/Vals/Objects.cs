@@ -290,6 +290,13 @@ internal sealed unsafe class KeptText
 {
     private nint _memory;
 
+    /// <summary>Memory of <paramref name="size"/> bytes, zeroed, for a span that C++ keeps a pointer to: the caller fills it.</summary>
+    internal KeptText(nuint size)
+    {
+        Length = (int)global::System.Math.Min(size, (nuint)int.MaxValue);
+        _memory = (nint)global::System.Runtime.InteropServices.NativeMemory.AllocZeroed(size == 0 ? 1 : size);
+    }
+
     internal KeptText(byte[] bytes)
     {
         Length = bytes.Length;

@@ -366,6 +366,14 @@ public final class BridgefexRuntime {
         return memory;
     }
 
+    /**
+     * Zeroed memory of its own, for a span that C++ keeps a pointer to: it lives as long as something refers to it
+     * (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static MemorySegment keptMemory(long size) {
+        return Arena.ofAuto().allocate(Math.max(size, 1L), 8);
+    }
+
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */
     public static MemorySegment bytes(Arena arena, byte[] bytes) {
         MemorySegment memory = arena.allocate(bytes.length + 1L);

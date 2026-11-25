@@ -1,0 +1,20 @@
+# What C++ keeps a pointer to, and the header does not say: the numbers of the spans that it stores.
+
+[views_Ledger_create]
+first = "retain"
+
+[views_Ledger_add]
+values = "retain"
+
+[views_Ledger_addDoubles]
+values = "retain"
+
+[views_Ledger_addFlags]
+values = "retain"
+
+[views_Ledger_addLongs]
+values = "retain"
+
+# The program keeps these for ever (a static function has no object to tie them to).
+[views_Ledger_pin]
+values = "retain"

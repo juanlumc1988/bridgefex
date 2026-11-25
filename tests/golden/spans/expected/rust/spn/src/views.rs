@@ -44,6 +44,188 @@ impl Point {
     }
 }
 
+/// `views::Ledger`
+#[repr(C)]
+pub struct Ledger {
+    _data: [u8; 0],
+    _marker: ::core::marker::PhantomData<(*mut u8, ::core::marker::PhantomPinned)>,
+}
+
+impl crate::runtime::sealed::Sealed for Ledger {}
+
+impl ::core::fmt::Debug for Ledger {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Ledger").finish_non_exhaustive()
+    }
+}
+
+impl crate::runtime::Class for Ledger {
+    unsafe fn destroy(object: *mut Ledger) {
+        unsafe { crate::native::views_Ledger_destroy(object) }
+    }
+}
+
+impl Ledger {
+    /// `views::Ledger::Ledger(std::span<const int32_t> first)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `first`, which must stay valid for as long as the new object uses it, and must not change.
+    pub unsafe fn new(first: &[i32]) -> crate::Result<crate::Owned<Self>> {
+        crate::runtime::ensure()?;
+        let mut __object: *mut Self = ::core::ptr::null_mut();
+        let __status = unsafe {
+            crate::native::views_Ledger_create(
+                &mut __object,
+                first.as_ptr(),
+                first.len(),
+            )
+        };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
+        crate::runtime::check(__status)?;
+        __owned.ok_or_else(crate::runtime::null_object)
+    }
+
+    /// `void views::Ledger::add(std::span<const int32_t> values)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn add(&mut self, values: &[i32]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::views_Ledger_add(
+                self,
+                values.as_ptr(),
+                values.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void views::Ledger::addDoubles(std::span<const double> values)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn add_doubles(&mut self, values: &[f64]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::views_Ledger_addDoubles(
+                self,
+                values.as_ptr(),
+                values.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void views::Ledger::addFlags(std::span<const bool> values)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn add_flags(&mut self, values: &[bool]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::views_Ledger_addFlags(
+                self,
+                values.as_ptr(),
+                values.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void views::Ledger::addLongs(std::span<const long> values)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self` uses it, and must not change.
+    pub unsafe fn add_longs(&mut self, values: &[::core::ffi::c_long]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::views_Ledger_addLongs(
+                self,
+                values.as_ptr(),
+                values.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `void views::Ledger::addCopy(const std::vector<int32_t>& values)`
+    pub fn add_copy(&mut self, values: &[i32]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe {
+            crate::native::views_Ledger_addCopy(
+                self,
+                values.as_ptr(),
+                values.len(),
+            )
+        };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `bool views::Ledger::intact() const`
+    pub fn intact(&self) -> crate::Result<bool> {
+        crate::runtime::ensure()?;
+        let mut __result: bool = ::core::default::Default::default();
+        let __status = unsafe { crate::native::views_Ledger_intact(self, &mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `int64_t views::Ledger::total() const`
+    pub fn total(&self) -> crate::Result<i64> {
+        crate::runtime::ensure()?;
+        let mut __result: i64 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::views_Ledger_total(self, &mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `int32_t views::Ledger::kept() const`
+    pub fn kept(&self) -> crate::Result<i32> {
+        crate::runtime::ensure()?;
+        let mut __result: i32 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::views_Ledger_kept(self, &mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `static void views::Ledger::pin(std::span<const int32_t> values)`
+    ///
+    /// Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as the program uses it, and must not change.
+    pub unsafe fn pin(values: &[i32]) -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe { crate::native::views_Ledger_pin(values.as_ptr(), values.len()) };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `static bool views::Ledger::keptIntact()`
+    pub fn kept_intact() -> crate::Result<bool> {
+        crate::runtime::ensure()?;
+        let mut __result: bool = ::core::default::Default::default();
+        let __status = unsafe { crate::native::views_Ledger_keptIntact(&mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+
+    /// `static void views::Ledger::scribble()`
+    pub fn scribble() -> crate::Result<()> {
+        crate::runtime::ensure()?;
+        let __status = unsafe { crate::native::views_Ledger_scribble() };
+        crate::runtime::check(__status)?;
+        Ok(())
+    }
+
+    /// `static int32_t views::Ledger::badDestructions()`
+    pub fn bad_destructions() -> crate::Result<i32> {
+        crate::runtime::ensure()?;
+        let mut __result: i32 = ::core::default::Default::default();
+        let __status = unsafe { crate::native::views_Ledger_badDestructions(&mut __result) };
+        crate::runtime::check(__status)?;
+        Ok(__result)
+    }
+}
+
 /// `int64_t views::sum(std::span<const int16_t> values)`
 pub fn sum(values: &[i16]) -> crate::Result<i64> {
     crate::runtime::ensure()?;

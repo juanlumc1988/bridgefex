@@ -26,6 +26,54 @@ SPN_NODISCARD SPN_API spn_status views_sum_x(const views_Point* points, size_t p
 /* size_t views::total(std::span<const std::string> words) */
 SPN_NODISCARD SPN_API spn_status views_total(const spn_string* words, size_t words_size, size_t* out_result);
 
+/* views::Ledger::Ledger(std::span<const int32_t> first)
+ * first: the new object keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_create(views_Ledger** out_self, const int32_t* first, size_t first_size);
+
+/* views::Ledger::~Ledger() */
+SPN_API void views_Ledger_destroy(views_Ledger* self);
+
+/* void views::Ledger::add(std::span<const int32_t> values)
+ * values: self keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_add(views_Ledger* self, const int32_t* values, size_t values_size);
+
+/* void views::Ledger::addDoubles(std::span<const double> values)
+ * values: self keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_addDoubles(views_Ledger* self, const double* values, size_t values_size);
+
+/* void views::Ledger::addFlags(std::span<const bool> values)
+ * values: self keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_addFlags(views_Ledger* self, const bool* values, size_t values_size);
+
+/* void views::Ledger::addLongs(std::span<const long> values)
+ * values: self keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_addLongs(views_Ledger* self, const long* values, size_t values_size);
+
+/* void views::Ledger::addCopy(const std::vector<int32_t>& values) */
+SPN_NODISCARD SPN_API spn_status views_Ledger_addCopy(views_Ledger* self, const int32_t* values, size_t values_size);
+
+/* bool views::Ledger::intact() const */
+SPN_NODISCARD SPN_API spn_status views_Ledger_intact(const views_Ledger* self, bool* out_result);
+
+/* int64_t views::Ledger::total() const */
+SPN_NODISCARD SPN_API spn_status views_Ledger_total(const views_Ledger* self, int64_t* out_result);
+
+/* int32_t views::Ledger::kept() const */
+SPN_NODISCARD SPN_API spn_status views_Ledger_kept(const views_Ledger* self, int32_t* out_result);
+
+/* static void views::Ledger::pin(std::span<const int32_t> values)
+ * values: the library keeps a pointer to it; it must stay valid as long as it is used. */
+SPN_NODISCARD SPN_API spn_status views_Ledger_pin(const int32_t* values, size_t values_size);
+
+/* static bool views::Ledger::keptIntact() */
+SPN_NODISCARD SPN_API spn_status views_Ledger_keptIntact(bool* out_result);
+
+/* static void views::Ledger::scribble() */
+SPN_NODISCARD SPN_API spn_status views_Ledger_scribble(void);
+
+/* static int32_t views::Ledger::badDestructions() */
+SPN_NODISCARD SPN_API spn_status views_Ledger_badDestructions(int32_t* out_result);
+
 #ifdef __cplusplus
 }
 #endif

@@ -49,6 +49,208 @@ public unsafe partial struct Point
     }
 }
 
+internal sealed class LedgerHandle : ObjectHandle
+{
+    public LedgerHandle() : base(true)
+    {
+    }
+    public LedgerHandle(bool owns) : base(owns)
+    {
+    }
+    protected override void Destroy()
+    {
+        Native.views_Ledger_destroy(handle);
+    }
+}
+
+/// <summary>
+/// views::Ledger
+/// </summary>
+public unsafe partial class Ledger : BridgefexObject
+{
+    internal Ledger(ObjectHandle handle) : base(handle)
+    {
+    }
+
+    internal override global::System.Type CppType => typeof(Ledger);
+
+    /// <summary>
+    /// views::Ledger::Ledger(std::span&lt;const int32_t&gt; first)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_create")]
+    public Ledger(global::System.ReadOnlySpan<int> first) : base(new LedgerHandle())
+    {
+        KeptText __k1 = new KeptText((nuint)first.Length * (nuint)sizeof(int));
+        first.CopyTo(new global::System.Span<int>(__k1.Pointer, first.Length));
+        nint __result;
+        int __status = Native.views_Ledger_create(&__result, (int*)__k1.Pointer, (nuint)first.Length);
+        Handle.Assign(__result);
+        Runtime.Check(__status);
+        RetainText(__k1);
+    }
+
+    internal static Ledger? Borrow(nint pointer, BridgefexObject?[]? owners, bool readOnly)
+    {
+        if (pointer == 0)
+        {
+            return null;
+        }
+        var handle = new LedgerHandle(false);
+        handle.Assign(pointer);
+        var result = new Ledger(handle);
+        result.ReadOnly = readOnly;
+        result.Attach(owners);
+        return result;
+    }
+
+    /// <summary>
+    /// void views::Ledger::add(std::span&lt;const int32_t&gt; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_add")]
+    public void Add(global::System.ReadOnlySpan<int> values)
+    {
+        using var __self = Hold(true);
+        KeptText __k1 = new KeptText((nuint)values.Length * (nuint)sizeof(int));
+        values.CopyTo(new global::System.Span<int>(__k1.Pointer, values.Length));
+        RetainText(__k1);
+        Runtime.Check(Native.views_Ledger_add(__self.Pointer, (int*)__k1.Pointer, (nuint)values.Length));
+    }
+
+    /// <summary>
+    /// void views::Ledger::addDoubles(std::span&lt;const double&gt; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_addDoubles")]
+    public void AddDoubles(global::System.ReadOnlySpan<double> values)
+    {
+        using var __self = Hold(true);
+        KeptText __k1 = new KeptText((nuint)values.Length * (nuint)sizeof(double));
+        values.CopyTo(new global::System.Span<double>(__k1.Pointer, values.Length));
+        RetainText(__k1);
+        Runtime.Check(Native.views_Ledger_addDoubles(__self.Pointer, (double*)__k1.Pointer, (nuint)values.Length));
+    }
+
+    /// <summary>
+    /// void views::Ledger::addFlags(std::span&lt;const bool&gt; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_addFlags")]
+    public void AddFlags(global::System.ReadOnlySpan<bool> values)
+    {
+        using var __self = Hold(true);
+        KeptText __k1 = new KeptText((nuint)values.Length * (nuint)sizeof(byte));
+        values.CopyTo(new global::System.Span<bool>(__k1.Pointer, values.Length));
+        RetainText(__k1);
+        Runtime.Check(Native.views_Ledger_addFlags(__self.Pointer, (byte*)__k1.Pointer, (nuint)values.Length));
+    }
+
+    /// <summary>
+    /// void views::Ledger::addLongs(std::span&lt;const long&gt; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_addLongs")]
+    public void AddLongs(global::System.ReadOnlySpan<long> values)
+    {
+        using var __self = Hold(true);
+        KeptText __k1 = new KeptText((nuint)values.Length * (nuint)sizeof(global::System.Runtime.InteropServices.CLong));
+        for (int __i = 0; __i < values.Length; __i++)
+        {
+            ((global::System.Runtime.InteropServices.CLong*)__k1.Pointer)[__i] = new global::System.Runtime.InteropServices.CLong(checked((nint)values[__i]));
+        }
+        RetainText(__k1);
+        Runtime.Check(Native.views_Ledger_addLongs(__self.Pointer, (global::System.Runtime.InteropServices.CLong*)__k1.Pointer, (nuint)values.Length));
+    }
+
+    /// <summary>
+    /// void views::Ledger::addCopy(const std::vector&lt;int32_t&gt;&amp; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_addCopy")]
+    public void AddCopy(global::System.ReadOnlySpan<int> values)
+    {
+        using var __self = Hold(true);
+        fixed (int* __p1 = values)
+        {
+            Runtime.Check(Native.views_Ledger_addCopy(__self.Pointer, (int*)__p1, (nuint)values.Length));
+        }
+    }
+
+    /// <summary>
+    /// bool views::Ledger::intact() const
+    /// </summary>
+    [BridgefexFunction("views_Ledger_intact")]
+    public bool Intact()
+    {
+        using var __self = Hold(false);
+        byte __result;
+        Runtime.Check(Native.views_Ledger_intact(__self.Pointer, &__result));
+        return (__result != 0);
+    }
+
+    /// <summary>
+    /// int64_t views::Ledger::total() const
+    /// </summary>
+    [BridgefexFunction("views_Ledger_total")]
+    public long Total()
+    {
+        using var __self = Hold(false);
+        long __result;
+        Runtime.Check(Native.views_Ledger_total(__self.Pointer, &__result));
+        return __result;
+    }
+
+    /// <summary>
+    /// int32_t views::Ledger::kept() const
+    /// </summary>
+    [BridgefexFunction("views_Ledger_kept")]
+    public int Kept()
+    {
+        using var __self = Hold(false);
+        int __result;
+        Runtime.Check(Native.views_Ledger_kept(__self.Pointer, &__result));
+        return __result;
+    }
+
+    /// <summary>
+    /// static void views::Ledger::pin(std::span&lt;const int32_t&gt; values)
+    /// </summary>
+    [BridgefexFunction("views_Ledger_pin")]
+    public static void Pin(global::System.ReadOnlySpan<int> values)
+    {
+        KeptText __k1 = new KeptText((nuint)values.Length * (nuint)sizeof(int));
+        values.CopyTo(new global::System.Span<int>(__k1.Pointer, values.Length));
+        BridgefexObject.RetainTextForever(__k1);
+        Runtime.Check(Native.views_Ledger_pin((int*)__k1.Pointer, (nuint)values.Length));
+    }
+
+    /// <summary>
+    /// static bool views::Ledger::keptIntact()
+    /// </summary>
+    [BridgefexFunction("views_Ledger_keptIntact")]
+    public static bool KeptIntact()
+    {
+        byte __result;
+        Runtime.Check(Native.views_Ledger_keptIntact(&__result));
+        return (__result != 0);
+    }
+
+    /// <summary>
+    /// static void views::Ledger::scribble()
+    /// </summary>
+    [BridgefexFunction("views_Ledger_scribble")]
+    public static void Scribble()
+    {
+        Runtime.Check(Native.views_Ledger_scribble());
+    }
+
+    /// <summary>
+    /// static int32_t views::Ledger::badDestructions()
+    /// </summary>
+    [BridgefexFunction("views_Ledger_badDestructions")]
+    public static int BadDestructions()
+    {
+        int __result;
+        Runtime.Check(Native.views_Ledger_badDestructions(&__result));
+        return __result;
+    }
+}
+
 public static unsafe class Functions
 {
     /// <summary>

@@ -22,6 +22,13 @@ views_Color = enum.IntEnum(
 views_Color.__doc__ = "Wraps ``enum class views::Color : uint8_t``."
 
 
+class _views_Ledger(ctypes.Structure):
+    """Opaque C handle of views::Ledger."""
+
+
+_views_Ledger__p = ctypes.POINTER(_views_Ledger)
+
+
 class _views_Point(ctypes.Structure):
     """C mirror of views::Point (views_Point)."""
 

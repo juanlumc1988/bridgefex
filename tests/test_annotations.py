@@ -243,6 +243,11 @@ def test_bytes(tmp_path: Path) -> None:
         (Kind.OBJECT_VALUE, "retain", False),
         (Kind.UNIQUE_PTR, "retain", False),
         (Kind.CALLBACK, "retain", False),
+        (Kind.SPAN, "retain", True),
+        (Kind.SPAN, "nullable", False),
+        (Kind.SPAN, "transfer", False),
+        (Kind.COPY, "retain", False),
+        (Kind.COPY, "nullable", False),
         (Kind.OBJECT_REFERENCE, "call", True),
         (Kind.OBJECT_VALUE, "call", False),
         (Kind.C_STRING, "call", False),
@@ -263,6 +268,8 @@ def test_hints(tmp_path: Path) -> None:
     assert "a std::unique_ptr always transfers the ownership" in error
     (error,) = policy('[f]\nx = "nullable"\n', tmp_path, [Param("x", Kind.OBJECT_REFERENCE)])[1]
     assert "a reference is never NULL" in error
+    (error,) = policy('[f]\nx = "retain"\n', tmp_path, [Param("x", Kind.COPY)])[1]
+    assert "only a std::span of numbers can be kept" in error
 
 
 @pytest.mark.parametrize("words", ["transfer", "retain", "call"])

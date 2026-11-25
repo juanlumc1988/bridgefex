@@ -156,7 +156,7 @@ extern "C" const char* spn_last_error(void)
 
 extern "C" const char* spn_api_fingerprint(void)
 {
-    return "6b62d1b48eebc55b4bd1f6f0ce0f48b3";
+    return "0c43d63c1dc51a38640733811c7438d3";
 }
 
 extern "C" void spn_free(void* memory)

@@ -390,7 +390,7 @@ class _Lowerer:
         type_ = spec.type
         name = parameter(spec.name)
         self.lowering.parameters.append(f"{public_type(type_, self.names, spec)} {name}")
-        if "retain" in spec.words and not isinstance(type_, StringType):
+        if "retain" in spec.words and isinstance(type_, ClassRef):
             self.retained.append(name)
         if (
             isinstance(type_, ClassRef)
@@ -422,7 +422,9 @@ class _Lowerer:
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, position, name)
         elif isinstance(type_, ContainerType):
-            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            site = containers.Site(
+                self.body, self.arguments, self.names, self.module.free_function, self.kept_texts
+            )
             containers.param(spec, type_, position, name, site)
             if type_.kind is ContainerKind.ARRAY:
                 self.lowering.remarks.append(
@@ -591,7 +593,9 @@ class _Lowerer:
         elif isinstance(type_, ClassRef):
             self.object_result(spec, type_, out)
         elif isinstance(type_, ContainerType):
-            site = containers.Site(self.body, self.arguments, self.names, self.module.free_function)
+            site = containers.Site(
+                self.body, self.arguments, self.names, self.module.free_function, []
+            )
             out.after_check, out.cleanup = containers.result(spec, type_, site)
         else:
             raise Unsupported(

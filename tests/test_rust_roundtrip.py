@@ -197,6 +197,12 @@ use cont::vectors::*;
 
 fn main() -> cont::Result<()> {
 """,
+    "spans": """\
+#![allow(unused)]
+use spn::views::*;
+
+fn main() -> spn::Result<()> {
+""",
     "callbacks": """\
 #![allow(unused)]
 use cbx::events::*;
@@ -406,6 +412,23 @@ REFUSED_CONTAINERS = [
     ),
 ]
 
+REFUSED_SPANS = [
+    pytest.param(
+        "let first = [1, 2, 3]; let mut ledger = Ledger::new(&first)?;",
+        "let first = [1, 2, 3]; let mut ledger = unsafe { Ledger::new(&first)? };",
+        "E0133",
+        id="a-span-that-c-plus-plus-keeps-is-unsafe",
+    ),
+    pytest.param(
+        "let first = [1, 2, 3]; let mut ledger = unsafe { Ledger::new(&first)? }; "
+        "ledger.add(&[4, 5])?;",
+        "let first = [1, 2, 3]; let mut ledger = unsafe { Ledger::new(&first)? }; "
+        "ledger.add_copy(&[4, 5])?;",
+        "E0133",
+        id="a-method-that-keeps-a-span-is-unsafe",
+    ),
+]
+
 REFUSED_CALLBACKS = [
     pytest.param(
         "let shared = std::rc::Rc::new(1); sum(3, move |i| i + *shared)?;",
@@ -480,6 +503,7 @@ def crates(
         *_for("inherit", REFUSED_INHERIT),
         *_for("containers", REFUSED_CONTAINERS),
         *_for("callbacks", REFUSED_CALLBACKS),
+        *_for("spans", REFUSED_SPANS),
     ],
 )
 def test_the_compiler_refuses_it(

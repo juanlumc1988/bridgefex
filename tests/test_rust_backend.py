@@ -980,6 +980,80 @@ int text(const char* name, std::function<int(int)> f, std::function<void()> done
     assert body.count("Scope::new()") == 1
 
 
+def test_a_span_that_c_plus_plus_keeps_is_an_unsafe_function(tmp_path: Path, cargo: None) -> None:
+    """A std::span of numbers points to the memory that it is given: when C++ stores it (the
+    annotations say so with retain), the function is unsafe, as for a text that C++ keeps; the
+    others are safe."""
+    code = """
+#include <span>
+class View {
+public:
+    explicit View(std::span<const int> values);
+    ~View();
+    void reset(std::span<const double> values);
+    void look(std::span<const int> values);
+    static void pin(std::span<const bool> values);
+};
+"""
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text(
+        '[bind_View_create]\nvalues = "retain"\n[bind_View_reset]\nvalues = "retain"\n'
+        '[bind_View_pin]\nvalues = "retain"\n',
+        encoding="utf-8",
+    )
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++20", languages=("rust",), verify=True, annotations=(annotations,)
+    )
+    api = source(bridgefex.generate([path], options).files)
+    assert "pub unsafe fn new(values: &[::core::ffi::c_int])" in " ".join(api.split())
+    assert "pub unsafe fn reset(&mut self, values: &[f64])" in api
+    assert "pub unsafe fn pin(values: &[bool])" in api
+    assert "pub fn look(&mut self, values: &[::core::ffi::c_int])" in api
+    assert (
+        "Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self`"
+        in api
+    )
+    assert "for as long as the new object uses it" in api
+    assert "for as long as the program uses it" in api
+
+
+@pytest.mark.parametrize(
+    ("type_", "what"),
+    [
+        ("const std::vector<int>&", "vector"),
+        ("std::array<int, 3>", "array"),
+        ("std::span<const Color>", "span of enums"),
+        ("std::span<const Point>", "span of structs"),
+        ("std::span<const std::string>", "span of strings"),
+    ],
+)
+def test_a_container_that_is_copied_cannot_be_retained(
+    tmp_path: Path, type_: str, what: str
+) -> None:
+    """Only a span of numbers is the memory of the caller: the others are copies that live for the
+    call, so there is nothing that C++ could keep."""
+    code = (
+        "#include <array>\n#include <span>\n#include <vector>\n"
+        "enum class Color { Red };\nstruct Point { double x; };\n"
+        f"void store({type_} values);\n"
+    )
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_store]\nvalues = "retain"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++20", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    with pytest.raises(GenerationError) as raised:
+        bridgefex.generate([path], options)
+    message = str(raised.value)
+    assert "ann.toml:2" in message, what
+    assert "'retain' does not apply to a" in message
+    assert "only a std::span of numbers can be kept" in message
+
+
 def test_a_callback_does_not_clash_with_the_names_that_the_bindings_use(
     tmp_path: Path, cargo: None
 ) -> None:

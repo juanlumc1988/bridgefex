@@ -627,6 +627,9 @@ class _Lowerer:
         pair of its bytes and their number."""
         element = spec.element
         assert element is not None
+        if "retain" in spec.words:
+            # C++ keeps the pointer of the slice: Rust cannot see until when.
+            self.keeps(spec.name, text=True)
         if type_.kind is not ContainerKind.ARRAY:
             if spec.size is None:
                 raise AssertionError(f"the container '{spec.name}' has no size parameter")

@@ -1817,6 +1817,11 @@ class _Builder:
             }.get(type_.kind, Kind.STRING)
         if isinstance(type_, CallbackType):
             return Kind.CALLBACK
+        if isinstance(type_, ContainerType):
+            # A span of numbers points to the memory that it is given: C++ may keep it. Every
+            # other container, and a span of the elements that are converted, is a copy.
+            numbers = type_.kind is ContainerKind.SPAN and isinstance(type_.element, ScalarType)
+            return Kind.SPAN if numbers else Kind.COPY
         return Kind.OTHER
 
     def _policy(

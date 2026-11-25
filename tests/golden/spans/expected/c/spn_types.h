@@ -18,6 +18,9 @@ typedef uint8_t views_Color;
 #define views_Color_Red 0
 #define views_Color_Green 1
 
+/* Opaque handle of views::Ledger. */
+typedef struct views_Ledger views_Ledger;
+
 /* Value structs, each after the structs it contains. */
 
 /* views::Point */
