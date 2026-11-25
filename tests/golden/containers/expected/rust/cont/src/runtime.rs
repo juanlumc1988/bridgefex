@@ -319,14 +319,25 @@ impl Scope {
 }
 
 /// Runs what C++ cannot be unwound through: a panic of it is dropped, and so is one of the drop of
-/// that panic (a payload that panics when it is dropped is forgotten, which leaks it and goes on).
+/// that panic (a payload that panics when it is dropped, with another one that does too: a few
+/// turns, and then it is forgotten, which leaks it, rather than looping for ever).
 #[allow(dead_code)]
 fn contain(work: impl FnOnce()) {
-    if let Err(payload) = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(work)) {
+    let Err(first) = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(work)) else {
+        return;
+    };
+    let mut pending = Some(first);
+    for _ in 0..8 {
+        let Some(payload) = pending.take() else {
+            return;
+        };
         let dropped = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| drop(payload)));
-        if let Err(again) = dropped {
-            ::core::mem::forget(again);
+        if let Err(next) = dropped {
+            pending = Some(next);
         }
+    }
+    if let Some(payload) = pending {
+        ::core::mem::forget(payload);
     }
 }
 
