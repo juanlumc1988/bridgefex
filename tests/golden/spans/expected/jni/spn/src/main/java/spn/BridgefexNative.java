@@ -76,4 +76,88 @@ public final class BridgefexNative {
         return n_views_total(p_words.address(), p_words_size, p_out_result.address());
     }
     private static native int n_views_total(long p_words, long p_words_size, long p_out_result);
+
+    public static int views_Ledger_create(BridgefexSegment p_out_self, BridgefexSegment p_first, long p_first_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_create(p_out_self.address(), p_first.address(), p_first_size);
+    }
+    private static native int n_views_Ledger_create(long p_out_self, long p_first, long p_first_size);
+
+    public static void views_Ledger_destroy(BridgefexSegment p_self) {
+        BridgefexRuntime.ensureLoaded();
+        n_views_Ledger_destroy(p_self.address());
+    }
+    private static native void n_views_Ledger_destroy(long p_self);
+
+    public static int views_Ledger_add(BridgefexSegment p_self, BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_add(p_self.address(), p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_add(long p_self, long p_values, long p_values_size);
+
+    public static int views_Ledger_addDoubles(BridgefexSegment p_self, BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_addDoubles(p_self.address(), p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_addDoubles(long p_self, long p_values, long p_values_size);
+
+    public static int views_Ledger_addFlags(BridgefexSegment p_self, BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_addFlags(p_self.address(), p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_addFlags(long p_self, long p_values, long p_values_size);
+
+    public static int views_Ledger_addLongs(BridgefexSegment p_self, BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_addLongs(p_self.address(), p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_addLongs(long p_self, long p_values, long p_values_size);
+
+    public static int views_Ledger_addCopy(BridgefexSegment p_self, BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_addCopy(p_self.address(), p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_addCopy(long p_self, long p_values, long p_values_size);
+
+    public static int views_Ledger_intact(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_intact(p_self.address(), p_out_result.address());
+    }
+    private static native int n_views_Ledger_intact(long p_self, long p_out_result);
+
+    public static int views_Ledger_total(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_total(p_self.address(), p_out_result.address());
+    }
+    private static native int n_views_Ledger_total(long p_self, long p_out_result);
+
+    public static int views_Ledger_kept(BridgefexSegment p_self, BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_kept(p_self.address(), p_out_result.address());
+    }
+    private static native int n_views_Ledger_kept(long p_self, long p_out_result);
+
+    public static int views_Ledger_pin(BridgefexSegment p_values, long p_values_size) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_pin(p_values.address(), p_values_size);
+    }
+    private static native int n_views_Ledger_pin(long p_values, long p_values_size);
+
+    public static int views_Ledger_keptIntact(BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_keptIntact(p_out_result.address());
+    }
+    private static native int n_views_Ledger_keptIntact(long p_out_result);
+
+    public static int views_Ledger_scribble() {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_scribble();
+    }
+    private static native int n_views_Ledger_scribble();
+
+    public static int views_Ledger_badDestructions(BridgefexSegment p_out_result) {
+        BridgefexRuntime.ensureLoaded();
+        return n_views_Ledger_badDestructions(p_out_result.address());
+    }
+    private static native int n_views_Ledger_badDestructions(long p_out_result);
 }

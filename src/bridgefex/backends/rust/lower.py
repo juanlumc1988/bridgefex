@@ -6,19 +6,33 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from ...model import ClassForm, ClassRef, EnumRef, ScalarType, StringType, StructRef, Type
+from ...model import (
+    CallbackType,
+    ClassForm,
+    ClassRef,
+    ContainerKind,
+    ContainerType,
+    EnumRef,
+    ScalarType,
+    StringType,
+    StructRef,
+    Type,
+)
 from ...naming import unique_name
 from ...plan import (
     CallableKind,
     CallablePlan,
+    CallbackPart,
+    CallbackSpec,
     ClassPlan,
+    ElementSpec,
     EnumPlan,
     ModulePlan,
     ParamSpec,
     ResultSpec,
     StructPlan,
 )
-from .mapping import Unsupported, scalar
+from .mapping import TEXT, Unsupported, function_pointer, function_types, scalar
 from .naming import LOCAL_PREFIX, parameter
 
 L = LOCAL_PREFIX
@@ -46,6 +60,13 @@ class Names:
         """The path of every class and struct, by the C type (what a pointer of the C API points
         to)."""
         return {**self.classes, **self.structs}
+
+    @property
+    def raw_enums(self) -> dict[str, str]:
+        """The Rust type of the integer of every enum, by the C type (which is that integer)."""
+        return {
+            item.c_type: scalar(item.model.underlying.c_name) for item in self.enum_plans.values()
+        }
 
 
 @dataclass(slots=True)
@@ -88,7 +109,77 @@ def public_type(type_: Type, names: Names, spec: ParamSpec | ResultSpec) -> str:
         return names.enums[spec.enum.c_type]
     if isinstance(type_, StructRef) and spec.struct is not None:
         return names.structs[spec.struct.c_type]
+    if isinstance(type_, ContainerType):
+        return container_type(type_, names, spec)
+    if isinstance(type_, CallbackType) and isinstance(spec, ParamSpec) and spec.callback:
+        closure = f"impl {closure_type(spec.callback, names)}"
+        return f"::core::option::Option<{closure}>" if nullable else closure
     raise Unsupported(f"the type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+
+def closure_type(callback: CallbackSpec, names: Names) -> str:
+    """The closure that a ``std::function`` is: ``Fn(A) -> R`` that may be called by C++ on any
+    thread, for as long as it holds it (and it may be for ever)."""
+    arguments = ", ".join(_callback_argument(part, names) for part in callback.arguments)
+    result = callback.result.type
+    if isinstance(result, ScalarType) and result.is_void:
+        returns = ""
+    elif isinstance(result, ScalarType):
+        returns = f" -> {scalar(result.c_name)}"
+    elif isinstance(result, EnumRef) and callback.result.enum is not None:
+        returns = f" -> {names.enums[callback.result.enum.c_type]}"
+    else:
+        raise Unsupported(f"a callback that gives '{result.cpp_spelling}'")
+    return (
+        f"::core::ops::Fn({arguments}){returns} + ::core::marker::Send + ::core::marker::Sync "
+        "+ 'static"
+    )
+
+
+def _callback_argument(part: CallbackPart, names: Names) -> str:
+    """The type of an argument of a closure: what C++ gives, as Rust shows it (a struct and a
+    string are borrowed for the call)."""
+    type_ = part.type
+    if isinstance(type_, ScalarType) and not type_.is_void:
+        return scalar(type_.c_name)
+    if isinstance(type_, EnumRef) and part.enum is not None:
+        return names.enums[part.enum.c_type]
+    if isinstance(type_, StructRef) and part.struct is not None:
+        return f"&{names.structs[part.struct.c_type]}"
+    if isinstance(type_, StringType):
+        return "&str" if type_.sized else "::core::option::Option<&str>"
+    raise Unsupported(f"a callback that takes '{type_.cpp_spelling}'")
+
+
+def element_type(element: ElementSpec | None, names: Names, text: str) -> str:
+    """The Rust type of an element of a container (``text``: the type that a string has)."""
+    if element is None:
+        raise Unsupported("a container without its element type")
+    type_ = element.type
+    if isinstance(type_, ScalarType):
+        return scalar(type_.c_name)
+    if isinstance(type_, StringType):
+        return text
+    if isinstance(type_, EnumRef) and element.enum is not None:
+        return names.enums[element.enum.c_type]
+    if isinstance(type_, StructRef) and element.struct is not None:
+        return names.structs[element.struct.c_type]
+    raise Unsupported(
+        f"the type '{type_.cpp_spelling}' as the element of a container is not supported in Rust"
+    )
+
+
+def container_type(type_: ContainerType, names: Names, spec: ParamSpec | ResultSpec) -> str:
+    """The type that the Rust API shows for a ``std::vector``, a ``std::array`` or a
+    ``std::span``: a slice (or a reference to an array, whose length is the one of the C++ type)
+    that a function takes, and a ``Vec`` (or an array) that it gives."""
+    if isinstance(spec, ParamSpec):
+        item = element_type(spec.element, names, "&str")
+        return f"&[{item}; {type_.length}]" if type_.kind is ContainerKind.ARRAY else f"&[{item}]"
+    item = element_type(spec.element, names, "::std::string::String")
+    if type_.kind is ContainerKind.ARRAY:
+        return f"[{item}; {type_.length}]"
+    return f"::std::vec::Vec<{item}>"
 
 
 def kept_text(spec: ParamSpec) -> bool:
@@ -136,6 +227,23 @@ class _Lowerer:
         self.before: list[str] = []
         self.taken: set[str] = set()
         self.lifetime = ""
+        self.items: list[str] = []
+        """What the body declares before it starts: the functions that C++ calls for a closure."""
+
+        self.adopted: list[str] = []
+        """What takes the object that a constructor or a function made, right after the call: a
+        panic of a closure, which the call raises next, drops it (and C++ destroys it) instead of
+        losing it."""
+
+        self.late: list[str] = []
+        """What runs right before the call, once nothing can fail any more: the closures are given
+        away there (the C layer releases them, also when the call fails, and not before)."""
+
+        self.scope = ""
+        """The local that holds the call, if it gives closures: it gets their panics."""
+
+        self.callbacks = 0
+        """The closures that the call gives (to name the types that it declares for them)."""
 
     def run(self) -> Lowering:
         plan = self.plan
@@ -155,10 +263,22 @@ class _Lowerer:
         returns, after = self.result()
         arguments = [self.argument(param.name) for param in plan.function.params]
         lowering.returns = returns
+        settle = []
+        if self.scope:
+            # A panic of a closure is raised by the call that gave it, when C++ has returned.
+            settle = [
+                f"if let Some({L}panic) = {self.scope}.finish() {{",
+                f"    ::std::panic::resume_unwind({L}panic);",
+                "}",
+            ]
         lowering.body = [
+            *self.items,
             f"{RUNTIME}::ensure()?;",
             *self.before,
+            *self.late,
             *_call(f"let {L}status = ", f"{NATIVE}::{plan.function.name}", arguments),
+            *self.adopted,
+            *settle,
             f"{RUNTIME}::check({L}status)?;",
             *after,
         ]
@@ -247,6 +367,10 @@ class _Lowerer:
             self.arguments[spec.name] = f"&{name}"
         elif isinstance(type_, StringType):
             self.string_param(spec, name)
+        elif isinstance(type_, ContainerType):
+            self.container_param(spec, type_, name)
+        elif isinstance(type_, CallbackType):
+            self.callback_param(spec, name)
         elif isinstance(type_, ClassRef):
             self.object_param(spec, type_, name)
         else:
@@ -342,6 +466,193 @@ class _Lowerer:
             )
         self.arguments[spec.name] = f"{name}.0"
 
+    def callback_param(self, spec: ParamSpec, name: str) -> None:
+        """A closure goes to C++ as a function, a ``user_data`` that is the closure and the
+        function that releases it. C++ may keep it and call it from any thread, which is why a
+        closure is ``Send + Sync + 'static``."""
+        callback = spec.callback
+        assert callback is not None
+        assert spec.user_data is not None
+        assert spec.release is not None
+        param = next(item for item in self.plan.function.params if item.name == spec.name)
+        types = function_types(param, self.names.types, self.names.raw_enums)
+        pointer = function_pointer(param, self.names.types, self.names.raw_enums)
+        base = name.lstrip("_")
+        register = unique_name(f"{L}register_{base}", frozenset(self.taken))
+        self.taken.add(register)
+        local = unique_name(f"{L}cb_{base}", frozenset(self.taken))
+        self.taken.add(local)
+        bound = f"{closure_type(callback, self.names)}"
+        self.items.extend(self.trampoline(register, callback, types, pointer, bound))
+        self.callbacks += 1
+        if not self.scope:
+            self.scope = f"{L}scope"
+            self.late.append(f"let {self.scope} = {RUNTIME}::Scope::new();")
+        if "nullable" in spec.words:
+            self.late.append(
+                f"let {local} = match {name} {{ ::core::option::Option::Some({name}) => "
+                f"{register}({name}, &{self.scope}), ::core::option::Option::None => "
+                f"{RUNTIME}::Registered::none() }};"
+            )
+        else:
+            self.late.append(f"let {local} = {register}({name}, &{self.scope});")
+        self.arguments[spec.name] = f"{local}.call"
+        self.arguments[spec.user_data] = f"{local}.data"
+        self.arguments[spec.release] = f"{local}.release"
+        self.lowering.remarks.append(
+            f"`{spec.name}`: C++ may call it on any thread, for as long as it holds it (also after "
+            "this function returns). A panic of the closure is caught, and this call raises it "
+            "again when C++ returns (one that no call is waiting for is dropped)."
+            + (
+                " `None` is an empty `std::function`: C++ that calls it fails with "
+                "`ErrorKind::Exception`."
+                if "nullable" in spec.words
+                else ""
+            )
+        )
+
+    def trampoline(
+        self,
+        register: str,
+        callback: CallbackSpec,
+        types: list[str],
+        pointer: str,
+        bound: str,
+    ) -> list[str]:
+        """The functions that give a closure to C++: the one that C++ calls, which converts what
+        C++ gives and runs the closure, and the registration of both."""
+        parameters = [f"data: {types[0]}"]
+        arguments: list[str] = []
+        locals_: list[str] = []
+        position = 1
+        for index, part in enumerate(callback.arguments):
+            type_ = part.type
+            name = f"{L}a{index}"
+            if isinstance(type_, StringType):
+                if type_.sized:
+                    parameters += [
+                        f"{name}: {types[position]}",
+                        f"{name}_size: {types[position + 1]}",
+                    ]
+                    locals_.append(
+                        f"let {name}_text = unsafe {{ {RUNTIME}::text({name}, {name}_size) }};"
+                    )
+                    arguments.append(f"&*{name}_text")
+                    position += 2
+                else:
+                    parameters.append(f"{name}: {types[position]}")
+                    locals_.append(f"let {name}_text = unsafe {{ {RUNTIME}::c_text({name}) }};")
+                    arguments.append(f"{name}_text.as_deref()")
+                    position += 1
+                continue
+            parameters.append(f"{name}: {types[position]}")
+            position += 1
+            if isinstance(type_, EnumRef):
+                assert part.enum is not None
+                arguments.append(f"{self.names.enums[part.enum.c_type]}({name})")
+            elif isinstance(type_, StructRef):
+                arguments.append(f"unsafe {{ &*{name} }}")
+            else:
+                arguments.append(name)
+        result = callback.result.type
+        gives = not (isinstance(result, ScalarType) and result.is_void)
+        if gives:
+            parameters.append(f"out: {types[position]}")
+        call = f"function({', '.join(arguments)})"
+        valid = callback.result.enum.model.valid_range if callback.result.enum else None
+        if valid is None:
+            inner = [*(f"    {line}" for line in locals_), f"    {call}"]
+        else:
+            # An enum without a fixed type: a value that C++ cannot hold is a failure of the
+            # closure (as a panic is, and raised as one), not a value that C++ gets.
+            inner = [
+                *(f"    {line}" for line in locals_),
+                f"    let value = {call};",
+                f"    if !({valid[0]}..={valid[1]}).contains(&(value.0 as i128)) {{",
+                "        ::core::panic!(",
+                f'            "a callback returned {{}}: the enum has {valid[0]}..{valid[1]}",',
+                "            value.0,",
+                "        );",
+                "    }",
+                "    value",
+            ]
+        if gives:
+            value = "value.0" if isinstance(result, EnumRef) else "value"
+            body = [
+                "if let ::core::option::Option::Some(value) = registration.run(|function| {",
+                *inner,
+                "}) {",
+                f"    unsafe {{ *out = {value} }};",
+                "}",
+            ]
+        else:
+            body = ["registration.run(|function| {", *inner, "});"]
+        alias = f"{L}Callback{self.callbacks}"
+        where = [f"where F: {bound},"]
+        if len(where[0]) + 8 > 100:
+            first, *rest = bound.split(" + ")
+            where = ["where", f"    F: {first}", *(f"        + {item}" for item in rest)]
+            where[-1] += ","
+        return [
+            f'type {alias} = unsafe extern "C" fn(',
+            *(f"    {type_}," for type_ in types),
+            ");",
+            f"fn {register}<F>(",
+            "    function: F,",
+            f"    scope: &::std::sync::Arc<{RUNTIME}::Scope>,",
+            f") -> {RUNTIME}::Registered<{alias}>",
+            *where,
+            "{",
+            f"    use {RUNTIME}::Registration;",
+            '    unsafe extern "C" fn call<F>(',
+            *(f"        {parameter}," for parameter in parameters),
+            "    )",
+            *(f"    {line}" for line in where),
+            "    {",
+            "        let registration = unsafe { Registration::<F>::from_raw(data) };",
+            *(f"        {line}" for line in body),
+            "    }",
+            f"    {RUNTIME}::Registered {{",
+            "        call: ::core::option::Option::Some(call::<F>),",
+            f"        data: {RUNTIME}::Registration::into_raw(function, scope),",
+            f"        release: ::core::option::Option::Some({RUNTIME}::release::<F>),",
+            "    }",
+            "}",
+        ]
+
+    def container_param(self, spec: ParamSpec, type_: ContainerType, name: str) -> None:
+        """A slice (or an array) goes to C++ as it is, where it is: a pointer, and the number of
+        its elements for a vector or a span. The elements that are not C types themselves get
+        what C needs first: an enum is its integer (``#[repr(transparent)]``), a string the
+        pair of its bytes and their number."""
+        element = spec.element
+        assert element is not None
+        if "retain" in spec.words:
+            # C++ keeps the pointer of the slice: Rust cannot see until when.
+            self.keeps(spec.name, text=True)
+        if type_.kind is not ContainerKind.ARRAY:
+            if spec.size is None:
+                raise AssertionError(f"the container '{spec.name}' has no size parameter")
+            self.arguments[spec.size] = f"{name}.len()"
+        if isinstance(element.type, StringType):
+            # No NUL check: the size of each string is passed, and a NUL is text.
+            local = unique_name(f"{L}t_{name.lstrip('_')}", frozenset(self.taken))
+            self.taken.add(local)
+            self.before.append(f"let {local} = {RUNTIME}::NativeText::all({name});")
+            self.arguments[spec.name] = f"{local}.as_ptr()"
+        elif isinstance(element.type, EnumRef):
+            assert element.enum is not None
+            valid = element.enum.model.valid_range
+            if valid is not None:
+                # An enum without a fixed type: see enum_param.
+                self.before.append(
+                    f"{RUNTIME}::check_enums({name}.iter().map(|item| item.0 as i128), "
+                    f'{valid[0]}, {valid[1]}, "{spec.name}")?;'
+                )
+            self.arguments[spec.name] = f"{name}.as_ptr().cast()"
+        else:
+            self.arguments[spec.name] = f"{name}.as_ptr()"
+
     def string_param(self, spec: ParamSpec, name: str) -> None:
         nullable = "nullable" in spec.words
         if "retain" in spec.words:
@@ -385,9 +696,10 @@ class _Lowerer:
             assert self.declaring is not None
             self.before.append(f"let mut {L}object: *mut Self = ::core::ptr::null_mut();")
             self.arguments["out_self"] = f"&mut {L}object"
+            self.adopted.append(f"let {L}owned = unsafe {{ crate::Owned::from_raw({L}object) }};")
             return (
                 "crate::Result<crate::Owned<Self>>",
-                [f"unsafe {{ {RUNTIME}::adopt({L}object) }}"],
+                [f"{L}owned.ok_or_else({RUNTIME}::null_object)"],
             )
         spec = plan.result
         if spec is None:
@@ -414,7 +726,55 @@ class _Lowerer:
             return f"crate::Result<{public}>", [f"Ok({L}result)"]
         if isinstance(type_, StringType):
             return self.string_result(type_, spec, public)
+        if isinstance(type_, ContainerType):
+            return self.container_result(type_, spec, public)
         raise Unsupported(f"the result of type '{type_.cpp_spelling}' is not supported in Rust yet")
+
+    def container_result(
+        self, type_: ContainerType, spec: ResultSpec, public: str
+    ) -> tuple[str, list[str]]:
+        """A ``Vec`` (or an array) of copies: the elements that C++ wrote are read, and what C++
+        allocated for them is released."""
+        element = spec.element
+        assert element is not None
+        raw = self.raw_element(element)
+        convert = ""
+        if isinstance(element.type, EnumRef):
+            assert element.enum is not None
+            convert = self.names.enums[element.enum.c_type]
+        if type_.kind is ContainerKind.ARRAY:
+            # The room is Rust's: C++ writes every element when it succeeds.
+            zero = (
+                f"{raw}::zeroed()"
+                if isinstance(element.type, StructRef)
+                else ("::core::default::Default::default()")
+            )
+            length = type_.length
+            self.before.append(f"let mut {L}result: [{raw}; {length}] = [{zero}; {length}];")
+            self.arguments["out_result"] = f"{L}result.as_mut_ptr()"
+            value = f"{L}result.map({convert})" if convert else f"{L}result"
+            return f"crate::Result<{public}>", [f"Ok({value})"]
+        self.before.append(f"let mut {L}result = {RUNTIME}::Array::<{raw}>::new();")
+        self.arguments["out_result"] = f"{L}result.data()"
+        self.arguments["out_result_size"] = f"{L}result.size()"
+        items = f"{L}result.items()"
+        if isinstance(element.type, StringType):
+            value = f"{items}.iter().map(|text| unsafe {{ text.lossy() }}).collect()"
+        elif convert:
+            value = f"{items}.iter().map(|&raw| {convert}(raw)).collect()"
+        else:
+            value = f"{items}.to_vec()"
+        return f"crate::Result<{public}>", [f"Ok({value})"]
+
+    def raw_element(self, element: ElementSpec) -> str:
+        """The type that an element has in the C API: what C++ writes in a result."""
+        type_ = element.type
+        if isinstance(type_, EnumRef):
+            assert element.enum is not None
+            return scalar(element.enum.model.underlying.c_name)
+        if isinstance(type_, StringType):
+            return TEXT
+        return element_type(element, self.names, TEXT)
 
     def object_result(self, ref: ClassRef, spec: ResultSpec) -> tuple[str, list[str]]:
         assert spec.cls is not None
@@ -453,12 +813,13 @@ class _Lowerer:
                 [f"unsafe {{ {L}object.{view}() }}.ok_or_else({RUNTIME}::null_object)"],
             )
         owned = f"crate::Owned<{path}>"
+        self.adopted.append(f"let {L}owned = unsafe {{ crate::Owned::from_raw({L}object) }};")
         if nullable:
             return (
                 f"crate::Result<::core::option::Option<{owned}>>",
-                [f"Ok(unsafe {{ crate::Owned::from_raw({L}object) }})"],
+                [f"Ok({L}owned)"],
             )
-        return f"crate::Result<{owned}>", [f"unsafe {{ {RUNTIME}::adopt({L}object) }}"]
+        return f"crate::Result<{owned}>", [f"{L}owned.ok_or_else({RUNTIME}::null_object)"]
 
     def string_result(
         self, type_: StringType, spec: ResultSpec, public: str

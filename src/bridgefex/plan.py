@@ -1780,11 +1780,13 @@ class _Builder:
                 data, release = user_data[position], releases[position]
                 assert data is not None
                 assert release is not None
-                lowered.append(
-                    self._lower_callback_param(
-                        (name, data, release, f"_owner{owners}"), type_, location
-                    )
+                words = policy.parameters[position]
+                callback = self._lower_callback_param(
+                    (name, data, release, f"_owner{owners}"), type_, location
                 )
+                # (``nullable``: the callback may be empty; read by a type that is not null.)
+                spec = callback.spec and dataclasses.replace(callback.spec, words=words)
+                lowered.append(dataclasses.replace(callback, words=words, spec=spec))
             else:
                 words = policy.parameters[position]
                 param = self._lower_param(
@@ -1815,6 +1817,11 @@ class _Builder:
             }.get(type_.kind, Kind.STRING)
         if isinstance(type_, CallbackType):
             return Kind.CALLBACK
+        if isinstance(type_, ContainerType):
+            # A span of numbers points to the memory that it is given: C++ may keep it. Every
+            # other container, and a span of the elements that are converted, is a copy.
+            numbers = type_.kind is ContainerKind.SPAN and isinstance(type_.element, ScalarType)
+            return Kind.SPAN if numbers else Kind.COPY
         return Kind.OTHER
 
     def _policy(

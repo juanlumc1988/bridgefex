@@ -244,6 +244,8 @@ class Kind(Enum):
     STRING = "string"
     STRING_VIEW = "std::string_view"
     CALLBACK = "callback"
+    SPAN = "std::span of numbers"
+    COPY = "container that is copied for the call"
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,9 +277,9 @@ _POINTERS = frozenset({Kind.OBJECT_POINTER, Kind.OBJECT_CONST_POINTER})
 _OBJECTS = frozenset({Kind.OBJECT_REFERENCE}) | _POINTERS
 
 _PARAMETER_RULES: dict[str, frozenset[Kind]] = {
-    "nullable": _POINTERS | {Kind.UNIQUE_PTR, Kind.C_STRING},
+    "nullable": _POINTERS | {Kind.UNIQUE_PTR, Kind.C_STRING, Kind.CALLBACK},
     "transfer": frozenset({Kind.OBJECT_POINTER}),
-    "retain": _OBJECTS | {Kind.C_STRING, Kind.STRING_VIEW},
+    "retain": _OBJECTS | {Kind.C_STRING, Kind.STRING_VIEW, Kind.SPAN},
     "call": _OBJECTS,
 }
 _EXCLUSIVE = (
@@ -294,8 +296,11 @@ _HINTS = {
     ("transfer", Kind.UNIQUE_PTR): "a std::unique_ptr always transfers the ownership",
     ("transfer", Kind.OBJECT_CONST_POINTER): "an object that is taken cannot be const",
     ("nullable", Kind.OBJECT_REFERENCE): "a reference is never NULL",
-    ("nullable", Kind.CALLBACK): "a callback may always be None (an empty std::function)",
     ("retain", Kind.CALLBACK): "a callback lives as long as the C++ code holds it",
+    ("retain", Kind.COPY): (
+        "a std::vector or a std::array is copied for the call, and so is a std::span of enums, "
+        "structs or strings: only a std::span of numbers can be kept"
+    ),
     ("retain", Kind.STRING): (
         "a std::string is copied for the call: only a std::string_view or a const char* can be kept"
     ),

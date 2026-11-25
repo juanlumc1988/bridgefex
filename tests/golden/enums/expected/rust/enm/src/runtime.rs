@@ -105,6 +105,20 @@ pub(crate) fn check_enum(value: i128, low: i128, high: i128, name: &str) -> Resu
     }
 }
 
+/// The elements of an enum without a fixed type are all values that its C++ type holds.
+#[allow(dead_code)]
+pub(crate) fn check_enums(
+    values: impl ::core::iter::Iterator<Item = i128>,
+    low: i128,
+    high: i128,
+    name: &str,
+) -> Result<()> {
+    for (index, value) in values.enumerate() {
+        check_enum(value, low, high, &format!("{name}[{index}]"))?;
+    }
+    Ok(())
+}
+
 /// A text as a C string. C++ reads up to the first NUL: a text that has one is refused.
 #[allow(dead_code)]
 pub(crate) fn c_string(text: &str, name: &str) -> Result<::std::ffi::CString> {
@@ -158,6 +172,282 @@ impl Drop for Text {
             unsafe { native::enm_free(self.data.cast()) }
         }
     }
+}
+
+/// A string of an array of strings: its bytes (that may have a NUL) and their number. It is
+/// what C++ passes in the array of a result, and what the bindings pass in the array of a
+/// parameter (a slice of `&str` that lives for the call).
+#[repr(C)]
+#[allow(dead_code)]
+pub(crate) struct NativeText {
+    data: *const ::core::ffi::c_char,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl NativeText {
+    /// The strings of a slice of `&str`, as the array that C++ takes: it points to the text of the
+    /// slice, so it must not outlive it.
+    pub(crate) fn all(texts: &[&str]) -> ::std::vec::Vec<NativeText> {
+        texts
+            .iter()
+            .map(|text| NativeText { data: text.as_ptr().cast(), size: text.len() })
+            .collect()
+    }
+
+    /// The text as UTF-8 (what is not valid is replaced by U+FFFD).
+    ///
+    /// # Safety
+    ///
+    /// `data` must point to `size` bytes that are still there: what C++ wrote in a result that is
+    /// not released yet, or the text that `all` was given.
+    pub(crate) unsafe fn lossy(&self) -> ::std::string::String {
+        let bytes = unsafe { ::core::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
+        ::std::string::String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+/// The array that C++ allocated for a result (a `std::vector` or a `std::span`): its elements are
+/// copied out of it, and it is released when this is dropped.
+#[allow(dead_code)]
+pub(crate) struct Array<T> {
+    data: *mut T,
+    size: usize,
+}
+
+#[allow(dead_code)]
+impl<T> Array<T> {
+    pub(crate) fn new() -> Array<T> {
+        Array { data: ::core::ptr::null_mut(), size: 0 }
+    }
+
+    pub(crate) fn data(&mut self) -> *mut *mut T {
+        &mut self.data
+    }
+
+    pub(crate) fn size(&mut self) -> *mut usize {
+        &mut self.size
+    }
+
+    /// The elements (none if C++ gave a NULL: it did not write the result).
+    pub(crate) fn items(&self) -> &[T] {
+        if self.data.is_null() {
+            return &[];
+        }
+        unsafe { ::core::slice::from_raw_parts(self.data, self.size) }
+    }
+}
+
+impl<T> Drop for Array<T> {
+    fn drop(&mut self) {
+        if !self.data.is_null() {
+            unsafe { native::enm_free(self.data.cast()) }
+        }
+    }
+}
+
+/// The text of a string that C++ gives to a callback (its bytes and their number, which may
+/// be 0 with a NULL pointer). What is not UTF-8 is replaced by U+FFFD.
+///
+/// # Safety
+///
+/// `data` must point to `size` bytes that stay valid while the text is used, if `size` is not 0.
+#[allow(dead_code)]
+pub(crate) unsafe fn text<'a>(
+    data: *const ::core::ffi::c_char,
+    size: usize,
+) -> ::std::borrow::Cow<'a, str> {
+    if size == 0 {
+        return ::std::borrow::Cow::Borrowed("");
+    }
+    ::std::string::String::from_utf8_lossy(unsafe {
+        ::core::slice::from_raw_parts(data.cast::<u8>(), size)
+    })
+}
+
+/// The text of a `const char*` that C++ gives to a callback (`None` for NULL).
+///
+/// # Safety
+///
+/// `data` must be NULL or point to a C string that stays valid while the text is used.
+#[allow(dead_code)]
+pub(crate) unsafe fn c_text<'a>(
+    data: *const ::core::ffi::c_char,
+) -> ::core::option::Option<::std::borrow::Cow<'a, str>> {
+    if data.is_null() {
+        return None;
+    }
+    Some(unsafe { CStr::from_ptr(data) }.to_string_lossy())
+}
+
+/// What a panic of a closure that C++ called is kept in until the call that gave the closure
+/// returns: a panic cannot unwind through C++.
+type Payload = ::std::boxed::Box<dyn ::core::any::Any + Send>;
+
+struct ScopeState {
+    open: bool,
+    panic: Option<Payload>,
+}
+
+/// The call that gave closures to C++, for the panics of those: the first one is kept and the
+/// call raises it again when C++ returns, and no closure of the call runs after it. A panic
+/// that happens when the call has returned (a closure that C++ kept) has nobody to raise it:
+/// the panic hook has shown it, and it is dropped.
+#[allow(dead_code)]
+pub(crate) struct Scope {
+    state: ::std::sync::Mutex<ScopeState>,
+}
+
+#[allow(dead_code)]
+impl Scope {
+    pub(crate) fn new() -> ::std::sync::Arc<Scope> {
+        ::std::sync::Arc::new(Scope {
+            state: ::std::sync::Mutex::new(ScopeState { open: true, panic: None }),
+        })
+    }
+
+    fn lock(&self) -> ::std::sync::MutexGuard<'_, ScopeState> {
+        self.state.lock().unwrap_or_else(::std::sync::PoisonError::into_inner)
+    }
+
+    /// C++ returned: the first panic of a closure, if there was one. Later panics are lost.
+    pub(crate) fn finish(&self) -> Option<Payload> {
+        let mut state = self.lock();
+        state.open = false;
+        state.panic.take()
+    }
+}
+
+/// Runs what C++ cannot be unwound through: a panic of it is dropped, and so is one of the drop of
+/// that panic (a payload that panics when it is dropped, with another one that does too: a few
+/// turns, and then it is forgotten, which leaks it, rather than looping for ever).
+#[allow(dead_code)]
+fn contain(work: impl FnOnce()) {
+    let Err(first) = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(work)) else {
+        return;
+    };
+    let mut pending = Some(first);
+    for _ in 0..8 {
+        let Some(payload) = pending.take() else {
+            return;
+        };
+        let dropped = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| drop(payload)));
+        if let Err(next) = dropped {
+            pending = Some(next);
+        }
+    }
+    if let Some(payload) = pending {
+        ::core::mem::forget(payload);
+    }
+}
+
+/// A closure that C++ holds (`user_data` of a callback), with the call that gave it. C++ may
+/// release it (destroy its last `std::function`) while the closure runs, when the closure
+/// replaces the handler that it is: the registration is shared, and a call holds it for as long
+/// as it runs the closure.
+#[allow(dead_code)]
+pub(crate) struct Registration<F> {
+    function: F,
+    scope: ::std::sync::Arc<Scope>,
+}
+
+/// The registration that a call of C++ is running: it keeps the closure alive until the call
+/// ends, whatever C++ does meanwhile. A closure whose captures panic when dropped (the last
+/// owner may be this) cannot take C++ down.
+#[allow(dead_code)]
+pub(crate) struct Running<F>(Option<::std::sync::Arc<Registration<F>>>);
+
+#[allow(dead_code)]
+impl<F> Registration<F> {
+    /// The closure as the `user_data` of a callback: `release` frees it.
+    pub(crate) fn into_raw(
+        function: F,
+        scope: &::std::sync::Arc<Scope>,
+    ) -> *mut ::core::ffi::c_void {
+        let registration = Registration { function, scope: ::std::sync::Arc::clone(scope) };
+        ::std::sync::Arc::into_raw(::std::sync::Arc::new(registration)).cast_mut().cast()
+    }
+
+    /// The closure of a `user_data`, held until the result is dropped.
+    ///
+    /// # Safety
+    ///
+    /// `data` is the `user_data` that `into_raw` gave, and `release` was not called with it
+    /// (C++ calls the callback with a copy that it holds, so the count of `release` is not 0).
+    pub(crate) unsafe fn from_raw(data: *mut ::core::ffi::c_void) -> Running<F> {
+        let pointer = data.cast_const().cast::<Registration<F>>();
+        unsafe { ::std::sync::Arc::increment_strong_count(pointer) };
+        Running(Some(unsafe { ::std::sync::Arc::from_raw(pointer) }))
+    }
+}
+
+impl<F> Drop for Running<F> {
+    fn drop(&mut self) {
+        if let Some(registration) = self.0.take() {
+            contain(|| drop(registration));
+        }
+    }
+}
+
+#[allow(dead_code)]
+impl<F> Running<F> {
+    /// Runs the closure unless a closure of the call panicked: its panic is kept (C++ cannot be
+    /// unwound) and `None` is what C++ gets, the default result.
+    pub(crate) fn run<T>(&self, call: impl FnOnce(&F) -> T) -> Option<T> {
+        let registration = self.0.as_ref().expect("a registration that runs is not released");
+        {
+            let state = registration.scope.lock();
+            if state.panic.is_some() {
+                return None;
+            }
+        }
+        match ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
+            call(&registration.function)
+        })) {
+            Ok(value) => Some(value),
+            Err(payload) => {
+                let mut state = registration.scope.lock();
+                if state.open && state.panic.is_none() {
+                    state.panic = Some(payload);
+                } else {
+                    drop(state);
+                    // The payload may panic when it is dropped: that is no one's either.
+                    contain(|| drop(payload));
+                }
+                None
+            }
+        }
+    }
+}
+
+/// What a callback is for C: the function, its `user_data` and the function that releases it.
+/// All NULL is an empty `std::function`.
+#[allow(dead_code)]
+pub(crate) struct Registered<C> {
+    pub(crate) call: Option<C>,
+    pub(crate) data: *mut ::core::ffi::c_void,
+    pub(crate) release: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void)>,
+}
+
+#[allow(dead_code)]
+impl<C> Registered<C> {
+    pub(crate) fn none() -> Registered<C> {
+        Registered { call: None, data: ::core::ptr::null_mut(), release: None }
+    }
+}
+
+/// C++ no longer holds the closure: drops its count (the closure itself goes when no call is
+/// running it; a panic of its drop cannot go on to C++).
+///
+/// # Safety
+///
+/// `data` is the `user_data` that `Registration::into_raw` gave, and it is released once.
+#[allow(dead_code)]
+pub(crate) unsafe extern "C" fn release<F>(data: *mut ::core::ffi::c_void) {
+    let registration = unsafe {
+        ::std::sync::Arc::from_raw(data.cast_const().cast::<Registration<F>>())
+    };
+    contain(|| drop(registration));
 }
 
 const FINGERPRINT: &str = "6a8e0607ce2c5a54c8bcf39460e4a8d8";
@@ -239,12 +529,6 @@ impl<T: Class> Owned<T> {
 #[allow(dead_code)]
 pub(crate) fn null_object() -> Error {
     Error::new(ErrorKind::NullArgument, "the C layer gave a NULL object")
-}
-
-/// The object that a C function made (and that Rust owns from now on).
-#[allow(dead_code)]
-pub(crate) unsafe fn adopt<T: Class>(object: *mut T) -> Result<Owned<T>> {
-    unsafe { Owned::from_raw(object) }.ok_or_else(null_object)
 }
 
 impl<T: Class> Drop for Owned<T> {

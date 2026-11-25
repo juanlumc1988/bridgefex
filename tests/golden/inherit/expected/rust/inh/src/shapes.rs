@@ -27,8 +27,9 @@ impl Circle {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Circle_create(&mut __object, radius) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string inh::Circle::name() const`
@@ -124,8 +125,9 @@ impl Square {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Square_create(&mut __object, side) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string inh::Square::name() const`
@@ -212,8 +214,9 @@ impl Ring {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Ring_create(&mut __object, outer, inner) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string inh::Ring::name() const`
@@ -266,8 +269,9 @@ pub fn make_shape(
     crate::runtime::ensure()?;
     let mut __object: *mut crate::shape::Shape = ::core::ptr::null_mut();
     let __status = unsafe { crate::native::inh_make_shape(kind, size, &mut __object) };
+    let __owned = unsafe { crate::Owned::from_raw(__object) };
     crate::runtime::check(__status)?;
-    Ok(unsafe { crate::Owned::from_raw(__object) })
+    Ok(__owned)
 }
 
 /// `double inh::total_area(const inh::Shape& first, const inh::Shape& second)`

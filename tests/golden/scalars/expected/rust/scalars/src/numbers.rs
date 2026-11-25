@@ -27,8 +27,9 @@ impl Accumulator {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::scalars_Accumulator_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void Accumulator::push(double value)`

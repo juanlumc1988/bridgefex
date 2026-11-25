@@ -27,8 +27,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Tree::sum(const own::Node& a, const own::Node& b) const`
@@ -183,8 +184,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::node::Item = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_detach(self, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 
     /// `void own::Tree::adoptRaw(own::Item* item)`
@@ -377,8 +379,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::node::Node = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_makeNode(self, value, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `own::Node own::Tree::makeChecked(int32_t value) const`
@@ -386,8 +389,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::node::Node = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_makeChecked(self, value, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `own::Item own::Tree::makeItem(int32_t id) const`
@@ -395,8 +399,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::node::Item = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_makeItem(self, id, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::unique_ptr<own::Item> own::Tree::makeUnique(int32_t id, bool make) const`
@@ -408,8 +413,9 @@ impl Tree {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::node::Item = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Tree_makeUnique(self, id, make, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 
     /// `own::Node& own::Tree::root()`
@@ -457,8 +463,9 @@ impl Tree {
                 &mut __object,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 
     /// `own::Node own::Tree::slowNode(int32_t value, int32_t milliseconds) const`
@@ -477,8 +484,9 @@ impl Tree {
                 &mut __object,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 }
 
@@ -511,8 +519,9 @@ impl Driver {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Driver_create(&mut __object, node) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Driver::read() const`
@@ -559,8 +568,9 @@ impl Pair {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Pair_create(&mut __object, first, second) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Pair::sum() const`
@@ -607,8 +617,9 @@ impl Pipeline {
                 crate::Owned::into_raw(first),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `own::Pipeline::Pipeline(std::unique_ptr<own::Item> first, int32_t minimum)`
@@ -625,8 +636,9 @@ impl Pipeline {
                 minimum,
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Pipeline::firstId() const`
@@ -666,8 +678,9 @@ impl Box {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Box_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void own::Box::put(std::unique_ptr<own::Tree> tree)`
@@ -685,8 +698,9 @@ impl Box {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::tree::Tree = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Box_pop(self, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 }
 
@@ -717,8 +731,9 @@ impl Peek {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Peek_create(&mut __object, node) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Peek::seen() const`
@@ -736,8 +751,9 @@ pub fn twin(node: &crate::node::Node) -> crate::Result<crate::Owned<crate::node:
     crate::runtime::ensure()?;
     let mut __object: *mut crate::node::Node = ::core::ptr::null_mut();
     let __status = unsafe { crate::native::own_twin(node, &mut __object) };
+    let __owned = unsafe { crate::Owned::from_raw(__object) };
     crate::runtime::check(__status)?;
-    unsafe { crate::runtime::adopt(__object) }
+    __owned.ok_or_else(crate::runtime::null_object)
 }
 
 /// `own::Node& own::pick(own::Node& first, own::Node& second, bool useSecond)`

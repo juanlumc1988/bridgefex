@@ -36,6 +36,8 @@ class Site:
     arguments: dict[str, str]
     names: Names
     free_function: str
+    kept: list[str]
+    """Where a copy that the object that keeps it holds is told (see ``KeptText``)."""
 
 
 def public_param(spec: ParamSpec, names: Names) -> str:
@@ -68,7 +70,11 @@ def param(spec: ParamSpec, type_: ContainerType, position: int, name: str, site:
         if spec.size is None:
             raise AssertionError(f"the container '{spec.name}' has no size parameter")
         arguments[spec.size] = f"(nuint){name}.Length"
-    arguments[spec.name] = _pointer(spec, element, position, name, body)
+    if "retain" in spec.words:
+        arguments[spec.name] = _kept(element, position, name, body)
+        site.kept.append(f"{L}k{position}")
+    else:
+        arguments[spec.name] = _pointer(spec, element, position, name, body)
 
 
 def _pointer(spec: ParamSpec, element: Element, position: int, name: str, body: Emitter) -> str:
@@ -97,6 +103,25 @@ def _pointer(spec: ParamSpec, element: Element, position: int, name: str, body: 
         body.add(f"    {block}.Pointer[{L}i] = {value};")
     body.add("}")
     return f"{block}.Pointer"
+
+
+def _kept(element: Element, position: int, name: str, body: Emitter) -> str:
+    """A span that C++ keeps a pointer to: a copy in native memory that the object that keeps it
+    holds (a managed array can move, and the memory of the call is gone when it returns)."""
+    kept = f"{L}k{position}"
+    native = element.native
+    body.add(f"KeptText {kept} = new KeptText((nuint){name}.Length * (nuint)sizeof({native}));")
+    if element.kind in ("plain", "bool"):
+        span = f"new global::System.Span<{element.public}>({kept}.Pointer, {name}.Length)"
+        body.add(f"{name}.CopyTo({span});")
+    else:
+        # A C long (32 bits where C# has 64): one by one.
+        body.add(f"for (int {L}i = 0; {L}i < {name}.Length; {L}i++)")
+        body.add("{")
+        value = element.to_native.replace("{}", f"{name}[{L}i]")
+        body.add(f"    (({native}*){kept}.Pointer)[{L}i] = {value};")
+        body.add("}")
+    return f"({native}*){kept}.Pointer"
 
 
 def _check_range(element: Element, c_name: str, name: str, body: Emitter) -> None:

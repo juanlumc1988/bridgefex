@@ -27,8 +27,9 @@ impl Node {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Node_create(&mut __object, value) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Node::value() const`
@@ -103,8 +104,9 @@ impl Item {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::own_Item_create(&mut __object, id) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t own::Item::id() const`

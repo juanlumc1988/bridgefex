@@ -27,8 +27,9 @@ impl Gate {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Gate_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::unique_ptr<keep::Latch> keep::Gate::latch()`
@@ -40,8 +41,9 @@ impl Gate {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::kept::Latch = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Gate_latch(self, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 
     /// `void keep::Gate::pin()`
@@ -111,8 +113,9 @@ impl Latch {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Latch_create(&mut __object, gate, number) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `bool keep::Latch::open() const`
@@ -170,8 +173,9 @@ impl Label {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Label_create_void(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `keep::Label::Label(const char* title)`
@@ -186,8 +190,9 @@ impl Label {
                 title.as_ptr(),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `keep::Label::Label(std::string_view title)`
@@ -203,8 +208,9 @@ impl Label {
                 title.len(),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void keep::Label::setRaw(const char* text)`
@@ -362,8 +368,9 @@ impl Pen {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Pen_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::unique_ptr<keep::Stamp> keep::Pen::stamp()`
@@ -375,8 +382,9 @@ impl Pen {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::kept::Stamp = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Pen_stamp(self, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 
     /// `void keep::Pen::note(const char* text)`
@@ -453,8 +461,9 @@ impl Stamp {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::keep_Stamp_create(&mut __object, pen) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `bool keep::Stamp::open() const`

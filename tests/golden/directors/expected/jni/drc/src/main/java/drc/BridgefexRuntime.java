@@ -352,6 +352,22 @@ public final class BridgefexRuntime {
         return memory;
     }
 
+    /**
+     * Zeroed memory of its own, for a span that C++ keeps a pointer to: it lives as long as something refers to it
+     * (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static BridgefexSegment keptMemory(long size) {
+        ensureLoaded();
+        if (size > Integer.MAX_VALUE - 16L) {
+            throw new java.lang.IllegalArgumentException("a span of " + size + " bytes is more than JNI holds");
+        }
+        java.nio.ByteBuffer own = java.nio.ByteBuffer.allocateDirect((int) Math.max(size, 1L) + 8)
+            .order(java.nio.ByteOrder.nativeOrder());
+        long base = BridgefexNative.addressOf(own);
+        int shift = (int) (((base + 7) / 8 * 8) - base);
+        return new BridgefexSegment(own, shift, base + shift, Math.max(size, 1L));
+    }
+
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */
     public static BridgefexSegment bytes(BridgefexArena arena, byte[] bytes) {
         BridgefexSegment memory = arena.allocate(bytes.length + 1L);

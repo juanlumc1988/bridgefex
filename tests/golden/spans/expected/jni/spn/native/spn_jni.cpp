@@ -88,6 +88,104 @@ jint JNICALL glue_views_total(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong
     return static_cast<jint>(views_total((const spn_string*) static_cast<uintptr_t>(a0), (size_t) a1, (size_t*) static_cast<uintptr_t>(a2)));
 }
 
+jint JNICALL glue_views_Ledger_create(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_create((views_Ledger**) static_cast<uintptr_t>(a0), (const int32_t*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+void JNICALL glue_views_Ledger_destroy(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    views_Ledger_destroy((views_Ledger*) static_cast<uintptr_t>(a0));
+}
+
+jint JNICALL glue_views_Ledger_add(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_add((views_Ledger*) static_cast<uintptr_t>(a0), (const int32_t*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_views_Ledger_addDoubles(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_addDoubles((views_Ledger*) static_cast<uintptr_t>(a0), (const double*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_views_Ledger_addFlags(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_addFlags((views_Ledger*) static_cast<uintptr_t>(a0), (const bool*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_views_Ledger_addLongs(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_addLongs((views_Ledger*) static_cast<uintptr_t>(a0), (const long*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_views_Ledger_addCopy(JNIEnv* env, jclass cls, jlong a0, jlong a1, jlong a2)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_addCopy((views_Ledger*) static_cast<uintptr_t>(a0), (const int32_t*) static_cast<uintptr_t>(a1), (size_t) a2));
+}
+
+jint JNICALL glue_views_Ledger_intact(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_intact((const views_Ledger*) static_cast<uintptr_t>(a0), (bool*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_views_Ledger_total(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_total((const views_Ledger*) static_cast<uintptr_t>(a0), (int64_t*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_views_Ledger_kept(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_kept((const views_Ledger*) static_cast<uintptr_t>(a0), (int32_t*) static_cast<uintptr_t>(a1)));
+}
+
+jint JNICALL glue_views_Ledger_pin(JNIEnv* env, jclass cls, jlong a0, jlong a1)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_pin((const int32_t*) static_cast<uintptr_t>(a0), (size_t) a1));
+}
+
+jint JNICALL glue_views_Ledger_keptIntact(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_keptIntact((bool*) static_cast<uintptr_t>(a0)));
+}
+
+jint JNICALL glue_views_Ledger_scribble(JNIEnv* env, jclass cls)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_scribble());
+}
+
+jint JNICALL glue_views_Ledger_badDestructions(JNIEnv* env, jclass cls, jlong a0)
+{
+    (void) env;
+    (void) cls;
+    return static_cast<jint>(views_Ledger_badDestructions((int32_t*) static_cast<uintptr_t>(a0)));
+}
+
 // What the runtime of the bindings needs: the address of a direct buffer, the length of a C string,
 // a copy of memory of C++, and the sizes that the layouts of the bindings were made with.
 void throw_new(JNIEnv* env, const char* type, const char* message)
@@ -182,6 +280,20 @@ extern "C" JNIEXPORT jint bridgefex_spn_jni_register(JNIEnv* env)
         {const_cast<char*>("n_views_count_red"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_count_red)},
         {const_cast<char*>("n_views_sum_x"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_sum_x)},
         {const_cast<char*>("n_views_total"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_total)},
+        {const_cast<char*>("n_views_Ledger_create"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_create)},
+        {const_cast<char*>("n_views_Ledger_destroy"), const_cast<char*>("(J)V"), reinterpret_cast<void*>(glue_views_Ledger_destroy)},
+        {const_cast<char*>("n_views_Ledger_add"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_add)},
+        {const_cast<char*>("n_views_Ledger_addDoubles"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_addDoubles)},
+        {const_cast<char*>("n_views_Ledger_addFlags"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_addFlags)},
+        {const_cast<char*>("n_views_Ledger_addLongs"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_addLongs)},
+        {const_cast<char*>("n_views_Ledger_addCopy"), const_cast<char*>("(JJJ)I"), reinterpret_cast<void*>(glue_views_Ledger_addCopy)},
+        {const_cast<char*>("n_views_Ledger_intact"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_views_Ledger_intact)},
+        {const_cast<char*>("n_views_Ledger_total"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_views_Ledger_total)},
+        {const_cast<char*>("n_views_Ledger_kept"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_views_Ledger_kept)},
+        {const_cast<char*>("n_views_Ledger_pin"), const_cast<char*>("(JJ)I"), reinterpret_cast<void*>(glue_views_Ledger_pin)},
+        {const_cast<char*>("n_views_Ledger_keptIntact"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_views_Ledger_keptIntact)},
+        {const_cast<char*>("n_views_Ledger_scribble"), const_cast<char*>("()I"), reinterpret_cast<void*>(glue_views_Ledger_scribble)},
+        {const_cast<char*>("n_views_Ledger_badDestructions"), const_cast<char*>("(J)I"), reinterpret_cast<void*>(glue_views_Ledger_badDestructions)},
     };
     // One at a time: bindings that lack a function that this library has (or the other way round) are
     // told apart by the check of the C API when the library is loaded, not by a method that is not

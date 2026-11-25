@@ -1176,3 +1176,14 @@ def test_throw_nothing_is_noexcept(tmp_path: Path) -> None:
     a, b = (method for method in cls.methods)
     assert a.is_noexcept
     assert not b.is_noexcept
+
+
+def test_the_stl_of_the_newest_visual_studio_is_told_about_the_libclang_that_parses_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Its yvals_core.h asserts a Clang newer than the libclang that is loaded: on Windows the
+    parse says that the mismatch is known (the macro is the documented switch for it)."""
+    monkeypatch.setattr("sys.platform", "win32")
+    assert "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" in ParseOptions().clang_args()
+    monkeypatch.setattr("sys.platform", "linux")
+    assert "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH" not in ParseOptions().clang_args()

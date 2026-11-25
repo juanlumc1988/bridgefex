@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: Apache-2.0
+# A callback may always be empty (None, null) in the bindings that have a null; in Rust it is an
+# `Option` of a closure only where the annotation says it may be (the others take a closure).
+
+[ev_prefixed]
+f = "nullable"
+
+[ev_is_empty]
+f = "nullable"
+
+[ev_set_log_handler]
+handler = "nullable"
+
+[ev_store_and_sleep]
+handler = "nullable"
+
+[ev_Timer_set_on_tick]
+on_tick = "nullable"

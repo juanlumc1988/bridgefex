@@ -14,6 +14,7 @@ __all__ = [
     "count_red",
     "sum_x",
     "total",
+    "Ledger",
 ]
 
 Color = _types.views_Color
@@ -44,6 +45,34 @@ def _bind():
             lib.views_sum_x.restype = _runtime.Status
             lib.views_total.argtypes = [ctypes.POINTER(_runtime.StringIn), ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
             lib.views_total.restype = _runtime.Status
+            lib.views_Ledger_create.argtypes = [ctypes.POINTER(_types._views_Ledger__p), ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t]
+            lib.views_Ledger_create.restype = _runtime.Status
+            lib.views_Ledger_destroy.argtypes = [_types._views_Ledger__p]
+            lib.views_Ledger_destroy.restype = None
+            lib.views_Ledger_add.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t]
+            lib.views_Ledger_add.restype = _runtime.Status
+            lib.views_Ledger_addDoubles.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_double), ctypes.c_size_t]
+            lib.views_Ledger_addDoubles.restype = _runtime.Status
+            lib.views_Ledger_addFlags.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_bool), ctypes.c_size_t]
+            lib.views_Ledger_addFlags.restype = _runtime.Status
+            lib.views_Ledger_addLongs.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_long), ctypes.c_size_t]
+            lib.views_Ledger_addLongs.restype = _runtime.Status
+            lib.views_Ledger_addCopy.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t]
+            lib.views_Ledger_addCopy.restype = _runtime.Status
+            lib.views_Ledger_intact.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_bool)]
+            lib.views_Ledger_intact.restype = _runtime.Status
+            lib.views_Ledger_total.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_int64)]
+            lib.views_Ledger_total.restype = _runtime.Status
+            lib.views_Ledger_kept.argtypes = [_types._views_Ledger__p, ctypes.POINTER(ctypes.c_int32)]
+            lib.views_Ledger_kept.restype = _runtime.Status
+            lib.views_Ledger_pin.argtypes = [ctypes.POINTER(ctypes.c_int32), ctypes.c_size_t]
+            lib.views_Ledger_pin.restype = _runtime.Status
+            lib.views_Ledger_keptIntact.argtypes = [ctypes.POINTER(ctypes.c_bool)]
+            lib.views_Ledger_keptIntact.restype = _runtime.Status
+            lib.views_Ledger_scribble.argtypes = []
+            lib.views_Ledger_scribble.restype = _runtime.Status
+            lib.views_Ledger_badDestructions.argtypes = [ctypes.POINTER(ctypes.c_int32)]
+            lib.views_Ledger_badDestructions.restype = _runtime.Status
             _lib = lib
     return _lib
 
@@ -95,3 +124,204 @@ def total(words):
     words_size = _builtins.len(words)
     _runtime.check(_bind().views_total(words, words_size, _out))
     return _out.value
+
+
+class Ledger(_runtime.Object):
+    """Wraps ``views::Ledger``.
+
+    The C++ object is destroyed by close(), at the end of a ``with`` block or
+    when this object is garbage collected, whichever comes first. Objects still
+    alive when the interpreter exits are not destroyed. An object obtained by
+    reference or pointer (borrowed) is never destroyed by Python: it stays usable
+    while the objects it was obtained from are open.
+    """
+
+    __slots__ = ()
+    _cxx_class = "views_Ledger"
+
+    def __init__(self, first):
+        """Wraps ``views::Ledger::Ledger(std::span<const int32_t> first)``."""
+        if _builtins.getattr(self, "_owned", None) is not None:
+            raise _builtins.TypeError("Ledger object is already initialized")
+        first = _runtime.to_array(first, ctypes.c_int32, "first", _runtime.check_int)
+        first_size = _builtins.len(first)
+        _handle = self._watch()
+        _runtime.retain(self._retained, first)
+        _runtime.check(_bind().views_Ledger_create(_handle, first, first_size))
+        self._adopt(_handle)
+
+    def _watch(self):
+        """Return the handle for a constructor to write, already watched.
+
+        The collection of self destroys the object from the moment the C call
+        writes the handle, before any Python code runs again: a signal raised
+        right after the call does not leak it.
+        """
+        handle = _types._views_Ledger__p()
+        self._handle = None
+        self._owned = []
+        self._owners = ()
+        self._readonly = False
+        # What the C++ object keeps pointers to (see _runtime.retain).
+        self._retained = {}
+        self._finalizer = _runtime.watch(self, handle, _bind().views_Ledger_destroy)
+        return handle
+
+    def _adopt(self, handle):
+        if not handle:
+            raise _builtins.RuntimeError(
+                "views::Ledger: the C layer returned a NULL handle"
+            )
+        self._handle = handle
+        # Whoever pops it destroys the object: close() is safe in several threads.
+        self._owned.append((_bind().views_Ledger_destroy, _types._views_Ledger__p()))
+        _runtime.recover(self._retained, handle)
+
+    def _ptr(self):
+        if not self._owned or self._collected():
+            raise _builtins.ValueError("Ledger object is closed")
+        for owner in self._owners:
+            if not owner._owned or owner._collected():
+                raise _builtins.ValueError(
+                    "Ledger object is no longer valid: an object it was obtained "
+                    "from is closed"
+                )
+        return self._handle
+
+    def _mptr(self):
+        if self._readonly:
+            raise _builtins.TypeError(
+                "Ledger object is read-only: it was obtained through a const "
+                "reference or pointer"
+            )
+        return self._ptr()
+
+
+    def _collected(self):
+        # Cyclic garbage, in a __del__: the collection cleared the reference
+        # and destroyed the object, unless it was disarmed at exit. (A borrowed
+        # object has no finalizer.)
+        armed = self._finalizer
+        return armed is not None and armed() is None and armed._as_parameter_ is self._handle
+
+    def close(self):
+        """Destroy the C++ object now (not if it is borrowed). Calling it again
+        does nothing."""
+        # Only self and builtins: in a __del__ at interpreter exit, the globals
+        # of this module may be gone already.
+        try:
+            destroy, null = self._owned.pop()
+        except (AttributeError, IndexError):
+            return
+        if destroy is None:
+            # Borrowed: the C++ object belongs to another one.
+            self._handle = None
+            return
+        if self._collected():
+            self._handle = None
+            return
+        handle = self._handle
+        self._handle = None
+        # Nothing from here to the destruction checks for signals (no Python
+        # function starts): the collection must not destroy the object again,
+        # and this destruction must not be skipped.
+        self._finalizer._as_parameter_ = null
+        destroy(handle)
+        # What the object kept pointers to may go now, after its destructor. In
+        # place: the objects borrowed from this one share the list (and are
+        # invalid now).
+        self._retained.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def __copy__(self):
+        raise _builtins.TypeError("Ledger objects cannot be copied")
+
+    def __deepcopy__(self, memo):
+        raise _builtins.TypeError("Ledger objects cannot be copied")
+
+    def __reduce__(self):
+        raise _builtins.TypeError("Ledger objects cannot be pickled")
+
+    def add(self, values):
+        """Wraps ``void views::Ledger::add(std::span<const int32_t> values)``."""
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.retain(self._retained, values)
+        _runtime.check(_bind().views_Ledger_add(self._mptr(), values, values_size))
+
+    def addDoubles(self, values):
+        """Wraps ``void views::Ledger::addDoubles(std::span<const double> values)``."""
+        values = _runtime.to_array(values, ctypes.c_double, "values", _runtime.check_float)
+        values_size = _builtins.len(values)
+        _runtime.retain(self._retained, values)
+        _runtime.check(_bind().views_Ledger_addDoubles(self._mptr(), values, values_size))
+
+    def addFlags(self, values):
+        """Wraps ``void views::Ledger::addFlags(std::span<const bool> values)``."""
+        values = _runtime.to_array(values, ctypes.c_bool, "values", _runtime.check_bool)
+        values_size = _builtins.len(values)
+        _runtime.retain(self._retained, values)
+        _runtime.check(_bind().views_Ledger_addFlags(self._mptr(), values, values_size))
+
+    def addLongs(self, values):
+        """Wraps ``void views::Ledger::addLongs(std::span<const long> values)``."""
+        values = _runtime.to_array(values, ctypes.c_long, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.retain(self._retained, values)
+        _runtime.check(_bind().views_Ledger_addLongs(self._mptr(), values, values_size))
+
+    def addCopy(self, values):
+        """Wraps ``void views::Ledger::addCopy(const std::vector<int32_t>& values)``."""
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.check(_bind().views_Ledger_addCopy(self._mptr(), values, values_size))
+
+    def intact(self):
+        """Wraps ``bool views::Ledger::intact() const``."""
+        _out = ctypes.c_bool()
+        _runtime.check(_bind().views_Ledger_intact(self._ptr(), _out))
+        return _out.value
+
+    def total(self):
+        """Wraps ``int64_t views::Ledger::total() const``."""
+        _out = ctypes.c_int64()
+        _runtime.check(_bind().views_Ledger_total(self._ptr(), _out))
+        return _out.value
+
+    def kept(self):
+        """Wraps ``int32_t views::Ledger::kept() const``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().views_Ledger_kept(self._ptr(), _out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def pin(values):
+        """Wraps ``static void views::Ledger::pin(std::span<const int32_t> values)``."""
+        values = _runtime.to_array(values, ctypes.c_int32, "values", _runtime.check_int)
+        values_size = _builtins.len(values)
+        _runtime.retain(_runtime.forever, values)
+        _runtime.check(_bind().views_Ledger_pin(values, values_size))
+
+    @_builtins.staticmethod
+    def keptIntact():
+        """Wraps ``static bool views::Ledger::keptIntact()``."""
+        _out = ctypes.c_bool()
+        _runtime.check(_bind().views_Ledger_keptIntact(_out))
+        return _out.value
+
+    @_builtins.staticmethod
+    def scribble():
+        """Wraps ``static void views::Ledger::scribble()``."""
+        _runtime.check(_bind().views_Ledger_scribble())
+
+    @_builtins.staticmethod
+    def badDestructions():
+        """Wraps ``static int32_t views::Ledger::badDestructions()``."""
+        _out = ctypes.c_int32()
+        _runtime.check(_bind().views_Ledger_badDestructions(_out))
+        return _out.value

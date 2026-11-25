@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "CBX_LIBRARY"
 
-API_FINGERPRINT = "df5d8e9850a7e209709625923e309edc"
+API_FINGERPRINT = "c048ea3096a57e57913ada8e88256c87"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32

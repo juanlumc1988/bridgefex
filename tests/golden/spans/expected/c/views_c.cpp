@@ -55,6 +55,12 @@ static_assert(static_cast<uint8_t>(::views::Color::Red) == views_Color_Red,
 static_assert(static_cast<uint8_t>(::views::Color::Green) == views_Color_Green,
               "views::Color::Green is not views_Color_Green");
 
+#if !defined(__cpp_aligned_new)
+// Before C++17, new ignores alignments larger than the default one.
+static_assert(alignof(::views::Ledger) <= spn_detail::new_alignment,
+              "views::Ledger is over-aligned: compile this file as C++17 or later");
+#endif
+
 extern "C" {
 
 // views::Point(): the value of a default-constructed views::Point
@@ -129,6 +135,158 @@ spn_status views_total(const spn_string* words, size_t words_size, size_t* out_r
         return spn_detail::null_argument("views_total: 'out_result' is NULL");
     }
     return spn_detail::guard([&]() { *out_result = ::views::total(std::span<const std::string>(spn_detail::strings_in<std::vector<std::string>>(words, words_size))); });
+}
+
+// views::Ledger::Ledger(std::span<const int32_t> first)
+spn_status views_Ledger_create(views_Ledger** out_self, const int32_t* first, size_t first_size)
+{
+    if (out_self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_create: 'out_self' is NULL");
+    }
+    *out_self = nullptr;
+    if (first == nullptr && first_size != 0) {
+        return spn_detail::null_argument("views_Ledger_create: 'first' is NULL and 'first_size' is not 0");
+    }
+    return spn_detail::guard([&]() { *out_self = reinterpret_cast<views_Ledger*>(new ::views::Ledger(std::span<const int32_t>(first, first_size))); });
+}
+
+// views::Ledger::~Ledger()
+void views_Ledger_destroy(views_Ledger* self)
+{
+    // A destructor that throws cannot report it here, and last_error is left
+    // alone because a failed call may not have been inspected yet.
+    spn_detail::guard_silently([&]() { delete reinterpret_cast<::views::Ledger*>(self); });
+}
+
+// void views::Ledger::add(std::span<const int32_t> values)
+spn_status views_Ledger_add(views_Ledger* self, const int32_t* values, size_t values_size)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_add: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_add: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { reinterpret_cast<::views::Ledger*>(self)->add(std::span<const int32_t>(values, values_size)); });
+}
+
+// void views::Ledger::addDoubles(std::span<const double> values)
+spn_status views_Ledger_addDoubles(views_Ledger* self, const double* values, size_t values_size)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_addDoubles: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_addDoubles: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { reinterpret_cast<::views::Ledger*>(self)->addDoubles(std::span<const double>(values, values_size)); });
+}
+
+// void views::Ledger::addFlags(std::span<const bool> values)
+spn_status views_Ledger_addFlags(views_Ledger* self, const bool* values, size_t values_size)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_addFlags: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_addFlags: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { reinterpret_cast<::views::Ledger*>(self)->addFlags(std::span<const bool>(values, values_size)); });
+}
+
+// void views::Ledger::addLongs(std::span<const long> values)
+spn_status views_Ledger_addLongs(views_Ledger* self, const long* values, size_t values_size)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_addLongs: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_addLongs: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { reinterpret_cast<::views::Ledger*>(self)->addLongs(std::span<const long>(values, values_size)); });
+}
+
+// void views::Ledger::addCopy(const std::vector<int32_t>& values)
+spn_status views_Ledger_addCopy(views_Ledger* self, const int32_t* values, size_t values_size)
+{
+    static_assert(sizeof(decltype(static_cast<void>(reinterpret_cast<::views::Ledger*>(self)->addCopy(std::vector<int32_t>())))*) != 0,
+                  "'void views::Ledger::addCopy(const std::vector<int32_t>& values)' must accept temporaries: it would keep a dangling reference");
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_addCopy: 'self' is NULL");
+    }
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_addCopy: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { reinterpret_cast<::views::Ledger*>(self)->addCopy(static_cast<const std::vector<int32_t>&>(spn_detail::vector_in<std::vector<int32_t>>(values, values_size))); });
+}
+
+// bool views::Ledger::intact() const
+spn_status views_Ledger_intact(const views_Ledger* self, bool* out_result)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_intact: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return spn_detail::null_argument("views_Ledger_intact: 'out_result' is NULL");
+    }
+    return spn_detail::guard([&]() { *out_result = reinterpret_cast<const ::views::Ledger*>(self)->intact(); });
+}
+
+// int64_t views::Ledger::total() const
+spn_status views_Ledger_total(const views_Ledger* self, int64_t* out_result)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_total: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return spn_detail::null_argument("views_Ledger_total: 'out_result' is NULL");
+    }
+    return spn_detail::guard([&]() { *out_result = reinterpret_cast<const ::views::Ledger*>(self)->total(); });
+}
+
+// int32_t views::Ledger::kept() const
+spn_status views_Ledger_kept(const views_Ledger* self, int32_t* out_result)
+{
+    if (self == nullptr) {
+        return spn_detail::null_argument("views_Ledger_kept: 'self' is NULL");
+    }
+    if (out_result == nullptr) {
+        return spn_detail::null_argument("views_Ledger_kept: 'out_result' is NULL");
+    }
+    return spn_detail::guard([&]() { *out_result = reinterpret_cast<const ::views::Ledger*>(self)->kept(); });
+}
+
+// static void views::Ledger::pin(std::span<const int32_t> values)
+spn_status views_Ledger_pin(const int32_t* values, size_t values_size)
+{
+    if (values == nullptr && values_size != 0) {
+        return spn_detail::null_argument("views_Ledger_pin: 'values' is NULL and 'values_size' is not 0");
+    }
+    return spn_detail::guard([&]() { ::views::Ledger::pin(std::span<const int32_t>(values, values_size)); });
+}
+
+// static bool views::Ledger::keptIntact()
+spn_status views_Ledger_keptIntact(bool* out_result)
+{
+    if (out_result == nullptr) {
+        return spn_detail::null_argument("views_Ledger_keptIntact: 'out_result' is NULL");
+    }
+    return spn_detail::guard([&]() { *out_result = ::views::Ledger::keptIntact(); });
+}
+
+// static void views::Ledger::scribble()
+spn_status views_Ledger_scribble(void)
+{
+    return spn_detail::guard([&]() { ::views::Ledger::scribble(); });
+}
+
+// static int32_t views::Ledger::badDestructions()
+spn_status views_Ledger_badDestructions(int32_t* out_result)
+{
+    if (out_result == nullptr) {
+        return spn_detail::null_argument("views_Ledger_badDestructions: 'out_result' is NULL");
+    }
+    return spn_detail::guard([&]() { *out_result = ::views::Ledger::badDestructions(); });
 }
 
 }  // extern "C"

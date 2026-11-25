@@ -138,7 +138,7 @@ def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, na
     """The statements that make the memory (and the size) that a container goes to C++ as."""
     _checked_length(type_)
     element = element_of(spec.element, lw.names)
-    arena = lw.arena_resource()
+    arena = lw.arena_resource() if "retain" not in spec.words else ""
     lw.lowering.parameters.append(f"{element.annotation}{element.public}[] {name}")
     lw.statements.append(f'{R}.nonNull({name}, "{name}");')
     if type_.kind is ContainerKind.ARRAY:
@@ -158,7 +158,13 @@ def param(lw: _Lowerer, spec: ParamSpec, type_: ContainerType, position: int, na
         lw.arguments[spec.size] = f"(long) {name}.length"
     block = f"{L}c{position}"
     room = f"{element.size} * (long) {name}.length"
-    lw.statements.append(f"{lw.declare(lw.segment)} {block} = {arena}.allocate({room});")
+    if "retain" in spec.words:
+        # A span that C++ keeps a pointer to: memory of its own that the object that keeps it
+        # holds (the memory of the call is gone when the call returns).
+        lw.statements.append(f"{lw.declare(lw.segment)} {block} = {R}.keptMemory({room});")
+        lw.kept_texts.append(block)
+    else:
+        lw.statements.append(f"{lw.declare(lw.segment)} {block} = {arena}.allocate({room});")
     index = f"{L}i"
     lw.statements.append(f"for (int {index} = 0; {index} < {name}.length; {index}++)")
     lw.statements.append("{")

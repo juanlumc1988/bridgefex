@@ -23,7 +23,7 @@ public final class BridgefexRuntime {
     /** The name of the library, without the prefix and the extension of the platform. */
     public static final String LIBRARY = "cbx";
     /** The fingerprint of the C API that these bindings were generated for. */
-    public static final String FINGERPRINT = "df5d8e9850a7e209709625923e309edc";
+    public static final String FINGERPRINT = "c048ea3096a57e57913ada8e88256c87";
     /** The system property that gives the path of the library. */
     public static final String PROPERTY = "cbx.library";
     /** The environment variable that gives the path of the library. */
@@ -350,6 +350,22 @@ public final class BridgefexRuntime {
         BridgefexSegment memory = new BridgefexSegment(own, shift, base + shift, bytes.length + 1L);
         memory.copyFrom(bytes, 0);
         return memory;
+    }
+
+    /**
+     * Zeroed memory of its own, for a span that C++ keeps a pointer to: it lives as long as something refers to it
+     * (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static BridgefexSegment keptMemory(long size) {
+        ensureLoaded();
+        if (size > Integer.MAX_VALUE - 16L) {
+            throw new java.lang.IllegalArgumentException("a span of " + size + " bytes is more than JNI holds");
+        }
+        java.nio.ByteBuffer own = java.nio.ByteBuffer.allocateDirect((int) Math.max(size, 1L) + 8)
+            .order(java.nio.ByteOrder.nativeOrder());
+        long base = BridgefexNative.addressOf(own);
+        int shift = (int) (((base + 7) / 8 * 8) - base);
+        return new BridgefexSegment(own, shift, base + shift, Math.max(size, 1L));
     }
 
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */

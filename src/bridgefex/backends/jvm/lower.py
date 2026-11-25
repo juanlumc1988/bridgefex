@@ -426,7 +426,7 @@ class _Lowerer:
     def param(self, spec: ParamSpec, position: int) -> None:
         type_ = spec.type
         name = self.parameter_names[position - 1]
-        if "retain" in spec.words and not isinstance(type_, StringType):
+        if "retain" in spec.words and isinstance(type_, ClassRef):
             self.retained.append(name)
         if (
             isinstance(type_, ClassRef)

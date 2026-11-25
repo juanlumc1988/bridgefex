@@ -12,8 +12,10 @@ from pathlib import Path
 import pytest
 
 import bridgefex
-from bridgefex.backends.rust import naming
+from bridgefex.backends.rust import lower, mapping, naming
+from bridgefex.backends.rust.mapping import Unsupported
 from bridgefex.errors import GenerationError
+from bridgefex.plan import CParam, Ffi, FfiKind, Role
 from tests.conformance import runner_rust
 
 pytestmark = pytest.mark.usefixtures("libclang_loaded")
@@ -160,23 +162,47 @@ def test_the_build_script_links_the_library_from_the_variables_of_the_module(
 # What is refused ---------------------------------------------------------------------------------
 
 
-def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(tmp_path: Path) -> None:
+def refuse_closures(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Rust has no type for a callback that the plan can give today (an argument that is a class or
+    a container is only for the overrides of a director, which Rust does not have yet): the
+    refusal that a type of the future would get is made by a type that cannot be written."""
+
+    def closure_type(*_: object) -> str:
+        raise Unsupported("a callback that takes 'Widget'")
+
+    monkeypatch.setattr(lower, "closure_type", closure_type)
+
+
+def test_what_the_bindings_do_not_have_yet_is_refused_with_a_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refuse_closures(monkeypatch)
     with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, "#include <vector>\nint f(const std::vector<int>& a);\n")
-    assert "not supported in Rust yet" in str(raised.value)
+        generate(tmp_path, "#include <functional>\nint f(std::function<int ()> a);\n")
+    assert "not supported" not in str(raised.value)
     assert "Rust:" in str(raised.value)
 
 
-def test_what_is_not_supported_yet_says_what_it_is_and_where(tmp_path: Path) -> None:
-    code = "#include <functional>\n#include <vector>\nvoid f(std::function<void ()> done);\n"
+def test_what_is_not_supported_yet_says_what_it_is_and_where(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refuse_closures(monkeypatch)
+    code = "#include <functional>\nvoid f(std::function<void ()> done);\n"
     with pytest.raises(GenerationError) as raised:
         generate(tmp_path, code)
     assert "api.h:" in str(raised.value)
-    assert "a callback (a std::function) is not supported in Rust yet" in str(raised.value)
-    with pytest.raises(GenerationError) as raised:
-        generate(tmp_path, "#include <vector>\nstd::vector<int> make();\n")
-    assert "api.h:" in str(raised.value)
-    assert "a container (std::vector, std::array) or a span is not supported" in str(raised.value)
+    assert "a callback that takes 'Widget'" in str(raised.value)
+
+
+def test_a_c_type_that_the_bindings_do_not_know_is_refused() -> None:
+    with pytest.raises(Unsupported, match="'weird_t' of a callback"):
+        mapping.function_types(
+            CParam("f", "void", Role.INPUT, Ffi(FfiKind.CALLBACK, "k"), function_params="weird_t"),
+            {},
+            {},
+        )
+    with pytest.raises(Unsupported, match="of kind 'status'"):
+        mapping.native_type(CParam("x", "int", Role.INPUT, Ffi(FfiKind.STATUS)), {}, {})
 
 
 def test_two_functions_with_the_same_rust_name_are_refused(tmp_path: Path) -> None:
@@ -689,21 +715,21 @@ def test_the_build_script_links_a_library_again_when_it_is_rebuilt(tmp_path: Pat
     assert "cargo:warning=no library of `bind` in" in build
 
 
-def test_every_declaration_that_is_not_supported_yet_is_reported_once(tmp_path: Path) -> None:
+def test_every_declaration_that_is_not_supported_yet_is_reported_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    refuse_closures(monkeypatch)
     code = """
 #include <functional>
-#include <span>
-#include <vector>
 class Bag {
 public:
     Bag();
     ~Bag();
-    std::vector<int> items() const;
     void each(const std::function<void (int)>& visit);
     int fine() const;
 };
-void spans(std::span<const int> values);
-std::vector<int> make();
+void later(std::function<void ()> done);
+int sum(const std::function<int (int)>& add);
 """
     path = tmp_path / "api.h"
     path.write_text(PRELUDE + code, encoding="utf-8")
@@ -711,8 +737,8 @@ std::vector<int> make();
     with pytest.raises(GenerationError) as raised:
         bridgefex.generate([path], options)
     lines = str(raised.value).splitlines()
-    assert len(lines) == 4, lines
-    for name in ("Bag::items", "Bag::each", "spans", "make"):
+    assert len(lines) == 3, lines
+    for name in ("Bag::each", "later", "sum"):
         assert sum(name in line for line in lines) == 1, (name, lines)
     assert all("api.h:" in line and "Rust:" in line for line in lines)
 
@@ -863,3 +889,183 @@ class Derived : public Other, public Base { public: Derived(); };
     assert "pub fn into_base(self) -> crate::Owned<crate::api::Other>" in api
     assert "pub fn into_base_(self) -> crate::Owned<crate::api::Base>" in api
     assert "pub fn as_base(&self) -> &crate::api::Base" in api
+
+
+# Containers and callbacks -----------------------------------------------------------------------
+
+
+def test_a_container_is_a_slice_that_goes_in_and_a_vec_that_comes_back(
+    tmp_path: Path, cargo: None
+) -> None:
+    code = """
+#include <array>
+#include <vector>
+enum class Color : std::uint8_t { Red, Green };
+enum Level { Low, High };
+struct Point { double x; double y; };
+std::vector<int> scale(const std::vector<int>& values);
+std::vector<bool> invert(const std::vector<bool>& flags);
+std::vector<std::string> upper(const std::vector<std::string>& words);
+std::vector<Color> rotate(const std::vector<Color>& colors);
+std::vector<Level> levels(const std::vector<Level>& values);
+std::vector<Point> shift(std::vector<Point> points);
+std::array<float, 4> twice(const std::array<float, 4>& m);
+std::array<Color, 2> pair(std::array<Color, 2> colors);
+"""
+    api = source(generate(tmp_path, code, verify=True))
+    flat = " ".join(api.split()).replace(", )", ")")
+    assert "pub fn scale( values: &[::core::ffi::c_int]) -> crate::Result<" in flat
+    assert "::std::vec::Vec<::core::ffi::c_int>>" in flat
+    assert "invert(flags: &[bool]) -> crate::Result<::std::vec::Vec<bool>>" in flat
+    assert "pub fn upper(words: &[&str])" in flat
+    assert "::std::vec::Vec<::std::string::String>>" in flat
+    assert "colors: &[crate::api::Color]" in flat
+    assert "pub fn twice(m: &[f32; 4]) -> crate::Result<[f32; 4]>" in flat
+    assert "pub fn pair(colors: &[crate::api::Color; 2])" in flat
+    # An enum without a fixed type is checked, element by element, before the call.
+    assert 'check_enums(values.iter().map(|item| item.0 as i128), 0, 1, "values")?;' in flat
+    # An enum with a fixed type holds every value of its integer: nothing to check.
+    assert api.count("check_enums") == 1
+    # What the call allocated is released by the owner of the array, not by hand.
+    assert "crate::runtime::Array::<" in api
+    assert "native::bind_free" not in api
+
+
+def test_a_callback_is_a_closure_that_c_plus_plus_may_call_from_any_thread(
+    tmp_path: Path, cargo: None
+) -> None:
+    code = """
+#include <functional>
+enum Mode { Off, On };
+struct Point { double x; double y; };
+int sum(int n, std::function<int(int)> f);
+void each(std::function<void(const Point&, const char*, std::string_view)> visit);
+Mode pick(std::function<Mode()> chooser);
+int text(const char* name, std::function<int(int)> f, std::function<void()> done);
+"""
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_text]\ndone = "nullable"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + "#include <string_view>\n" + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++17", languages=("rust",), verify=True, annotations=(annotations,)
+    )
+    api = source(bridgefex.generate([path], options).files)
+    bounds = "::core::marker::Send + ::core::marker::Sync + 'static"
+    int_ = "::core::ffi::c_int"
+    assert f"f: impl ::core::ops::Fn({int_}) -> {int_} + {bounds}," in api
+    assert (
+        "visit: impl ::core::ops::Fn(&crate::api::Point, ::core::option::Option<&str>, &str) + "
+        in api
+    )
+    # A callback that annotations say may be empty is an Option of a closure; the others are not.
+    assert f"done: ::core::option::Option<impl ::core::ops::Fn() + {bounds}>," in api
+    assert api.count("::core::option::Option<impl") == 1
+    # An enum without a fixed type that C++ cannot hold is the failure of the closure.
+    assert "::core::panic!(" in api
+    assert "0..1" in api
+    # Nothing can fail between giving the closures away and the call, and a panic of a closure is
+    # raised before the status is looked at.
+    body = api[api.index("pub fn text(") :]
+    body = body[: body.index("\n}\n")]
+    order = [
+        body.index("c_string(name"),
+        body.index("Scope::new()"),
+        body.index("__register_f(f"),
+        body.index("native::bind_text("),
+        body.index("resume_unwind"),
+        body.index("runtime::check(__status)"),
+    ]
+    assert order == sorted(order), order
+    assert body.count("Scope::new()") == 1
+
+
+def test_a_span_that_c_plus_plus_keeps_is_an_unsafe_function(tmp_path: Path, cargo: None) -> None:
+    """A std::span of numbers points to the memory that it is given: when C++ stores it (the
+    annotations say so with retain), the function is unsafe, as for a text that C++ keeps; the
+    others are safe."""
+    code = """
+#include <span>
+class View {
+public:
+    explicit View(std::span<const int> values);
+    ~View();
+    void reset(std::span<const double> values);
+    void look(std::span<const int> values);
+    static void pin(std::span<const bool> values);
+};
+"""
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text(
+        '[bind_View_create]\nvalues = "retain"\n[bind_View_reset]\nvalues = "retain"\n'
+        '[bind_View_pin]\nvalues = "retain"\n',
+        encoding="utf-8",
+    )
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++20", languages=("rust",), verify=True, annotations=(annotations,)
+    )
+    api = source(bridgefex.generate([path], options).files)
+    assert "pub unsafe fn new(values: &[::core::ffi::c_int])" in " ".join(api.split())
+    assert "pub unsafe fn reset(&mut self, values: &[f64])" in api
+    assert "pub unsafe fn pin(values: &[bool])" in api
+    assert "pub fn look(&mut self, values: &[::core::ffi::c_int])" in api
+    assert (
+        "Unsafe: C++ keeps a pointer to `values`, which must stay valid for as long as `self`"
+        in api
+    )
+    assert "for as long as the new object uses it" in api
+    assert "for as long as the program uses it" in api
+
+
+@pytest.mark.parametrize(
+    ("type_", "what"),
+    [
+        ("const std::vector<int>&", "vector"),
+        ("std::array<int, 3>", "array"),
+        ("std::span<const Color>", "span of enums"),
+        ("std::span<const Point>", "span of structs"),
+        ("std::span<const std::string>", "span of strings"),
+    ],
+)
+def test_a_container_that_is_copied_cannot_be_retained(
+    tmp_path: Path, type_: str, what: str
+) -> None:
+    """Only a span of numbers is the memory of the caller: the others are copies that live for the
+    call, so there is nothing that C++ could keep."""
+    code = (
+        "#include <array>\n#include <span>\n#include <vector>\n"
+        "enum class Color { Red };\nstruct Point { double x; };\n"
+        f"void store({type_} values);\n"
+    )
+    annotations = tmp_path / "ann.toml"
+    annotations.write_text('[bind_store]\nvalues = "retain"\n', encoding="utf-8")
+    path = tmp_path / "api.h"
+    path.write_text(PRELUDE + code, encoding="utf-8")
+    options = bridgefex.Options(
+        "bind", std="c++20", languages=("rust",), verify=False, annotations=(annotations,)
+    )
+    with pytest.raises(GenerationError) as raised:
+        bridgefex.generate([path], options)
+    message = str(raised.value)
+    assert "ann.toml:2" in message, what
+    assert "'retain' does not apply to a" in message
+    assert "only a std::span of numbers can be kept" in message
+
+
+def test_a_callback_does_not_clash_with_the_names_that_the_bindings_use(
+    tmp_path: Path, cargo: None
+) -> None:
+    code = """
+#include <functional>
+struct F { int a; };
+class Registration { public: Registration(); ~Registration(); };
+int call(std::function<int(int)> function, std::function<void()> scope, F data, int out, int value);
+int registered(std::function<int(F)> registration);
+int twin(std::function<int()> f, std::function<int()> _f, std::function<int()> __f);
+"""
+    api = source(generate(tmp_path, code, verify=True))
+    assert "pub fn call(" in api
+    assert "pub fn registered(" in api
+    assert "pub fn twin(" in api

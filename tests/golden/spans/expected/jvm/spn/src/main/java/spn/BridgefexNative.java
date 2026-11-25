@@ -145,4 +145,200 @@ public final class BridgefexNative {
         static final MethodHandle HANDLE = BridgefexRuntime.bind(
             "views_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class, java.lang.foreign.MemorySegment.class));
     }
+
+    public static int views_Ledger_create(java.lang.foreign.MemorySegment p_out_self, java.lang.foreign.MemorySegment p_first, long p_first_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle9.HANDLE.invokeExact(p_out_self, p_first, p_first_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle9 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_create", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static void views_Ledger_destroy(java.lang.foreign.MemorySegment p_self) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            Handle10.HANDLE.invokeExact(p_self);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle10 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_destroy", FunctionDescriptor.ofVoid(BridgefexRuntime.ADDRESS), MethodType.methodType(void.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int views_Ledger_add(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle11.HANDLE.invokeExact(p_self, p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle11 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_add", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_addDoubles(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle12.HANDLE.invokeExact(p_self, p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle12 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_addDoubles", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_addFlags(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle13.HANDLE.invokeExact(p_self, p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle13 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_addFlags", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_addLongs(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle14.HANDLE.invokeExact(p_self, p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle14 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_addLongs", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_addCopy(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle15.HANDLE.invokeExact(p_self, p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle15 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_addCopy", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_intact(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle16.HANDLE.invokeExact(p_self, p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle16 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_intact", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int views_Ledger_total(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle17.HANDLE.invokeExact(p_self, p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle17 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_total", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int views_Ledger_kept(java.lang.foreign.MemorySegment p_self, java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle18.HANDLE.invokeExact(p_self, p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle18 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_kept", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int views_Ledger_pin(java.lang.foreign.MemorySegment p_values, long p_values_size) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle19.HANDLE.invokeExact(p_values, p_values_size);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle19 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_pin", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS, BridgefexRuntime.C_SIZE), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class, long.class));
+    }
+
+    public static int views_Ledger_keptIntact(java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle20.HANDLE.invokeExact(p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle20 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_keptIntact", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
+    }
+
+    public static int views_Ledger_scribble() {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle21.HANDLE.invokeExact();
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle21 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_scribble", FunctionDescriptor.of(BridgefexRuntime.C_INT), MethodType.methodType(int.class));
+    }
+
+    public static int views_Ledger_badDestructions(java.lang.foreign.MemorySegment p_out_result) {
+        try {
+            BridgefexRuntime.ensureLoaded();
+            return (int) Handle22.HANDLE.invokeExact(p_out_result);
+        }
+        catch (Throwable error) {
+            throw BridgefexRuntime.unchecked(error);
+        }
+    }
+    private static final class Handle22 {
+        static final MethodHandle HANDLE = BridgefexRuntime.bind(
+            "views_Ledger_badDestructions", FunctionDescriptor.of(BridgefexRuntime.C_INT, BridgefexRuntime.ADDRESS), MethodType.methodType(int.class, java.lang.foreign.MemorySegment.class));
+    }
 }

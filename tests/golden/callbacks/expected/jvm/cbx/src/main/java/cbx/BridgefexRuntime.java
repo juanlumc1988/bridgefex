@@ -39,7 +39,7 @@ public final class BridgefexRuntime {
     /** The name of the library, without the prefix and the extension of the platform. */
     public static final String LIBRARY = "cbx";
     /** The fingerprint of the C API that these bindings were generated for. */
-    public static final String FINGERPRINT = "df5d8e9850a7e209709625923e309edc";
+    public static final String FINGERPRINT = "c048ea3096a57e57913ada8e88256c87";
     /** The system property that gives the path of the library. */
     public static final String PROPERTY = "cbx.library";
     /** The environment variable that gives the path of the library. */
@@ -364,6 +364,14 @@ public final class BridgefexRuntime {
         MemorySegment memory = Arena.ofAuto().allocate(bytes.length + 1L);
         MemorySegment.copy(bytes, 0, memory, ValueLayout.JAVA_BYTE, 0, bytes.length);
         return memory;
+    }
+
+    /**
+     * Zeroed memory of its own, for a span that C++ keeps a pointer to: it lives as long as something refers to it
+     * (the object that keeps it, see {@code BridgefexKeep}).
+     */
+    public static MemorySegment keptMemory(long size) {
+        return Arena.ofAuto().allocate(Math.max(size, 1L), 8);
     }
 
     /** The bytes as memory that ends with a NUL (the arena zeroes what it allocates). */

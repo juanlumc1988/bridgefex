@@ -15,7 +15,7 @@ import weakref
 
 LIBRARY_ENV_VAR = "SPN_LIBRARY"
 
-API_FINGERPRINT = "6b62d1b48eebc55b4bd1f6f0ce0f48b3"
+API_FINGERPRINT = "0c43d63c1dc51a38640733811c7438d3"
 """Fingerprint of the C API these bindings were generated for."""
 
 Status = ctypes.c_int32

@@ -27,8 +27,9 @@ impl Counter {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Counter_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t inh::Counter::next()`
@@ -77,8 +78,9 @@ impl Labeled {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Labeled_create_void(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `inh::Labeled::Labeled(const std::string& label)`
@@ -92,8 +94,9 @@ impl Labeled {
                 label.len(),
             )
         };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string inh::Labeled::label() const`
@@ -153,8 +156,9 @@ impl Widget {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Widget_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `std::string inh::Widget::label() const`
@@ -244,8 +248,9 @@ impl Tagged {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Tagged_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t inh::Tagged::tag() const`
@@ -287,8 +292,9 @@ impl Observer {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Observer_create(&mut __object, watched) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t inh::Observer::watched() const`
@@ -372,8 +378,9 @@ impl Shelf {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Shelf_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `void inh::Shelf::put(std::unique_ptr<inh::Labeled> item)`
@@ -391,8 +398,9 @@ impl Shelf {
         crate::runtime::ensure()?;
         let mut __object: *mut crate::widget::Observer = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Shelf_pop(self, &mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        Ok(unsafe { crate::Owned::from_raw(__object) })
+        Ok(__owned)
     }
 }
 
@@ -423,8 +431,9 @@ impl Plain {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_Plain_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t inh::Plain::value() const`
@@ -464,8 +473,9 @@ impl PlainDerived {
         crate::runtime::ensure()?;
         let mut __object: *mut Self = ::core::ptr::null_mut();
         let __status = unsafe { crate::native::inh_PlainDerived_create(&mut __object) };
+        let __owned = unsafe { crate::Owned::from_raw(__object) };
         crate::runtime::check(__status)?;
-        unsafe { crate::runtime::adopt(__object) }
+        __owned.ok_or_else(crate::runtime::null_object)
     }
 
     /// `int32_t inh::PlainDerived::extra() const`
