@@ -793,11 +793,15 @@ def test_closures_are_released_once_whatever_happens_to_the_call(
     case = adhoc_case(
         tmp_path / "case",
         "calc",
-        "#include <cstring>\n#include <functional>\n#include <vector>\nnamespace calc {\n"
+        "#include <cstring>\n#include <functional>\n#include <stdexcept>\n#include <vector>\n"
+        "namespace calc {\n"
         "int pair(std::function<int()> first, std::function<int()> second);\n"
+        "int then_fail(std::function<int()> f);\n"
         "int text(const char* name, std::function<int(int)> f);\n"
         "std::vector<int> each(const std::vector<int>& values, std::function<int(int)> f);\n}\n",
         "namespace calc {\n"
+        "int then_fail(std::function<int()> f) {\n    f();\n"
+        '    throw std::runtime_error("c++");\n}\n'
         "int pair(std::function<int()> first, std::function<int()> second) {\n"
         "    return first() * 10 + second();\n}\n"
         "int text(const char* name, std::function<int(int)> f) {\n"
@@ -809,7 +813,7 @@ def test_closures_are_released_once_whatever_happens_to_the_call(
     )
     library, output = build(case, toolchain, tmp_path / "build")
     program = """\
-use calc::calc::{each, pair, text};
+use calc::calc::{each, pair, text, then_fail};
 use calc::ErrorKind;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -854,6 +858,17 @@ fn main() -> calc::Result<()> {
     assert_eq!((ran.load(Ordering::SeqCst), live.load(Ordering::SeqCst)), (0, 0));
     let held = Held::new(&live);
     assert_eq!(text("abc", move |length| { let _ = &held; length * 2 })?, 6);
+    assert_eq!(live.load(Ordering::SeqCst), 0);
+
+    // C++ fails after it ran a closure that panicked: the panic is what the call raises, as the
+    // documentation says; without a panic the failure of C++ is the error.
+    let (held, other) = (Held::new(&live), Held::new(&live));
+    let raised = catch_unwind(AssertUnwindSafe(|| {
+        then_fail(move || { let _ = &held; panic!("first") })
+    }));
+    assert_eq!(*raised.expect_err("a panic").downcast_ref::<&str>().unwrap(), "first");
+    let error = then_fail(move || { let _ = &other; 1 }).expect_err("C++ throws");
+    assert_eq!(error.kind(), ErrorKind::Exception);
     assert_eq!(live.load(Ordering::SeqCst), 0);
 
     // A vector in and a vector out, beside a closure.
